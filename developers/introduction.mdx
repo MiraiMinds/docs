@@ -1,0 +1,54 @@
+---
+title: Developer Introduction
+description: Get started with the Voice Agents API to build programmatic voice interactions.
+---
+
+Welcome to the Voice Agents Developer Hub. Our API allows you to programmatically trigger voice calls, manage agents, and integrate voice capabilities directly into your applications.
+
+## Base URL
+
+All API requests should be made to:
+
+```bash
+https://api.voice-agents.miraiminds.co/v1
+```
+
+## Authentication
+
+We use a workspace and organization-based authentication system. Every request to the API must include the following headers to identify your account:
+
+| Header | Description |
+| :--- | :--- |
+| `workspace` | Your unique workspace identifier (e.g., `68d63c242cd956c2bb41cd3a`) |
+| `organization` | Your organization identifier (e.g., `68d63c242cd956c2bb41cd12`) |
+| `Authorization` | Your Bearer token (e.g., `Bearer eyJhbGciOiJIUzI1Ni...`) |
+
+<Note>
+  To get your Organization ID, Workspace ID, and Authorization Token, please contact [sneh@miraiminds.co](mailto:sneh@miraiminds.co).
+</Note>
+
+## Quick Start
+
+<Steps>
+  <Step title="Get your Credentials">
+    Contact [sneh@miraiminds.co](mailto:sneh@miraiminds.co) to obtain your `workspace`, `organization`, and `Authorization` token.
+  </Step>
+
+  <Step title="Choose an Assistant">
+    Identify the `assistant_id` of the voice agent you want to trigger.
+  </Step>
+
+  <Step title="Make your first Call">
+    Use our [Make a Call](/developers/make-a-call) endpoint to trigger an outbound call immediately.
+  </Step>
+</Steps>
+
+## Common Error Codes
+
+| Code | Meaning |
+| :--- | :--- |
+| `200` | Success |
+| `400` | Bad Request (Check your JSON body) |
+| `401` | Unauthorized (Check your workspace/org headers) |
+| `429` | Rate Limit Exceeded |
+| `500` | Internal Server Error |

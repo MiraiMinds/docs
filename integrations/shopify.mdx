@@ -1,0 +1,147 @@
+---
+title: Shopify Integration
+description: Connect your Shopify store to enable voice agents for customer support, order management, and automated sales assistance.
+---
+
+## Overview
+
+Voice Agents seamlessly integrates with Shopify to provide intelligent customer support, order tracking, inventory inquiries, and sales assistance. Your customers can interact naturally with voice agents to check order status, find products, apply discounts, and get instant support.
+
+<CardGroup cols={2}>
+  <Card title="Order Management" icon="document">
+    Voice agents can check order status, process returns, and handle shipping
+    inquiries automatically.
+  </Card>
+  <Card title="Product Assistance" icon="puzzle">
+    Help customers find products, check inventory, and provide detailed product
+    information through voice.
+  </Card>
+  <Card title="Customer Support" icon="comment">
+    Handle common support requests like account issues, discount codes, and
+    general store policies.
+  </Card>
+  <Card title="Sales Automation" icon="star">
+    Upsell, cross-sell, and guide customers through the purchase process with
+    intelligent recommendations.
+  </Card>
+</CardGroup>
+
+## Required Permissions
+
+Your voice agent needs specific Shopify API permissions to function effectively:
+
+### Essential Scopes
+
+- **`read_customers`** - Access customer information for personalized support
+- **`read_products`** - Provide product details and inventory status
+- **`read_orders`** - Check order status and history
+- **`write_orders`** - Process order modifications and cancellations
+- **`read_discounts`** - Apply available discount codes
+- **`write_discounts`** - Create promotional codes for customers
+
+### Optional Scopes (based on your use case)
+
+- **`read_inventory`** - Real-time inventory checking
+- **`read_shipping`** - Shipping rate calculations
+- **`write_customers`** - Update customer information
+- **`read_returns`** - Handle return requests
+
+## Setup Guide
+
+### Part 1: Create Shopify Private App
+
+1. **Access Shopify Admin**
+
+   Log in to your Shopify admin dashboard.
+
+2. **Navigate to Settings**
+
+   Click the **Settings** option in the bottom-left corner of your admin panel.
+
+   ![Shopify admin dashboard](/images/shopify-integration/image_1.png)
+
+3. **Open Apps and Sales Channels**
+
+   Select **Apps and sales channels** from the settings menu.
+
+   ![Settings menu](/images/shopify-integration/image_2.png)
+
+4. **Access App Development**
+
+   Click **Develop apps** in the top navigation bar.
+
+   ![Apps and sales channels](/images/shopify-integration/image_3.png)
+
+5. **Create New App**
+
+   Click the **Create an app** button to start the setup process.
+
+   ![Develop apps button](/images/shopify-integration/image_4.png)
+
+6. **Configure App Details**
+
+   Enter your app name and select the app developer, then click **Create app**.
+
+   ![Create an app](/images/shopify-integration/image_5.png)
+
+7. **Set API Permissions**
+
+   Click **Configure Admin API scopes** to set up the required permissions.
+
+   ![App configuration](/images/shopify-integration/image_6.png)
+
+8. **Select Required Scopes**
+
+   Enable the necessary permissions listed above. At minimum, select:
+
+   - `read_customers`
+   - `read_products`
+   - `read_orders`
+   - `write_orders`
+   - `read_discounts`
+   - `write_discounts`
+
+   Add additional scopes based on your specific use case, then save your changes.
+
+   ![Configure API scopes](/images/shopify-integration/image_7.png)
+
+9. **Install the App**
+
+   Click **Install app** to activate the app in your store.
+
+   ![Install app](/images/shopify-integration/image_8.png)
+
+   ![Install app confirmation](/images/shopify-integration/image_9.png)
+
+10. **Copy Access Token**
+
+    After installation, copy the generated access token. **Keep this secure** - you'll need it to connect with Voice Agents.
+
+    ![Access token](/images/shopify-integration/image_10.png)
+
+### Part 2: Connect to Voice Agents Platform
+
+11. **Access Voice Agents Dashboard**
+
+    Log in to your Voice Agents platform and navigate to the integrations page.
+
+    ![Voice Agents dashboard](/images/shopify-integration/image_11.png)
+
+12. **Complete Shopify Connection**
+
+    Click the **Connect** button next to Shopify, then:
+
+    - Enter your store domain (without `https://` or `http://`)
+    - Paste the access token from step 10
+    - Click **Connect** to finalize the integration
+
+    ![Connect Shopify](/images/shopify-integration/image_12.png)
+
+## What's Next?
+
+Once connected, your voice agent can immediately start handling:
+
+- **Order inquiries** - "What's the status of my order #1234?"
+- **Product questions** - "Do you have this item in stock?"
+- **Customer support** - "How do I return an item?"
+- **Sales assistance** - "What's your best-selling product?"

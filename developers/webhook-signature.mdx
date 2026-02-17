@@ -1,0 +1,221 @@
+---
+title: Webhook Signature Verification
+description: Learn how to verify webhook signatures to ensure authenticity and integrity.
+---
+
+## Overview
+
+All webhook events emitted by the Voice Agents Backend are cryptographically signed using HMAC-SHA256. The signature is calculated from the payload data, allowing consumers to verify the data's authenticity and integrity.
+
+This approach allows consumers to verify that:
+
+1. **Authenticity**: The webhook originated from our service
+2. **Integrity**: The payload has not been tampered with during transmission
+
+After successful signature verification, the consumer can trust and use the payload data included in the request body.
+
+## Keys
+
+Each organization has a unique key pair automatically generated when the organization is created:
+
+- **Public Key** (`publicKey`): Format `pk_<32 hex characters>`
+- **Secret Key** (`privateKey`): Format `sk_<64 hex characters>`
+
+These keys are stored at the organization level and can be found in your organization settings. The secret key is used to sign webhooks, while the public key is included in webhook headers for identification purposes.
+
+<Warning>Keep your secret key secure and never expose it publicly. Only the public key should be shared or used for verification.</Warning>
+
+## Signature Headers
+
+Every webhook request includes the following headers along with the payload in the request body:
+
+| Header         | Description                                        | Example                  |
+| -------------- | -------------------------------------------------- | ------------------------ |
+| `x-signature`  | HMAC-SHA256 signature of the payload (hex encoded) | `a1b2c3d4e5f6...`        |
+| `x-public-key` | Organization's public key identifier               | `pk_1234567890abcdef...` |
+
+<Note>The request body contains the full event payload. The signature is calculated from this payload data. After successful verification, you can trust and use the payload data.</Note>
+
+## Verification Process
+
+To verify a webhook signature, follow these steps:
+
+### Step 1: Extract Headers
+
+Extract the following headers from the incoming request:
+
+- `x-signature`: The signature to verify against
+- `x-public-key`: Used to identify which organization's secret key to use
+
+### Step 2: Get the Secret Key
+
+Using the `x-public-key` header, retrieve the corresponding secret key for your organization. This should match the secret key stored in your organization settings.
+
+### Step 3: Reconstruct the Signature
+
+The signature is calculated from the raw payload string:
+
+1. Get the raw request body as a UTF-8 string (exactly as received, before any JSON parsing)
+2. Create an HMAC-SHA256 hash using your secret key
+3. Update the hash with the raw payload string
+4. Get the hex digest of the hash
+
+### Step 4: Compare Signatures
+
+Compare the computed signature with the `x-signature` header value. They must match exactly (case-sensitive).
+
+### Step 5: Use the Payload Data
+
+After successful signature verification, you can trust and use the payload data from the request body. The signature proves the data's authenticity and integrity.
+
+## Code Examples
+
+### Node.js
+
+```javascript
+const crypto = require("crypto");
+
+function verifyWebhookSignature(req, secretKey) {
+  // Extract headers
+  const signature = req.headers["x-signature"];
+  const publicKey = req.headers["x-public-key"];
+
+  if (!signature || !publicKey) {
+    throw new Error("Missing required signature headers");
+  }
+
+  // Get raw body (must be the exact string, not parsed JSON)
+  const rawBody = typeof req.body === "string" ? req.body : JSON.stringify(req.body);
+
+  // Compute signature from payload
+  const computedSignature = crypto.createHmac("sha256", secretKey).update(rawBody).digest("hex");
+
+  // Compare signatures (use constant-time comparison to prevent timing attacks)
+  if (signature.length !== computedSignature.length) {
+    throw new Error("Invalid signature");
+  }
+
+  return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(computedSignature));
+}
+
+// Express.js middleware example
+app.post("/webhook", express.raw({ type: "application/json" }), (req, res) => {
+  try {
+    const publicKey = req.headers["x-public-key"];
+    const secretKey = getSecretKeyByPublicKey(publicKey); // Your function to retrieve secret key
+
+    if (verifyWebhookSignature(req, secretKey)) {
+      // Signature is valid, parse and use the payload data
+      const payload = JSON.parse(req.body.toString());
+      console.log("Webhook verified:", payload);
+
+      // Use the payload data - it's verified and trusted
+      // Process the event: payload.event.type, payload.event.data, etc.
+
+      res.status(200).json({ received: true });
+    } else {
+      res.status(401).json({ error: "Invalid signature" });
+    }
+  } catch (error) {
+    console.error("Webhook verification error:", error);
+    res.status(401).json({ error: error.message });
+  }
+});
+```
+
+### Python
+
+```python
+import hmac
+import hashlib
+import time
+import json
+from flask import Flask, request, jsonify
+
+app = Flask(__name__)
+
+def verify_webhook_signature(request, secret_key):
+    """
+    Verify webhook signature using HMAC-SHA256
+
+    Args:
+        request: Flask request object
+        secret_key: Organization's secret key (str)
+
+    Returns:
+        bool: True if signature is valid, False otherwise
+    """
+    # Extract headers
+    signature = request.headers.get('x-signature')
+    public_key = request.headers.get('x-public-key')
+
+    if not all([signature, public_key]):
+        raise ValueError('Missing required signature headers')
+
+    # Get raw body (must be bytes, not parsed JSON)
+    raw_body = request.get_data()
+
+    # Compute signature from payload
+    computed_signature = hmac.new(
+        secret_key.encode('utf-8'),
+        raw_body,
+        hashlib.sha256
+    ).hexdigest()
+
+    # Compare signatures (use constant-time comparison)
+    return hmac.compare_digest(signature, computed_signature)
+
+@app.route('/webhook', methods=['POST'])
+def webhook_handler():
+    try:
+        public_key = request.headers.get('x-public-key')
+        secret_key = get_secret_key_by_public_key(public_key)  # Your function to retrieve secret key
+
+        if verify_webhook_signature(request, secret_key):
+            # Signature is valid, parse and use the payload data
+            payload = request.get_json()
+            print(f'Webhook verified: {payload}')
+
+            # Use the payload data - it's verified and trusted
+            # Process the event: payload['event']['type'], payload['event']['data'], etc.
+
+            return jsonify({'received': True}), 200
+        else:
+            return jsonify({'error': 'Invalid signature'}), 401
+    except Exception as e:
+        print(f'Webhook verification error: {e}')
+        return jsonify({'error': str(e)}), 401
+
+def get_secret_key_by_public_key(public_key):
+    """
+    Retrieve secret key by public key.
+    Replace this with your actual implementation.
+    """
+    # TODO: Implement your logic to retrieve secret key from database/storage
+    pass
+```
+
+## Important Notes
+
+1. **Raw Body**: Always use the raw, unparsed request body for signature verification. Do not use parsed JSON objects, as JSON serialization may differ between systems.
+
+2. **Constant-Time Comparison**: Use constant-time comparison functions (like `crypto.timingSafeEqual` in Node.js or `hmac.compare_digest` in Python) to prevent timing attacks.
+
+3. **Secret Key Storage**: Store secret keys securely (e.g., environment variables, secure key management systems). Never commit them to version control.
+
+4. **Error Handling**: If signature verification fails, return a 401 Unauthorized status and log the event for security monitoring.
+
+5. **Using Payload Data**: After successful signature verification, you can trust and use the payload data from the request body. The signature proves the data's authenticity and integrity.
+
+## Troubleshooting
+
+### Signature Mismatch
+
+- Ensure you're using the raw request body (before JSON parsing)
+- Verify you're using the correct secret key for the public key in the header
+- Check that the payload string matches exactly (no extra whitespace, correct encoding)
+
+### Missing Headers
+
+- Verify that your webhook endpoint is receiving all required headers: `x-signature`, `x-public-key`
+- Check your reverse proxy or load balancer configuration to ensure headers are not being stripped
