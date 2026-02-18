@@ -8,39 +8,107 @@
     "dark": "#15803D"
   },
   "favicon": "/favicon.svg",
+  "api": {
+    "playground": {
+      "display": "interactive"
+    },
+    "examples": {
+      "languages": ["curl", "python", "node"],
+      "defaults": "required",
+      "prefill": true
+    }
+  },
   "navigation": {
-    "groups": [
+    "tabs": [
       {
-        "group": "Getting Started",
-        "pages": ["index", "general/overview", "general/campaign", "general/faq"]
-      },
-      {
-        "group": "Developers",
-        "pages": [
-          "developers/introduction",
-          "developers/create-assistant",
-          "developers/make-a-call",
-          "developers/call-lifecycle-events",
-          "developers/webhook-signature"
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Getting Started",
+            "pages": ["index", "general/overview", "general/campaign", "general/faq"]
+          },
+          {
+            "group": "Developers",
+            "pages": [
+              "developers/introduction",
+              "developers/create-assistant",
+              "developers/make-a-call",
+              "developers/call-lifecycle-events",
+              "developers/webhook-signature"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": ["guides/abandon-cart-recovery", "guides/how-discounts-work"]
+          },
+          {
+            "group": "Integrations",
+            "pages": [
+              "integrations/shopify",
+              "integrations/whatsapp",
+              "integrations/limechat",
+              "integrations/klaviyo",
+              "integrations/google-calendar"
+            ]
+          },
+          {
+            "group": "Use Cases",
+            "pages": ["usecases/retail", "usecases/b2b", "usecases/healthcare"]
+          }
         ]
       },
       {
-        "group": "Guides",
-        "pages": ["guides/abandon-cart-recovery", "guides/how-discounts-work"]
-      },
-      {
-        "group": "Integrations",
-        "pages": [
-          "integrations/shopify",
-          "integrations/whatsapp",
-          "integrations/limechat",
-          "integrations/klaviyo",
-          "integrations/google-calendar"
+        "tab": "API Reference",
+        "icon": "square-terminal",
+        "groups": [
+          {
+            "group": "API Reference",
+            "pages": ["api-reference/introduction"]
+          },
+          {
+            "group": "Onboarding",
+            "icon": "store",
+            "openapi": "https://api.voice-agents.miraiminds.co/swagger.yaml",
+            "pages": ["POST /v2/workspace/onboard/shopify"]
+          },
+          {
+            "group": "Assistant",
+            "icon": "robot",
+            "openapi": "https://api.voice-agents.miraiminds.co/swagger.yaml",
+            "pages": [
+              "POST /v2/assistant/create",
+              "GET /v2/assistant/get/{assistantId}",
+              "PUT /v2/assistant/update/{assistantId}"
+            ]
+          },
+          {
+            "group": "Call",
+            "icon": "phone",
+            "openapi": "https://api.voice-agents.miraiminds.co/swagger.yaml",
+            "pages": ["POST /v2/call/initiate", "POST /v2/call/abort"]
+          },
+          {
+            "group": "Webhooks",
+            "icon": "webhook",
+            "openapi": "https://api.voice-agents.miraiminds.co/swagger.yaml",
+            "pages": ["POST /v2/webhooks/call-events"]
+          },
+          {
+            "group": "Organization",
+            "icon": "building",
+            "openapi": "https://api.voice-agents.miraiminds.co/swagger.yaml",
+            "pages": [
+              "POST /v1/admin/organization/archive",
+              "POST /v1/admin/organization/unarchive"
+            ]
+          },
+          {
+            "group": "Voice Gallery",
+            "icon": "microphone",
+            "openapi": "https://api.voice-agents.miraiminds.co/swagger.yaml",
+            "pages": ["GET /v1/admin/voice-gallery"]
+          }
         ]
-      },
-      {
-        "group": "Use Cases",
-        "pages": ["usecases/retail", "usecases/b2b", "usecases/healthcare"]
       }
     ]
   },

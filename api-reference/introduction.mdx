@@ -1,0 +1,90 @@
+---
+title: Introduction
+description: Complete reference for the Voice Agents REST API.
+---
+
+The Voice Agents API lets you onboard workspaces, create and manage assistants, initiate outbound calls, and handle real-time webhook events programmatically.
+
+## Base URL
+
+All API requests target the production server:
+
+```
+https://api.voice-agents.miraiminds.co
+```
+
+A staging environment is also available for testing:
+
+```
+https://api.stage.voice-agent.miraiminds.co
+```
+
+## Authentication
+
+Every request must include two API key headers:
+
+| Header          | Description                            |
+| :-------------- | :------------------------------------- |
+| `x-public-key`  | Your public API key for identification |
+| `x-private-key` | Your private API key for authorization |
+
+Most endpoints also require a `workspace` header to scope requests to a specific workspace.
+
+```bash
+curl -X POST https://api.voice-agents.miraiminds.co/v2/call/initiate \
+  -H "x-public-key: pk_your_public_key" \
+  -H "x-private-key: sk_your_private_key" \
+  -H "workspace: your_workspace_id" \
+  -H "Content-Type: application/json" \
+  -d '{ ... }'
+```
+
+<Note>
+  Contact [sneh@miraiminds.co](mailto:sneh@miraiminds.co) to obtain your API keys and workspace ID.
+</Note>
+
+## API endpoints
+
+The API is organized into the following groups:
+
+<CardGroup cols={2}>
+  <Card title="Onboarding" icon="store">
+    Register a Shopify store and create a workspace with billing configuration.
+  </Card>
+  <Card title="Assistant" icon="robot">
+    Create, retrieve, and update voice agent configurations.
+  </Card>
+  <Card title="Call" icon="phone">
+    Initiate outbound calls and abort queued calls.
+  </Card>
+  <Card title="Webhooks" icon="webhook">
+    Receive real-time call status and action events.
+  </Card>
+  <Card title="Organization" icon="building">
+    Archive and unarchive organizations and workspaces.
+  </Card>
+  <Card title="Voice Gallery" icon="microphone">
+    Browse available voice options for your agents.
+  </Card>
+</CardGroup>
+
+## Common error codes
+
+| Code  | Meaning                                             |
+| :---- | :-------------------------------------------------- |
+| `200` | Success                                             |
+| `201` | Resource created                                    |
+| `400` | Bad request — check your request body or parameters |
+| `401` | Unauthorized — missing or invalid API keys          |
+| `403` | Forbidden — insufficient permissions                |
+| `404` | Not found — resource does not exist                 |
+| `429` | Rate limit exceeded — wait before retrying          |
+| `500` | Internal server error                               |
+
+## Rate limits
+
+The API enforces rate limits to ensure stability. If you receive a `429` response, wait before retrying. Assistant updates have a cooldown period to prevent overlapping update operations.
+
+<Warning>
+  Keep your `x-private-key` secure. Never expose it in client-side code or public repositories.
+</Warning>
