@@ -59,54 +59,14 @@
       },
       {
         "tab": "API Reference",
-        "icon": "square-terminal",
         "groups": [
           {
-            "group": "API Reference",
+            "group": "Overview",
             "pages": ["api-reference/introduction"]
           },
           {
-            "group": "Onboarding",
-            "icon": "store",
-            "openapi": "https://api.voice-agents.miraiminds.co/swagger.yaml",
-            "pages": ["POST /v2/workspace/onboard/shopify"]
-          },
-          {
-            "group": "Assistant",
-            "icon": "robot",
-            "openapi": "https://api.voice-agents.miraiminds.co/swagger.yaml",
-            "pages": [
-              "POST /v2/assistant/create",
-              "GET /v2/assistant/get/{assistantId}",
-              "PUT /v2/assistant/update/{assistantId}"
-            ]
-          },
-          {
-            "group": "Call",
-            "icon": "phone",
-            "openapi": "https://api.voice-agents.miraiminds.co/swagger.yaml",
-            "pages": ["POST /v2/call/initiate", "POST /v2/call/abort"]
-          },
-          {
-            "group": "Webhooks",
-            "icon": "webhook",
-            "openapi": "https://api.voice-agents.miraiminds.co/swagger.yaml",
-            "pages": ["POST /v2/webhooks/call-events"]
-          },
-          {
-            "group": "Organization",
-            "icon": "building",
-            "openapi": "https://api.voice-agents.miraiminds.co/swagger.yaml",
-            "pages": [
-              "POST /v1/admin/organization/archive",
-              "POST /v1/admin/organization/unarchive"
-            ]
-          },
-          {
-            "group": "Voice Gallery",
-            "icon": "microphone",
-            "openapi": "https://api.voice-agents.miraiminds.co/swagger.yaml",
-            "pages": ["GET /v1/admin/voice-gallery"]
+            "group": "Endpoints",
+            "openapi": "https://api.voice-agents.miraiminds.co/swagger.yaml"
           }
         ]
       }
