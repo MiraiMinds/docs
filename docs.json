@@ -25,7 +25,12 @@
         "groups": [
           {
             "group": "Getting Started",
-            "pages": ["index", "general/overview", "general/campaign", "general/faq"]
+            "pages": [
+              "index",
+              "general/overview",
+              "general/campaign",
+              "general/faq"
+            ]
           },
           {
             "group": "Developers",
@@ -34,12 +39,16 @@
               "developers/create-assistant",
               "developers/make-a-call",
               "developers/call-lifecycle-events",
-              "developers/webhook-signature"
+              "developers/webhook-signature",
+              "developers/assistant-sandbox"
             ]
           },
           {
             "group": "Guides",
-            "pages": ["guides/abandon-cart-recovery", "guides/how-discounts-work"]
+            "pages": [
+              "guides/abandon-cart-recovery",
+              "guides/how-discounts-work"
+            ]
           },
           {
             "group": "Integrations",
@@ -88,7 +97,16 @@
     ]
   },
   "contextual": {
-    "options": ["copy", "view", "chatgpt", "claude", "perplexity", "mcp", "cursor", "vscode"]
+    "options": [
+      "copy",
+      "view",
+      "chatgpt",
+      "claude",
+      "perplexity",
+      "mcp",
+      "cursor",
+      "vscode"
+    ]
   },
   "footer": {
     "socials": {}
