@@ -36,6 +36,7 @@
             "group": "Developers",
             "pages": [
               "developers/introduction",
+              "developers/customer-lifecycle",
               "developers/create-assistant",
               "developers/make-a-call",
               "developers/call-lifecycle-events",
