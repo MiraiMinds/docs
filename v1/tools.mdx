@@ -1,0 +1,182 @@
+---
+title: API tools
+description: Give an assistant HTTP tools it can call mid-conversation.
+---
+
+<Note>
+**This documents the v1 product.** It is kept for integrations already running
+on it. If you are building something new, start with the
+[Quickstart](/v2/quickstart).
+</Note>
+
+An **API tool** lets an assistant call your HTTP endpoint during a call — look
+up an order, check stock, book a slot. Create the tool once per workspace, then
+list its `_id` in the assistant's `agent.tools`.
+
+<Note>
+API tools are a v1 capability. [v2](/v2/overview) has no equivalent yet.
+</Note>
+
+## Create a tool
+
+```http
+POST /v1/admin/tool/api
+```
+
+| Field | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `name` | string | yes | Human name. A unique `slug` is derived from it. |
+| `description` | string | yes | **Tells the model when to call this tool.** The single most important field. |
+| `url` | string | yes | Your endpoint. |
+| `method` | enum | yes | `get`, `post`, `put`, `patch`, `delete`. |
+| `headers` | array | no | `[{ key, value }]` — static headers such as auth. |
+| `parameters` | object | no | `{ required: [names], properties: [ToolProperty] }`. |
+| `isActive` | boolean | no | Default `true`. |
+
+```bash
+curl -X POST https://api.voice-agents.miraiminds.co/v1/admin/tool/api \
+  -H "x-public-key: pk_1234567890abcdef1234567890abcdef" \
+  -H "x-private-key: sk_1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef" \
+  -H "workspace: 6690a1b2c3d4e5f600000002" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Check Order Status",
+    "description": "Look up the current status of a customer order by its ID. Use this whenever the customer asks where their order is.",
+    "url": "https://api.example.com/orders/status",
+    "method": "post",
+    "headers": [{ "key": "Authorization", "value": "Bearer <token>" }],
+    "parameters": {
+      "required": ["orderId"],
+      "properties": [
+        { "name": "orderId", "description": "The order identifier to look up.", "type": "string" }
+      ]
+    },
+    "isActive": true
+  }'
+```
+
+```json title="201 Created"
+{
+  "status_code": 201,
+  "message": "API tool created successfully.",
+  "data": {
+    "_id": "6710a1b2c3d4e5f600000020",
+    "name": "Check Order Status",
+    "slug": "check-order-status",
+    "workspace": "6690a1b2c3d4e5f600000002",
+    "isActive": true,
+    "config": {
+      "description": "Look up the current status of a customer order by its ID…",
+      "url": "https://api.example.com/orders/status",
+      "method": "post"
+    },
+    "createdAt": "2026-07-26T10:00:00.000Z"
+  }
+}
+```
+
+| Status | Cause |
+| :--- | :--- |
+| `400` | Validation error |
+| `409` | A tool with a similar name already exists in this workspace |
+
+### Parameters
+
+```json
+{
+  "parameters": {
+    "required": ["orderId"],
+    "properties": [
+      {
+        "name": "orderId",
+        "description": "The order identifier, e.g. ORD-12345.",
+        "type": "string"
+      },
+      {
+        "name": "channel",
+        "description": "Where the order was placed.",
+        "type": "string",
+        "enum": ["web", "app", "store"]
+      }
+    ]
+  }
+}
+```
+
+`type` is `string`, `number`, `boolean`, `object` or `array`. Nested objects use
+`properties` and their own `required` list; arrays use `items`. A property with
+a fixed `value` is sent as-is rather than being asked of the model.
+
+### Writing tool descriptions
+
+The `description` is a prompt, not documentation. The model reads it to decide
+whether to call the tool, mid-conversation, under latency pressure.
+
+- **Say when, not what.** "Use this whenever the customer asks where their order
+  is" beats "Returns order status."
+- **Name the trigger phrases** your customers actually use.
+- **Describe each parameter** in the same terms. `orderId` — "the order
+  identifier, e.g. ORD-12345" — tells the model what shape to extract.
+- **Keep the endpoint fast.** A tool call happens between turns; a slow endpoint
+  is dead air on a live phone call. Budget a few hundred milliseconds.
+
+## List tools
+
+```http
+GET /v1/admin/tool/api
+```
+
+Returns every API tool in the workspace under `data`.
+
+## Update a tool
+
+```http
+PUT /v1/admin/tool/api/{toolId}
+```
+
+Send only the fields you are changing.
+
+```bash
+curl -X PUT https://api.voice-agents.miraiminds.co/v1/admin/tool/api/6710a1b2c3d4e5f600000020 \
+  -H "x-public-key: pk_1234567890abcdef1234567890abcdef" \
+  -H "x-private-key: sk_1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef" \
+  -H "workspace: 6690a1b2c3d4e5f600000002" \
+  -H "Content-Type: application/json" \
+  -d '{ "description": "Updated guidance for when to use this tool.", "isActive": false }'
+```
+
+`isActive: false` is the safe way to take a tool out of service — assistants
+stop calling it without you having to edit each one.
+
+| Status | Cause |
+| :--- | :--- |
+| `400` | Validation error |
+| `404` | Tool not found |
+| `409` | Name collides with another tool |
+
+## Delete a tool
+
+```http
+DELETE /v1/admin/tool/api/{toolId}
+```
+
+```json title="200 OK"
+{ "status_code": 200, "message": "API tool deleted successfully." }
+```
+
+Remove the tool `_id` from every assistant's `agent.tools` first.
+
+## Attaching tools to an assistant
+
+```json
+{
+  "agent": {
+    "identity": { "name": "priya", "gender": "female", "voice": "priya" },
+    "systemPrompt": "…When the customer asks about an order, use the order status tool before answering.",
+    "tools": ["6710a1b2c3d4e5f600000020"]
+  }
+}
+```
+
+Mention the tool's *purpose* in the system prompt as well as in the tool's own
+description. Two nudges are more reliable than one.

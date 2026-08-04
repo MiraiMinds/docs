@@ -1,0 +1,235 @@
+---
+title: Migrating from v1
+description: Endpoint-by-endpoint and field-by-field mapping from the v1 API to v2, and what has no v2 equivalent yet.
+---
+
+
+**You do not have to migrate.** [v1](/v1/overview) is stable, hosted separately at
+`api.voice-agents.miraiminds.co`, and is not going away. Nothing in your
+integration changes because v2 exists.
+
+Migrate when you want one of these:
+
+- `GET` on a call — v1 has no way to read a call's status, only webhooks.
+- Wallet balance and ledger over the API.
+- One auth header instead of three.
+- Idempotent call creation.
+- The published tier rate card.
+
+Stay on v1 if you need: inbound calls, phone-number purchase, knowledge
+base/RAG, API tools (function calling), web calls, campaign scheduling, or
+post-call analysis. **v2 has none of these yet.** The two APIs can address the
+same workspace side by side — migrate calls first, keep the rest on v1.
+
+## Hosts
+
+| | v1 | v2 |
+| :--- | :--- | :--- |
+| Base URL | `https://api.voice-agents.miraiminds.co` | `https://api.voice.miraiminds.co` |
+| Path prefix | mixed `/v1/…` and `/v2/…` | `/v2/…` throughout |
+
+<Warning>
+**The v1 host has `/v2/` paths on it**
+
+v1's call endpoints are literally named `POST /v2/call/initiate`. That `/v2/` is
+a path segment inside the **v1 product**, not this API. The distinguishing thing
+is the **host**, not the prefix.
+</Warning>
+
+## Authentication
+
+| v1 | v2 |
+| :--- | :--- |
+| `x-public-key: pk_…` | — |
+| `x-private-key: sk_…` | `Authorization: Bearer sk_live_…` |
+| `workspace: 6690a1b2c3d4e5f600000002` | — (the key is workspace-scoped) |
+
+Three headers become one. The workspace is implied by the key, so there is no
+way to accidentally address the wrong workspace with the right credentials.
+
+## Endpoints
+
+| v1 | v2 | Notes |
+| :--- | :--- | :--- |
+| `POST /v2/workspace/onboard/custom` | — | Your workspace is provisioned with your key. |
+| `POST /v1/admin/assistant/create` | [`POST /v2/agents`](/v2/agents#create-an-agent) | "Assistant" is now "agent". |
+| `GET /v1/admin/assistant/get/{id}` | [`GET /v2/agents/{id}`](/v2/agents#get-an-agent) | |
+| `GET /v1/admin/assistant/list` | [`GET /v2/agents`](/v2/agents#list-agents) | Now cursor-paginated. |
+| `PUT /v1/admin/assistant/update/{id}` | [`PATCH /v2/agents/{id}`](/v2/agents#update-an-agent) | `PATCH`, and partial. |
+| — | [`DELETE /v2/agents/{id}`](/v2/agents#delete-an-agent) | New. Soft delete. |
+| `POST /v2/call/initiate` | [`POST /v2/calls`](/v2/calls#create-a-call) | `200` becomes `202`. |
+| — | [`GET /v2/calls/{id}`](/v2/calls#get-a-call) | **New.** v1 had no call read. |
+| — | [`GET /v2/calls`](/v2/calls#list-calls) | **New.** |
+| `POST /v2/call/abort` with `{callId}` in body | [`POST /v2/calls/{id}/abort`](/v2/calls#abort-a-call) | ID moves into the path. |
+| `PUT /v2/call/{callId}` (update payload) | — | No equivalent. Set everything at create time. |
+| `POST /v2/call/web` | — | Web calls are v1-only. |
+| `GET /v1/number-pool/*` | — | [v1 Telephony](/v1/telephony). |
+| `/v1/admin/tool/api` (all methods) | — | [v1 Tools](/v1/tools). |
+| `/v1/knowledge-base/*` | — | [v1 Knowledge Base](/v1/knowledge-base). |
+| [`GET /v1/admin/voice-gallery`](/v1/assistants#voice-gallery) | — | Still v1. v2 `voice_id` values come from this same catalogue — see [Voices](/v2/voices). |
+| — | [`GET /v2/wallet`](/v2/wallet#get-balance) | **New.** |
+| — | [`GET /v2/wallet/transactions`](/v2/wallet#list-transactions) | **New.** |
+
+## Fields
+
+### Creating an agent / assistant
+
+| v1 | v2 |
+| :--- | :--- |
+| `name` | `name` |
+| `agent.systemPrompt` | `system_prompt` |
+| — (first line lived in the prompt) | `first_message` |
+| `agent.identity.voice` | `voice.voice_id` |
+| `icpContext.language` (`"english"`) | `language` (BCP-47, `"en-IN"`) |
+| `callSettings.maxCallDuration` | `max_duration_secs` |
+| `variant.type` / `variant.config` | — (no variants; one shape) |
+| `variant.config.inputSchema` | — (declare nothing; just pass `variables`) |
+| `agent.tools` | — (v1 only) |
+| `telephony.inbound` / `telephony.outbound` | — (managed) |
+| `callSettings.slots` (calling window) | — ([your scheduler](/v2/limits#calling-window)) |
+| `callSettings.concurrentCallCount` | — (provisioned per key, see [Limits](/v2/limits)) |
+| `callSettings.retryProtocol` | — (retry in your own dialler) |
+| `analysisPlan` | — (`t3`/`t5`, [not live](/general/tiers)) |
+
+### Placing a call
+
+| v1 | v2 |
+| :--- | :--- |
+| `phoneNumber` | `to` |
+| `assistant` | `agent_id` |
+| `callbackUrl` | `webhook_url` |
+| `payload` (variant-shaped object) | `variables` (flat string map) |
+| `metadata` (echoed in webhooks) | — no equivalent; put correlation keys in `variables` or key off `call.id` |
+| `priority` | — (use `tier`) |
+| — | `max_duration_secs` per-call override |
+| — | `tier` |
+| — | `Idempotency-Key` header |
+
+```diff title="v1 → v2 call request"
+-POST https://api.voice-agents.miraiminds.co/v2/call/initiate
+-x-public-key: pk_1234…
+-x-private-key: sk_abcd…
+-workspace: 6690a1b2c3d4e5f600000002
++POST https://api.voice.miraiminds.co/v2/calls
++Authorization: Bearer sk_live_YOUR_API_KEY
++Idempotency-Key: order-8842-confirm-1
+
+ {
+-  "phoneNumber": "+919876543210",
+-  "assistant": "68c128a658cd7d0668bce78d",
+-  "callbackUrl": "https://example.com/mirai/webhook",
+-  "payload": { "customerName": "Rahul", "orderId": "8842" }
++  "to": "+919876543210",
++  "agent_id": "agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ",
++  "webhook_url": "https://example.com/mirai/webhook",
++  "variables": { "customer_name": "Rahul", "order_id": "8842" }
+ }
+```
+
+```diff title="v1 → v2 response"
+-200 OK
+-{ "callId": "68f0…", "status": "initiate" }
++202 Accepted
++{ "id": "call_01JZQ9B4M8N3P6R2S5T7V9W1YA", "status": "queued" }
+```
+
+## Statuses
+
+v1's status vocabulary is hyphenated and mixes phases with outcomes. v2 uses
+snake_case and separates `status` from `ended_reason`.
+
+| v1 status | v2 `status` |
+| :--- | :--- |
+| `initiate` | `queued`, then `dialing` |
+| `in-progress` | `in_progress` |
+| `ended`, `completed` | `completed` |
+| `no-answer` | `no_answer` |
+| `busy` | `busy` |
+| `failed`, `validation-failed` | `failed` (a bad `to` is a `400` at create time in v2) |
+| `timeout` | `timeout` |
+| `aborted` | `aborted` |
+| `skip` | — (v2 does not skip; scrub your list before calling) |
+| `rescheduled` | — (v2 does not retry; retry in your dialler) |
+| — | `voicemail` (**new**) |
+
+## Webhooks
+
+| | v1 | v2 |
+| :--- | :--- | :--- |
+| Signature header | `x-signature` (bare hex) + `x-public-key` | `X-Mirai-Signature: t=…,v1=…` |
+| Signed material | raw body | `"<t>.<raw_body>"` |
+| Replay protection | none | 5-minute timestamp window |
+| Secret | organization private key | per-workspace `whsec_…` |
+| Event ID | none | `id: evt_<ulid>`, dedupe on it |
+| Envelope | `{ event: { type, data } }` | `{ id, type, created_at, data }` |
+| Event count | 15 types incl. `call.initiate`, `call.ended`, `end-of-call`, `action` | 6 types |
+| Retries | — | 1s / 10s / 60s / 5m / 30m, then DLQ |
+
+```diff title="v1 → v2 webhook body"
+ {
+-  "metadata": { "orderId": "8842" },
+-  "event": {
+-    "type": "call.completed",
+-    "data": {
+-      "call": {
+-        "id": "68f0…",
+-        "status": "completed",
+-        "durationSeconds": 96,
+-        "recordingUrl": "https://…"
+-      },
+-      "credits": { "used": 1.5, "available": 98.5 }
+-    }
+-  }
++  "id": "evt_01JZQ9C5N9P4R7S3T6V8W2X4YB",
++  "type": "call.completed",
++  "created_at": "2026-07-26T09:16:38Z",
++  "data": {
++    "call": {
++      "id": "call_01JZQ9B4M8N3P6R2S5T7V9W1YA",
++      "status": "completed",
++      "ended_reason": "assistant-ended-call",
++      "duration_secs": 96,
++      "cost": { "amount_inr": 2, "per_min_inr": 1 }
++    }
++  }
+ }
+```
+
+Note the differences that will bite:
+
+- **`metadata` is gone.** v1 echoed an arbitrary object back on every event. In
+  v2, correlate on `data.call.id` — store the `call_id` we return from
+  `POST /v2/calls` against your own record.
+- **`recordingUrl` is not in v2.** Recordings are not exposed through the v2
+  API; ask your Mirai contact.
+- **`credits` becomes `cost`** on the call itself, in rupees rather than credit
+  units, and the running balance moves to [`GET /v2/wallet`](/v2/wallet).
+- **No `end-of-call` analysis event yet.** Post-call analytics (AI summary +
+  QA score on every call) is [part of every tier](/general/tiers#feature-matrix)
+  and its v2 API surface is rolling out — see the
+  [roadmap](/general/roadmap). Until it lands, v1's `analysisPlan` is the only
+  API surface for post-call analysis.
+
+## Errors
+
+| v1 | v2 |
+| :--- | :--- |
+| `{ "code": 400, "message": "…" }` | `{ "error": { "code": "invalid_request", "message": "…" } }` |
+| `{ "status_code": 200, "message": "…", "data": {…} }` on success | the resource object directly |
+| `code` is a number | `error.code` is a `snake_case` string; the number is the HTTP status |
+
+v1's success responses wrap the payload in `{ status_code, message, data }`. v2
+returns the resource itself. See the [error reference](/v2/errors).
+
+## A migration that fits in an afternoon
+
+1. Get a v2 key. Keep your v1 credentials — you will run both for a while.
+2. Recreate your assistants as [agents](/v2/agents). Move the opening line out
+   of `systemPrompt` into `first_message`; rename your `payload` keys to the
+   `variables` keys your prompt references.
+3. Point a **new** webhook route at the v2 [signature scheme](/v2/webhooks#signature-verification).
+   Do not modify the v1 route — the schemes are incompatible and you need both
+   live during cutover.
+4. Switch one low-volume campaign to `POST /v2/calls`. Compare outcomes against
+   the same campaign's v1 numbers for a day.
+5. Move the rest. Leave numbers, knowledge base and tools on v1.

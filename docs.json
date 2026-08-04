@@ -50,23 +50,78 @@
             ]
           }
         ]
+      },
+      {
+        "tab": "v1 (legacy)",
+        "groups": [
+          {
+            "group": "Start",
+            "pages": [
+              "general/overview",
+              "v2/migration",
+              "general/campaign",
+              "general/faq"
+            ]
+          },
+          {
+            "group": "Developer guides",
+            "pages": [
+              "developers/introduction",
+              "developers/customer-lifecycle",
+              "developers/create-assistant",
+              "developers/make-a-call",
+              "developers/call-lifecycle-events",
+              "developers/webhook-signature",
+              "developers/assistant-sandbox"
+            ]
+          },
+          {
+            "group": "API v1 reference",
+            "pages": [
+              "v1/overview",
+              "v1/workspaces",
+              "v1/assistants",
+              "v1/calls",
+              "v1/webhooks",
+              "v1/telephony",
+              "v1/tools",
+              "v1/knowledge-base",
+              "api-reference/introduction"
+            ]
+          },
+          {
+            "group": "Endpoints",
+            "openapi": "https://api.voice-agents.miraiminds.co/swagger.yaml"
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/abandon-cart-recovery",
+              "guides/how-discounts-work"
+            ]
+          },
+          {
+            "group": "Integrations",
+            "pages": [
+              "integrations/shopify",
+              "integrations/whatsapp",
+              "integrations/limechat",
+              "integrations/klaviyo",
+              "integrations/google-calendar"
+            ]
+          },
+          {
+            "group": "Use cases",
+            "pages": ["usecases/retail", "usecases/b2b", "usecases/healthcare"]
+          }
+        ]
       }
     ]
   },
   "redirects": [
     { "source": "/v2", "destination": "/v2/overview" },
-    { "source": "/v1", "destination": "/v2/overview" },
-    { "source": "/v1/:slug*", "destination": "/v2/overview" },
-    { "source": "/v2/migration", "destination": "/v2/overview" },
-    { "source": "/v2/node-graphs", "destination": "/general/roadmap" },
-    { "source": "/developers/:slug*", "destination": "/v2/quickstart" },
-    { "source": "/api-reference/:slug*", "destination": "/v2/overview" },
-    { "source": "/guides/:slug*", "destination": "/" },
-    { "source": "/integrations/:slug*", "destination": "/" },
-    { "source": "/usecases/:slug*", "destination": "/" },
-    { "source": "/general/overview", "destination": "/" },
-    { "source": "/general/campaign", "destination": "/" },
-    { "source": "/general/faq", "destination": "/v2/faq" }
+    { "source": "/v1", "destination": "/v1/overview" },
+    { "source": "/v2/node-graphs", "destination": "/general/roadmap" }
   ],
   "topbar": {
     "style": "gradient"

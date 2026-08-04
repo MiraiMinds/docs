@@ -468,6 +468,25 @@ Consequences worth planning for:
   intentional — a transient secret-loading bug on your side should not lose the
   event.
 
+## Linking an event to your own records
+
+An event carries the call, not your database. The join key is `call_id`, and
+you have it **before** any event can arrive — `POST /v2/calls` returns it
+synchronously in the `202`:
+
+```python
+call = mirai.calls.create(agent_id=agent.id, to=customer.phone)
+Order.objects.filter(pk=order.id).update(mirai_call_id=call.id)   # store it here
+```
+
+Do that write before you return from the request that placed the call. A
+webhook can land while the placing request is still in flight, and a handler
+that cannot find the call yet has to either drop the event or retry blindly.
+
+`variables` are substituted into the prompt; they are **not** echoed back on
+the event. Anything you need at webhook time belongs in your own row, keyed by
+`call_id`.
+
 ## Idempotency
 
 Assume at-least-once delivery. Dedupe on `id`:

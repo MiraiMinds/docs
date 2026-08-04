@@ -1,0 +1,194 @@
+---
+title: v1 API (stable)
+description: The original Voice Agents API — workspaces, assistants, calls, telephony, tools and knowledge base.
+---
+
+
+<Note>
+**This documents the v1 product.** It is kept for integrations already running
+on it. If you are building something new, start with the
+[Quickstart](/v2/quickstart).
+</Note>
+
+v1 is the API that runs today's production integrations. It is **stable and
+supported** — nothing here is being removed.
+
+```bash
+https://api.voice-agents.miraiminds.co
+```
+
+| Environment | Base URL |
+| :--- | :--- |
+| Production | `https://api.voice-agents.miraiminds.co` |
+| Staging | `https://api.stage.voice-agent.miraiminds.co` |
+
+<Note>
+**v1 or v2?**
+
+v1 has the broad surface: inbound calls, phone-number purchase, knowledge
+base/RAG, API tools, campaigns, post-call analysis. [v2](/v2/overview) has the clean
+one: one auth header, `GET` on calls, a wallet API and idempotency — but only
+outbound calls and agents. They address the same workspace and can run side by
+side. See the [mapping table](/v2/migration).
+</Note>
+
+## Hosts, not prefixes
+
+<Warning>
+**The `/v2/` paths on this host are v1**
+
+v1's call endpoints are named `POST /v2/call/initiate`, `POST /v2/call/abort` and
+so on. That `/v2/` is a path segment inside **this** API, unrelated to the
+[v2 API](/v2/overview). What distinguishes the two APIs is the **host**:
+
+| API | Host |
+| :--- | :--- |
+| v1 (this one) | `api.voice-agents.miraiminds.co` |
+| [v2](/v2/overview) | `api.voice.miraiminds.co` |
+</Warning>
+
+<CardGroup cols={2}>
+  <Card title="Workspaces" icon="gear">
+    Onboard, archive, health. [Reference](/v1/workspaces).
+  </Card>
+  <Card title="Assistants" icon="robot">
+    The v1 equivalent of an agent. [Reference](/v1/assistants).
+  </Card>
+  <Card title="Calls" icon="phone">
+    Initiate, abort, update payload, web calls. [Reference](/v1/calls).
+  </Card>
+  <Card title="Webhooks" icon="circle-check">
+    15 event types and the `x-signature` scheme. [Reference](/v1/webhooks).
+  </Card>
+</CardGroup>
+
+## Authentication
+
+Every request except `GET /health` carries two key headers. Workspace-scoped
+endpoints add a third.
+
+| Header | Required on | Value |
+| :--- | :--- | :--- |
+| `x-public-key` | everything | `pk_` + 32 hex |
+| `x-private-key` | everything | `sk_` + 64 hex |
+| `workspace` | workspace-scoped endpoints | the workspace `_id` returned at onboarding |
+
+```bash
+curl https://api.voice-agents.miraiminds.co/v1/admin/assistant/list \
+  -H "x-public-key: pk_1234567890abcdef1234567890abcdef" \
+  -H "x-private-key: sk_1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef" \
+  -H "workspace: 6690a1b2c3d4e5f600000002"
+```
+
+A few admin endpoints (organization archive/unarchive) additionally require an
+`admin` or `organization_admin` role, carried as a JWT bearer token.
+
+v1 pairs are issued with your account. For a new v2 key you do not need to ask
+anyone — create it in the [console](https://sandbox.voice.miraiminds.co) under
+**Developers**, and see [Migrating from v1](/v2/migration).
+
+<Danger>
+The `x-private-key` is a secret **and** the webhook signing key. Never put it in
+a browser, a mobile app, or a repo.
+</Danger>
+
+## Entity hierarchy
+
+```text
+Organization
+└── Workspace                (holds assistants + telephony numbers)
+    └── Assistant
+        ├── Telephony        (inbound + outbound phone numbers)
+        ├── Knowledge Base   (documents + FAQ for RAG)
+        └── Analysis Plan    (post-call AI evaluation)
+```
+
+IDs are 24-character Mongo ObjectIds: `6690a1b2c3d4e5f600000002`.
+
+## Response envelopes
+
+v1 wraps most successful responses:
+
+```json
+{
+  "status_code": 200,
+  "message": "Assistants fetched successfully.",
+  "data": { }
+}
+```
+
+Errors use a flat shape where `code` is a **number**:
+
+```json
+{ "code": 400, "message": "Validation error" }
+```
+
+<Note>
+**Known inconsistencies — these are contract, not bugs to work around**
+
+- `POST /v2/call/initiate` returns **`200`**, while `POST /v2/call/web`,
+  `POST /v1/number-pool/purchase`, `POST /v1/admin/tool/api` and
+  `POST /v1/knowledge-base/upload/start` return **`201`**.
+- `POST /v2/call/abort` returns a bare `{ "message": "…" }` with no
+  `status_code` wrapper. `PUT /v2/call/{callId}` returns
+  `{ "status_code", "message" }` with no `data`.
+- Some error bodies use `code`, some use `status_code`. Read the HTTP status
+  first and the body second.
+
+Handle these explicitly rather than assuming a uniform envelope. [v2](/v2/overview) is
+uniform.
+</Note>
+
+## Status codes
+
+| Code | Meaning |
+| :--- | :--- |
+| `200` | Success |
+| `201` | Created (see the list above for which endpoints) |
+| `400` | Validation error, or the resource is archived |
+| `401` | Missing or invalid key headers |
+| `402` | Insufficient credit balance |
+| `403` | Insufficient role, or the operation is not allowed for this org type |
+| `404` | Not found in this workspace |
+| `409` | Already exists / already released / in use |
+| `429` | Rate limit exceeded |
+| `500` | Internal error |
+
+## Health
+
+```http
+GET /health
+```
+
+No authentication.
+
+```bash
+curl https://api.voice-agents.miraiminds.co/health
+```
+
+```json
+{
+  "status_code": 200,
+  "message": "Platform is operational.",
+  "data": { "underMaintenance": false, "status": "healthy" }
+}
+```
+
+Check `data.underMaintenance` before starting a large campaign.
+
+## Quickstart
+
+<CardGroup cols={2}>
+  <Card title="1 — Create a workspace" icon="file-circle-plus">
+    `POST /v2/workspace/onboard/custom`. A default telephony number is assigned
+    automatically in production. [How](/v1/workspaces#onboard-a-custom-workspace)
+  </Card>
+  <Card title="2 — Create an assistant" icon="pen">
+    `POST /v1/admin/assistant/create` with `variant.type: custom` and your
+    `agent.systemPrompt`. [How](/v1/assistants#create-an-assistant)
+  </Card>
+  <Card title="3 — Make a call" icon="phone">
+    `POST /v2/call/initiate` with `callbackUrl` for webhooks.
+    [How](/v1/calls#initiate-a-call)
+  </Card>
+</CardGroup>
