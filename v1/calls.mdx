@@ -1,0 +1,258 @@
+---
+title: Calls
+description: Initiate outbound calls, start web calls, abort queued calls and update a queued call's payload.
+---
+
+
+All call endpoints are workspace-scoped — send the `workspace` header.
+
+<Note>
+These paths are named `/v2/call/…` but they belong to the **v1 API** on
+`api.voice-agents.miraiminds.co`. See [hosts, not prefixes](/v1/overview#hosts-not-prefixes).
+</Note>
+
+## Initiate a call
+
+```http
+POST /v2/call/initiate
+```
+
+| Field | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `phoneNumber` | string | yes | E.164 recommended: `+919876543210`. |
+| `assistant` | string | yes | Assistant `_id`. |
+| `payload` | object | no | Values for the assistant's variables. Shape depends on the variant — see below. |
+| `callbackUrl` | string | no | HTTPS [webhook](/v1/webhooks) URL. |
+| `priority` | boolean | no | Jump the queue. |
+| `metadata` | object | no | Arbitrary object echoed back on **every** webhook event. Use it to correlate. |
+
+<Tabs>
+  <Tab title="cURL">
+    ```bash
+    curl -X POST https://api.voice-agents.miraiminds.co/v2/call/initiate \
+      -H "x-public-key: pk_1234567890abcdef1234567890abcdef" \
+      -H "x-private-key: sk_1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef" \
+      -H "workspace: 6690a1b2c3d4e5f600000002" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "phoneNumber": "+919876543210",
+        "assistant": "68c128a658cd7d0668bce78d",
+        "callbackUrl": "https://example.com/webhooks/call-events",
+        "payload": {
+          "customerName": "Jane Smith",
+          "orderId": "ORD-12345",
+          "orderValue": 2500
+        },
+        "metadata": { "internalOrderId": "8842" }
+      }'
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    import os, httpx
+
+    API = "https://api.voice-agents.miraiminds.co"
+    H = {
+        "x-public-key": os.environ["MIRAI_PUBLIC_KEY"],
+        "x-private-key": os.environ["MIRAI_PRIVATE_KEY"],
+        "workspace": os.environ["MIRAI_WORKSPACE"],
+    }
+
+    call = httpx.post(
+        f"{API}/v2/call/initiate",
+        headers=H,
+        json={
+            "phoneNumber": "+919876543210",
+            "assistant": "68c128a658cd7d0668bce78d",
+            "callbackUrl": "https://example.com/webhooks/call-events",
+            "payload": {"customerName": "Jane Smith", "orderId": "ORD-12345"},
+            "metadata": {"internalOrderId": "8842"},
+        },
+        timeout=30,
+    ).raise_for_status().json()
+
+    print(call["callId"], call["status"])  # 68f0… initiate
+    ```
+  </Tab>
+  <Tab title="Node.js">
+    ```javascript
+    const API = "https://api.voice-agents.miraiminds.co";
+    const H = {
+      "x-public-key": process.env.MIRAI_PUBLIC_KEY,
+      "x-private-key": process.env.MIRAI_PRIVATE_KEY,
+      workspace: process.env.MIRAI_WORKSPACE,
+      "Content-Type": "application/json",
+    };
+
+    const call = await fetch(`${API}/v2/call/initiate`, {
+      method: "POST",
+      headers: H,
+      body: JSON.stringify({
+        phoneNumber: "+919876543210",
+        assistant: "68c128a658cd7d0668bce78d",
+        callbackUrl: "https://example.com/webhooks/call-events",
+        payload: { customerName: "Jane Smith", orderId: "ORD-12345" },
+        metadata: { internalOrderId: "8842" },
+      }),
+    }).then((r) => r.json());
+
+    console.log(call.callId, call.status);
+    ```
+  </Tab>
+</Tabs>
+
+```json title="200 OK"
+{ "callId": "68f0a1b2c3d4e5f600000900", "status": "initiate" }
+```
+
+<Warning>
+This endpoint returns **`200`**, not `201`, and the body is **not** wrapped in
+`{ status_code, message, data }`. Read `callId` and `status` off the top level.
+</Warning>
+
+| Status | Cause |
+| :--- | :--- |
+| `400` | Validation error |
+| `404` | Assistant not found |
+
+### `payload` by variant
+
+**`custom`** — a flat (or nested) object whose keys match the variables you
+declared in `variant.config.inputSchema`:
+
+```json
+{
+  "payload": {
+    "orderId": "ORD-12345",
+    "customerName": "Jane Smith",
+    "orderValue": 2500,
+    "status": "pending",
+    "notes": "Customer requested callback"
+  }
+}
+```
+
+**`abandoned_cart`** — the Shopify abandoned-checkout object: `id`,
+`abandonedCheckoutUrl`, `customer`, `lineItems`, `totalPriceSet`,
+`discountCodes`, `shippingAddress`, and so on. Pass Shopify's payload through
+largely unchanged.
+
+There is no `GET` for a call in v1 — outcomes arrive by
+[webhook](/v1/webhooks) only. If you need to read call state on demand, that is
+[`GET /v2/calls/{id}`](/v2/calls#get-a-call) in v2.
+
+### `metadata`
+
+Whatever you put here comes back on every event for that call:
+
+```json
+{ "metadata": { "internalOrderId": "8842", "userId": "u_991" } }
+```
+
+Use it to join the webhook to your own records without keeping a `callId` table.
+v2 dropped `metadata` — correlate on `call.id` there.
+
+## Initiate a web call
+
+```http
+POST /v2/call/web
+```
+
+Starts a browser-based call and returns a join token.
+
+| Field | Type | Required |
+| :--- | :--- | :--- |
+| `assistant` | string | yes |
+| `systemPrompt` | string | no — overrides the assistant's prompt for this call |
+| `payload` | object | no |
+| `metadata` | object | no |
+
+```json title="201 Created"
+{ "success": true, "token": "eyJhbGciOiJIUzI1NiIs…", "error": null }
+```
+
+Note the `201` here versus `200` on `/v2/call/initiate`.
+
+## Abort a call
+
+```http
+POST /v2/call/abort
+```
+
+The call ID goes in the **body**, not the path.
+
+```bash
+curl -X POST https://api.voice-agents.miraiminds.co/v2/call/abort \
+  -H "x-public-key: pk_1234567890abcdef1234567890abcdef" \
+  -H "x-private-key: sk_1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef" \
+  -H "workspace: 6690a1b2c3d4e5f600000002" \
+  -H "Content-Type: application/json" \
+  -d '{ "callId": "68f0a1b2c3d4e5f600000900" }'
+```
+
+```json title="200 OK"
+{ "message": "Call aborted successfully" }
+```
+
+A bare `message` — no `status_code`, no `data`.
+
+**Allowed** when the call has no status yet (initial queue) or is `busy`,
+`failed`, `no-answer`, `rescheduled` or `validation-failed`.
+**Rejected** with `400` when it is `in-progress`, `completed`, `ended`,
+`timeout` or already `aborted`.
+
+| Status | Cause |
+| :--- | :--- |
+| `400` | Already aborted, in progress, or completed |
+| `404` | Call not found |
+
+Aborting a retryable call is how you stop the whole retry chain — otherwise
+`retryProtocol` keeps dialling.
+
+## Update a queued call's payload
+
+```http
+PUT /v2/call/{callId}
+```
+
+Replaces the `payload` of a call that has not been attempted yet.
+
+```bash
+curl -X PUT https://api.voice-agents.miraiminds.co/v2/call/68f0a1b2c3d4e5f600000900 \
+  -H "x-public-key: pk_1234567890abcdef1234567890abcdef" \
+  -H "x-private-key: sk_1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef" \
+  -H "workspace: 6690a1b2c3d4e5f600000002" \
+  -H "Content-Type: application/json" \
+  -d '{ "payload": { "customer": { "firstName": "Jane", "phone": "+919876543210" }, "orderId": "ORD-12345" } }'
+```
+
+```json title="200 OK"
+{ "status_code": 200, "message": "Call payload updated successfully." }
+```
+
+The payload is **replaced**, not merged. Send the whole object.
+
+| Status | Cause |
+| :--- | :--- |
+| `400` | Validation error, or the call is already in progress / completed |
+| `401` | Unauthorized |
+| `404` | Call not found |
+
+## Call statuses
+
+| Status | Meaning |
+| :--- | :--- |
+| `initiate` | Queued and being dialled. |
+| `in-progress` | Answered; the conversation is running. |
+| `ended` | The connection dropped. |
+| `completed` | Recording, transcript and duration processed. |
+| `timeout` | Exceeded `maxCallDuration`. |
+| `failed` | Could not connect. |
+| `validation-failed` | Pre-call validation failed, e.g. an invalid number. |
+| `busy` | Line busy. |
+| `no-answer` | Nobody picked up. |
+| `skip` | Skipped, e.g. a DND number. |
+| `rescheduled` | A callback is scheduled; the lifecycle continues. |
+| `aborted` | Cancelled through the abort API. |
+
+Each status has a matching `call.<status>` [webhook event](/v1/webhooks).

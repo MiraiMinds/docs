@@ -1,0 +1,103 @@
+---
+title: Voices
+description: How to discover a valid voice_id, set it on an agent, and what the language field does today. v2 has no voice-list endpoint — the catalogue lives on v1.
+---
+
+Every agent speaks in one voice, chosen by its `voice.voice_id`. This page is the
+honest answer to "where do the voice IDs come from?".
+
+## Finding a voice_id
+
+<Note>
+**v2 has no voice-list endpoint — this is the current path**
+
+There is no `GET /v2/voices` today. The voice catalogue is shared with v1, and
+that is where you list it. The `voice_id` you use on a v2 agent is the exact
+`slug` this endpoint returns.
+</Note>
+
+```http
+GET /v1/admin/voice-gallery
+```
+
+```bash
+curl https://api.voice-agents.miraiminds.co/v1/admin/voice-gallery \
+  -H "x-public-key: pk_…" \
+  -H "x-private-key: sk_…"
+```
+
+```json title="200 OK"
+{
+  "status_code": 200,
+  "message": "Voices fetched successfully.",
+  "data": [
+    {
+      "_id": "6690a1b2c3d4e5f600000301",
+      "slug": "priya",
+      "sampleAudio": "https://cdn.miraiminds.co/voices/priya.wav"
+    }
+  ]
+}
+```
+
+The catalogue uses **v1 admin auth** (`x-public-key` + `x-private-key`), not your
+v2 `sk_live_` secret key. If you do not have v1 admin credentials, ask ops —
+email [help@miraiminds.co](mailto:help@miraiminds.co) — and we will send the
+current list. Full reference: [v1 Voice gallery](/v1/assistants#voice-gallery).
+
+**Listen to `sampleAudio` before you pick.** Voice choice moves answer-through
+rates more than prompt wording does.
+
+Commonly used slugs include `priya`, `neha` and `sagar`. Treat the gallery, not
+this page, as the source of truth — the catalogue can grow, and a slug that is
+not in the gallery is rejected at agent-create time with
+[`400 invalid_request` (`unknown voice_id`)](/v2/errors).
+
+## Setting a voice on an agent
+
+Put the slug in `voice.voice_id` when you create or update an agent:
+
+```json
+{
+  "name": "Order confirmations",
+  "system_prompt": "…",
+  "voice": { "voice_id": "priya", "language": "hi-IN" },
+  "language": "hi-IN"
+}
+```
+
+| Field | Type | Description |
+| :--- | :--- | :--- |
+| `voice_id` | string | A voice slug from the gallery, e.g. `priya`. Required. Unknown slug ⇒ `400`. |
+| `language` | string | Rendering language for the voice. Omit to inherit the agent's top-level `language`. **Accepted and stored, not yet honoured** — see below. |
+
+Change a voice later with `PATCH /v2/agents/{id}`:
+
+```bash
+curl -X PATCH https://api.voice.miraiminds.co/v2/agents/agt_… \
+  -H "Authorization: Bearer sk_live_…" \
+  -H "Content-Type: application/json" \
+  -d '{ "voice": { "voice_id": "neha", "language": "hi-IN" } }'
+```
+
+See the [Agents reference](/v2/agents#voice) for the full agent shape.
+
+## The language caveat
+
+<Warning>
+**`voice.language` is recorded, not yet applied**
+
+`voice.language` is validated, stored, echoed back and carried with the call
+payload — but the voice today renders in the agent's **top-level** `language`.
+Set both to the same value and you get what you expect; set them differently and
+the top-level one wins until per-voice rendering ships.
+</Warning>
+
+The practical rule: keep `voice.language` and the agent's `language` identical.
+
+## Premium / vendor voices
+
+A wider set of voices (a premium TTS option with automatic fallback) is a **`t3`
+and `t5`** feature. Those tiers are published but **not live** — see
+[Billing & tiers](/general/tiers#coming-soon). On `t1` today, choose from the
+shared gallery above.

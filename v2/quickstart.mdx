@@ -1,0 +1,319 @@
+---
+title: Quickstart
+description: Get a key, create an agent, place a real call and receive the webhook — in five minutes.
+---
+
+
+Five minutes, four requests, one real phone call.
+
+**You need:** a secret key, a phone number you are allowed to call, and a public
+HTTPS URL for webhooks (ngrok is fine while you build).
+
+<Steps>
+<Step title="Get a key">
+Keys are ops-issued during the pilot. Email
+[info@miraiminds.co](mailto:info@miraiminds.co) with your company name and
+use case. You get back three things:
+
+| | Looks like | Used for |
+| :--- | :--- | :--- |
+| Secret key | `sk_live_YOUR_API_KEY` | every API request |
+| Webhook secret | `whsec_7d4f1a09c2e58b36a1f0d7c93b2e64a8` | verifying events we send you |
+| Starting wallet balance | `₹500` | pays for call minutes |
+
+The webhook secret is shown **once**. Store both in your secret manager, not
+in git.
+
+Check it works:
+
+```bash
+curl https://api.voice.miraiminds.co/v2/wallet \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY"
+```
+
+```json
+{ "balance_inr": 500, "currency": "INR", "updated_at": "2026-07-26T09:12:44Z" }
+```
+</Step>
+
+<Step title="Create an agent">
+An agent is the reusable configuration a call runs: prompt, opening line,
+voice, language, limits. Create it once, call it thousands of times.
+
+<Tabs>
+  <Tab title="cURL">
+    ```bash
+    curl -X POST https://api.voice.miraiminds.co/v2/agents \
+      -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "name": "Order Confirmation",
+        "system_prompt": "You are Priya from Acme. Confirm order {{order_id}} with {{customer_name}} and ask whether the delivery address is unchanged. Keep replies to one or two short sentences. When the customer is done, thank them and end the call.",
+        "first_message": "नमस्ते {{customer_name}}, मैं Acme से Priya बोल रही हूँ।",
+        "voice": { "voice_id": "priya", "language": "hi-IN" },
+        "language": "hi-IN",
+        "max_duration_secs": 300
+      }'
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    import os, httpx
+
+    API = "https://api.voice.miraiminds.co"
+    auth = {"Authorization": f"Bearer {os.environ['MIRAI_API_KEY']}"}
+
+    agent = httpx.post(
+        f"{API}/v2/agents",
+        headers=auth,
+        json={
+            "name": "Order Confirmation",
+            "system_prompt": (
+                "You are Priya from Acme. Confirm order {{order_id}} with "
+                "{{customer_name}} and ask whether the delivery address is "
+                "unchanged. Keep replies to one or two short sentences. When "
+                "the customer is done, thank them and end the call."
+            ),
+            "first_message": "नमस्ते {{customer_name}}, मैं Acme से Priya बोल रही हूँ।",
+            "voice": {"voice_id": "priya", "language": "hi-IN"},
+            "language": "hi-IN",
+            "max_duration_secs": 300,
+        },
+        timeout=30,
+    ).raise_for_status().json()
+
+    print(agent["id"])  # agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ
+    ```
+  </Tab>
+  <Tab title="Node.js">
+    ```javascript
+    const API = "https://api.voice.miraiminds.co";
+    const auth = { Authorization: `Bearer ${process.env.MIRAI_API_KEY}` };
+
+    const res = await fetch(`${API}/v2/agents`, {
+      method: "POST",
+      headers: { ...auth, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: "Order Confirmation",
+        system_prompt:
+          "You are Priya from Acme. Confirm order {{order_id}} with {{customer_name}} " +
+          "and ask whether the delivery address is unchanged. Keep replies to one or " +
+          "two short sentences. When the customer is done, thank them and end the call.",
+        first_message: "नमस्ते {{customer_name}}, मैं Acme से Priya बोल रही हूँ।",
+        voice: { voice_id: "priya", language: "hi-IN" },
+        language: "hi-IN",
+        max_duration_secs: 300,
+      }),
+    });
+    if (!res.ok) throw new Error(JSON.stringify(await res.json()));
+    const agent = await res.json();
+    console.log(agent.id); // agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ
+    ```
+  </Tab>
+</Tabs>
+
+```json title="201 Created"
+{
+  "id": "agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ",
+  "object": "agent",
+  "name": "Order Confirmation",
+  "voice": { "voice_id": "priya", "language": "hi-IN" },
+  "language": "hi-IN",
+  "max_duration_secs": 300,
+  "created_at": "2026-07-26T09:14:02Z"
+}
+```
+
+Keep that `id`.
+</Step>
+
+<Step title="Place a call">
+`variables` fill the `{{placeholders}}` in `system_prompt` and
+`first_message`. `webhook_url` is where lifecycle events land.
+
+<Tabs>
+  <Tab title="cURL">
+    ```bash
+    curl -X POST https://api.voice.miraiminds.co/v2/calls \
+      -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+      -H "Content-Type: application/json" \
+      -H "Idempotency-Key: order-8842-confirm-1" \
+      -d '{
+        "agent_id": "agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ",
+        "to": "+919876543210",
+        "variables": { "customer_name": "Rahul", "order_id": "8842" },
+        "webhook_url": "https://example.com/mirai/webhook"
+      }'
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    call = httpx.post(
+        f"{API}/v2/calls",
+        headers={**auth, "Idempotency-Key": "order-8842-confirm-1"},
+        json={
+            "agent_id": "agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ",
+            "to": "+919876543210",
+            "variables": {"customer_name": "Rahul", "order_id": "8842"},
+            "webhook_url": "https://example.com/mirai/webhook",
+        },
+        timeout=30,
+    ).raise_for_status().json()
+
+    print(call["id"], call["status"])  # call_01JZQ9B4M8N3P6R2S5T7V9W1YA queued
+    ```
+  </Tab>
+  <Tab title="Node.js">
+    ```javascript
+    const res = await fetch(`${API}/v2/calls`, {
+      method: "POST",
+      headers: {
+        ...auth,
+        "Content-Type": "application/json",
+        "Idempotency-Key": "order-8842-confirm-1",
+      },
+      body: JSON.stringify({
+        agent_id: "agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ",
+        to: "+919876543210",
+        variables: { customer_name: "Rahul", order_id: "8842" },
+        webhook_url: "https://example.com/mirai/webhook",
+      }),
+    });
+    const call = await res.json();
+    console.log(call.id, call.status); // call_01JZQ9B4M8N3P6R2S5T7V9W1YA queued
+    ```
+  </Tab>
+</Tabs>
+
+```json title="202 Accepted"
+{ "id": "call_01JZQ9B4M8N3P6R2S5T7V9W1YA", "status": "queued" }
+```
+
+`202` means accepted, not connected — the phone has not rung yet. Poll
+[`GET /v2/calls/{id}`](/v2/calls#get-a-call) or, better, wait for the
+webhook.
+</Step>
+
+<Step title="Receive the webhook">
+We POST a signed JSON event to your `webhook_url` at each lifecycle
+transition. **Verify the signature before you trust the body.**
+
+<Tabs>
+  <Tab title="Python">
+    ```python
+    import hmac, hashlib, time
+    from flask import Flask, request
+
+    app = Flask(__name__)
+    WHSEC = "whsec_7d4f1a09c2e58b36a1f0d7c93b2e64a8"
+    TOLERANCE_SECS = 300
+
+    def verify(raw_body: bytes, header: str, secret: str) -> bool:
+        parts = dict(p.split("=", 1) for p in header.split(",") if "=" in p)
+        t, v1 = parts.get("t"), parts.get("v1")
+        if not t or not v1:
+            return False
+        if abs(time.time() - int(t)) > TOLERANCE_SECS:
+            return False
+        expected = hmac.new(
+            secret.encode(), t.encode() + b"." + raw_body, hashlib.sha256
+        ).hexdigest()
+        return hmac.compare_digest(expected, v1)
+
+    @app.post("/mirai/webhook")
+    def hook():
+        if not verify(request.get_data(), request.headers.get("X-Mirai-Signature", ""), WHSEC):
+            return "", 401
+        event = request.get_json()
+        print(event["type"], event["data"]["call"]["status"])
+        return "", 200  # 2xx stops our retries
+    ```
+  </Tab>
+  <Tab title="Node.js">
+    ```javascript
+    import express from "express";
+    import crypto from "node:crypto";
+
+    const app = express();
+    const WHSEC = "whsec_7d4f1a09c2e58b36a1f0d7c93b2e64a8";
+    const TOLERANCE_SECS = 300;
+
+    function verify(rawBody, header, secret) {
+      const parts = Object.fromEntries(
+        header.split(",").map((p) => {
+          const i = p.indexOf("=");
+          return [p.slice(0, i).trim(), p.slice(i + 1).trim()];
+        })
+      );
+      const { t, v1 } = parts;
+      if (!t || !v1) return false;
+      if (Math.abs(Date.now() / 1000 - Number(t)) > TOLERANCE_SECS) return false;
+      const expected = crypto
+        .createHmac("sha256", secret)
+        .update(`${t}.`)
+        .update(rawBody)
+        .digest("hex");
+      const a = Buffer.from(expected, "utf8");
+      const b = Buffer.from(v1, "utf8");
+      return a.length === b.length && crypto.timingSafeEqual(a, b);
+    }
+
+    // raw body is required — a re-serialized JSON object will not match
+    app.post("/mirai/webhook", express.raw({ type: "application/json" }), (req, res) => {
+      if (!verify(req.body, req.get("X-Mirai-Signature") ?? "", WHSEC)) {
+        return res.sendStatus(401);
+      }
+      const event = JSON.parse(req.body.toString("utf8"));
+      console.log(event.type, event.data.call.status);
+      res.sendStatus(200); // 2xx stops our retries
+    });
+
+    app.listen(3000);
+    ```
+  </Tab>
+</Tabs>
+
+The final event for a connected call:
+
+```json title="POST https://example.com/mirai/webhook"
+{
+  "id": "evt_01JZQ9C5N9P4R7S3T6V8W2X4YB",
+  "type": "call.completed",
+  "created_at": "2026-07-26T09:16:38Z",
+  "data": {
+    "call": {
+      "id": "call_01JZQ9B4M8N3P6R2S5T7V9W1YA",
+      "agent_id": "agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ",
+      "to": "+919876543210",
+      "status": "completed",
+      "ended_reason": "assistant-ended-call",
+      "started_at": "2026-07-26T09:15:02Z",
+      "ended_at": "2026-07-26T09:16:38Z",
+      "duration_secs": 96,
+      "cost": { "amount_inr": 1.6, "per_min_inr": 1 }
+    }
+  }
+}
+```
+
+96 seconds is billed as 96 seconds — ₹1.60. [Metering is per-second](/general/tiers#metering); no rounding, no minimum.
+</Step>
+</Steps>
+
+## Next
+
+- [Webhooks](/v2/webhooks) — every event type, retries, replay protection.
+- [Calls](/v2/calls) — statuses, `ended_reason`, abort, listing.
+- [Billing & tiers](/general/tiers) — what a minute costs and what each tier can do.
+- [Limits](/v2/limits) — rate limits, concurrency, India calling-window rules.
+
+## Troubleshooting the first call
+
+| Symptom | Cause | Fix |
+| :--- | :--- | :--- |
+| `401 unauthorized` | Missing `Bearer ` prefix, or a copy-paste with a newline | Re-copy the key; check `Authorization: Bearer sk_live_…` |
+| `402 insufficient_balance` | Wallet cannot cover one minute | Ask ops for a top-up; check `GET /v2/wallet` |
+| `400 invalid_request` on `to` | Number not E.164 | Use `+919876543210`, not `9876543210` or `091 98765 43210` |
+| Call ends instantly, `status: no_answer` | Number unreachable or DND-blocked | Try another handset; see [compliance](/v2/limits#india-calling-rules) |
+| No webhook arrives | URL not publicly reachable, or not HTTPS | Test with `curl -X POST` against your own URL first |
+| Signature never verifies | Framework parsed and re-serialized the body | Sign over the **raw** bytes — see [Webhooks](/v2/webhooks#raw-body) |

@@ -1,0 +1,217 @@
+---
+title: Wallet
+description: Check your prepaid balance and read the transaction ledger.
+---
+
+
+Mirai Voice is **prepaid**. Every workspace has one INR wallet. Calls debit it
+when they end; ops credits it when you top up. If the wallet cannot cover a
+minute, `POST /v2/calls` returns [`402`](#402-insufficient-balance) and no call
+is placed.
+
+For rates and per-second metering, see [Billing & tiers](/general/tiers).
+
+## Get balance
+
+```http
+GET /v2/wallet
+```
+
+<Tabs>
+  <Tab title="cURL">
+    ```bash
+    curl https://api.voice.miraiminds.co/v2/wallet \
+      -H "Authorization: Bearer sk_live_YOUR_API_KEY"
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    import os, httpx
+
+    API = "https://api.voice.miraiminds.co"
+    auth = {"Authorization": f"Bearer {os.environ['MIRAI_API_KEY']}"}
+
+    wallet = httpx.get(f"{API}/v2/wallet", headers=auth, timeout=30) \
+                  .raise_for_status().json()
+    print(wallet["balance_inr"])  # 500
+    ```
+  </Tab>
+  <Tab title="Node.js">
+    ```javascript
+    const API = "https://api.voice.miraiminds.co";
+    const auth = { Authorization: `Bearer ${process.env.MIRAI_API_KEY}` };
+
+    const wallet = await fetch(`${API}/v2/wallet`, { headers: auth }).then((r) => r.json());
+    console.log(wallet.balance_inr); // 500
+    ```
+  </Tab>
+</Tabs>
+
+```json title="200 OK"
+{
+  "balance_inr": 500,
+  "currency": "INR",
+  "updated_at": "2026-07-26T09:12:44Z"
+}
+```
+
+| Field | Type | Description |
+| :--- | :--- | :--- |
+| `balance_inr` | number | Spendable balance. Never negative. |
+| `currency` | string | Always `INR`. |
+| `updated_at` | string | When the balance last changed. |
+
+<Tip>
+**Alert on this, don't discover it**
+
+Poll the balance on a schedule (hourly is plenty) and alert your own team below
+a threshold that covers a day of traffic. A `402` in the middle of a campaign is
+a much worse way to learn you are out of credit.
+</Tip>
+
+## List transactions
+
+```http
+GET /v2/wallet/transactions?limit=&cursor=
+```
+
+The ledger. One row per credit or debit, newest first.
+
+<Tabs>
+  <Tab title="cURL">
+    ```bash
+    curl "https://api.voice.miraiminds.co/v2/wallet/transactions?limit=50" \
+      -H "Authorization: Bearer sk_live_YOUR_API_KEY"
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    def all_transactions():
+        cursor = None
+        while True:
+            params = {"limit": 100, **({"cursor": cursor} if cursor else {})}
+            page = httpx.get(
+                f"{API}/v2/wallet/transactions", headers=auth, params=params, timeout=30
+            ).raise_for_status().json()
+            yield from page["data"]
+            if not page["has_more"]:
+                return
+            cursor = page["next_cursor"]
+
+    spent = sum(t["amount_inr"] for t in all_transactions() if t["type"] == "debit")
+    ```
+  </Tab>
+  <Tab title="Node.js">
+    ```javascript
+    async function* allTransactions() {
+      let cursor = null;
+      for (;;) {
+        const qs = new URLSearchParams({ limit: "100", ...(cursor ? { cursor } : {}) });
+        const page = await fetch(`${API}/v2/wallet/transactions?${qs}`, { headers: auth })
+          .then((r) => r.json());
+        yield* page.data;
+        if (!page.has_more) return;
+        cursor = page.next_cursor;
+      }
+    }
+
+    let spent = 0;
+    for await (const t of allTransactions()) if (t.type === "debit") spent += t.amount_inr;
+    ```
+  </Tab>
+</Tabs>
+
+```json title="200 OK"
+{
+  "data": [
+    {
+      "id": "txn_01JZQ9D6P2R5S8T4V7W9X1Y3ZB",
+      "object": "wallet_transaction",
+      "type": "debit",
+      "amount_inr": 1.6,
+      "balance_after_inr": 498.4,
+      "call_id": "call_01JZQ9B4M8N3P6R2S5T7V9W1YA",
+      "description": "call 96s @ t1",
+      "created_at": "2026-07-26T09:16:39Z"
+    },
+    {
+      "id": "txn_01JZQ8E2M4N6P8R1S3T5V7W9XA",
+      "object": "wallet_transaction",
+      "type": "credit",
+      "amount_inr": 500,
+      "balance_after_inr": 500,
+      "call_id": null,
+      "description": "pilot top-up",
+      "created_at": "2026-07-26T08:40:11Z"
+    }
+  ],
+  "has_more": false,
+  "next_cursor": null
+}
+```
+
+| Field | Type | Description |
+| :--- | :--- | :--- |
+| `type` | `credit` \| `debit` | Direction. |
+| `amount_inr` | number | Always positive; read `type` for direction. |
+| `balance_after_inr` | number | Balance immediately after this row. |
+| `call_id` | string \| null | Set on call debits, `null` on top-ups and adjustments. |
+| `description` | string | Human-readable. Do not parse it. |
+
+Reconcile against `call_id`: every billable call produces exactly one debit row.
+
+## Top up
+
+Top-ups are **ops-issued** during the pilot — there is no self-serve endpoint
+yet. Email [credits@miraiminds.co](mailto:credits@miraiminds.co); the credit appears
+as a `credit` row within minutes and takes effect immediately.
+
+## `402` insufficient balance
+
+Before dialling, we check the wallet can cover at least one minute at the
+call's tier. If it cannot:
+
+```json title="402 Payment Required"
+{
+  "error": {
+    "code": "insufficient_balance",
+    "message": "wallet balance 0.40 INR is below the minimum for one minute at t1"
+  }
+}
+```
+
+- **The gate runs pre-dial.** No phone rings, nothing is charged, no call object
+  is created.
+- **Retry after topping up**, with the same `Idempotency-Key` — the failed
+  request did not consume it.
+- **Calls already in flight are not killed.** A call that started with credit
+  runs to its natural end, then debits. A wallet can therefore end a busy minute
+  slightly lower than the pre-dial check implied.
+
+Handle it explicitly — it is the one error that is a business condition rather
+than a bug:
+
+<Tabs>
+  <Tab title="Python">
+    ```python
+    r = httpx.post(f"{API}/v2/calls", headers=auth, json=payload, timeout=30)
+    if r.status_code == 402:
+        pause_campaign()
+        alert_ops(r.json()["error"]["message"])
+    else:
+        r.raise_for_status()
+    ```
+  </Tab>
+  <Tab title="Node.js">
+    ```javascript
+    const res = await fetch(`${API}/v2/calls`, { method: "POST", headers, body });
+    if (res.status === 402) {
+      const { error } = await res.json();
+      await pauseCampaign();
+      await alertOps(error.message);
+    } else if (!res.ok) {
+      throw new Error(await res.text());
+    }
+    ```
+  </Tab>
+</Tabs>

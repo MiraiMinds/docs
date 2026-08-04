@@ -1,0 +1,169 @@
+---
+title: FAQ
+description: Short answers to the questions developers actually ask about the Mirai Voice API.
+---
+
+## Getting started
+
+**How do I get a key?**
+Email [help@miraiminds.co](mailto:help@miraiminds.co) with your company and use
+case. Keys are ops-issued during the pilot; self-serve signup is coming. You get
+a secret key, a webhook secret, and a starting wallet balance.
+
+**Is there a sandbox or test key?**
+Not yet. There is no `sk_test_` and no simulated call — every call is a real
+call and costs real money. Test against your own phone with a small wallet
+balance. The [webhook test vector](/v2/webhooks#test-vector) lets you build and
+verify your handler without placing a call at all.
+
+**Is there an SDK?**
+No. The API is small enough that `fetch` and `httpx` are the SDK. Every page
+here carries copy-pasteable cURL, Python and Node.
+
+**Can I use v1 and v2 at the same time?**
+Yes. Different hosts, different credentials, same workspace. Most people move
+calls to v2 and leave numbers, knowledge base and tools on v1. See
+[Migrating from v1](/v2/migration).
+
+## Calls
+
+**Why did `POST /v2/calls` return `202` and not `200`?**
+Because the phone has not rung yet. `202` means queued. The outcome arrives by
+[webhook](/v2/webhooks), or from [`GET /v2/calls/{id}`](/v2/calls#get-a-call).
+
+**How long until the phone rings?**
+Normally a couple of seconds from `202`. If you are at your concurrency ceiling
+the call sits in `queued` until a slot frees — it is queued, not rejected, so
+being over the ceiling never returns `429`.
+
+**Can I do inbound calls?**
+Not in v2. Inbound assistants live in [v1](/v1/overview).
+
+**Can I transfer a call to a human?**
+Yes — warm transfer to a human is part of every tier, see the
+[feature matrix](/general/tiers#feature-matrix). The transfer rollout is
+completing now; see the [roadmap](/general/roadmap) for status and ask your
+account contact to enable it on your workspace.
+
+**Can I change the prompt or variables mid-call?**
+No. `variables` are static per call. v1 had `PUT /v2/call/{callId}` for editing a
+queued call's payload; v2 has no equivalent — create the call with what you want
+it to say.
+
+**Can I get the recording or transcript?**
+Not through the v2 API. Recordings are retained 30 days; ask ops if you need
+access. If your use case requires that we do not record, tell us up front.
+
+**What happens if the customer does not answer?**
+`status: no_answer`, a `call.failed` webhook, and no charge. v2 does not retry
+for you — retry from your own dialler if you want to.
+
+One caveat: when the carrier gives us no verdict at all, an unanswered call is
+reported as `failed` with `ended_reason: "no-media"` instead. Both are free, and
+both mean "did not connect" — so treat `no_answer`, `busy` and `failed` +
+`no-media` as one bucket in retry logic. See
+[ended reasons](/v2/calls#ended-reasons).
+
+**How do I stop a call I just started?**
+[`POST /v2/calls/{id}/abort`](/v2/calls#abort-a-call). It works while the call is
+queued, while it is ringing, and while it is live — a live call is hung up
+mid-conversation. Only a call that has already ended returns `409`. Aborted calls
+are never billed.
+
+**Which languages work?**
+Hindi and Indian English are what the stack is tuned for, including
+Hindi-English code-switching, which is how most real calls actually sound. Write
+the prompt in the language you want spoken — Devanagari for Hindi. Other
+languages: ask before you build on them.
+
+**Does the agent sound like a human?**
+It sounds like a good phone voice. Callers usually work out it is a machine
+within a turn or two, which is why [telling them up front](/v2/limits#disclosure-that-it-is-an-ai)
+costs you nothing and drops early hang-ups.
+
+## Billing
+
+**What does a call cost?**
+₹1 per minute on `t1`, metered per second — no per-call minimum, no rounding
+to minutes, no pulses. A 96-second call costs ₹1.60; an 8-second call costs
+₹0.13. See [Billing & tiers](/general/tiers).
+
+**Am I charged for calls that do not connect?**
+No. `no_answer`, `busy`, `failed` and `aborted` are free. `completed`,
+`voicemail` and `timeout` are billed.
+
+**Am I charged for a voicemail?**
+Yes — media went live and audio was generated. An 18-second voicemail costs
+18 seconds: ₹0.30 at `t1`.
+
+**What happens when I run out of credit?**
+`POST /v2/calls` returns [`402 insufficient_balance`](/v2/wallet#402-insufficient-balance)
+and nothing is dialled. Calls already in flight finish normally.
+
+**How do I top up?**
+Email [credits@miraiminds.co](mailto:credits@miraiminds.co). Self-serve top-up
+is not built yet. Credits land as a `credit` row in
+[`GET /v2/wallet/transactions`](/v2/wallet#list-transactions) and take effect
+immediately.
+
+**When are `t3` and `t5` available?**
+They are documented but not live. Requesting them returns
+[`501 tier_unavailable`](/v2/errors#error-codes). Current targets: `t3` in
+August 2026, `t5` in Q4 2026 — see the [roadmap](/general/roadmap) and the
+[feature matrix](/general/tiers#feature-matrix) for what they will include.
+
+## Webhooks
+
+**My signature never verifies. Why?**
+Almost always because you signed a re-serialised body. Sign the **raw bytes**.
+See [raw body](/v2/webhooks#raw-body). Second most common: the signed string is
+`"<t>.<raw_body>"` — the timestamp and the dot are part of it, not just the body.
+
+**Do you retry failed deliveries?**
+Yes — six attempts with exponential backoff over roughly 36 minutes, then
+dead-letter. Any `2xx` stops it. See [retries](/v2/webhooks#retries).
+
+**Can events arrive out of order or twice?**
+Yes to both. Dedupe on `event.id` and order your state machine by
+`data.call.status`, not by arrival time.
+
+**Can I have more than one webhook URL?**
+One per call, set as `webhook_url` at create time. Fan out on your side.
+
+**What if my endpoint is down for an hour?**
+The event lands in the dead-letter queue after ~36 minutes of retries. Ops can
+replay it. You can also reconcile from
+[`GET /v2/calls`](/v2/calls#list-calls) — that is what the list endpoint is
+for.
+
+## Limits and compliance
+
+**How many concurrent calls can I run?**
+Pilot default is 5. It is a provisioning setting, not a code change — ask for
+more. See [Limits](/v2/limits).
+
+**Do you enforce the 9am–9pm calling window?**
+No. Your scheduler does. We dial when you tell us to dial. See
+[India calling rules](/v2/limits#india-calling-rules).
+
+**Do you scrub DND numbers?**
+No. That is your list and your obligation.
+
+**Do I have to tell people it is an AI?**
+We strongly recommend it, and it belongs in `first_message`. Your legal
+obligations are your own to confirm.
+
+## Operations
+
+**What is your uptime target?**
+The API and the call path are operated as a pilot service. Ask your account
+contact for the current SLA before you put a revenue-critical flow behind it.
+
+**Where does my data go?**
+Media (audio, ASR, TTS, the model) runs in India. The control plane — workflow
+orchestration and the API — runs in Europe, off the audio path, so it adds no
+latency to what the caller hears.
+
+**Something is broken. What do you need from me?**
+The `call_id` (or `evt_id`), the UTC timestamp, and what you expected. That is
+enough to pull the whole workflow history.

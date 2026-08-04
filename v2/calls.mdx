@@ -1,0 +1,426 @@
+---
+title: Calls
+description: Place outbound calls, inspect their status, abort them, and list history.
+---
+
+
+A **call** is one outbound dial attempt driven by an [agent](/v2/agents).
+Creating a call is asynchronous: you get `202 Accepted` immediately and the
+outcome arrives by [webhook](/v2/webhooks) (or by polling
+[`GET /v2/calls/{id}`](#get-a-call)).
+
+Base URL `https://api.voice.miraiminds.co`.
+
+## The call object
+
+```json
+{
+  "id": "call_01JZQ9B4M8N3P6R2S5T7V9W1YA",
+  "object": "call",
+  "agent_id": "agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ",
+  "to": "+919876543210",
+  "status": "completed",
+  "ended_reason": "assistant-ended-call",
+  "started_at": "2026-07-26T09:15:02Z",
+  "ended_at": "2026-07-26T09:16:38Z",
+  "duration_secs": 96,
+  "cost": { "amount_inr": 1.6, "per_min_inr": 1 }
+}
+```
+
+| Field | Type | Description |
+| :--- | :--- | :--- |
+| `id` | string | `call_<ulid>`. Also the idempotency anchor and the workflow ID. |
+| `agent_id` | string | The agent this call ran. |
+| `to` | string | E.164 destination. |
+| `status` | enum | See [statuses](#statuses). |
+| `ended_reason` | string \| null | Why it ended. See [ended reasons](#ended-reasons). `null` while running. |
+| `started_at` | string \| null | RFC 3339, UTC. Set when **media goes live**, not when we dialled. `null` if the call never connected. |
+| `ended_at` | string \| null | RFC 3339, UTC. |
+| `duration_secs` | integer | Billable seconds of live media. `0` for calls that never connected. |
+| `cost` | object | `amount_inr` charged, and the `per_min_inr` rate applied. Zero until the call ends. |
+
+## Statuses
+
+| Status | Terminal | Meaning |
+| :--- | :---: | :--- |
+| `queued` | | Accepted, waiting on fleet capacity. |
+| `dialing` | | SIP invite sent, phone is ringing. |
+| `in_progress` | | Media live, conversation running. |
+| `completed` | ✅ | Connected and finished normally. **Billable.** |
+| `voicemail` | ✅ | An answering machine picked up. See [voicemail](/v2/agents#voicemail). **Billable.** |
+| `no_answer` | ✅ | Rang out, nobody picked up. Free. |
+| `busy` | ✅ | Callee's line was busy. Free. |
+| `failed` | ✅ | Could not connect, or the pipeline errored. Free. |
+| `timeout` | ✅ | Hit `max_duration_secs`. **Billable.** |
+| `aborted` | ✅ | You cancelled it with [`POST /abort`](#abort-a-call) — from the queue, mid-ring, or mid-conversation. Free either way. |
+
+Statuses only move forward. A terminal status never changes.
+
+```mermaid
+stateDiagram-v2
+    [*] --> queued: POST /v2/calls
+    queued --> dialing: capacity acquired
+    queued --> aborted: POST /abort
+    dialing --> aborted: POST /abort
+    in_progress --> aborted: POST /abort
+    dialing --> in_progress: media live
+    dialing --> no_answer
+    dialing --> busy
+    dialing --> failed
+    dialing --> voicemail: machine detected
+    in_progress --> completed
+    in_progress --> voicemail
+    in_progress --> timeout: max_duration_secs
+    in_progress --> failed
+    completed --> [*]
+    voicemail --> [*]
+    no_answer --> [*]
+    busy --> [*]
+    failed --> [*]
+    timeout --> [*]
+    aborted --> [*]
+```
+
+## Ended reasons
+
+`ended_reason` explains *why* a terminal status was reached. Match on `status`
+for control flow; use `ended_reason` for analytics and support.
+
+| `ended_reason` | Usual `status` | Meaning |
+| :--- | :--- | :--- |
+| `assistant-ended-call` | `completed` | The agent called `end_call` — the job finished. |
+| `customer-ended-call` | `completed` | The callee hung up. |
+| `exceeded-max-duration` | `timeout` | Hit `max_duration_secs`. |
+| `customer-did-not-answer` | `no_answer` | Rang out. |
+| `customer-busy` | `busy` | Line busy. |
+| `voicemail` | `voicemail` | An answering machine answered. Detecting it is what sets the status, so the two always travel together. |
+| `silence-timed-out` | `completed` | Media was live but nobody ever spoke. Billable — the agent ran. |
+| `idle-timed-out` | `completed` | The agent re-prompted its configured number of times and the caller never came back. Billable. |
+| `no-media` | `failed` | The call was placed but audio never flowed. See the note below. Not billed. |
+| `aborted-by-api` | `aborted` | You called [`POST /abort`](#abort-a-call). The only reason an abort produces. |
+| `assistant-error` | `failed` | Pipeline failure on our side. Not billed. |
+| `transferred` | `completed` | The call ended in a completed warm transfer to a human. Handoff is [part of every tier](/general/tiers#feature-matrix); the rollout is completing — **no call emits this yet**, see the [roadmap](/general/roadmap). |
+| `balance-exhausted` | `completed` | Reserved for a call ended when the wallet emptied mid-call. **Not wired — no call emits this yet.** |
+
+<Note>
+Treat `ended_reason` as an open vocabulary. New values are added without a
+version bump — always have a default branch. The last two rows above are in the
+vocabulary but **no call emits them today**; they arrive with the warm-transfer
+rollout and the `t3`/`t5` tiers — see the [roadmap](/general/roadmap).
+</Note>
+
+<Warning>
+**`no_answer` is under-reported today**
+
+Some calls that genuinely rang out are reported as `failed` with
+`ended_reason: "no-media"` rather than as `no_answer`.
+
+Whether we can tell the two apart depends on what the carrier tells us. When the
+carrier returns a clear verdict (SIP 480/408 → rang out, 486/600 → busy) you get
+`no_answer` / `busy` correctly. When it black-holes the call instead — accepts
+the invite and returns nothing — we have no signal to distinguish "rang, nobody
+picked up" from "answered into silence", and the call ends `failed` /
+`no-media` after the media gate expires.
+
+**What this means for you:** if you are counting unanswered calls for retry
+logic, treat `no_answer`, `busy` **and** `failed` + `no-media` as the
+did-not-connect bucket. None of the three is billed, so your costs are unaffected
+either way. We are working on tightening this; the reported status will get more
+specific over time, never less.
+</Warning>
+
+---
+
+## Create a call
+
+```http
+POST /v2/calls
+```
+
+### Request
+
+| Field | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `agent_id` | string | yes | The agent to run. |
+| `to` | string | yes | E.164, e.g. `+919876543210`. |
+| `variables` | object | no | Flat string map substituted into the agent's prompt. See [variables](#variables). |
+| `webhook_url` | string | no | HTTPS URL for [lifecycle events](/v2/webhooks). |
+| `max_duration_secs` | integer | no | Overrides the agent's cap for this call only. |
+| `tier` | string | no | `t1` \| `t3` \| `t5`. Defaults to your key's tier. See [tiers](/general/tiers). |
+
+<Tabs>
+  <Tab title="cURL">
+    ```bash
+    curl -X POST https://api.voice.miraiminds.co/v2/calls \
+      -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+      -H "Content-Type: application/json" \
+      -H "Idempotency-Key: order-8842-confirm-1" \
+      -d '{
+        "agent_id": "agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ",
+        "to": "+919876543210",
+        "variables": { "customer_name": "Rahul", "order_id": "8842" },
+        "webhook_url": "https://example.com/mirai/webhook",
+        "max_duration_secs": 240
+      }'
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    import os, httpx
+
+    API = "https://api.voice.miraiminds.co"
+    auth = {"Authorization": f"Bearer {os.environ['MIRAI_API_KEY']}"}
+
+    r = httpx.post(
+        f"{API}/v2/calls",
+        headers={**auth, "Idempotency-Key": "order-8842-confirm-1"},
+        json={
+            "agent_id": "agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ",
+            "to": "+919876543210",
+            "variables": {"customer_name": "Rahul", "order_id": "8842"},
+            "webhook_url": "https://example.com/mirai/webhook",
+            "max_duration_secs": 240,
+        },
+        timeout=30,
+    )
+    if r.status_code == 402:
+        raise RuntimeError(r.json()["error"]["message"])  # top up the wallet
+    call = r.raise_for_status().json()
+    print(call["id"], call["status"])  # call_01JZQ9B4M8N3P6R2S5T7V9W1YA queued
+    ```
+  </Tab>
+  <Tab title="Node.js">
+    ```javascript
+    const API = "https://api.voice.miraiminds.co";
+    const auth = { Authorization: `Bearer ${process.env.MIRAI_API_KEY}` };
+
+    const res = await fetch(`${API}/v2/calls`, {
+      method: "POST",
+      headers: {
+        ...auth,
+        "Content-Type": "application/json",
+        "Idempotency-Key": "order-8842-confirm-1",
+      },
+      body: JSON.stringify({
+        agent_id: "agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ",
+        to: "+919876543210",
+        variables: { customer_name: "Rahul", order_id: "8842" },
+        webhook_url: "https://example.com/mirai/webhook",
+        max_duration_secs: 240,
+      }),
+    });
+    const body = await res.json();
+    if (!res.ok) throw new Error(`${body.error.code}: ${body.error.message}`);
+    console.log(body.id, body.status); // call_01JZQ9B4M8N3P6R2S5T7V9W1YA queued
+    ```
+  </Tab>
+</Tabs>
+
+```json title="202 Accepted"
+{ "id": "call_01JZQ9B4M8N3P6R2S5T7V9W1YA", "status": "queued" }
+```
+
+`202` means the call is admitted to the queue — **the phone has not rung yet**.
+The full call object is available from [`GET /v2/calls/{id}`](#get-a-call).
+
+### Errors
+
+| Status | `error.code` | Cause |
+| :--- | :--- | :--- |
+| `400` | `invalid_request` | Missing `agent_id`/`to`, `to` not E.164, `max_duration_secs` out of range |
+| `401` | `unauthorized` | Bad or missing key |
+| `402` | `insufficient_balance` | Wallet cannot cover the first minute at your tier. **Checked before we dial** — no partial charge. See [Wallet](/v2/wallet#402-insufficient-balance). |
+| `404` | `not_found` | `agent_id` does not exist in your workspace — including one that exists in someone else's |
+| `409` | `duplicate_call` | A request with this `Idempotency-Key` is still being processed. See [idempotency](#idempotency). |
+| `429` | `rate_limited` | Request rate exceeded, **or** your queue is full (500 calls accepted and not yet ended). Concurrency does **not** 429 — over-cap calls queue. `error.message` says which. Honour `Retry-After`. See [Limits](/v2/limits). |
+| `501` | `tier_unavailable` | `tier` is `t3` or `t5`, which are not live yet |
+
+### Variables
+
+`variables` is a flat map of string keys to string values. Each key replaces the
+matching `{{key}}` placeholder in the agent's `system_prompt` and
+`first_message`.
+
+```json
+{ "variables": { "customer_name": "Rahul", "order_id": "8842" } }
+```
+
+- Keys are matched literally and case-sensitively.
+- A placeholder with no matching variable is substituted with an empty string —
+  it does not error, and it does not leave `{{braces}}` for the agent to read
+  aloud. Validate on your side.
+- Keep values short. They are part of the prompt, and the prompt is on the
+  latency path.
+- Variables are **static per call**. There is no way to change them mid-call.
+
+### Idempotency
+
+Send `Idempotency-Key` with a value derived from your own domain object:
+
+```bash
+-H "Idempotency-Key: order-8842-confirm-1"
+```
+
+If we have seen that key in the last 24 hours, we replay the original response
+byte for byte and place **no second call**. This is the safe way to retry a
+request that timed out — you cannot tell from a network timeout whether the call
+was placed, and without the key a retry means the customer's phone rings twice.
+
+The key is scoped to your workspace. Reusing a key with a *different* body still
+replays the original response — pick keys that are unique per intended call.
+
+There is one window where a reused key does not replay: while the **first**
+request with that key is still being processed, there is no stored response to
+replay yet, so the second request gets
+[`409 duplicate_call`](/v2/errors#error-codes). It means "already in flight, no
+second call placed" — retry a moment later and you will get the original
+response, or wait for the webhook.
+
+---
+
+## Get a call
+
+```http
+GET /v2/calls/{id}
+```
+
+<Tabs>
+  <Tab title="cURL">
+    ```bash
+    curl https://api.voice.miraiminds.co/v2/calls/call_01JZQ9B4M8N3P6R2S5T7V9W1YA \
+      -H "Authorization: Bearer sk_live_YOUR_API_KEY"
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    import time
+
+    TERMINAL = {"completed", "voicemail", "no_answer", "busy", "failed", "timeout", "aborted"}
+
+    def wait_for_call(call_id: str, timeout_secs: int = 600) -> dict:
+        """Prefer webhooks. Poll only when you cannot host an endpoint."""
+        deadline = time.monotonic() + timeout_secs
+        while time.monotonic() < deadline:
+            call = httpx.get(f"{API}/v2/calls/{call_id}", headers=auth, timeout=30) \
+                        .raise_for_status().json()
+            if call["status"] in TERMINAL:
+                return call
+            time.sleep(5)
+        raise TimeoutError(call_id)
+    ```
+  </Tab>
+  <Tab title="Node.js">
+    ```javascript
+    const TERMINAL = new Set([
+      "completed", "voicemail", "no_answer", "busy", "failed", "timeout", "aborted",
+    ]);
+
+    async function waitForCall(callId, timeoutMs = 600_000) {
+      const deadline = Date.now() + timeoutMs;
+      while (Date.now() < deadline) {
+        const call = await fetch(`${API}/v2/calls/${callId}`, { headers: auth })
+          .then((r) => r.json());
+        if (TERMINAL.has(call.status)) return call;
+        await new Promise((r) => setTimeout(r, 5000));
+      }
+      throw new Error(`timed out waiting for ${callId}`);
+    }
+    ```
+  </Tab>
+</Tabs>
+
+**`200 OK`** — the [call object](#the-call-object). **`404 not_found`** for an
+unknown ID, and for an ID that belongs to another workspace — the two are
+deliberately indistinguishable.
+
+<Tip>
+Poll no faster than every 5 seconds, and only when you cannot receive webhooks.
+Polling counts against your [rate limit](/v2/limits); webhooks do not.
+</Tip>
+
+---
+
+## Abort a call
+
+```http
+POST /v2/calls/{id}/abort
+```
+
+Cancels a call that has not ended yet. Accepted while the call is `queued`,
+`dialing` **or `in_progress`** — a live call is hung up on the SIP server
+mid-conversation, not merely flagged. Only a call that has already reached a
+terminal status is refused: there is nothing left to stop.
+
+```bash
+curl -X POST https://api.voice.miraiminds.co/v2/calls/call_01JZQ9B4M8N3P6R2S5T7V9W1YA/abort \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY"
+```
+
+```json title="202 Accepted"
+{ "id": "call_01JZQ9B4M8N3P6R2S5T7V9W1YA", "status": "aborted" }
+```
+
+`202` means the cancel was signalled. The call reaches `aborted` shortly after
+with `ended_reason: "aborted-by-api"`, and a
+[`call.aborted`](/v2/webhooks#callaborted) event fires. An aborted call is never
+billed — including one aborted after media went live.
+
+| Status | `error.code` | Cause |
+| :--- | :--- | :--- |
+| `404` | `not_found` | Unknown call ID, or a call in another workspace |
+| `409` | `conflict` | The call has already ended — its status is terminal, so there is nothing to abort |
+
+---
+
+## List calls
+
+```http
+GET /v2/calls?agent_id=&status=&from=&to=&limit=&cursor=
+```
+
+| Query param | Description |
+| :--- | :--- |
+| `agent_id` | Only calls run by this agent. |
+| `status` | Filter by one [status](#statuses). |
+| `from` | RFC 3339 lower bound on `created_at`, inclusive. |
+| `to` | RFC 3339 upper bound on `created_at`, exclusive. |
+| `limit` | 1–100, default 20. |
+| `cursor` | From `next_cursor` of the previous page. |
+
+```bash
+curl -G https://api.voice.miraiminds.co/v2/calls \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+  --data-urlencode "agent_id=agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ" \
+  --data-urlencode "status=completed" \
+  --data-urlencode "from=2026-07-01T00:00:00Z" \
+  --data-urlencode "limit=100"
+```
+
+```json title="200 OK"
+{
+  "data": [
+    {
+      "id": "call_01JZQ9B4M8N3P6R2S5T7V9W1YA",
+      "object": "call",
+      "agent_id": "agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ",
+      "to": "+919876543210",
+      "status": "completed",
+      "ended_reason": "assistant-ended-call",
+      "started_at": "2026-07-26T09:15:02Z",
+      "ended_at": "2026-07-26T09:16:38Z",
+      "duration_secs": 96,
+      "cost": { "amount_inr": 1.6, "per_min_inr": 1 }
+    }
+  ],
+  "has_more": true,
+  "next_cursor": "call_01JZQ9B4M8N3P6R2S5T7V9W1YB"
+}
+```
+
+Results are newest first. See [pagination](/v2/overview#pagination).
+
+<Note>
+The list endpoint is for reconciliation and reporting, not for driving your
+application state. For that, use [webhooks](/v2/webhooks).
+</Note>

@@ -1,0 +1,138 @@
+---
+title: Telephony
+description: Search, purchase and release phone numbers from the number pool.
+---
+
+Numbers belong to the **organization** and are bound to assistants through
+`telephony.inbound` / `telephony.outbound`.
+
+<Tip>
+Every new workspace gets a default number automatically in production. Check
+what you already own before buying.
+</Tip>
+
+## Search available numbers
+
+```http
+GET /v1/number-pool/search
+```
+
+| Query param | Required | Description |
+| :--- | :--- | :--- |
+| `countryCode` | yes | 2-letter ISO, case-insensitive. `IN`, `US`. |
+| `numberType` | no | `local`. |
+| `pattern` | no | Digits or letters to match within the number, e.g. `415`. |
+| `limit` | no | 1–50, default 20. |
+| `provider` | no | Default `miraiminds`. |
+
+```bash
+curl -G https://api.voice-agents.miraiminds.co/v1/number-pool/search \
+  -H "x-public-key: pk_1234567890abcdef1234567890abcdef" \
+  -H "x-private-key: sk_1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef" \
+  -H "workspace: 6690a1b2c3d4e5f600000002" \
+  --data-urlencode "countryCode=IN" \
+  --data-urlencode "pattern=815" \
+  --data-urlencode "limit=10"
+```
+
+```json title="200 OK"
+{
+  "status_code": 200,
+  "message": "Available numbers fetched successfully.",
+  "data": [
+    {
+      "number": "+918155550101",
+      "countryCode": "IN",
+      "numberType": "local",
+      "monthlyRateCents": 100,
+      "setupFeeCents": 0
+    }
+  ]
+}
+```
+
+Rates are in **cents**, not rupees — `monthlyRateCents: 100` is 1.00 of the
+provider's billing unit.
+
+## Purchase a number
+
+```http
+POST /v1/number-pool/purchase
+```
+
+```bash
+curl -X POST https://api.voice-agents.miraiminds.co/v1/number-pool/purchase \
+  -H "x-public-key: pk_1234567890abcdef1234567890abcdef" \
+  -H "x-private-key: sk_1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef" \
+  -H "workspace: 6690a1b2c3d4e5f600000002" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "number": "+918155550101",
+    "provider": "miraiminds",
+    "countryCode": "IN",
+    "numberType": "local"
+  }'
+```
+
+```json title="201 Created"
+{
+  "status_code": 201,
+  "message": "Phone number purchased successfully.",
+  "data": {
+    "_id": "6700a1b2c3d4e5f600000222",
+    "number": "+918155550101",
+    "provider": "miraiminds",
+    "organization": "6690a1b2c3d4e5f600000001",
+    "workspace": null,
+    "status": "active",
+    "providerNumberId": "6690a1b2c3d4e5f600000090",
+    "monthlyRateCents": 100,
+    "setupFeeCents": 0,
+    "countryCode": "IN",
+    "numberType": "local",
+    "createdAt": "2026-07-26T10:00:00.000Z",
+    "updatedAt": "2026-07-26T10:00:00.000Z"
+  }
+}
+```
+
+Keep `data._id` — that is what goes in an assistant's `telephony.inbound` or
+`telephony.outbound`, not the number itself.
+
+| Status | Cause |
+| :--- | :--- |
+| `400` | Validation error |
+| `402` | Insufficient credit balance |
+| `404` | Organization not found |
+
+Note the `201` here, versus `200` on most other v1 endpoints.
+
+## Release a number
+
+```http
+DELETE /v1/number-pool/{telephonyNumberId}
+```
+
+```bash
+curl -X DELETE https://api.voice-agents.miraiminds.co/v1/number-pool/6700a1b2c3d4e5f600000222 \
+  -H "x-public-key: pk_1234567890abcdef1234567890abcdef" \
+  -H "x-private-key: sk_1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef" \
+  -H "workspace: 6690a1b2c3d4e5f600000002"
+```
+
+```json title="200 OK"
+{ "status_code": 200, "message": "Phone number released successfully." }
+```
+
+The path takes the telephony record `_id`, not the phone number.
+
+| Status | Cause |
+| :--- | :--- |
+| `404` | No such number for this organization |
+| `409` | Already released |
+
+<Warning>
+Releasing is irreversible — the number returns to the provider pool and you are
+unlikely to get it back. Detach it from every assistant first, or their calls
+will fail.
+</Warning>

@@ -1,0 +1,386 @@
+---
+title: Agents
+description: Create, read, update and delete the reusable configuration a call runs.
+---
+
+
+An **agent** is the reusable configuration a call runs: what it says first, how
+it behaves, which voice, which language, and when it must stop. Calls reference
+an agent by ID; per-call differences go in [`variables`](/v2/calls#variables).
+
+Base URL `https://api.voice.miraiminds.co`. All endpoints require
+`Authorization: Bearer sk_live_…`.
+
+## The agent object
+
+```json
+{
+  "id": "agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ",
+  "object": "agent",
+  "name": "Order Confirmation",
+  "system_prompt": "You are Priya from Acme. Confirm order {{order_id}} with {{customer_name}}…",
+  "first_message": "नमस्ते {{customer_name}}, मैं Acme से Priya बोल रही हूँ।",
+  "voice": { "voice_id": "priya", "language": "hi-IN" },
+  "language": "hi-IN",
+  "max_duration_secs": 300,
+  "end_call": {
+    "enabled": true,
+    "message": "धन्यवाद, आपका दिन शुभ हो।",
+    "confirm": true
+  },
+  "voicemail": { "action": "hangup" },
+  "created_at": "2026-07-26T09:14:02Z",
+  "updated_at": "2026-07-26T09:14:02Z"
+}
+```
+
+### Fields
+
+| Field | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `name` | string | yes | Human label. Shown in logs and the console. |
+| `system_prompt` | string | yes | The agent's instructions. Supports `{{variable}}` placeholders. |
+| `first_message` | string | yes | Spoken the moment the callee answers, before the model runs. Keep it short — it is your first-audio latency. |
+| `voice` | object | yes | See [Voice](#voice). |
+| `language` | string | yes | BCP-47 conversation language, e.g. `hi-IN`, `en-IN`. Drives ASR and the model's default output language. |
+| `max_duration_secs` | integer | no | Hard cap. The call is ended with `ended_reason: exceeded-max-duration`. Minimum `30`, maximum `1800`, default `300`. |
+| `end_call` | object | no | See [Ending a call](#ending-a-call). |
+| `voicemail` | object | no | See [Voicemail](#voicemail). |
+
+Server-set and read-only: `id`, `object`, `created_at`, `updated_at`.
+
+### Voice
+
+```json
+{ "voice": { "voice_id": "priya", "language": "hi-IN" } }
+```
+
+| Field | Type | Description |
+| :--- | :--- | :--- |
+| `voice_id` | string | A voice slug from the catalogue, e.g. `priya`, `neha`, `sagar`. |
+| `language` | string | Rendering language for that voice. Omit to inherit the agent's `language`. **Accepted and stored, not yet honoured** — see below. |
+
+<Note>
+**`voice.language` is recorded, not yet applied**
+
+The field is validated, stored and echoed back, and it travels with the call
+payload — but the voice today renders in the agent's top-level `language`. Set
+both to the same value and you get what you expect; set them differently and the
+top-level one wins until per-voice rendering ships.
+</Note>
+
+The catalogue is shared with v1 — list it with
+[`GET /v1/admin/voice-gallery`](/v1/assistants#voice-gallery), which returns a
+slug and a sample audio URL per voice. See [Voices](/v2/voices) for the full
+discovery flow.
+
+### Ending a call
+
+The agent gets an `end_call` tool. When it fires, the agent speaks `message` and
+hangs up.
+
+| Field | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `enabled` | boolean | `true` | Set `false` to remove the tool entirely — the call then ends only on the callee hanging up or `max_duration_secs`. **Accepted and stored; enforcement rolling out.** |
+| `message` | string | `"Thanks, have a good day"` | Spoken farewell. Live today. |
+| `confirm` | boolean | `true` | Require a second `end_call` within the confirmation window before hanging up. Guards against fast models ending on a bare "ok". **Accepted and stored; enforcement rolling out.** |
+
+<Warning>
+**Only `message` is enforced today**
+
+`enabled` and `confirm` are validated, stored, echoed back and carried into the
+call payload, but the agent currently reads only `end_call.message`. Until the
+worker picks the other two up, assume the tool is available and confirmation
+behaves at its default. Set them now — they take effect without any change on
+your side.
+</Warning>
+
+<Tip>
+Leave `confirm: true` unless you are running a one-turn notification. It costs
+one extra turn in the rare case and prevents the far more expensive failure of
+hanging up on a customer mid-sentence.
+</Tip>
+
+### Voicemail
+
+```json
+{
+  "voicemail": {
+    "action": "message",
+    "message": "Hi, this is Acme calling about your order. We'll try again later."
+  }
+}
+```
+
+| Field | Type | Description |
+| :--- | :--- | :--- |
+| `action` | `hangup` \| `message` | What to do when an answering machine is detected. Default `hangup`. |
+| `message` | string | Required when `action` is `message`. Spoken once, then the call ends. |
+
+Either way the call ends with `status: voicemail` and fires a
+[`call.voicemail`](/v2/webhooks#callvoicemail) event. Voicemail detection is
+available on every tier — see the [feature matrix](/general/tiers#feature-matrix).
+
+---
+
+## Create an agent
+
+```http
+POST /v2/agents
+```
+
+<Tabs>
+  <Tab title="cURL">
+    ```bash
+    curl -X POST https://api.voice.miraiminds.co/v2/agents \
+      -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "name": "Order Confirmation",
+        "system_prompt": "You are Priya from Acme. Confirm order {{order_id}} with {{customer_name}}.",
+        "first_message": "नमस्ते {{customer_name}}, मैं Acme से Priya बोल रही हूँ।",
+        "voice": { "voice_id": "priya", "language": "hi-IN" },
+        "language": "hi-IN",
+        "max_duration_secs": 300,
+        "end_call": { "enabled": true, "message": "धन्यवाद, आपका दिन शुभ हो।", "confirm": true },
+        "voicemail": { "action": "hangup" }
+      }'
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    import os, httpx
+
+    API = "https://api.voice.miraiminds.co"
+    auth = {"Authorization": f"Bearer {os.environ['MIRAI_API_KEY']}"}
+
+    agent = httpx.post(
+        f"{API}/v2/agents",
+        headers=auth,
+        json={
+            "name": "Order Confirmation",
+            "system_prompt": "You are Priya from Acme. Confirm order {{order_id}} with {{customer_name}}.",
+            "first_message": "नमस्ते {{customer_name}}, मैं Acme से Priya बोल रही हूँ।",
+            "voice": {"voice_id": "priya", "language": "hi-IN"},
+            "language": "hi-IN",
+            "max_duration_secs": 300,
+            "end_call": {"enabled": True, "message": "धन्यवाद, आपका दिन शुभ हो।", "confirm": True},
+            "voicemail": {"action": "hangup"},
+        },
+        timeout=30,
+    ).raise_for_status().json()
+
+    print(agent["id"])
+    ```
+  </Tab>
+  <Tab title="Node.js">
+    ```javascript
+    const API = "https://api.voice.miraiminds.co";
+    const auth = { Authorization: `Bearer ${process.env.MIRAI_API_KEY}` };
+
+    const res = await fetch(`${API}/v2/agents`, {
+      method: "POST",
+      headers: { ...auth, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: "Order Confirmation",
+        system_prompt: "You are Priya from Acme. Confirm order {{order_id}} with {{customer_name}}.",
+        first_message: "नमस्ते {{customer_name}}, मैं Acme से Priya बोल रही हूँ।",
+        voice: { voice_id: "priya", language: "hi-IN" },
+        language: "hi-IN",
+        max_duration_secs: 300,
+        end_call: { enabled: true, message: "धन्यवाद, आपका दिन शुभ हो।", confirm: true },
+        voicemail: { action: "hangup" },
+      }),
+    });
+    if (!res.ok) throw new Error(JSON.stringify(await res.json()));
+    const agent = await res.json();
+    ```
+  </Tab>
+</Tabs>
+
+**`201 Created`** — the full [agent object](#the-agent-object).
+
+| Error | `error.code` | Cause |
+| :--- | :--- | :--- |
+| `400` | `invalid_request` | Missing required field, unknown `voice_id`, `max_duration_secs` out of range |
+| `401` | `unauthorized` | Bad or missing key |
+
+---
+
+## Get an agent
+
+```http
+GET /v2/agents/{id}
+```
+
+<Tabs>
+  <Tab title="cURL">
+    ```bash
+    curl https://api.voice.miraiminds.co/v2/agents/agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ \
+      -H "Authorization: Bearer sk_live_YOUR_API_KEY"
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    agent = httpx.get(
+        f"{API}/v2/agents/agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ", headers=auth, timeout=30
+    ).raise_for_status().json()
+    ```
+  </Tab>
+  <Tab title="Node.js">
+    ```javascript
+    const agent = await fetch(
+      `${API}/v2/agents/agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ`,
+      { headers: auth }
+    ).then((r) => r.json());
+    ```
+  </Tab>
+</Tabs>
+
+**`200 OK`** — the agent object. **`404 not_found`** if the agent was deleted, if
+the ID does not exist, or if it exists in another workspace — all three answer
+identically, so a `404` is never a hint that the ID is real. Never `403`: that
+status means your key has been revoked and nothing else. See
+[errors](/v2/errors#error-codes).
+
+---
+
+## List agents
+
+```http
+GET /v2/agents?limit=&cursor=
+```
+
+```bash
+curl "https://api.voice.miraiminds.co/v2/agents?limit=20" \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY"
+```
+
+```json title="200 OK"
+{
+  "data": [
+    {
+      "id": "agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ",
+      "object": "agent",
+      "name": "Order Confirmation",
+      "system_prompt": "You are Priya from Acme. Confirm order {{order_id}} with {{customer_name}}…",
+      "first_message": "नमस्ते {{customer_name}}, मैं Acme से Priya बोल रही हूँ।",
+      "voice": { "voice_id": "priya", "language": "hi-IN" },
+      "language": "hi-IN",
+      "max_duration_secs": 300,
+      "end_call": {
+        "enabled": true,
+        "message": "धन्यवाद, आपका दिन शुभ हो।",
+        "confirm": true
+      },
+      "voicemail": { "action": "hangup" },
+      "created_at": "2026-07-26T09:14:02Z",
+      "updated_at": "2026-07-26T09:14:02Z"
+    }
+  ],
+  "has_more": false,
+  "next_cursor": null
+}
+```
+
+Each element is the **full** [agent object](#the-agent-object) — the same shape
+`GET /v2/agents/{id}` returns, prompts included. There is no trimmed summary
+form, so listing a page of agents with long prompts is a large response: page
+with `limit` rather than pulling everything at once.
+
+Deleted agents are excluded. See [pagination](/v2/overview#pagination).
+
+---
+
+## Update an agent
+
+```http
+PATCH /v2/agents/{id}
+```
+
+Send only the fields you are changing. Nested objects are replaced wholesale —
+to change `end_call.message`, send the whole `end_call` object.
+
+<Tabs>
+  <Tab title="cURL">
+    ```bash
+    curl -X PATCH https://api.voice.miraiminds.co/v2/agents/agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ \
+      -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+      -H "Content-Type: application/json" \
+      -d '{ "max_duration_secs": 180, "voice": { "voice_id": "neha", "language": "hi-IN" } }'
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    agent = httpx.patch(
+        f"{API}/v2/agents/agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ",
+        headers=auth,
+        json={"max_duration_secs": 180, "voice": {"voice_id": "neha", "language": "hi-IN"}},
+        timeout=30,
+    ).raise_for_status().json()
+    ```
+  </Tab>
+  <Tab title="Node.js">
+    ```javascript
+    const agent = await fetch(
+      `${API}/v2/agents/agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ`,
+      {
+        method: "PATCH",
+        headers: { ...auth, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          max_duration_secs: 180,
+          voice: { voice_id: "neha", language: "hi-IN" },
+        }),
+      }
+    ).then((r) => r.json());
+    ```
+  </Tab>
+</Tabs>
+
+**`200 OK`** — the updated agent object.
+
+<Warning>
+An update takes effect on the **next** call. Calls already `queued`, `dialing`
+or `in_progress` keep the configuration they were created with.
+</Warning>
+
+---
+
+## Delete an agent
+
+```http
+DELETE /v2/agents/{id}
+```
+
+```bash
+curl -X DELETE https://api.voice.miraiminds.co/v2/agents/agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY"
+```
+
+**`204 No Content`**.
+
+The delete is soft: the agent stops appearing in `GET /v2/agents` and can no
+longer be used for new calls, but historical calls keep resolving their
+`agent_id`. Calls already in flight are not affected.
+
+---
+
+## Writing a good prompt
+
+The tier-1 product is a **transactional** call — one job, done in under two
+minutes. Prompts that work:
+
+- **Name the job in the first line.** "Confirm order `{{order_id}}`. Nothing else."
+- **Cap reply length explicitly.** "One or two short sentences." Long turns are
+  the single biggest driver of perceived latency.
+- **State the ending condition.** "When the customer confirms or refuses, thank
+  them and call `end_call`." Without this the model keeps talking.
+- **Put per-call data in `variables`, not the prompt.** One agent, thousands of
+  calls, no re-create.
+- **Write in the language you will speak.** A Hindi call driven by an English
+  prompt code-switches badly. Write the Hindi lines in Devanagari.
+
+Prompts that cause trouble: multi-branch scripts ("if they say X, then go
+through the following seven questions"), instructions that assume the model
+remembers a previous call, and anything that needs a database lookup mid-call —
+that is a `t3`/`t5` feature, see [tiers](/general/tiers).

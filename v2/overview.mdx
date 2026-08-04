@@ -1,0 +1,134 @@
+---
+title: Mirai Voice API v2
+description: Resource-oriented REST API for placing AI voice calls. One auth header, predictable envelopes, server-minted IDs.
+---
+
+
+v2 is the current API. It is resource-oriented, uses a single auth header, and
+returns the same error envelope everywhere.
+
+```bash
+https://api.voice.miraiminds.co
+```
+
+<Note>
+**Already on v1?**
+
+[v1](/v1/overview) is stable and keeps serving existing integrations unchanged. Nothing
+you have breaks. When you want `GET` on a call, wallet balance, or the tiered
+rate card, see [Migrating from v1](/v2/migration).
+</Note>
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket">
+    Key → agent → call → webhook in five minutes. [Start here](/v2/quickstart).
+  </Card>
+  <Card title="Agents" icon="robot">
+    The reusable configuration a call runs. [Reference](/v2/agents).
+  </Card>
+  <Card title="Calls" icon="phone">
+    Place, inspect and abort outbound calls. [Reference](/v2/calls).
+  </Card>
+  <Card title="Webhooks" icon="circle-check">
+    Signed lifecycle events. [Guide](/v2/webhooks).
+  </Card>
+</CardGroup>
+
+## Authentication
+
+Every request carries one header:
+
+```bash
+Authorization: Bearer sk_live_YOUR_API_KEY
+```
+
+A secret key is `sk_live_` followed by 32 hex characters. It is scoped to one
+workspace and carries your default [tier](/general/tiers). Keys are issued by
+ops — email [help@miraiminds.co](mailto:help@miraiminds.co).
+
+We store only the SHA-256 of your key, so a lost key cannot be recovered — it is
+rotated. Never ship a secret key to a browser or a mobile app.
+
+| Situation | Status | `error.code` |
+| :--- | :--- | :--- |
+| Header missing or key unknown | `401` | `unauthorized` |
+| Key revoked | `403` | `forbidden` |
+
+## Conventions
+
+**JSON only.** Send `Content-Type: application/json` on every request with a
+body. Responses are always JSON, including errors.
+
+**IDs are server-minted** and prefixed by resource type. Treat them as opaque
+strings — do not parse them.
+
+| Resource | Format | Example |
+| :--- | :--- | :--- |
+| Agent | `agt_<ulid>` | `agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ` |
+| Call | `call_<ulid>` | `call_01JZQ9B4M8N3P6R2S5T7V9W1YA` |
+| Webhook event | `evt_<ulid>` | `evt_01JZQ9C5N9P4R7S3T6V8W2X4YB` |
+
+**Errors** always use one envelope. See the full [error reference](/v2/errors).
+
+```json
+{
+  "error": {
+    "code": "insufficient_balance",
+    "message": "wallet balance 0.40 INR is below the minimum for one minute at t1"
+  }
+}
+```
+
+**Timestamps** are RFC 3339 in UTC: `2026-07-26T09:14:02Z`.
+
+**Money** is INR. `amount_inr` and `per_min_inr` are numbers, not strings.
+
+**Phone numbers** are E.164 with the leading `+`: `+919876543210`.
+
+## Pagination
+
+List endpoints take `limit` and `cursor` and return a cursor-paginated envelope.
+
+```bash
+curl "https://api.voice.miraiminds.co/v2/calls?limit=50&cursor=call_01JZQ9B4M8N3P6R2S5T7V9W1YA" \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY"
+```
+
+```json
+{
+  "data": [ { "id": "call_01JZQ9B4M8N3P6R2S5T7V9W1YA", "…": "…" } ],
+  "has_more": true,
+  "next_cursor": "call_01JZQ9B4M8N3P6R2S5T7V9W1YB"
+}
+```
+
+Pass `next_cursor` back as `cursor` to get the following page. Stop when
+`has_more` is `false`. Default `limit` is 20, maximum 100.
+
+## Idempotency
+
+`POST /v2/calls` accepts an `Idempotency-Key` header. Reuse the key and you get
+the original response replayed instead of a second phone call. Keys are held for
+24 hours.
+
+```bash
+-H "Idempotency-Key: order-8842-reminder-1"
+```
+
+Use something derived from your own domain object (an order ID, a job ID) rather
+than a random UUID per attempt — the point is that your retry produces the same
+key. See [Calls](/v2/calls#idempotency).
+
+## What v2 does not do yet
+
+| Not in v2 | Where it lives |
+| :--- | :--- |
+| Inbound calls | v1 assistants with an inbound number |
+| Buying / releasing phone numbers | [v1 Telephony](/v1/telephony) |
+| Knowledge base / RAG | [v1 Knowledge Base](/v1/knowledge-base) |
+| API tools (function calling) | [v1 Tools](/v1/tools) |
+| Self-serve wallet top-up | ops-issued, see [Billing](/general/tiers) |
+| OAuth / user-scoped tokens | secret keys only |
+
+v1 keeps serving all of the above. The two APIs can run side by side against the
+same workspace.

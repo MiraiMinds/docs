@@ -1,0 +1,207 @@
+---
+title: Errors
+description: One error envelope, every status code and error code, and what to do about each.
+---
+
+
+Every v2 error — validation, auth, billing, rate limiting — uses one envelope.
+There is no second shape to special-case.
+
+```json
+{
+  "error": {
+    "code": "invalid_request",
+    "message": "to must be an E.164 phone number, got '9876543210'"
+  }
+}
+```
+
+| Field | Description |
+| :--- | :--- |
+| `code` | Stable, `snake_case`, machine-readable. **Branch on this.** |
+| `message` | Human-readable, written for a developer reading a log. Not stable — never parse it, never show it to an end user verbatim. |
+
+## Status codes
+
+| Status | Meaning | Retry? |
+| :--- | :--- | :--- |
+| `400` | The request is malformed or a field is invalid. | No — fix the request. |
+| `401` | Missing, malformed or unknown key. | No. |
+| `402` | Wallet cannot cover the call. | After topping up. |
+| `403` | The key is valid but **revoked**. That is the only thing that returns `403`. | No. |
+| `404` | No such resource in your workspace — including one that exists in someone else's. | No. |
+| `409` | State conflict — a request with the same `Idempotency-Key` still in flight, or an operation the current state forbids. | No. |
+| `429` | Request-rate limit. Concurrency does not `429`. | Yes, with backoff. |
+| `500` | Our fault. | Yes, with backoff. |
+| `501` | The feature exists in the contract but is not live yet. | No. |
+| `503` | Temporarily unavailable (deploy, capacity). | Yes, with backoff. |
+
+## Error codes
+
+| `error.code` | Status | When | Fix |
+| :--- | :--- | :--- | :--- |
+| `invalid_request` | `400` | Missing required field, wrong type, `to` not E.164, `max_duration_secs` out of range, unknown `voice_id`, malformed JSON. | Read `message`; it names the field. |
+| `unauthorized` | `401` | No `Authorization` header, not `Bearer `-prefixed, or the key is unknown. | Check the header. A trailing newline from `cat`-ing a key file is the usual culprit. |
+| `forbidden` | `403` | The key was revoked. Nothing else returns `403`. | Get a new key. |
+| `insufficient_balance` | `402` | Pre-dial wallet gate. No call was placed and nothing was charged. | [Top up](/v2/wallet#top-up) and retry with the same `Idempotency-Key`. |
+| `not_found` | `404` | Unknown `agt_`/`call_` ID, a soft-deleted agent, or an ID that belongs to another workspace. | Check the ID. |
+| `duplicate_call` | `409` | A request with this `Idempotency-Key` is still being processed; when the original completes, the same key replays its stored response. | Not an error if you are retrying — no second call was placed. |
+| `conflict` | `409` | The operation is illegal in the current state, e.g. aborting a call that has already ended. A `queued`, `dialing` or `in_progress` call aborts fine. | Read the call's `status` first. |
+| `rate_limited` | `429` | Request rate exceeded, **or** your queue is full (500 calls accepted and not yet ended). Being at your *concurrency* ceiling does **not** produce this: those calls queue. `error.message` says which limit you hit. | Honour `Retry-After` and back off. See [Limits](/v2/limits). |
+| `tier_unavailable` | `501` | `tier` was `t3` or `t5`. Those are announced but not live. | Use `t1`. See [tiers](/general/tiers). |
+| `internal` | `500` | Our bug. Already alarming on our side. | Retry with backoff; if it persists, send us the `call_id`. |
+
+<Note>
+`error.code` is an **open enum**. New codes are added without a version bump.
+Always have a default branch keyed on the HTTP status.
+</Note>
+
+<Warning>
+**Foreign IDs are `404`, never `403`**
+
+An `agt_` or `call_` ID that exists in another workspace is answered exactly as
+an ID that never existed: `404 not_found`. Anything else would be an enumeration
+oracle — a way to probe which IDs are real on the platform by watching the
+status code change. `403` is reserved for one situation only: your own key has
+been revoked.
+</Warning>
+
+## Handling errors
+
+The pattern that covers everything: branch on status, then on code.
+
+<Tabs>
+  <Tab title="Python">
+    ```python
+    import random
+    import time
+
+    import httpx
+
+
+    class MiraiError(Exception):
+        def __init__(self, status: int, code: str, message: str):
+            super().__init__(f"{status} {code}: {message}")
+            self.status, self.code, self.message = status, code, message
+
+
+    RETRYABLE = {429, 500, 502, 503, 504}
+
+
+    def request(client: httpx.Client, method: str, path: str, **kw) -> dict:
+        for attempt in range(5):
+            r = client.request(method, path, **kw)
+            if r.is_success:
+                return r.json() if r.content else {}
+
+            body = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
+            err = body.get("error", {})
+
+            if r.status_code in RETRYABLE and attempt < 4:
+                # honour Retry-After when we send it, else exponential + jitter
+                wait = float(r.headers.get("Retry-After", 2**attempt))
+                time.sleep(wait + random.random())
+                continue
+
+            raise MiraiError(r.status_code, err.get("code", "unknown"), err.get("message", r.text))
+
+        raise MiraiError(r.status_code, "retries_exhausted", "gave up after 5 attempts")
+    ```
+
+    At the call site, only two codes deserve their own branch:
+
+    ```python
+    try:
+        call = request(client, "POST", "/v2/calls", json=payload,
+                       headers={"Idempotency-Key": key})
+    except MiraiError as e:
+        if e.code == "insufficient_balance":
+            pause_campaign(); alert_ops(e.message)
+        elif e.code == "duplicate_call":
+            pass                     # same key still in flight — no second call
+        else:
+            raise
+    ```
+  </Tab>
+  <Tab title="Node.js">
+    ```javascript
+    export class MiraiError extends Error {
+      constructor(status, code, message) {
+        super(`${status} ${code}: ${message}`);
+        this.status = status;
+        this.code = code;
+      }
+    }
+
+    const RETRYABLE = new Set([429, 500, 502, 503, 504]);
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+    export async function request(path, init = {}, attempt = 0) {
+      const res = await fetch(`https://api.voice.miraiminds.co${path}`, {
+        ...init,
+        headers: {
+          Authorization: `Bearer ${process.env.MIRAI_API_KEY}`,
+          "Content-Type": "application/json",
+          ...init.headers,
+        },
+      });
+
+      if (res.ok) return res.status === 204 ? null : res.json();
+
+      const body = await res.json().catch(() => ({}));
+      const { code = "unknown", message = res.statusText } = body.error ?? {};
+
+      if (RETRYABLE.has(res.status) && attempt < 4) {
+        const retryAfter = Number(res.headers.get("Retry-After"));
+        const wait = (Number.isFinite(retryAfter) ? retryAfter : 2 ** attempt) * 1000;
+        await sleep(wait + Math.random() * 1000);
+        return request(path, init, attempt + 1);
+      }
+
+      throw new MiraiError(res.status, code, message);
+    }
+    ```
+
+    At the call site:
+
+    ```javascript
+    try {
+      const call = await request("/v2/calls", {
+        method: "POST",
+        headers: { "Idempotency-Key": key },
+        body: JSON.stringify(payload),
+      });
+    } catch (e) {
+      if (e.code === "insufficient_balance") {
+        await pauseCampaign();
+        await alertOps(e.message);
+      } else if (e.code !== "duplicate_call") {
+        throw e; // duplicate_call means the same key is still in flight
+      }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+### Retry rules
+
+- **Retry** `429`, `500`, `502`, `503`, `504` and network errors. Exponential
+  backoff with jitter; honour `Retry-After` when present.
+- **Never retry** `400`, `401`, `403`, `404`, `501` — the same request will fail
+  the same way.
+- **`402` is retryable only after a top-up**, not on a timer.
+- **Always send `Idempotency-Key` on `POST /v2/calls`.** A timeout tells you
+  nothing about whether the phone rang; without the key, your retry is a second
+  call to a real person.
+
+### What a `409 duplicate_call` actually means
+
+It means a request with this `Idempotency-Key` is **still being processed**. It
+is the narrow race, not the normal retry path: we cannot replay a response that
+has not been produced yet, and we must not place a second call, so we say so.
+
+When the original request completes, the same key replays its stored response —
+so a retry a moment later returns the original `202` and the original `call_id`.
+Either way **no second call is placed**. That is usually the *success* path of a
+retry, not a failure: log it and move on, do not surface it as an error to your
+users.

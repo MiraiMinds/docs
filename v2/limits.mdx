@@ -1,0 +1,227 @@
+---
+title: Limits & compliance
+description: Rate limits, concurrency, payload ceilings, and the India calling-window and DNC rules you are responsible for.
+---
+
+Two kinds of limit apply to you: ours (technical, we enforce them) and India's
+(regulatory, **you** are responsible for them).
+
+## Rate limits
+
+Limits are per **secret key**.
+
+| Limit | Pilot default | Applies to | Over the limit |
+| :--- | :--- | :--- | :--- |
+| Request rate | 10 requests/second, burst 20 | all `/v2/*` endpoints | `429 rate_limited` |
+| Concurrent live calls | 5 | calls in `dialing` or `in_progress` | the call **queues** |
+| Queue depth | 500 | calls accepted and not yet ended | `429 rate_limited` |
+
+<Warning>
+**Pilot keys are provisioned individually**
+
+The numbers above are the defaults a new pilot key is issued with. Yours may
+differ — confirm your actual ceilings with your account contact before you size
+a campaign. Higher concurrency is a provisioning change, not a code change: ask.
+</Warning>
+
+### Request rate
+
+Exceeding the **request rate** returns `429` with `error.code: rate_limited` and
+a `Retry-After` header in seconds. It is about how fast you call the API, not
+about how many phones are ringing.
+
+```json title="429 Too Many Requests"
+{
+  "error": {
+    "code": "rate_limited",
+    "message": "rate limit exceeded, retry in 0.4s"
+  }
+}
+```
+
+### Concurrency
+
+Concurrency does **not** produce a `429`. A `POST /v2/calls` beyond your
+concurrent-call ceiling is still accepted with `202` and sits in `queued` until a
+slot frees, then dials — nothing is rejected and nothing is lost. `429` is
+request-rate only.
+
+That makes the ceiling a **pacer**, not a gate. Two consequences:
+
+- A queued call's phone rings later than you asked. If a call is only useful
+  inside a window, check `status` before you assume it went out — or do not
+  submit it until you have the capacity.
+- Submitting a burst does not fail; it builds a queue that drains at your
+  concurrency.
+
+### Queue depth
+
+The queue itself **is** bounded. Once you have **500 calls accepted and not yet
+ended**, further `POST /v2/calls` return `429 rate_limited` with a `Retry-After`
+header until calls drain. The message names the ceiling, so you can tell it apart
+from a request-rate `429`:
+
+```json title="429 Too Many Requests"
+{
+  "error": {
+    "code": "rate_limited",
+    "message": "queue depth limit reached for this workspace (500 calls accepted and not yet ended, limit 500); wait for calls to drain or ask ops to raise it"
+  }
+}
+```
+
+Both limits share the `rate_limited` code on purpose: the correct client
+behaviour is identical — honour `Retry-After` and retry. Read `error.message` if
+you want to log which one you hit.
+
+The count is calls **accepted and not yet ended** — `queued` plus the handful
+actually `dialing` or `in_progress` — not strictly `queued`. With a concurrency
+of 5 the difference is at most 5 calls.
+
+Queue depth is provisioned per workspace, like concurrency. If a campaign
+genuinely needs to submit more than 500 rows in one batch, ask ops before the
+campaign, not during it.
+
+Keeping the queue short is still the better shape, because a queue you own is
+one you can reorder, cancel and re-prioritise. The simplest correct pattern:
+
+```python
+# keep N calls in flight; refill as terminal webhooks arrive
+in_flight = 0
+MAX_IN_FLIGHT = 5   # your provisioned concurrency
+
+def on_terminal_webhook(event):
+    global in_flight
+    in_flight -= 1
+    pump()
+
+def pump():
+    global in_flight
+    while in_flight < MAX_IN_FLIGHT and queue:
+        place_call(queue.pop())
+        in_flight += 1
+```
+
+Do not drive pacing off a fixed `sleep()`. Answer rates vary by hour, and a
+fixed delay either wastes capacity or hammers the limit.
+
+## Payload and duration ceilings
+
+| Thing | Limit |
+| :--- | :--- |
+| Request body | 1 MB |
+| `system_prompt` | 8,000 characters |
+| `first_message` | 500 characters |
+| `variables` | 32 keys, 512 characters per value |
+| `max_duration_secs` | 30–1800, default 300 |
+| `webhook_url` | HTTPS only, 2,048 characters |
+| Idempotency key | 255 characters, 24-hour window |
+
+Long prompts are a latency problem before they are a limit problem. The
+transactional tier is tuned for prompts in the hundreds of tokens, not
+thousands.
+
+## Timeouts
+
+| Stage | Behaviour |
+| :--- | :--- |
+| API request | Respond within 30 seconds or treat as failed and retry with the same `Idempotency-Key`. |
+| Ring / answer | ~60 seconds. No media by then → `no_answer`. |
+| Call duration | Ends at `max_duration_secs` with `status: timeout`. |
+| Webhook delivery | Your endpoint should answer well under a second. Slow responses are treated as failures and [retried](/v2/webhooks#retries). |
+
+## Data retention
+
+| Data | Retained |
+| :--- | :--- |
+| Call metadata (status, duration, cost) | 12 months |
+| Wallet ledger | 12 months |
+| Call recordings and transcripts | 30 days, then deleted |
+
+Recordings are not exposed through the v2 API. If you need them, ask ops — and
+tell us up front if your use case requires that we **not** record at all.
+
+---
+
+## India calling rules
+
+You are the sender. Under Indian telecom regulation the obligations for
+commercial voice calls sit with the business placing them, not with the platform
+carrying them. Reading this page is not legal advice, and it is not a
+substitute for your own compliance review.
+
+### Calling window
+
+Commercial and promotional voice calls are restricted to daytime hours. The
+window applied in practice is **09:00–21:00 IST**, and several enterprise
+programmes tighten it further to 10:00–19:00.
+
+The v2 API does **not** enforce a calling window for you. `POST /v2/calls` at
+02:00 IST will dial at 02:00 IST. Gate it in your scheduler:
+
+```python
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
+IST = ZoneInfo("Asia/Kolkata")
+
+def within_calling_window(now=None) -> bool:
+    now = now or datetime.now(IST)
+    return 9 <= now.hour < 21
+```
+
+### Consent and DNC/DND
+
+- **Get consent before you call.** Explicit, recorded, and revocable. Keep the
+  record — it is what you produce when a complaint arrives.
+- **Scrub against the DND registry** (TRAI's Do Not Disturb / NCPR list) and
+  against your own opt-out list before every campaign. A number can register
+  between two campaigns.
+- **Honour opt-outs immediately.** If a customer says "stop calling me" during
+  a call, that is an opt-out — capture it and suppress the number, on every
+  channel it applies to.
+- **Transactional vs promotional matters.** A delivery confirmation to an
+  existing customer is treated differently from a marketing pitch to a cold
+  list. Classify each campaign, and do not let a transactional pretext carry a
+  promotional payload.
+- **Register as required.** Commercial communication under TCCCPR 2018 runs
+  through registered entities, headers and consent templates. Confirm your
+  registration status with your telecom provider or counsel.
+
+### Disclosure that it is an AI
+
+Tell people. Put it in the agent's `first_message` or its opening turn:
+
+```json
+{
+  "first_message": "नमस्ते {{customer_name}}, मैं Acme की AI असिस्टेंट Priya बोल रही हूँ।"
+}
+```
+
+This is the direction regulation is moving in worldwide, it costs you one
+clause, and in practice it *reduces* early hang-ups — callers who feel misled
+hang up harder than callers who were told.
+
+### Recording
+
+If you record calls, say so in the opening turn and keep the recordings under
+the same retention and access controls as the rest of your customer data.
+
+### What we do enforce
+
+| Rule | Enforced by us |
+| :--- | :--- |
+| E.164 destination format | ✅ `400 invalid_request` |
+| Wallet balance before dialling | ✅ `402 insufficient_balance` |
+| Request rate | ✅ `429 rate_limited` |
+| Concurrency ceiling | ✅ over-cap calls wait in `queued` |
+| Queue depth | ✅ `429 rate_limited` past 500 outstanding |
+| Maximum call duration | ✅ `status: timeout` |
+| Calling window | ❌ your scheduler |
+| DND / opt-out scrubbing | ❌ your list |
+| Consent records | ❌ your records |
+| AI disclosure | ❌ your prompt |
+
+Persistent complaint patterns against a workspace will get its keys suspended.
+That is not a regulatory mechanism, it is ours — we would rather suspend one
+campaign than lose the numbering range for everyone on the platform.

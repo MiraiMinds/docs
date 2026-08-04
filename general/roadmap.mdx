@@ -1,0 +1,73 @@
+---
+title: Roadmap
+description: What is shipping next — tiers, node graphs, the orchestration platform, model APIs, voices and integrations — with target dates.
+---
+
+What is coming, in the order we expect to ship it. Dates are **targets, not
+contracts** — they move when call quality demands it, and quality wins every
+time. Before you plan a launch around a row on this page, confirm it with your
+account contact.
+
+| What | Target | Status |
+| :--- | :--- | :--- |
+| [Post-call analytics on `t1`](#post-call-analytics-everywhere) — AI summary + QA score in the v2 API | August 2026 | rolling out |
+| [Warm transfer on every tier](#warm-transfer-everywhere) — `ended_reason: transferred` goes live | August 2026 | rolling out |
+| [`t3` conversational tier](/general/tiers#coming-soon) — premium voice, our node graphs, IVR | August 2026 | in production hardening |
+| [New voices](#new-voices) — fresh additions to the catalogue | monthly, from August 2026 | ongoing |
+| [Model APIs](#model-apis) — ASR, TTS and LLM as standalone endpoints | September 2026 | in development |
+| [Next-generation TTS](#next-generation-tts) — the voice engine behind every tier, upgraded | October 2026 | in development |
+| [Node graphs + `t5`](/v2/node-graphs) — author calls as versioned graphs | Q4 2026 | schema preview published |
+| [Orchestration platform](#orchestration-platform) — visual node-graph builder for your team | Q4 2026 | design |
+| [Email + channel integrations](#channels) — email follow-ups from call outcomes | Q4 2026 | design |
+| Self-serve signup and wallet top-up | Q4 2026 | design |
+
+## Post-call analytics everywhere
+
+Every call on every tier gets opened: an AI summary and a QA score, on 100% of
+calls, not a sample. The capability is in the
+[feature matrix](/general/tiers#feature-matrix) today; what lands in August is
+the **v2 API surface** — an analysis object on the call and a webhook event when
+it is ready. Until then the summaries exist but are not queryable over v2.
+
+## Warm transfer everywhere
+
+Human handoff is part of every tier — a caller who asks for a person gets one.
+The August rollout wires the last mile:
+[`ended_reason: transferred`](/v2/calls#ended-reasons) starts emitting, and
+transfer targets become configurable per agent. Ask your account contact to
+enable it on your workspace as the rollout reaches you.
+
+## Model APIs
+
+The ASR, TTS and LLM that power the call path, exposed as standalone
+endpoints — for teams that want the models without the telephony. Streaming
+ASR tuned for Indian telephone audio, the TTS voice catalogue, and the
+call-tuned LLM, each behind the same `sk_live_` auth as the rest of v2.
+
+## Next-generation TTS
+
+The next revision of the voice engine: lower first-audio latency and a step up
+in naturalness on Hindi and code-switched speech. It replaces the engine under
+every tier when it clears our quality bar — no API change, your calls just
+start sounding better.
+
+## Orchestration platform
+
+Node graphs get a canvas. Build, test and version call flows visually — the
+same graphs `t5` runs from JSON, authored by your ops team instead of your
+engineers. Validation runs as you draw, and every published version is
+immutable, so a live campaign never runs an unreviewed edit.
+
+## New voices
+
+The catalogue grows monthly from August 2026. New voices appear in the
+[voice gallery](/v2/voices) as they clear evaluation — listen to
+`sampleAudio` before you switch; voice choice moves answer-through rates more
+than prompt wording does.
+
+## Channels
+
+Calls stop being an island: email follow-ups triggered by call outcomes first
+("summary of what we agreed", "payment link after a confirmed order"), other
+channels after. Designed so a call outcome, not a human, is what pulls the
+trigger.

@@ -28,6 +28,8 @@
             "pages": [
               "index",
               "general/overview",
+              "general/tiers",
+              "general/roadmap",
               "general/campaign",
               "general/faq"
             ]
@@ -68,11 +70,47 @@
         ]
       },
       {
+        "tab": "API v2",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": ["v2/overview", "v2/quickstart", "v2/migration"]
+          },
+          {
+            "group": "Resources",
+            "pages": [
+              "v2/agents",
+              "v2/voices",
+              "v2/calls",
+              "v2/wallet",
+              "v2/webhooks"
+            ]
+          },
+          {
+            "group": "Reference",
+            "pages": ["v2/errors", "v2/limits", "v2/node-graphs", "v2/faq"]
+          }
+        ]
+      },
+      {
         "tab": "API Reference",
         "groups": [
           {
             "group": "Overview",
             "pages": ["api-reference/introduction"]
+          },
+          {
+            "group": "API v1 (stable)",
+            "pages": [
+              "v1/overview",
+              "v1/workspaces",
+              "v1/assistants",
+              "v1/calls",
+              "v1/webhooks",
+              "v1/telephony",
+              "v1/tools",
+              "v1/knowledge-base"
+            ]
           },
           {
             "group": "Endpoints",
