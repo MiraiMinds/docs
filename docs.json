@@ -120,6 +120,10 @@
       }
     ]
   },
+  "redirects": [
+    { "source": "/v2", "destination": "/v2/overview" },
+    { "source": "/v1", "destination": "/v1/overview" }
+  ],
   "topbar": {
     "style": "gradient"
   },
