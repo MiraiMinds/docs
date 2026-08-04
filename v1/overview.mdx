@@ -77,7 +77,9 @@ curl https://api.voice-agents.miraiminds.co/v1/admin/assistant/list \
 A few admin endpoints (organization archive/unarchive) additionally require an
 `admin` or `organization_admin` role, carried as a JWT bearer token.
 
-Contact [help@miraiminds.co](mailto:help@miraiminds.co) for credentials.
+v1 pairs are issued with your account. For a new v2 key you do not need to ask
+anyone — create it in the [console](https://sandbox.voice.miraiminds.co) under
+**Developers**, and see [Migrating from v1](/v2/migration).
 
 <Danger>
 The `x-private-key` is a secret **and** the webhook signing key. Never put it in

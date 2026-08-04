@@ -201,7 +201,7 @@ Note the differences that will bite:
   v2, correlate on `data.call.id` — store the `call_id` we return from
   `POST /v2/calls` against your own record.
 - **`recordingUrl` is not in v2.** Recordings are not exposed through the v2
-  API; ask ops.
+  API; ask your Mirai contact.
 - **`credits` becomes `cost`** on the call itself, in rupees rather than credit
   units, and the running balance moves to [`GET /v2/wallet`](/v2/wallet).
 - **No `end-of-call` analysis event yet.** Post-call analytics (AI summary +

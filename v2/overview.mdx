@@ -43,8 +43,9 @@ Authorization: Bearer sk_live_YOUR_API_KEY
 ```
 
 A secret key is `sk_live_` followed by 32 hex characters. It is scoped to one
-workspace and carries your default [tier](/general/tiers). Keys are issued by
-ops — email [help@miraiminds.co](mailto:help@miraiminds.co).
+workspace and carries your default [tier](/general/tiers). Create, rotate and
+revoke keys yourself in the [console](https://sandbox.voice.miraiminds.co)
+under **Developers**.
 
 We store only the SHA-256 of your key, so a lost key cannot be recovered — it is
 rotated. Never ship a secret key to a browser or a mobile app.
@@ -127,7 +128,7 @@ key. See [Calls](/v2/calls#idempotency).
 | Buying / releasing phone numbers | [v1 Telephony](/v1/telephony) |
 | Knowledge base / RAG | [v1 Knowledge Base](/v1/knowledge-base) |
 | API tools (function calling) | [v1 Tools](/v1/tools) |
-| Self-serve wallet top-up | ops-issued, see [Billing](/general/tiers) |
+| Self-serve wallet top-up | on the [roadmap](/general/roadmap); see [Billing](/general/tiers) |
 | OAuth / user-scoped tokens | secret keys only |
 
 v1 keeps serving all of the above. The two APIs can run side by side against the

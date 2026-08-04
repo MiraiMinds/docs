@@ -10,10 +10,9 @@ Five minutes, four requests, one real phone call.
 HTTPS URL for webhooks (ngrok is fine while you build).
 
 <Steps>
-<Step title="Get a key">
-Keys are ops-issued during the pilot. Email
-[info@miraiminds.co](mailto:info@miraiminds.co) with your company name and
-use case. You get back three things:
+<Step title="Create a key">
+Open the [console](https://sandbox.voice.miraiminds.co) and go to
+**Developers → Create key**. You get three things on the spot:
 
 | | Looks like | Used for |
 | :--- | :--- | :--- |
@@ -21,8 +20,12 @@ use case. You get back three things:
 | Webhook secret | `whsec_7d4f1a09c2e58b36a1f0d7c93b2e64a8` | verifying events we send you |
 | Starting wallet balance | `₹500` | pays for call minutes |
 
-The webhook secret is shown **once**. Store both in your secret manager, not
-in git.
+**The key is shown once.** We store only its SHA-256, so a lost key is rotated,
+never recovered. Put both secrets in your secret manager, not in git.
+
+Rotate and revoke from the same page. Rotating issues the replacement before
+it revokes the old key, so there is no window where neither works — deploy the
+new one, then revoke.
 
 Check it works:
 
@@ -290,18 +293,21 @@ The final event for a connected call:
       "started_at": "2026-07-26T09:15:02Z",
       "ended_at": "2026-07-26T09:16:38Z",
       "duration_secs": 96,
-      "cost": { "amount_inr": 1.6, "per_min_inr": 1 }
+      "cost": { "amount_inr": 2, "per_min_inr": 1 }
     }
   }
 }
 ```
 
-96 seconds is billed as 96 seconds — ₹1.60. [Metering is per-second](/general/tiers#metering); no rounding, no minimum.
+96 seconds is billed as 2 minutes — ₹2.00. [Minutes are whole and rounded up](/general/tiers#metering), with a one-minute minimum.
 </Step>
 </Steps>
 
 ## Next
 
+- **Python?** `pip install --extra-index-url https://sandbox.voice.miraiminds.co/pypi/simple mirai-voice`
+  gives you the same four requests as `mirai.agents.create` / `mirai.calls.create`,
+  with idempotency, retries and signature verification already handled.
 - [Webhooks](/v2/webhooks) — every event type, retries, replay protection.
 - [Calls](/v2/calls) — statuses, `ended_reason`, abort, listing.
 - [Billing & tiers](/general/tiers) — what a minute costs and what each tier can do.
@@ -312,7 +318,7 @@ The final event for a connected call:
 | Symptom | Cause | Fix |
 | :--- | :--- | :--- |
 | `401 unauthorized` | Missing `Bearer ` prefix, or a copy-paste with a newline | Re-copy the key; check `Authorization: Bearer sk_live_…` |
-| `402 insufficient_balance` | Wallet cannot cover one minute | Ask ops for a top-up; check `GET /v2/wallet` |
+| `402 insufficient_balance` | Wallet cannot cover one minute | Check `GET /v2/wallet`; ask your Mirai contact for a top-up |
 | `400 invalid_request` on `to` | Number not E.164 | Use `+919876543210`, not `9876543210` or `091 98765 43210` |
 | Call ends instantly, `status: no_answer` | Number unreachable or DND-blocked | Try another handset; see [compliance](/v2/limits#india-calling-rules) |
 | No webhook arrives | URL not publicly reachable, or not HTTPS | Test with `curl -X POST` against your own URL first |

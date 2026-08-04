@@ -31,7 +31,7 @@ Every event has the same shape.
       "started_at": "2026-07-26T09:15:02Z",
       "ended_at": "2026-07-26T09:16:38Z",
       "duration_secs": 96,
-      "cost": { "amount_inr": 1.6, "per_min_inr": 1 }
+      "cost": { "amount_inr": 2, "per_min_inr": 1 }
     }
   }
 }
@@ -51,7 +51,7 @@ Ignore what you do not recognise.
 
 | Type | Fires when | `data.call.status` |
 | :--- | :--- | :--- |
-| `call.queued` | The call is admitted to the queue. **Opt-in** — ask ops to enable it. | `queued` |
+| `call.queued` | The call is admitted to the queue. **Opt-in** — ask your Mirai contact to enable it. | `queued` |
 | `call.started` | Media is live; the conversation has begun. | `in_progress` |
 | `call.completed` | The call connected and finished normally. | `completed` |
 | `call.voicemail` | An answering machine answered. | `voicemail` |
@@ -123,7 +123,7 @@ retry-tomorrow, `failed` is a page-someone.
       "started_at": "2026-07-26T09:18:02Z",
       "ended_at": "2026-07-26T09:18:20Z",
       "duration_secs": 18,
-      "cost": { "amount_inr": 0.3, "per_min_inr": 1 }
+      "cost": { "amount_inr": 1, "per_min_inr": 1 }
     }
   }
 }
@@ -452,7 +452,7 @@ are an implementation detail and we tune them. What is contractual is that a
 brief outage on your side is survivable without losing the event, and that an
 endpoint down for the whole 36 minutes will lose it.
 
-After the sixth attempt the event goes to a dead-letter queue. Ops can replay
+After the sixth attempt the event goes to a dead-letter queue. We can replay
 from the DLQ — a replayed event is byte-identical to the original, including its
 `id`, and carries a **fresh** `t` and `v1` so it passes your window check.
 

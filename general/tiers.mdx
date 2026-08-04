@@ -1,11 +1,11 @@
 ---
 title: Billing & tiers
-description: What a minute costs, how seconds are metered, what each tier can do, and what happens at zero balance.
+description: What a minute costs, how minutes are counted, what each tier can do, and what happens at zero balance.
 ---
 
 
-One number to remember: **₹1 per minute**, metered per second.
-That is the `t1` transactional tier, and it is the only tier live today.
+One number to remember: **₹1 per minute**. That is the `t1` transactional
+tier, and it is the only tier live today.
 
 | Tier | Rate | Status |
 | :--- | :--- | :--- |
@@ -55,30 +55,31 @@ start to finish. That simplicity is what makes ₹1 possible.
 
 ## What a minute costs
 
-Billing is **per-second metering.** The per-minute rate is a price, not a
-billing block: you pay for the seconds you used, durations summed across calls.
-**No per-call minimum, no per-call rounding, no pulses.**
+Billing is **per-minute blocks, rounded up, with a one-minute minimum.** The
+minute is the billing unit, not just the price: a call is not prorated to the
+second, and a part-minute is a whole minute.
 
-| Call duration | Billed seconds | `t1` cost |
+| Call duration | Billed minutes | `t1` cost |
 | :--- | :--- | :--- |
-| 8 seconds | 8 | ₹0.13 |
-| 59 seconds | 59 | ₹0.98 |
-| 61 seconds | 61 | ₹1.02 |
-| 96 seconds | 96 | ₹1.60 |
-| 3 min 01 s | 181 | ₹3.02 |
+| 8 seconds | 1 | ₹1.00 |
+| 59 seconds | 1 | ₹1.00 |
+| 61 seconds | 2 | ₹2.00 |
+| 96 seconds | 2 | ₹2.00 |
+| 3 min 01 s | 4 | ₹4.00 |
 
 ### Metering
 
 `duration_secs` on the [call object](/v2/calls#the-call-object) is the true
-media duration in seconds. The charge is
-`duration_secs × per_min_inr / 60`, settled to the paisa. A call that produced
-no media costs nothing.
+media duration in seconds. The charge is that duration rounded **up** to the
+next whole minute, never fewer than one, times the tier rate. A call that
+never connected is not billed at all — see the table below.
 
 ```python
+import math
+
 def cost_inr(duration_secs: int, per_min_inr: float) -> float:
-    if duration_secs <= 0:
-        return 0.0
-    return round(duration_secs * per_min_inr / 60, 2)
+    minutes = max(1, math.ceil(duration_secs / 60))
+    return minutes * per_min_inr
 ```
 
 You never have to compute this — `cost.amount_inr` on the call object and the
@@ -105,8 +106,12 @@ billed. A call our own pipeline broke is not.
 
 Take your answer rate and your mean answered-call duration:
 
+Round each answered call up to a whole minute first, then multiply. Averaging
+the seconds and dividing by 60 will under-forecast, because the rounding
+happens per call and never cancels out.
+
 ```text
-monthly ₹ = dials × answer_rate × (mean_answered_secs / 60) × rate
+monthly ₹ = answered_calls × mean(ceil(secs / 60)) × rate
 ```
 
 A campaign of 50,000 dials at a 35% answer rate and 80 seconds mean talk time,
@@ -114,14 +119,18 @@ on `t1`:
 
 ```text
 50,000 × 0.35 = 17,500 answered
-80 / 60 = 1.33 billed minutes each
-17,500 × 1.33 × ₹1 ≈ ₹23,333
+80 seconds -> 2 billed minutes each
+17,500 × 2 × ₹1 = ₹35,000
 ```
 
-Unanswered dials cost nothing, so the 32,500 that rang out are free. There are
-no minute boundaries to game — every second costs the same ₹0.0167 — so the
-only lever is **mean answered duration itself**. Prompts that cap reply length
-pay for themselves, one saved second at a time.
+Unanswered dials cost nothing, so the 32,500 that rang out are free.
+
+Because the boundary is the minute, **the lever is which side of a boundary
+your calls land on.** Trimming an 80-second call to 55 seconds halves its cost;
+trimming it to 70 saves nothing. Look at the distribution of `duration_secs`,
+not the mean — a cluster sitting just past 60 or just past 120 is the cheapest
+thing you will ever fix, and a prompt that caps reply length is usually what
+moves it.
 
 ## Wallet
 
@@ -138,9 +147,9 @@ curl https://api.voice.miraiminds.co/v2/wallet \
 
 - **Debits happen at call end**, one ledger row per billable call, carrying the
   `call_id`.
-- **Top-ups are ops-issued** during the pilot. Email
-  [credits@miraiminds.co](mailto:credits@miraiminds.co); credit lands within
-  minutes and applies immediately.
+- **Top-ups are not self-serve yet** — see the
+  [roadmap](/general/roadmap). Your Mirai contact credits the workspace; it
+  lands within minutes and applies immediately.
 - **The ledger is the source of truth** for reconciliation:
   [`GET /v2/wallet/transactions`](/v2/wallet#list-transactions).
 

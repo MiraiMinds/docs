@@ -9,7 +9,7 @@ when they end; ops credits it when you top up. If the wallet cannot cover a
 minute, `POST /v2/calls` returns [`402`](#402-insufficient-balance) and no call
 is placed.
 
-For rates and per-second metering, see [Billing & tiers](/general/tiers).
+For rates and how minutes are counted, see [Billing & tiers](/general/tiers).
 
 ## Get balance
 
@@ -128,10 +128,10 @@ The ledger. One row per credit or debit, newest first.
       "id": "txn_01JZQ9D6P2R5S8T4V7W9X1Y3ZB",
       "object": "wallet_transaction",
       "type": "debit",
-      "amount_inr": 1.6,
-      "balance_after_inr": 498.4,
+      "amount_inr": 2,
+      "balance_after_inr": 498,
       "call_id": "call_01JZQ9B4M8N3P6R2S5T7V9W1YA",
-      "description": "call 96s @ t1",
+      "description": "call 96s (2 min, t1)",
       "created_at": "2026-07-26T09:16:39Z"
     },
     {
@@ -162,9 +162,11 @@ Reconcile against `call_id`: every billable call produces exactly one debit row.
 
 ## Top up
 
-Top-ups are **ops-issued** during the pilot — there is no self-serve endpoint
-yet. Email [credits@miraiminds.co](mailto:credits@miraiminds.co); the credit appears
-as a `credit` row within minutes and takes effect immediately.
+There is no self-serve top-up yet — it is on the
+[roadmap](/general/roadmap). Until then your Mirai contact credits the
+workspace; the credit appears as a `credit` row within minutes and takes effect
+immediately. Your live balance is always `GET /v2/wallet`, and on the
+**Developers** page of the [console](https://sandbox.voice.miraiminds.co).
 
 ## `402` insufficient balance
 

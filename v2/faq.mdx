@@ -6,9 +6,10 @@ description: Short answers to the questions developers actually ask about the Mi
 ## Getting started
 
 **How do I get a key?**
-Email [help@miraiminds.co](mailto:help@miraiminds.co) with your company and use
-case. Keys are ops-issued during the pilot; self-serve signup is coming. You get
-a secret key, a webhook secret, and a starting wallet balance.
+In the [console](https://sandbox.voice.miraiminds.co), under **Developers →
+Create key**. You get a secret key, a webhook secret and a starting wallet
+balance immediately, and you can rotate or revoke from the same page. If you do
+not have console access yet, [talk to us](https://cal.com/srikrishna-pothel-y5vpeq).
 
 **Is there a sandbox or test key?**
 Not yet. There is no `sk_test_` and no simulated call — every call is a real
@@ -17,8 +18,18 @@ balance. The [webhook test vector](/v2/webhooks#test-vector) lets you build and
 verify your handler without placing a call at all.
 
 **Is there an SDK?**
-No. The API is small enough that `fetch` and `httpx` are the SDK. Every page
-here carries copy-pasteable cURL, Python and Node.
+Yes, for Python:
+
+```bash
+pip install --extra-index-url https://sandbox.voice.miraiminds.co/pypi/simple mirai-voice
+```
+
+It carries the rules you would otherwise have to re-derive: an
+`Idempotency-Key` on every call create so a retry never dials twice,
+`Retry-After`-aware backoff, cursor iterators, and
+`mirai.webhooks.verify()` over the raw body. Sync and async, both credential
+generations. The copy-pasteable cURL, Python and Node on every page here work
+just as well — the API is small on purpose.
 
 **Can I use v1 and v2 at the same time?**
 Yes. Different hosts, different credentials, same workspace. Most people move
@@ -51,7 +62,7 @@ queued call's payload; v2 has no equivalent — create the call with what you wa
 it to say.
 
 **Can I get the recording or transcript?**
-Not through the v2 API. Recordings are retained 30 days; ask ops if you need
+Not through the v2 API. Recordings are retained 30 days; ask your Mirai contact if you need
 access. If your use case requires that we do not record, tell us up front.
 
 **What happens if the customer does not answer?**
@@ -84,25 +95,25 @@ costs you nothing and drops early hang-ups.
 ## Billing
 
 **What does a call cost?**
-₹1 per minute on `t1`, metered per second — no per-call minimum, no rounding
-to minutes, no pulses. A 96-second call costs ₹1.60; an 8-second call costs
-₹0.13. See [Billing & tiers](/general/tiers).
+₹1 per minute on `t1`, billed in whole minutes rounded up, minimum one minute.
+A 96-second call costs ₹2.00; an 8-second call costs ₹1.00. See
+[Billing & tiers](/general/tiers).
 
 **Am I charged for calls that do not connect?**
 No. `no_answer`, `busy`, `failed` and `aborted` are free. `completed`,
 `voicemail` and `timeout` are billed.
 
 **Am I charged for a voicemail?**
-Yes — media went live and audio was generated. An 18-second voicemail costs
-18 seconds: ₹0.30 at `t1`.
+Yes — media went live and audio was generated. An 18-second voicemail is one
+billed minute: ₹1.00 at `t1`.
 
 **What happens when I run out of credit?**
 `POST /v2/calls` returns [`402 insufficient_balance`](/v2/wallet#402-insufficient-balance)
 and nothing is dialled. Calls already in flight finish normally.
 
 **How do I top up?**
-Email [credits@miraiminds.co](mailto:credits@miraiminds.co). Self-serve top-up
-is not built yet. Credits land as a `credit` row in
+Ask your Mirai contact — self-serve top-up is not built yet, and is on the
+[roadmap](/general/roadmap). Credits land as a `credit` row in
 [`GET /v2/wallet/transactions`](/v2/wallet#list-transactions) and take effect
 immediately.
 
