@@ -1,40 +1,53 @@
 ---
-title: "Welcome to Voice Agents"
-description: "Turn conversations into actions — intelligent voice agents that scale your customer interactions"
+title: "Mirai Voice"
+description: "AI voice agents that make real phone calls — ₹1 a minute, on our own infrastructure in India."
 ---
 
-## Voice Agent Features
-
-Voice agents are AI-powered conversational systems that automate voice interactions at scale. They understand natural language, manage call flows, and connect to your systems to resolve common requests, book appointments, or route complex issues to humans — lowering cost, increasing availability, and improving customer experience.
+Give an agent a script and a number, and it makes the call. Hindi, English, and
+the Hinglish most real calls actually are — on GPUs, models and SIP lines we
+own, in India, at **₹1 a minute**.
 
 <CardGroup cols={2}>
-  <Card title="Pay Per Minute" icon="star">
-    Pay only for the minutes that amount to actual work it does - no idle time charges.
+  <Card title="Quickstart" icon="rocket" href="/v2/quickstart">
+    Key → agent → call → webhook. Five minutes, one real phone call.
   </Card>
-  <Card title="Always Available" icon="rocket">
-    Available 24/7/365 - your voice agent never sleeps, takes breaks, or goes on vacation.
+  <Card title="API overview" icon="code" href="/v2/overview">
+    Two resources, one auth header, one error envelope.
   </Card>
-  <Card title="Unlimited Scale" icon="arrow-up">
-    Scale it to millions of calls without worrying about hiring or training additional staff.
+  <Card title="Billing" icon="indian-rupee-sign" href="/general/tiers">
+    What a minute costs, and what is and is not billable.
   </Card>
-  <Card title="Universal Integration" icon="puzzle-piece">
-    Integrates with all your existing tools and systems seamlessly.
+  <Card title="Roadmap" icon="map" href="/general/roadmap">
+    What is shipping, and when.
   </Card>
 </CardGroup>
 
-## Get Started
+## Get a key
 
-<CardGroup cols={2}>
-  <Card title="Overview" icon="book-open" href="/general/overview">
-    Learn about voice agents and how they work
-  </Card>
-  <Card title="Quick Start" icon="rocket" href="/general/campaign">
-    Create your first campaign
-  </Card>
-  <Card title="Developers" icon="code" href="/developers/introduction">
-    Explore the Voice Agents API
-  </Card>
-  <Card title="Integrations" icon="plug" href="/integrations/shopify">
-    Connect your existing systems
-  </Card>
-</CardGroup>
+Create one yourself in the [console](https://sandbox.voice.miraiminds.co) under
+**Developers**. It is shown once, and you can rotate or revoke from the same
+page.
+
+```bash
+pip install --extra-index-url https://sandbox.voice.miraiminds.co/pypi/simple mirai-voice
+```
+
+```python
+from mirai import Mirai
+
+mirai = Mirai()                                  # reads MIRAI_API_KEY
+
+agent = mirai.agents.create(
+    name="Order confirmation",
+    system_prompt="You are आशु from Acme. Confirm the order and ask whether the delivery address is unchanged.",
+    first_message="नमस्ते, मैं Acme से आशु बोल रहा हूं।",
+    voice_id="ashu",
+    language="hi",
+)
+
+call = mirai.calls.create(agent_id=agent.id, to="+919876543210")
+print(mirai.calls.wait(call.id).status)          # 'completed'
+```
+
+Prefer plain HTTP? Every page here carries the same thing in cURL, Python and
+Node. Start with the [Quickstart](/v2/quickstart).

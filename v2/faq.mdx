@@ -31,11 +31,6 @@ It carries the rules you would otherwise have to re-derive: an
 generations. The copy-pasteable cURL, Python and Node on every page here work
 just as well — the API is small on purpose.
 
-**Can I use v1 and v2 at the same time?**
-Yes. Different hosts, different credentials, same workspace. Most people move
-calls to v2 and leave numbers, knowledge base and tools on v1. See
-[Migrating from v1](/v2/migration).
-
 ## Calls
 
 **Why did `POST /v2/calls` return `202` and not `200`?**
@@ -48,7 +43,7 @@ the call sits in `queued` until a slot frees — it is queued, not rejected, so
 being over the ceiling never returns `429`.
 
 **Can I do inbound calls?**
-Not in v2. Inbound assistants live in [v1](/v1/overview).
+Not yet — outbound only.
 
 **Can I transfer a call to a human?**
 Yes — warm transfer to a human is part of every tier, see the
@@ -57,9 +52,8 @@ completing now; see the [roadmap](/general/roadmap) for status and ask your
 account contact to enable it on your workspace.
 
 **Can I change the prompt or variables mid-call?**
-No. `variables` are static per call. v1 had `PUT /v2/call/{callId}` for editing a
-queued call's payload; v2 has no equivalent — create the call with what you want
-it to say.
+No. `variables` are static per call — create the call with what you want it to
+say.
 
 **Can I get the recording or transcript?**
 Not through the v2 API. Recordings are retained 30 days; ask your Mirai contact if you need

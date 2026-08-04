@@ -1,23 +1,15 @@
 ---
-title: Mirai Voice API v2
-description: Resource-oriented REST API for placing AI voice calls. One auth header, predictable envelopes, server-minted IDs.
+title: API overview
+description: REST API for placing AI voice calls. One auth header, predictable envelopes, server-minted IDs.
 ---
 
 
-v2 is the current API. It is resource-oriented, uses a single auth header, and
-returns the same error envelope everywhere.
+Two resources — agents and calls — one auth header, and the same error
+envelope everywhere.
 
 ```bash
 https://api.voice.miraiminds.co
 ```
-
-<Note>
-**Already on v1?**
-
-[v1](/v1/overview) is stable and keeps serving existing integrations unchanged. Nothing
-you have breaks. When you want `GET` on a call, wallet balance, or the tiered
-rate card, see [Migrating from v1](/v2/migration).
-</Note>
 
 <CardGroup cols={2}>
   <Card title="Quickstart" icon="rocket">
@@ -120,16 +112,16 @@ Use something derived from your own domain object (an order ID, a job ID) rather
 than a random UUID per attempt — the point is that your retry produces the same
 key. See [Calls](/v2/calls#idempotency).
 
-## What v2 does not do yet
+## Not built yet
 
-| Not in v2 | Where it lives |
-| :--- | :--- |
-| Inbound calls | v1 assistants with an inbound number |
-| Buying / releasing phone numbers | [v1 Telephony](/v1/telephony) |
-| Knowledge base / RAG | [v1 Knowledge Base](/v1/knowledge-base) |
-| API tools (function calling) | [v1 Tools](/v1/tools) |
-| Self-serve wallet top-up | on the [roadmap](/general/roadmap); see [Billing](/general/tiers) |
-| OAuth / user-scoped tokens | secret keys only |
+Outbound calling is what this API does. These are known gaps, listed so you
+find out here rather than halfway through a build:
 
-v1 keeps serving all of the above. The two APIs can run side by side against the
-same workspace.
+- **Inbound calls.** Outbound only.
+- **Buying phone numbers.** We provide the line.
+- **Knowledge base / RAG** and **function calling** during a call.
+- **Self-serve wallet top-up** — see the [roadmap](/general/roadmap).
+- **OAuth or user-scoped tokens.** Secret keys only.
+
+If one of these is in your way, say so — several are on the
+[roadmap](/general/roadmap) and the order is not fixed.

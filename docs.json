@@ -24,97 +24,30 @@
         "tab": "Documentation",
         "groups": [
           {
-            "group": "Getting Started",
-            "pages": [
-              "index",
-              "general/overview",
-              "general/tiers",
-              "general/roadmap",
-              "general/campaign",
-              "general/faq"
-            ]
+            "group": "Start here",
+            "pages": ["index", "v2/quickstart", "v2/overview"]
           },
           {
-            "group": "Developers",
-            "pages": [
-              "developers/introduction",
-              "developers/customer-lifecycle",
-              "developers/create-assistant",
-              "developers/make-a-call",
-              "developers/call-lifecycle-events",
-              "developers/webhook-signature",
-              "developers/assistant-sandbox"
-            ]
-          },
-          {
-            "group": "Guides",
-            "pages": [
-              "guides/abandon-cart-recovery",
-              "guides/how-discounts-work"
-            ]
-          },
-          {
-            "group": "Integrations",
-            "pages": [
-              "integrations/shopify",
-              "integrations/whatsapp",
-              "integrations/limechat",
-              "integrations/klaviyo",
-              "integrations/google-calendar"
-            ]
-          },
-          {
-            "group": "Use Cases",
-            "pages": ["usecases/retail", "usecases/b2b", "usecases/healthcare"]
-          }
-        ]
-      },
-      {
-        "tab": "API v2",
-        "groups": [
-          {
-            "group": "Get Started",
-            "pages": ["v2/overview", "v2/quickstart", "v2/migration"]
-          },
-          {
-            "group": "Resources",
+            "group": "Build",
             "pages": [
               "v2/agents",
               "v2/voices",
               "v2/calls",
-              "v2/wallet",
               "v2/webhooks"
             ]
           },
           {
+            "group": "Money",
+            "pages": ["general/tiers", "v2/wallet"]
+          },
+          {
             "group": "Reference",
-            "pages": ["v2/errors", "v2/limits", "v2/node-graphs", "v2/faq"]
-          }
-        ]
-      },
-      {
-        "tab": "API Reference",
-        "groups": [
-          {
-            "group": "Overview",
-            "pages": ["api-reference/introduction"]
-          },
-          {
-            "group": "API v1 (stable)",
             "pages": [
-              "v1/overview",
-              "v1/workspaces",
-              "v1/assistants",
-              "v1/calls",
-              "v1/webhooks",
-              "v1/telephony",
-              "v1/tools",
-              "v1/knowledge-base"
+              "v2/errors",
+              "v2/limits",
+              "v2/faq",
+              "general/roadmap"
             ]
-          },
-          {
-            "group": "Endpoints",
-            "openapi": "https://api.voice-agents.miraiminds.co/swagger.yaml"
           }
         ]
       }
@@ -122,7 +55,18 @@
   },
   "redirects": [
     { "source": "/v2", "destination": "/v2/overview" },
-    { "source": "/v1", "destination": "/v1/overview" }
+    { "source": "/v1", "destination": "/v2/overview" },
+    { "source": "/v1/:slug*", "destination": "/v2/overview" },
+    { "source": "/v2/migration", "destination": "/v2/overview" },
+    { "source": "/v2/node-graphs", "destination": "/general/roadmap" },
+    { "source": "/developers/:slug*", "destination": "/v2/quickstart" },
+    { "source": "/api-reference/:slug*", "destination": "/v2/overview" },
+    { "source": "/guides/:slug*", "destination": "/" },
+    { "source": "/integrations/:slug*", "destination": "/" },
+    { "source": "/usecases/:slug*", "destination": "/" },
+    { "source": "/general/overview", "destination": "/" },
+    { "source": "/general/campaign", "destination": "/" },
+    { "source": "/general/faq", "destination": "/v2/faq" }
   ],
   "topbar": {
     "style": "gradient"
