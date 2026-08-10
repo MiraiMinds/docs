@@ -1,19 +1,23 @@
 {
   "$schema": "https://mintlify.com/docs.json",
   "theme": "almond",
-  "name": "Voice Agents",
+  "name": "Voice Infra",
   "colors": {
     "primary": "#16A34A",
     "light": "#07C983",
     "dark": "#15803D"
   },
-  "favicon": "/favicon.svg",
+  "favicon": "/favicon.png",
   "api": {
     "playground": {
       "display": "interactive"
     },
     "examples": {
-      "languages": ["curl", "python", "node"],
+      "languages": [
+        "curl",
+        "python",
+        "node"
+      ],
       "defaults": "required",
       "prefill": true
     }
@@ -45,7 +49,10 @@
           },
           {
             "group": "Money",
-            "pages": ["general/tiers", "v2/wallet"]
+            "pages": [
+              "general/tiers",
+              "v2/wallet"
+            ]
           },
           {
             "group": "Reference",
@@ -119,16 +126,29 @@
           },
           {
             "group": "Use cases",
-            "pages": ["usecases/retail", "usecases/b2b", "usecases/healthcare"]
+            "pages": [
+              "usecases/retail",
+              "usecases/b2b",
+              "usecases/healthcare"
+            ]
           }
         ]
       }
     ]
   },
   "redirects": [
-    { "source": "/v2", "destination": "/v2/overview" },
-    { "source": "/v1", "destination": "/v1/overview" },
-    { "source": "/v2/node-graphs", "destination": "/general/roadmap" }
+    {
+      "source": "/v2",
+      "destination": "/v2/overview"
+    },
+    {
+      "source": "/v1",
+      "destination": "/v1/overview"
+    },
+    {
+      "source": "/v2/node-graphs",
+      "destination": "/general/roadmap"
+    }
   ],
   "topbar": {
     "style": "gradient"
