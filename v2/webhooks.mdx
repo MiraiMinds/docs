@@ -27,11 +27,12 @@ Every event has the same shape.
       "agent_id": "agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ",
       "to": "+919876543210",
       "status": "completed",
+      "tier": "t3",
       "ended_reason": "assistant-ended-call",
       "started_at": "2026-07-26T09:15:02Z",
       "ended_at": "2026-07-26T09:16:38Z",
       "duration_secs": 96,
-      "cost": { "amount_inr": 2, "per_min_inr": 1 }
+      "cost_inr": 6
     }
   }
 }
@@ -42,7 +43,7 @@ Every event has the same shape.
 | `id` | `evt_<ulid>`. Unique per **delivery attempt group** — retries of the same event reuse it. [Dedupe on this](#idempotency). |
 | `type` | See [event types](#event-types). |
 | `created_at` | When the event was generated, not when it was delivered. |
-| `data.call` | The [call object](/v2/calls#the-call-object), exactly as `GET /v2/calls/{id}` would return it at that moment. |
+| `data.call` | The [call object](/v2/calls#the-call-object), exactly as `GET /v2/calls/{id}` would return it at that moment. On a `campaign.*` event this is `data.campaign` instead. |
 
 Treat the envelope as **additive**: new fields appear without a version bump.
 Ignore what you do not recognise.
@@ -60,6 +61,21 @@ Ignore what you do not recognise.
 
 Exactly one terminal event fires per call: `call.completed`, `call.voicemail`,
 `call.failed` or `call.aborted`.
+
+[Campaigns](/v2/campaigns) add five more. They are delivered to the campaign's
+own `webhook_url`, signed with the same workspace secret, in the same envelope —
+with `data.campaign` where `data.call` would be.
+
+| Type | Fires when |
+| :--- | :--- |
+| `campaign.started` | The first `POST /start` takes effect. Once per campaign. |
+| `campaign.paused` | You paused it, or the money gate did. Read `data.campaign.pause_reason`. |
+| `campaign.resumed` | Dialling resumed. |
+| `campaign.completed` | Every contact reached a final state, or the date range ran out. |
+| `campaign.stopped` | You stopped it. |
+
+A campaign's calls emit the ordinary `call.*` events as well, to the same URL.
+See [Campaigns → Webhooks](/v2/campaigns#webhooks) for the payload.
 
 ```mermaid
 sequenceDiagram
@@ -95,11 +111,12 @@ retry-tomorrow, `failed` is a page-someone.
       "agent_id": "agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ",
       "to": "+919876543211",
       "status": "no_answer",
+      "tier": "t3",
       "ended_reason": "customer-did-not-answer",
       "started_at": null,
       "ended_at": "2026-07-26T09:15:44Z",
       "duration_secs": 0,
-      "cost": { "amount_inr": 0, "per_min_inr": 1 }
+      "cost_inr": null
     }
   }
 }
@@ -119,11 +136,12 @@ retry-tomorrow, `failed` is a page-someone.
       "agent_id": "agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ",
       "to": "+919876543212",
       "status": "voicemail",
+      "tier": "t3",
       "ended_reason": "voicemail",
       "started_at": "2026-07-26T09:18:02Z",
       "ended_at": "2026-07-26T09:18:20Z",
       "duration_secs": 18,
-      "cost": { "amount_inr": 1, "per_min_inr": 1 }
+      "cost_inr": 3
     }
   }
 }
@@ -150,11 +168,12 @@ Voicemail calls **are billed** — media was live. 18 seconds bills as
       "agent_id": "agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ",
       "to": "+919876543213",
       "status": "aborted",
+      "tier": "t3",
       "ended_reason": "aborted-by-api",
       "started_at": null,
       "ended_at": "2026-07-26T09:14:51Z",
       "duration_secs": 0,
-      "cost": { "amount_inr": 0, "per_min_inr": 1 }
+      "cost_inr": null
     }
   }
 }

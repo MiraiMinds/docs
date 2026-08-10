@@ -4,7 +4,13 @@ description: Get a key, create an agent, place a real call and receive the webho
 ---
 
 
-Five minutes, four requests, one real phone call.
+Five minutes, four requests, one real phone call. Calls bill at your key's
+[tier](/general/tiers) — `t3`, ₹3 a minute, unless you ask for `t1`.
+
+<Note>
+Partner? [**Start building**](/v2/start-building) is the longer version of this
+page: the same first call, plus your first campaign and the go-live checklist.
+</Note>
 
 **You need:** a secret key, a phone number you are allowed to call, and a public
 HTTPS URL for webhooks (ngrok is fine while you build).
@@ -30,7 +36,7 @@ new one, then revoke.
 Check it works:
 
 ```bash
-curl https://api.voice.miraiminds.co/v2/wallet \
+curl https://sandbox.voice.miraiminds.co/v2/wallet \
   -H "Authorization: Bearer sk_live_YOUR_API_KEY"
 ```
 
@@ -46,14 +52,14 @@ voice, language, limits. Create it once, call it thousands of times.
 <Tabs>
   <Tab title="cURL">
     ```bash
-    curl -X POST https://api.voice.miraiminds.co/v2/agents \
+    curl -X POST https://sandbox.voice.miraiminds.co/v2/agents \
       -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
       -H "Content-Type: application/json" \
       -d '{
         "name": "Order Confirmation",
         "system_prompt": "You are Priya from Acme. Confirm order {{order_id}} with {{customer_name}} and ask whether the delivery address is unchanged. Keep replies to one or two short sentences. When the customer is done, thank them and end the call.",
         "first_message": "नमस्ते {{customer_name}}, मैं Acme से Priya बोल रही हूँ।",
-        "voice": { "voice_id": "priya", "language": "hi-IN" },
+        "voice": { "voice_id": "ashutosh", "language": "hi-IN" },
         "language": "hi-IN",
         "max_duration_secs": 300
       }'
@@ -63,7 +69,7 @@ voice, language, limits. Create it once, call it thousands of times.
     ```python
     import os, httpx
 
-    API = "https://api.voice.miraiminds.co"
+    API = "https://sandbox.voice.miraiminds.co"
     auth = {"Authorization": f"Bearer {os.environ['MIRAI_API_KEY']}"}
 
     agent = httpx.post(
@@ -78,7 +84,7 @@ voice, language, limits. Create it once, call it thousands of times.
                 "the customer is done, thank them and end the call."
             ),
             "first_message": "नमस्ते {{customer_name}}, मैं Acme से Priya बोल रही हूँ।",
-            "voice": {"voice_id": "priya", "language": "hi-IN"},
+            "voice": {"voice_id": "ashutosh", "language": "hi-IN"},
             "language": "hi-IN",
             "max_duration_secs": 300,
         },
@@ -90,7 +96,7 @@ voice, language, limits. Create it once, call it thousands of times.
   </Tab>
   <Tab title="Node.js">
     ```javascript
-    const API = "https://api.voice.miraiminds.co";
+    const API = "https://sandbox.voice.miraiminds.co";
     const auth = { Authorization: `Bearer ${process.env.MIRAI_API_KEY}` };
 
     const res = await fetch(`${API}/v2/agents`, {
@@ -103,7 +109,7 @@ voice, language, limits. Create it once, call it thousands of times.
           "and ask whether the delivery address is unchanged. Keep replies to one or " +
           "two short sentences. When the customer is done, thank them and end the call.",
         first_message: "नमस्ते {{customer_name}}, मैं Acme से Priya बोल रही हूँ।",
-        voice: { voice_id: "priya", language: "hi-IN" },
+        voice: { voice_id: "ashutosh", language: "hi-IN" },
         language: "hi-IN",
         max_duration_secs: 300,
       }),
@@ -120,7 +126,7 @@ voice, language, limits. Create it once, call it thousands of times.
   "id": "agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ",
   "object": "agent",
   "name": "Order Confirmation",
-  "voice": { "voice_id": "priya", "language": "hi-IN" },
+  "voice": { "voice_id": "ashutosh", "language": "hi-IN" },
   "language": "hi-IN",
   "max_duration_secs": 300,
   "created_at": "2026-07-26T09:14:02Z"
@@ -137,13 +143,14 @@ Keep that `id`.
 <Tabs>
   <Tab title="cURL">
     ```bash
-    curl -X POST https://api.voice.miraiminds.co/v2/calls \
+    curl -X POST https://sandbox.voice.miraiminds.co/v2/calls \
       -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
       -H "Content-Type: application/json" \
       -H "Idempotency-Key: order-8842-confirm-1" \
       -d '{
         "agent_id": "agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ",
         "to": "+919876543210",
+        "tier": "t3",
         "variables": { "customer_name": "Rahul", "order_id": "8842" },
         "webhook_url": "https://example.com/mirai/webhook"
       }'
@@ -157,6 +164,7 @@ Keep that `id`.
         json={
             "agent_id": "agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ",
             "to": "+919876543210",
+            "tier": "t3",
             "variables": {"customer_name": "Rahul", "order_id": "8842"},
             "webhook_url": "https://example.com/mirai/webhook",
         },
@@ -178,6 +186,7 @@ Keep that `id`.
       body: JSON.stringify({
         agent_id: "agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ",
         to: "+919876543210",
+        tier: "t3",
         variables: { customer_name: "Rahul", order_id: "8842" },
         webhook_url: "https://example.com/mirai/webhook",
       }),
@@ -289,17 +298,20 @@ The final event for a connected call:
       "agent_id": "agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ",
       "to": "+919876543210",
       "status": "completed",
+      "tier": "t3",
       "ended_reason": "assistant-ended-call",
       "started_at": "2026-07-26T09:15:02Z",
       "ended_at": "2026-07-26T09:16:38Z",
       "duration_secs": 96,
-      "cost": { "amount_inr": 2, "per_min_inr": 1 }
+      "cost_inr": 6
     }
   }
 }
 ```
 
-96 seconds is billed as 2 minutes — ₹2.00. [Minutes are whole and rounded up](/general/tiers#metering), with a one-minute minimum.
+96 seconds is billed as 2 minutes — ₹6.00 at `t3`.
+[Minutes are whole and rounded up](/general/tiers#metering), with a one-minute
+minimum.
 </Step>
 </Steps>
 
@@ -308,8 +320,10 @@ The final event for a connected call:
 - **Python?** `pip install --extra-index-url https://sandbox.voice.miraiminds.co/pypi/simple mirai-voice`
   gives you the same four requests as `mirai.agents.create` / `mirai.calls.create`,
   with idempotency, retries and signature verification already handled.
+- [Campaigns](/v2/campaigns) — upload a list and let the platform dial it, with
+  windows, retries, budgets and a report.
 - [Webhooks](/v2/webhooks) — every event type, retries, replay protection.
-- [Calls](/v2/calls) — statuses, `ended_reason`, abort, listing.
+- [Calls](/v2/calls) — statuses, `ended_reason`, transcripts, recordings, abort.
 - [Billing & tiers](/general/tiers) — what a minute costs and what each tier can do.
 - [Limits](/v2/limits) — rate limits, concurrency, India calling-window rules.
 
@@ -318,7 +332,8 @@ The final event for a connected call:
 | Symptom | Cause | Fix |
 | :--- | :--- | :--- |
 | `401 unauthorized` | Missing `Bearer ` prefix, or a copy-paste with a newline | Re-copy the key; check `Authorization: Bearer sk_live_…` |
-| `402 insufficient_balance` | Wallet cannot cover one minute | Check `GET /v2/wallet`; ask your Mirai contact for a top-up |
+| `402 insufficient_balance` | Wallet cannot cover one minute at your tier (₹3 on `t3`) | Check `GET /v2/wallet`; ask your Mirai contact for a top-up |
+| `400 invalid_request` on `voice_id` | The voice is not in your tier's catalogue | `t1` says `ashu` or `aishe` only; see [Voices](/v2/voices) |
 | `400 invalid_request` on `to` | Number not E.164 | Use `+919876543210`, not `9876543210` or `091 98765 43210` |
 | Call ends instantly, `status: no_answer` | Number unreachable or DND-blocked | Try another handset; see [compliance](/v2/limits#india-calling-rules) |
 | No webhook arrives | URL not publicly reachable, or not HTTPS | Test with `curl -X POST` against your own URL first |

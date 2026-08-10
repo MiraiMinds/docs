@@ -4,11 +4,11 @@ description: REST API for placing AI voice calls. One auth header, predictable e
 ---
 
 
-Two resources — agents and calls — one auth header, and the same error
-envelope everywhere.
+Four resources — agents, calls, campaigns and your do-not-call list — one auth
+header, and the same error envelope everywhere.
 
 ```bash
-https://api.voice.miraiminds.co
+https://sandbox.voice.miraiminds.co
 ```
 
 <CardGroup cols={2}>
@@ -19,7 +19,13 @@ https://api.voice.miraiminds.co
     The reusable configuration a call runs. [Reference](/v2/agents).
   </Card>
   <Card title="Calls" icon="phone">
-    Place, inspect and abort outbound calls. [Reference](/v2/calls).
+    Place, inspect and abort outbound calls; read transcripts and recordings. [Reference](/v2/calls).
+  </Card>
+  <Card title="Campaigns" icon="list-check">
+    Dial a whole list — windows, retries, budgets, reports. [Reference](/v2/campaigns).
+  </Card>
+  <Card title="Do-not-call" icon="ban">
+    Your suppression list, enforced at dial time. [Reference](/v2/dnc).
   </Card>
   <Card title="Webhooks" icon="circle-check">
     Signed lifecycle events. [Guide](/v2/webhooks).
@@ -35,7 +41,8 @@ Authorization: Bearer sk_live_YOUR_API_KEY
 ```
 
 A secret key is `sk_live_` followed by 32 hex characters. It is scoped to one
-workspace and carries your default [tier](/general/tiers). Create, rotate and
+workspace and carries your default [tier](/general/tiers) — `t3`, ₹3 a minute,
+unless you asked for something else. Create, rotate and
 revoke keys yourself in the [console](https://sandbox.voice.miraiminds.co)
 under **Developers**.
 
@@ -57,9 +64,10 @@ strings — do not parse them.
 
 | Resource | Format | Example |
 | :--- | :--- | :--- |
-| Agent | `agt_<ulid>` | `agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ` |
-| Call | `call_<ulid>` | `call_01JZQ9B4M8N3P6R2S5T7V9W1YA` |
-| Webhook event | `evt_<ulid>` | `evt_01JZQ9C5N9P4R7S3T6V8W2X4YB` |
+| Agent | `agt_<ulid>` | `agt_01K7Q9F3K7M2N5P9R4T6V8W0XZ` |
+| Call | `call_<ulid>` | `call_01K7Q9B4M8N3P6R2S5T7V9W1YA` |
+| Campaign | `cmp_<ulid>` | `cmp_01K7QAC5N9P4R7S3T6V8W2X4YB` |
+| Webhook event | `evt_<ulid>` | `evt_01K7QC5N9P4R7S3T6V8W2X4YB` |
 
 **Errors** always use one envelope. See the full [error reference](/v2/errors).
 
@@ -67,14 +75,17 @@ strings — do not parse them.
 {
   "error": {
     "code": "insufficient_balance",
-    "message": "wallet balance 0.40 INR is below the minimum for one minute at t1"
+    "message": "wallet balance 0.40 INR is below the minimum for one minute at t3"
   }
 }
 ```
 
 **Timestamps** are RFC 3339 in UTC: `2026-07-26T09:14:02Z`.
 
-**Money** is INR. `amount_inr` and `per_min_inr` are numbers, not strings.
+**Money** is INR — `cost_inr`, `balance_inr`, `amount_inr` are numbers, not
+strings. The one exception is [campaigns](/v2/campaigns), whose `budget_paise`
+and `spent_paise` are integer **paise** (100 paise = ₹1). Nothing mixes the two
+units inside one object.
 
 **Phone numbers** are E.164 with the leading `+`: `+919876543210`.
 
@@ -83,7 +94,7 @@ strings — do not parse them.
 List endpoints take `limit` and `cursor` and return a cursor-paginated envelope.
 
 ```bash
-curl "https://api.voice.miraiminds.co/v2/calls?limit=50&cursor=call_01JZQ9B4M8N3P6R2S5T7V9W1YA" \
+curl "https://sandbox.voice.miraiminds.co/v2/calls?limit=50&cursor=call_01JZQ9B4M8N3P6R2S5T7V9W1YA" \
   -H "Authorization: Bearer sk_live_YOUR_API_KEY"
 ```
 

@@ -117,6 +117,26 @@ fixed delay either wastes capacity or hammers the limit.
 | `webhook_url` | HTTPS only, 2,048 characters |
 | Idempotency key | 255 characters, 24-hour window |
 
+## Campaign ceilings
+
+[Campaigns](/v2/campaigns) carry their own bounds, all enforced at the API edge
+with `400 invalid_request`.
+
+| Thing | Limit | Notes |
+| :--- | :--- | :--- |
+| `contacts` per request | **1000 rows** | Create and `POST /contacts` both. Call it repeatedly for a longer list — a running campaign accepts new rows. |
+| `slots` | 1–4 per campaign | `HH:MM` local. A zero-length slot is rejected, not read as "all day". |
+| `max_concurrent` | 1–50 | Bounded again by your workspace concurrency — two campaigns share one ceiling. |
+| `retry_count` | 0–5 | Retries after the first attempt. |
+| `re_attempt_period_secs` | 60–86,400 | 1 minute to 24 hours. |
+| `max_duration_secs` | 30–1800 | Defaults to the agent's. |
+| `budget_paise` | positive integer | Paise, not rupees. Omit for no cap. |
+| `name` | 120 characters | |
+| Contact `variables` | 32 keys, 512 chars per value | Same rule as call variables. |
+
+Bad contact rows do **not** fail the batch: they come back by index in
+`contacts_rejected`. Only exceeding 1000 rows fails the whole request.
+
 Long prompts are a latency problem before they are a limit problem. The
 transactional tier is tuned for prompts in the hundreds of tokens, not
 thousands.
@@ -134,12 +154,16 @@ thousands.
 
 | Data | Retained |
 | :--- | :--- |
-| Call metadata (status, duration, cost) | 12 months |
+| Call record (status, duration, cost) | 90 days |
+| Call recordings and transcripts | 90 days, then deleted |
 | Wallet ledger | 12 months |
-| Call recordings and transcripts | 30 days, then deleted |
+| Campaigns and their contact rows | For the life of the workspace |
 
-Recordings are not exposed through the v2 API. If you need them, ask your Mirai contact — and
-tell us up front if your use case requires that we **not** record at all.
+Recordings and transcripts are available through the API —
+[`GET /v2/calls/{id}/recording`](/v2/calls#get-the-recording) and
+[`/transcript`](/v2/calls#get-the-transcript). Pull anything you need to keep
+beyond 90 days into your own system, and tell us up front if your use case
+requires that we **not** record at all.
 
 ---
 
@@ -156,8 +180,22 @@ Commercial and promotional voice calls are restricted to daytime hours. The
 window applied in practice is **09:00–21:00 IST**, and several enterprise
 programmes tighten it further to 10:00–19:00.
 
-The v2 API does **not** enforce a calling window for you. `POST /v2/calls` at
-02:00 IST will dial at 02:00 IST. Gate it in your scheduler:
+**On a [campaign](/v2/campaigns), the platform enforces the window you declare.**
+`timezone`, `start_date`/`end_date` and 1–4 `slots` are evaluated in local time
+on every dialling tick: outside the window the campaign sleeps in `play` and
+rings nobody. Declaring `10:00`–`19:00 Asia/Kolkata` is enough — you do not need
+your own scheduler in front of it.
+
+```json
+{
+  "timezone": "Asia/Kolkata",
+  "slots": [{ "start": "10:00", "end": "19:00" }]
+}
+```
+
+**On a single [`POST /v2/calls`](/v2/calls#create-a-call) there is no window.**
+A direct call is an explicit instruction to ring one number now, and it will
+dial at 02:00 IST if you ask it to. Gate those in your scheduler:
 
 ```python
 from datetime import datetime
@@ -174,9 +212,14 @@ def within_calling_window(now=None) -> bool:
 
 - **Get consent before you call.** Explicit, recorded, and revocable. Keep the
   record — it is what you produce when a complaint arrives.
-- **Scrub against the DND registry** (TRAI's Do Not Disturb / NCPR list) and
-  against your own opt-out list before every campaign. A number can register
-  between two campaigns.
+- **Push your opt-outs to [`POST /v2/dnc`](/v2/dnc).** That list is enforced by
+  us: every campaign checks it at dial time, so a number added mid-campaign is
+  suppressed from that moment, marked `suppressed` in the report, and never
+  billed. It does not apply to single `POST /v2/calls` — those are explicit.
+- **Scrub against the DND registry** (TRAI's Do Not Disturb / NCPR list) as
+  well. We do **not** scrub against the national register for you, and our
+  suppression list is not a substitute for it. A number can register between two
+  campaigns.
 - **Honour opt-outs immediately.** If a customer says "stop calling me" during
   a call, that is an opt-out — capture it and suppress the number, on every
   channel it applies to.
@@ -217,8 +260,11 @@ the same retention and access controls as the rest of your customer data.
 | Concurrency ceiling | ✅ over-cap calls wait in `queued` |
 | Queue depth | ✅ `429 rate_limited` past 500 outstanding |
 | Maximum call duration | ✅ `status: timeout` |
-| Calling window | ❌ your scheduler |
-| DND / opt-out scrubbing | ❌ your list |
+| Campaign budget cap | ✅ campaign pauses, `pause_reason: budget_exhausted` |
+| Calling window — **campaigns** | ✅ `slots` + `timezone`, evaluated in local time every tick |
+| Calling window — single `POST /v2/calls` | ❌ your scheduler |
+| Your own opt-out list | ✅ [`/v2/dnc`](/v2/dnc), checked at dial time on every campaign |
+| National DND / NCPR scrubbing | ❌ your list |
 | Consent records | ❌ your records |
 | AI disclosure | ❌ your prompt |
 

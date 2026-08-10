@@ -9,22 +9,27 @@ Creating a call is asynchronous: you get `202 Accepted` immediately and the
 outcome arrives by [webhook](/v2/webhooks) (or by polling
 [`GET /v2/calls/{id}`](#get-a-call)).
 
-Base URL `https://api.voice.miraiminds.co`.
+Base URL `https://sandbox.voice.miraiminds.co`.
 
 ## The call object
 
 ```json
 {
-  "id": "call_01JZQ9B4M8N3P6R2S5T7V9W1YA",
+  "id": "call_01K7Q9B4M8N3P6R2S5T7V9W1YA",
   "object": "call",
-  "agent_id": "agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ",
+  "agent_id": "agt_01K7Q9F3K7M2N5P9R4T6V8W0XZ",
   "to": "+919876543210",
   "status": "completed",
-  "ended_reason": "assistant-ended-call",
-  "started_at": "2026-07-26T09:15:02Z",
-  "ended_at": "2026-07-26T09:16:38Z",
+  "tier": "t3",
+  "ended_reason": "customer-ended-call",
+  "created_at": "2026-08-10T09:15:00Z",
+  "started_at": "2026-08-10T09:15:02Z",
+  "ended_at": "2026-08-10T09:16:38Z",
   "duration_secs": 96,
-  "cost": { "amount_inr": 2, "per_min_inr": 1 }
+  "cost_inr": 6,
+  "recording_available": true,
+  "transcript_available": true,
+  "analysis": null
 }
 ```
 
@@ -34,11 +39,16 @@ Base URL `https://api.voice.miraiminds.co`.
 | `agent_id` | string | The agent this call ran. |
 | `to` | string | E.164 destination. |
 | `status` | enum | See [statuses](#statuses). |
+| `tier` | string | The rate card this call was billed under — `t3` unless you asked for `t1`. See [tiers](/general/tiers). |
 | `ended_reason` | string \| null | Why it ended. See [ended reasons](#ended-reasons). `null` while running. |
+| `created_at` | string | RFC 3339, UTC. When we accepted the request. |
 | `started_at` | string \| null | RFC 3339, UTC. Set when **media goes live**, not when we dialled. `null` if the call never connected. |
 | `ended_at` | string \| null | RFC 3339, UTC. |
-| `duration_secs` | integer | Billable seconds of live media. `0` for calls that never connected. |
-| `cost` | object | `amount_inr` charged, and the `per_min_inr` rate applied. Zero until the call ends. |
+| `duration_secs` | integer \| null | Billable seconds of live media. `0` for calls that never connected, `null` while running. |
+| `cost_inr` | number \| null | Rupees charged. `null` until the call ends, and `null` for an ending that is not billable. |
+| `recording_available` | boolean | Whether [`GET /recording`](#get-the-recording) will return audio. |
+| `transcript_available` | boolean | Whether [`GET /transcript`](#get-the-transcript) will return turns. |
+| `analysis` | object \| null | Post-call summary, when the agent was created with `analysis.enabled`. `null` otherwise. |
 
 ## Statuses
 
@@ -147,18 +157,19 @@ POST /v2/calls
 | `variables` | object | no | Flat string map substituted into the agent's prompt. See [variables](#variables). |
 | `webhook_url` | string | no | HTTPS URL for [lifecycle events](/v2/webhooks). |
 | `max_duration_secs` | integer | no | Overrides the agent's cap for this call only. |
-| `tier` | string | no | `t1` \| `t3` \| `t5`. Defaults to your key's tier. See [tiers](/general/tiers). |
+| `tier` | string | no | `t1` \| `t3`. Defaults to your key's tier — `t3` (₹3/min) on a partner key. `t5` answers `501`. See [tiers](/general/tiers). |
 
 <Tabs>
   <Tab title="cURL">
     ```bash
-    curl -X POST https://api.voice.miraiminds.co/v2/calls \
+    curl -X POST https://sandbox.voice.miraiminds.co/v2/calls \
       -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
       -H "Content-Type: application/json" \
       -H "Idempotency-Key: order-8842-confirm-1" \
       -d '{
         "agent_id": "agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ",
         "to": "+919876543210",
+        "tier": "t3",
         "variables": { "customer_name": "Rahul", "order_id": "8842" },
         "webhook_url": "https://example.com/mirai/webhook",
         "max_duration_secs": 240
@@ -169,7 +180,7 @@ POST /v2/calls
     ```python
     import os, httpx
 
-    API = "https://api.voice.miraiminds.co"
+    API = "https://sandbox.voice.miraiminds.co"
     auth = {"Authorization": f"Bearer {os.environ['MIRAI_API_KEY']}"}
 
     r = httpx.post(
@@ -178,6 +189,7 @@ POST /v2/calls
         json={
             "agent_id": "agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ",
             "to": "+919876543210",
+            "tier": "t3",
             "variables": {"customer_name": "Rahul", "order_id": "8842"},
             "webhook_url": "https://example.com/mirai/webhook",
             "max_duration_secs": 240,
@@ -192,7 +204,7 @@ POST /v2/calls
   </Tab>
   <Tab title="Node.js">
     ```javascript
-    const API = "https://api.voice.miraiminds.co";
+    const API = "https://sandbox.voice.miraiminds.co";
     const auth = { Authorization: `Bearer ${process.env.MIRAI_API_KEY}` };
 
     const res = await fetch(`${API}/v2/calls`, {
@@ -205,6 +217,7 @@ POST /v2/calls
       body: JSON.stringify({
         agent_id: "agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ",
         to: "+919876543210",
+        tier: "t3",
         variables: { customer_name: "Rahul", order_id: "8842" },
         webhook_url: "https://example.com/mirai/webhook",
         max_duration_secs: 240,
@@ -234,7 +247,8 @@ The full call object is available from [`GET /v2/calls/{id}`](#get-a-call).
 | `404` | `not_found` | `agent_id` does not exist in your workspace — including one that exists in someone else's |
 | `409` | `duplicate_call` | A request with this `Idempotency-Key` is still being processed. See [idempotency](#idempotency). |
 | `429` | `rate_limited` | Request rate exceeded, **or** your queue is full (500 calls accepted and not yet ended). Concurrency does **not** 429 — over-cap calls queue. `error.message` says which. Honour `Retry-After`. See [Limits](/v2/limits). |
-| `501` | `tier_unavailable` | `tier` is `t3` or `t5`, which are not live yet |
+| `429` | `at_capacity` | Every line on the deployment is busy. `Retry-After: 30`. Nothing was charged. |
+| `501` | `tier_unavailable` | `tier` is `t5`, which is not live yet |
 
 ### Variables
 
@@ -288,7 +302,7 @@ GET /v2/calls/{id}
 <Tabs>
   <Tab title="cURL">
     ```bash
-    curl https://api.voice.miraiminds.co/v2/calls/call_01JZQ9B4M8N3P6R2S5T7V9W1YA \
+    curl https://sandbox.voice.miraiminds.co/v2/calls/call_01JZQ9B4M8N3P6R2S5T7V9W1YA \
       -H "Authorization: Bearer sk_live_YOUR_API_KEY"
     ```
   </Tab>
@@ -341,6 +355,99 @@ Polling counts against your [rate limit](/v2/limits); webhooks do not.
 
 ---
 
+## Get the transcript
+
+```http
+GET /v2/calls/{id}/transcript
+```
+
+What was said, as turns, once the call has ended.
+
+```bash
+curl https://sandbox.voice.miraiminds.co/v2/calls/call_01K7Q9B4M8N3P6R2S5T7V9W1YA/transcript \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY"
+```
+
+```json title="200 OK"
+{
+  "call_id": "call_01K7Q9B4M8N3P6R2S5T7V9W1YA",
+  "turns": [
+    {
+      "role": "assistant",
+      "text": "नमस्ते Rohit जी, मैं Acme Retail से Priya बोल रही हूँ। एक मिनट बात कर सकती हूँ?",
+      "start_ms": 420,
+      "end_ms": 4980
+    },
+    { "role": "user", "text": "हाँ बोलिए", "start_ms": 5640, "end_ms": 6390 },
+    {
+      "role": "assistant",
+      "text": "आपका order AC-88213 kal shaam 6 baje deliver hoga. Ye slot theek hai?",
+      "start_ms": 7010,
+      "end_ms": 14880
+    },
+    { "role": "user", "text": "haan theek hai", "start_ms": 15900, "end_ms": 17240 }
+  ]
+}
+```
+
+| Field | Notes |
+| :--- | :--- |
+| `role` | `assistant` or `user`. Nothing else appears — internal steps are not conversation. |
+| `text` | The turn as spoken. Hindi, Hinglish and English arrive as they were said; nothing is translated. |
+| `start_ms`, `end_ms` | Milliseconds from the start of the **recording**, so a turn lines up with the audio. `end_ms` can be `null` on the last turn of a call that was cut off. |
+
+`404 not_found` while the call is still running, and for a call that produced no
+speech at all. Check `transcript_available` on the
+[call object](#the-call-object) if you want to tell those apart from a mistyped
+id.
+
+```json title="404 Not Found"
+{
+  "error": {
+    "code": "not_found",
+    "message": "transcript not available (call still in progress or produced no speech)"
+  }
+}
+```
+
+---
+
+## Get the recording
+
+```http
+GET /v2/calls/{id}/recording
+```
+
+`302` to a signed, time-limited URL for the call's audio (WAV). Follow the
+redirect — most HTTP clients do by default; `curl` needs `-L`.
+
+```bash
+curl -L https://sandbox.voice.miraiminds.co/v2/calls/call_01K7Q9B4M8N3P6R2S5T7V9W1YA/recording \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+  -o call.wav
+```
+
+```http title="302 Found"
+Location: https://storage.miraiminds.co/voice-agents/production/call_records/call_01K7Q9B4M8N3P6R2S5T7V9W1YA/call.wav?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Expires=900&X-Amz-Signature=…
+```
+
+<Warning>
+**The signed link expires in 15 minutes and it is a bearer token.**
+
+It is a way to fetch this recording *now*, not a permanent URL. Store the
+`call_id` and ask again; do not store the link. Anyone holding it can fetch the
+audio until it expires, so treat it exactly as you would treat the recording.
+</Warning>
+
+`404 not_found` while the call is running, for a call that produced no audio, and
+for one whose audio was never stored. `recording_available` on the call object
+tells you which requests are worth making.
+
+Transcripts and recordings are kept for **90 days**, the same as the call
+record. Pull anything you need to keep longer into your own system.
+
+---
+
 ## Abort a call
 
 ```http
@@ -353,7 +460,7 @@ mid-conversation, not merely flagged. Only a call that has already reached a
 terminal status is refused: there is nothing left to stop.
 
 ```bash
-curl -X POST https://api.voice.miraiminds.co/v2/calls/call_01JZQ9B4M8N3P6R2S5T7V9W1YA/abort \
+curl -X POST https://sandbox.voice.miraiminds.co/v2/calls/call_01JZQ9B4M8N3P6R2S5T7V9W1YA/abort \
   -H "Authorization: Bearer sk_live_YOUR_API_KEY"
 ```
 
@@ -389,7 +496,7 @@ GET /v2/calls?agent_id=&status=&from=&to=&limit=&cursor=
 | `cursor` | From `next_cursor` of the previous page. |
 
 ```bash
-curl -G https://api.voice.miraiminds.co/v2/calls \
+curl -G https://sandbox.voice.miraiminds.co/v2/calls \
   -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
   --data-urlencode "agent_id=agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ" \
   --data-urlencode "status=completed" \
@@ -401,20 +508,25 @@ curl -G https://api.voice.miraiminds.co/v2/calls \
 {
   "data": [
     {
-      "id": "call_01JZQ9B4M8N3P6R2S5T7V9W1YA",
+      "id": "call_01K7Q9B4M8N3P6R2S5T7V9W1YA",
       "object": "call",
-      "agent_id": "agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ",
+      "agent_id": "agt_01K7Q9F3K7M2N5P9R4T6V8W0XZ",
       "to": "+919876543210",
       "status": "completed",
-      "ended_reason": "assistant-ended-call",
-      "started_at": "2026-07-26T09:15:02Z",
-      "ended_at": "2026-07-26T09:16:38Z",
+      "tier": "t3",
+      "ended_reason": "customer-ended-call",
+      "created_at": "2026-08-10T09:15:00Z",
+      "started_at": "2026-08-10T09:15:02Z",
+      "ended_at": "2026-08-10T09:16:38Z",
       "duration_secs": 96,
-      "cost": { "amount_inr": 2, "per_min_inr": 1 }
+      "cost_inr": 6,
+      "recording_available": true,
+      "transcript_available": true,
+      "analysis": null
     }
   ],
   "has_more": true,
-  "next_cursor": "call_01JZQ9B4M8N3P6R2S5T7V9W1YB"
+  "next_cursor": "call_01K7Q9B4M8N3P6R2S5T7V9W1YB"
 }
 ```
 

@@ -15,17 +15,19 @@ Migrate when you want one of these:
 - One auth header instead of three.
 - Idempotent call creation.
 - The published tier rate card.
+- **[Campaigns](/v2/campaigns)** — a server-side dialler with calling windows,
+  retries, budgets, do-not-call suppression and a per-contact report.
 
 Stay on v1 if you need: inbound calls, phone-number purchase, knowledge
-base/RAG, API tools (function calling), web calls, campaign scheduling, or
-post-call analysis. **v2 has none of these yet.** The two APIs can address the
-same workspace side by side — migrate calls first, keep the rest on v1.
+base/RAG, API tools (function calling), web calls, or post-call analysis.
+**v2 has none of these yet.** The two APIs can address the same workspace side
+by side — migrate calls first, keep the rest on v1.
 
 ## Hosts
 
 | | v1 | v2 |
 | :--- | :--- | :--- |
-| Base URL | `https://api.voice-agents.miraiminds.co` | `https://api.voice.miraiminds.co` |
+| Base URL | `https://api.voice-agents.miraiminds.co` | `https://sandbox.voice.miraiminds.co` |
 | Path prefix | mixed `/v1/…` and `/v2/…` | `/v2/…` throughout |
 
 <Warning>
@@ -67,6 +69,10 @@ way to accidentally address the wrong workspace with the right credentials.
 | `/v1/admin/tool/api` (all methods) | — | [v1 Tools](/v1/tools). |
 | `/v1/knowledge-base/*` | — | [v1 Knowledge Base](/v1/knowledge-base). |
 | [`GET /v1/admin/voice-gallery`](/v1/assistants#voice-gallery) | — | Still v1. v2 `voice_id` values come from this same catalogue — see [Voices](/v2/voices). |
+| — | [`GET /v2/calls/{id}/transcript`](/v2/calls#get-the-transcript) | **New.** Turn-by-turn, as spoken. |
+| — | [`GET /v2/calls/{id}/recording`](/v2/calls#get-the-recording) | **New.** `302` to a 15-minute signed URL. v1's `recordingUrl` has a v2 home at last. |
+| `callSettings.slots` + your own dialler | [`POST /v2/campaigns`](/v2/campaigns#create-a-campaign) and the rest of `/v2/campaigns/*` | **New.** The calling window, retries and pacing that lived in v1's assistant config are now a first-class resource. |
+| — | [`POST /v2/dnc`](/v2/dnc#add-a-number) | **New.** Workspace suppression list, enforced at dial time. |
 | — | [`GET /v2/wallet`](/v2/wallet#get-balance) | **New.** |
 | — | [`GET /v2/wallet/transactions`](/v2/wallet#list-transactions) | **New.** |
 
@@ -86,9 +92,9 @@ way to accidentally address the wrong workspace with the right credentials.
 | `variant.config.inputSchema` | — (declare nothing; just pass `variables`) |
 | `agent.tools` | — (v1 only) |
 | `telephony.inbound` / `telephony.outbound` | — (managed) |
-| `callSettings.slots` (calling window) | — ([your scheduler](/v2/limits#calling-window)) |
-| `callSettings.concurrentCallCount` | — (provisioned per key, see [Limits](/v2/limits)) |
-| `callSettings.retryProtocol` | — (retry in your own dialler) |
+| `callSettings.slots` (calling window) | `slots` + `timezone` on a [campaign](/v2/campaigns#calling-window) (or [your scheduler](/v2/limits#calling-window) for single calls) |
+| `callSettings.concurrentCallCount` | `max_concurrent` on a [campaign](/v2/campaigns); the workspace ceiling is provisioned per key, see [Limits](/v2/limits) |
+| `callSettings.retryProtocol` | `retry_count` + `re_attempt_period_secs` on a [campaign](/v2/campaigns#retries) |
 | `analysisPlan` | — (`t3`/`t5`, [not live](/general/tiers)) |
 
 ### Placing a call
@@ -110,7 +116,7 @@ way to accidentally address the wrong workspace with the right credentials.
 -x-public-key: pk_1234…
 -x-private-key: sk_abcd…
 -workspace: 6690a1b2c3d4e5f600000002
-+POST https://api.voice.miraiminds.co/v2/calls
++POST https://sandbox.voice.miraiminds.co/v2/calls
 +Authorization: Bearer sk_live_YOUR_API_KEY
 +Idempotency-Key: order-8842-confirm-1
 
@@ -148,8 +154,8 @@ snake_case and separates `status` from `ended_reason`.
 | `failed`, `validation-failed` | `failed` (a bad `to` is a `400` at create time in v2) |
 | `timeout` | `timeout` |
 | `aborted` | `aborted` |
-| `skip` | — (v2 does not skip; scrub your list before calling) |
-| `rescheduled` | — (v2 does not retry; retry in your dialler) |
+| `skip` | contact status [`suppressed`](/v2/campaigns#contact-statuses) inside a campaign; nothing for single calls |
+| `rescheduled` | contact status `pending` again, until [`retry_count`](/v2/campaigns#retries) runs out and it becomes `exhausted` |
 | — | `voicemail` (**new**) |
 
 ## Webhooks
@@ -162,7 +168,7 @@ snake_case and separates `status` from `ended_reason`.
 | Secret | organization private key | per-workspace `whsec_…` |
 | Event ID | none | `id: evt_<ulid>`, dedupe on it |
 | Envelope | `{ event: { type, data } }` | `{ id, type, created_at, data }` |
-| Event count | 15 types incl. `call.initiate`, `call.ended`, `end-of-call`, `action` | 6 types |
+| Event count | 15 types incl. `call.initiate`, `call.ended`, `end-of-call`, `action` | 6 call types + 5 [`campaign.*`](/v2/campaigns#webhooks) types |
 | Retries | — | 1s / 10s / 60s / 5m / 30m, then DLQ |
 
 ```diff title="v1 → v2 webhook body"
@@ -187,9 +193,10 @@ snake_case and separates `status` from `ended_reason`.
 +    "call": {
 +      "id": "call_01JZQ9B4M8N3P6R2S5T7V9W1YA",
 +      "status": "completed",
++      "tier": "t3",
 +      "ended_reason": "assistant-ended-call",
 +      "duration_secs": 96,
-+      "cost": { "amount_inr": 2, "per_min_inr": 1 }
++      "cost_inr": 6
 +    }
 +  }
  }
@@ -200,8 +207,10 @@ Note the differences that will bite:
 - **`metadata` is gone.** v1 echoed an arbitrary object back on every event. In
   v2, correlate on `data.call.id` — store the `call_id` we return from
   `POST /v2/calls` against your own record.
-- **`recordingUrl` is not in v2.** Recordings are not exposed through the v2
-  API; ask your Mirai contact.
+- **`recordingUrl` is not on the event.** The audio is a separate, authenticated
+  request — [`GET /v2/calls/{id}/recording`](/v2/calls#get-the-recording) — which
+  redirects to a 15-minute signed URL. A permanent link in a webhook body is a
+  recording anybody who ever saw that body can still fetch.
 - **`credits` becomes `cost`** on the call itself, in rupees rather than credit
   units, and the running balance moves to [`GET /v2/wallet`](/v2/wallet).
 - **No `end-of-call` analysis event yet.** Post-call analytics (AI summary +

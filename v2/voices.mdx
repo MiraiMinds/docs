@@ -1,21 +1,63 @@
 ---
 title: Voices
-description: Choosing a voice_id for your agent, and the one caveat about the language field.
+description: Choosing a voice_id for your agent — the two t1 voices, the t3 catalogue, and the one caveat about the language field.
 ---
 
-Every agent speaks in one voice, set by `voice.voice_id`.
+Every agent speaks in one voice, set by `voice.voice_id`. **Which voices exist
+depends on the [tier](/general/tiers)**, because the tiers speak through
+different engines.
 
-## Finding a voice_id
+## `t3` — the default
+
+`t3` speaks through a premium third-party catalogue (Sarvam). There is no short
+allowlist to memorise: pass the vendor's voice id, e.g. `ashutosh`.
+
+```json
+{
+  "voice": { "voice_id": "ashutosh", "language": "hi-IN" },
+  "language": "hi-IN"
+}
+```
+
+On `t3` **`voice` is required** when you create an agent. There is no safe
+default to pick from somebody else's catalogue, so an agent without one is a
+`400`.
+
+## `t1` — exactly two voices
+
+`t1` speaks through our own stack, and it loads exactly two voices:
+
+| `voice_id` | Notes |
+| :--- | :--- |
+| `ashu` | Hindi / Hinglish. **The default** — omit `voice` entirely on `t1` and you get this. |
+| `aishe` | Hindi / Hinglish, second option. |
+
+Anything else is rejected at agent-create time, and the error names both so you
+are not left guessing:
+
+```json title="400 Bad Request"
+{
+  "error": {
+    "code": "invalid_request",
+    "message": "voice.voice_id 'priya' is not available. Use 'ashu' or 'aishe'."
+  }
+}
+```
+
+<Note>
+The same agent can be run at either tier — `tier` is set per call and per
+[campaign](/v2/campaigns), not on the agent. If you create an agent with a `t3`
+voice and then place a `t1` call with it, the voice will not be one `t1` can
+say. Keep one agent per tier when you use both.
+</Note>
+
+## Hearing them first
 
 There is no `GET /v2/voices` yet. The live catalogue is the voice picker in the
 [console](https://sandbox.voice.miraiminds.co) — open Agent Studio and you can
 **hear each voice** before you commit to one. The name in the picker is the
-`voice_id`.
-
-`ashu` and `siya` are the Hindi/Hinglish voices on `t1` today. The catalogue
-grows monthly; treat the picker, not this page, as the source of truth. An
-unknown `voice_id` is rejected at agent-create time with
-[`400 invalid_request`](/v2/errors).
+`voice_id`, and the catalogue grows monthly; treat the picker, not this page, as
+the source of truth.
 
 <Tip>
 **Listen before you pick.** Voice choice moves answer-through rates more than
@@ -28,23 +70,23 @@ prompt wording does.
 {
   "name": "Order confirmations",
   "system_prompt": "…",
-  "voice": { "voice_id": "ashu", "language": "hi-IN" },
+  "voice": { "voice_id": "ashutosh", "language": "hi-IN" },
   "language": "hi-IN"
 }
 ```
 
 | Field | Type | Description |
 | :--- | :--- | :--- |
-| `voice_id` | string | A voice from the picker, e.g. `ashu`. Required. Unknown ⇒ `400`. |
+| `voice_id` | string | A voice your tier can say. Required on `t3`; optional on `t1`, where it defaults to `ashu`. Unknown on `t1` ⇒ `400`. |
 | `language` | string | Rendering language. Omit to inherit the agent's top-level `language`. **Accepted and stored, not yet honoured** — see below. |
 
 Change it later with `PATCH /v2/agents/{id}`:
 
 ```bash
-curl -X PATCH https://api.voice.miraiminds.co/v2/agents/agt_… \
+curl -X PATCH https://sandbox.voice.miraiminds.co/v2/agents/agt_… \
   -H "Authorization: Bearer sk_live_…" \
   -H "Content-Type: application/json" \
-  -d '{ "voice": { "voice_id": "siya", "language": "hi-IN" } }'
+  -d '{ "voice": { "voice_id": "aishe", "language": "hi-IN" } }'
 ```
 
 See the [Agents reference](/v2/agents#voice) for the full agent shape.
@@ -61,8 +103,3 @@ wins.
 </Warning>
 
 Keep `voice.language` and the agent's `language` identical.
-
-## Premium voices
-
-A wider set, with automatic fallback, is a `t3` feature. See
-[Billing & tiers](/general/tiers#coming-soon).

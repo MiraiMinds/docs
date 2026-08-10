@@ -25,7 +25,12 @@
         "groups": [
           {
             "group": "Start here",
-            "pages": ["index", "v2/quickstart", "v2/overview"]
+            "pages": [
+              "index",
+              "v2/start-building",
+              "v2/quickstart",
+              "v2/overview"
+            ]
           },
           {
             "group": "Build",
@@ -33,6 +38,8 @@
               "v2/agents",
               "v2/voices",
               "v2/calls",
+              "v2/campaigns",
+              "v2/dnc",
               "v2/webhooks"
             ]
           },

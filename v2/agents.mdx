@@ -8,7 +8,7 @@ An **agent** is the reusable configuration a call runs: what it says first, how
 it behaves, which voice, which language, and when it must stop. Calls reference
 an agent by ID; per-call differences go in [`variables`](/v2/calls#variables).
 
-Base URL `https://api.voice.miraiminds.co`. All endpoints require
+Base URL `https://sandbox.voice.miraiminds.co`. All endpoints require
 `Authorization: Bearer sk_live_…`.
 
 ## The agent object
@@ -20,7 +20,7 @@ Base URL `https://api.voice.miraiminds.co`. All endpoints require
   "name": "Order Confirmation",
   "system_prompt": "You are Priya from Acme. Confirm order {{order_id}} with {{customer_name}}…",
   "first_message": "नमस्ते {{customer_name}}, मैं Acme से Priya बोल रही हूँ।",
-  "voice": { "voice_id": "priya", "language": "hi-IN" },
+  "voice": { "voice_id": "ashutosh", "language": "hi-IN" },
   "language": "hi-IN",
   "max_duration_secs": 300,
   "end_call": {
@@ -52,12 +52,12 @@ Server-set and read-only: `id`, `object`, `created_at`, `updated_at`.
 ### Voice
 
 ```json
-{ "voice": { "voice_id": "priya", "language": "hi-IN" } }
+{ "voice": { "voice_id": "ashutosh", "language": "hi-IN" } }
 ```
 
 | Field | Type | Description |
 | :--- | :--- | :--- |
-| `voice_id` | string | A voice slug from the catalogue, e.g. `priya`, `neha`, `sagar`. |
+| `voice_id` | string | A voice your [tier](/general/tiers) can say. On `t3` (the default) it is a name from the Sarvam catalogue, e.g. `ashutosh`, and it is **required**. On `t1` it is `ashu` (the default) or `aishe`, and nothing else. See [Voices](/v2/voices). |
 | `language` | string | Rendering language for that voice. Omit to inherit the agent's `language`. **Accepted and stored, not yet honoured** — see below. |
 
 <Note>
@@ -130,14 +130,14 @@ POST /v2/agents
 <Tabs>
   <Tab title="cURL">
     ```bash
-    curl -X POST https://api.voice.miraiminds.co/v2/agents \
+    curl -X POST https://sandbox.voice.miraiminds.co/v2/agents \
       -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
       -H "Content-Type: application/json" \
       -d '{
         "name": "Order Confirmation",
         "system_prompt": "You are Priya from Acme. Confirm order {{order_id}} with {{customer_name}}.",
         "first_message": "नमस्ते {{customer_name}}, मैं Acme से Priya बोल रही हूँ।",
-        "voice": { "voice_id": "priya", "language": "hi-IN" },
+        "voice": { "voice_id": "ashutosh", "language": "hi-IN" },
         "language": "hi-IN",
         "max_duration_secs": 300,
         "end_call": { "enabled": true, "message": "धन्यवाद, आपका दिन शुभ हो।", "confirm": true },
@@ -149,7 +149,7 @@ POST /v2/agents
     ```python
     import os, httpx
 
-    API = "https://api.voice.miraiminds.co"
+    API = "https://sandbox.voice.miraiminds.co"
     auth = {"Authorization": f"Bearer {os.environ['MIRAI_API_KEY']}"}
 
     agent = httpx.post(
@@ -159,7 +159,7 @@ POST /v2/agents
             "name": "Order Confirmation",
             "system_prompt": "You are Priya from Acme. Confirm order {{order_id}} with {{customer_name}}.",
             "first_message": "नमस्ते {{customer_name}}, मैं Acme से Priya बोल रही हूँ।",
-            "voice": {"voice_id": "priya", "language": "hi-IN"},
+            "voice": {"voice_id": "ashutosh", "language": "hi-IN"},
             "language": "hi-IN",
             "max_duration_secs": 300,
             "end_call": {"enabled": True, "message": "धन्यवाद, आपका दिन शुभ हो।", "confirm": True},
@@ -173,7 +173,7 @@ POST /v2/agents
   </Tab>
   <Tab title="Node.js">
     ```javascript
-    const API = "https://api.voice.miraiminds.co";
+    const API = "https://sandbox.voice.miraiminds.co";
     const auth = { Authorization: `Bearer ${process.env.MIRAI_API_KEY}` };
 
     const res = await fetch(`${API}/v2/agents`, {
@@ -183,7 +183,7 @@ POST /v2/agents
         name: "Order Confirmation",
         system_prompt: "You are Priya from Acme. Confirm order {{order_id}} with {{customer_name}}.",
         first_message: "नमस्ते {{customer_name}}, मैं Acme से Priya बोल रही हूँ।",
-        voice: { voice_id: "priya", language: "hi-IN" },
+        voice: { voice_id: "ashutosh", language: "hi-IN" },
         language: "hi-IN",
         max_duration_secs: 300,
         end_call: { enabled: true, message: "धन्यवाद, आपका दिन शुभ हो।", confirm: true },
@@ -214,7 +214,7 @@ GET /v2/agents/{id}
 <Tabs>
   <Tab title="cURL">
     ```bash
-    curl https://api.voice.miraiminds.co/v2/agents/agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ \
+    curl https://sandbox.voice.miraiminds.co/v2/agents/agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ \
       -H "Authorization: Bearer sk_live_YOUR_API_KEY"
     ```
   </Tab>
@@ -250,7 +250,7 @@ GET /v2/agents?limit=&cursor=
 ```
 
 ```bash
-curl "https://api.voice.miraiminds.co/v2/agents?limit=20" \
+curl "https://sandbox.voice.miraiminds.co/v2/agents?limit=20" \
   -H "Authorization: Bearer sk_live_YOUR_API_KEY"
 ```
 
@@ -263,7 +263,7 @@ curl "https://api.voice.miraiminds.co/v2/agents?limit=20" \
       "name": "Order Confirmation",
       "system_prompt": "You are Priya from Acme. Confirm order {{order_id}} with {{customer_name}}…",
       "first_message": "नमस्ते {{customer_name}}, मैं Acme से Priya बोल रही हूँ।",
-      "voice": { "voice_id": "priya", "language": "hi-IN" },
+      "voice": { "voice_id": "ashutosh", "language": "hi-IN" },
       "language": "hi-IN",
       "max_duration_secs": 300,
       "end_call": {
@@ -302,7 +302,7 @@ to change `end_call.message`, send the whole `end_call` object.
 <Tabs>
   <Tab title="cURL">
     ```bash
-    curl -X PATCH https://api.voice.miraiminds.co/v2/agents/agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ \
+    curl -X PATCH https://sandbox.voice.miraiminds.co/v2/agents/agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ \
       -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
       -H "Content-Type: application/json" \
       -d '{ "max_duration_secs": 180, "voice": { "voice_id": "neha", "language": "hi-IN" } }'
@@ -351,7 +351,7 @@ DELETE /v2/agents/{id}
 ```
 
 ```bash
-curl -X DELETE https://api.voice.miraiminds.co/v2/agents/agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ \
+curl -X DELETE https://sandbox.voice.miraiminds.co/v2/agents/agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ \
   -H "Authorization: Bearer sk_live_YOUR_API_KEY"
 ```
 
@@ -365,8 +365,8 @@ longer be used for new calls, but historical calls keep resolving their
 
 ## Writing a good prompt
 
-The tier-1 product is a **transactional** call — one job, done in under two
-minutes. Prompts that work:
+A v2 call is a **single-prompt** call — one job, start to finish, usually in
+under two or three minutes. Prompts that work:
 
 - **Name the job in the first line.** "Confirm order `{{order_id}}`. Nothing else."
 - **Cap reply length explicitly.** "One or two short sentences." Long turns are
@@ -381,4 +381,5 @@ minutes. Prompts that work:
 Prompts that cause trouble: multi-branch scripts ("if they say X, then go
 through the following seven questions"), instructions that assume the model
 remembers a previous call, and anything that needs a database lookup mid-call —
-that is a `t3`/`t5` feature, see [tiers](/general/tiers).
+that needs the node-graph runtime, which is a `t5` feature — see
+[tiers](/general/tiers).

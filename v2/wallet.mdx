@@ -20,7 +20,7 @@ GET /v2/wallet
 <Tabs>
   <Tab title="cURL">
     ```bash
-    curl https://api.voice.miraiminds.co/v2/wallet \
+    curl https://sandbox.voice.miraiminds.co/v2/wallet \
       -H "Authorization: Bearer sk_live_YOUR_API_KEY"
     ```
   </Tab>
@@ -28,7 +28,7 @@ GET /v2/wallet
     ```python
     import os, httpx
 
-    API = "https://api.voice.miraiminds.co"
+    API = "https://sandbox.voice.miraiminds.co"
     auth = {"Authorization": f"Bearer {os.environ['MIRAI_API_KEY']}"}
 
     wallet = httpx.get(f"{API}/v2/wallet", headers=auth, timeout=30) \
@@ -38,7 +38,7 @@ GET /v2/wallet
   </Tab>
   <Tab title="Node.js">
     ```javascript
-    const API = "https://api.voice.miraiminds.co";
+    const API = "https://sandbox.voice.miraiminds.co";
     const auth = { Authorization: `Bearer ${process.env.MIRAI_API_KEY}` };
 
     const wallet = await fetch(`${API}/v2/wallet`, { headers: auth }).then((r) => r.json());
@@ -80,7 +80,7 @@ The ledger. One row per credit or debit, newest first.
 <Tabs>
   <Tab title="cURL">
     ```bash
-    curl "https://api.voice.miraiminds.co/v2/wallet/transactions?limit=50" \
+    curl "https://sandbox.voice.miraiminds.co/v2/wallet/transactions?limit=50" \
       -H "Authorization: Bearer sk_live_YOUR_API_KEY"
     ```
   </Tab>
@@ -128,10 +128,10 @@ The ledger. One row per credit or debit, newest first.
       "id": "txn_01JZQ9D6P2R5S8T4V7W9X1Y3ZB",
       "object": "wallet_transaction",
       "type": "debit",
-      "amount_inr": 2,
-      "balance_after_inr": 498,
+      "amount_inr": 6,
+      "balance_after_inr": 494,
       "call_id": "call_01JZQ9B4M8N3P6R2S5T7V9W1YA",
-      "description": "call 96s (2 min, t1)",
+      "description": "call 96s (2 min, t3)",
       "created_at": "2026-07-26T09:16:39Z"
     },
     {
@@ -177,7 +177,7 @@ call's tier. If it cannot:
 {
   "error": {
     "code": "insufficient_balance",
-    "message": "wallet balance 0.40 INR is below the minimum for one minute at t1"
+    "message": "wallet balance 0.40 INR is below the minimum for one minute at t3"
   }
 }
 ```

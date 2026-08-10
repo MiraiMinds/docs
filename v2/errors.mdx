@@ -34,7 +34,7 @@ There is no second shape to special-case.
 | `429` | Request-rate limit. Concurrency does not `429`. | Yes, with backoff. |
 | `500` | Our fault. | Yes, with backoff. |
 | `501` | The feature exists in the contract but is not live yet. | No. |
-| `503` | Temporarily unavailable (deploy, capacity). | Yes, with backoff. |
+| `503` | Temporarily unavailable (deploy, capacity) — or a feature that is not provisioned for your workspace. | Yes for `fleet_offline`; no for `campaigns_unavailable`, which needs provisioning, not patience. |
 
 ## Error codes
 
@@ -43,12 +43,15 @@ There is no second shape to special-case.
 | `invalid_request` | `400` | Missing required field, wrong type, `to` not E.164, `max_duration_secs` out of range, unknown `voice_id`, malformed JSON. | Read `message`; it names the field. |
 | `unauthorized` | `401` | No `Authorization` header, not `Bearer `-prefixed, or the key is unknown. | Check the header. A trailing newline from `cat`-ing a key file is the usual culprit. |
 | `forbidden` | `403` | The key was revoked. Nothing else returns `403`. | Get a new key. |
-| `insufficient_balance` | `402` | Pre-dial wallet gate. No call was placed and nothing was charged. | [Top up](/v2/wallet#top-up) and retry with the same `Idempotency-Key`. |
-| `not_found` | `404` | Unknown `agt_`/`call_` ID, a soft-deleted agent, or an ID that belongs to another workspace. | Check the ID. |
+| `insufficient_balance` | `402` | Pre-dial wallet gate. No call was placed and nothing was charged. The same condition inside a running [campaign](/v2/campaigns) is not an error — the campaign pauses with `pause_reason: "insufficient_balance"`. | [Top up](/v2/wallet#top-up) and retry with the same `Idempotency-Key`. |
+| `not_found` | `404` | Unknown `agt_`/`call_`/`cmp_` ID, a soft-deleted agent, a number not on the [do-not-call list](/v2/dnc), a transcript or recording that does not exist, or an ID that belongs to another workspace. | Check the ID. For artifacts, check `transcript_available` / `recording_available` on the call. |
 | `duplicate_call` | `409` | A request with this `Idempotency-Key` is still being processed; when the original completes, the same key replays its stored response. | Not an error if you are retrying — no second call was placed. |
-| `conflict` | `409` | The operation is illegal in the current state, e.g. aborting a call that has already ended. A `queued`, `dialing` or `in_progress` call aborts fine. | Read the call's `status` first. |
+| `conflict` | `409` | The operation is illegal in the current state: aborting a call that has already ended, editing or starting a campaign that is `play`, adding contacts to one that is `stopped`/`completed`, or resuming one with no running dialler. | Read the resource's `status` first. A paused campaign with no dialler is resumed with [`POST /start`](/v2/campaigns#start-a-campaign). |
 | `rate_limited` | `429` | Request rate exceeded, **or** your queue is full (500 calls accepted and not yet ended). Being at your *concurrency* ceiling does **not** produce this: those calls queue. `error.message` says which limit you hit. | Honour `Retry-After` and back off. See [Limits](/v2/limits). |
-| `tier_unavailable` | `501` | `tier` was `t3` or `t5`. Those are announced but not live. | Use `t1`. See [tiers](/general/tiers). |
+| `at_capacity` | `429` | Every line on the deployment is busy — a fleet-wide ceiling, not your workspace's. Nothing was charged. | Honour `Retry-After` (30s) and retry. |
+| `tier_unavailable` | `501` | `tier` was `t5`. It is announced but not live. | Use `t3` (the default) or `t1`. See [tiers](/general/tiers). |
+| `campaigns_unavailable` | `503` | Campaigns are not enabled for your workspace. Every `/v2/campaigns` and `/v2/dnc` route answers this; everything else keeps working. | Not a mistake in your request, and retrying will not clear it — ask your Mirai contact to enable them. |
+| `fleet_offline` | `503` | Speech capacity is offline, so a [campaign start](/v2/campaigns#start-a-campaign) was refused. Nothing was charged and the campaign stayed where it was. | Honour `Retry-After` (300s) and start it again. |
 | `internal` | `500` | Our bug. Already alarming on our side. | Retry with backoff; if it persists, send us the `call_id`. |
 
 <Note>
@@ -59,7 +62,7 @@ Always have a default branch keyed on the HTTP status.
 <Warning>
 **Foreign IDs are `404`, never `403`**
 
-An `agt_` or `call_` ID that exists in another workspace is answered exactly as
+An `agt_`, `call_` or `cmp_` ID that exists in another workspace is answered exactly as
 an ID that never existed: `404 not_found`. Anything else would be an enumeration
 oracle — a way to probe which IDs are real on the platform by watching the
 status code change. `403` is reserved for one situation only: your own key has
@@ -137,7 +140,7 @@ The pattern that covers everything: branch on status, then on code.
     const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
     export async function request(path, init = {}, attempt = 0) {
-      const res = await fetch(`https://api.voice.miraiminds.co${path}`, {
+      const res = await fetch(`https://sandbox.voice.miraiminds.co${path}`, {
         ...init,
         headers: {
           Authorization: `Bearer ${process.env.MIRAI_API_KEY}`,
@@ -188,7 +191,8 @@ The pattern that covers everything: branch on status, then on code.
 - **Retry** `429`, `500`, `502`, `503`, `504` and network errors. Exponential
   backoff with jitter; honour `Retry-After` when present.
 - **Never retry** `400`, `401`, `403`, `404`, `501` — the same request will fail
-  the same way.
+  the same way. `503 campaigns_unavailable` belongs in this group too: it is a
+  provisioning fact, not a wobble.
 - **`402` is retryable only after a top-up**, not on a timer.
 - **Always send `Idempotency-Key` on `POST /v2/calls`.** A timeout tells you
   nothing about whether the phone rang; without the key, your retry is a second

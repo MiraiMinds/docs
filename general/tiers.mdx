@@ -4,17 +4,28 @@ description: What a minute costs, how minutes are counted, what each tier can do
 ---
 
 
-One number to remember: **₹1 per minute**. That is the `t1` transactional
-tier, and it is the only tier live today.
+One number to remember: **₹3 per minute**. That is the `t3` conversational
+tier, it is what a new key is issued at, and it is what every example in these
+docs uses unless it says otherwise.
 
 | Tier | Rate | Status |
 | :--- | :--- | :--- |
-| `t1` — transactional | **₹1 / minute** | ✅ Live |
-| `t3` — conversational | ₹3 / minute | 🔜 Coming soon |
-| `t5` — orchestrated | ₹5 / minute | 🔜 Coming soon |
+| `t1` — transactional | ₹1 / minute | ✅ Live |
+| `t3` — conversational | **₹3 / minute** | ✅ Live — **the default** |
+| `t5` — orchestrated | ₹5 / minute | 🔜 Not live |
 
-`t3` and `t5` are published so you can plan against them. Requesting one today
-returns `501 tier_unavailable` — see [when they arrive](#coming-soon).
+`t5` is published so you can plan against it. Requesting it today returns
+`501 tier_unavailable` — see [when it arrives](#coming-soon).
+
+**Why `t3` is the default.** It is the always-on path: it speaks through a
+premium third-party voice catalogue with no dependency on our own GPU fleet, so
+it is the tier that is up whenever the API is up. `t1` runs on the Mira stack at
+a third of the price and a smaller voice catalogue — a deliberate trade, and the
+right one for high-volume transactional work. Ask for it explicitly:
+
+```json
+{ "tier": "t1" }
+```
 
 ## Feature matrix
 
@@ -44,14 +55,17 @@ start to finish. That simplicity is what makes ₹1 possible.
 
 ### Picking a tier
 
-- **`t1`** — one job, under two minutes, no branching. Order confirmations,
-  delivery windows, appointment reminders, OTP-adjacent notifications, "are you
-  still interested?". If you can write the whole call as one prompt and it ends
-  when the customer says yes or no, this is your tier.
-- **`t3`** — the call has structure (stages, rails, an IVR to get past) or you
-  want a premium voice with automatic fallback.
+- **`t3` (default)** — start here. Premium voices, no dependency on our GPU
+  fleet, and the tier every example in these docs is written against. If you are
+  not sure, you want this.
+- **`t1`** — one job, under two minutes, no branching, at volume. Order
+  confirmations, delivery windows, appointment reminders, OTP-adjacent
+  notifications, "are you still interested?". If you can write the whole call as
+  one prompt, it ends when the customer says yes or no, and the volume makes ₹2
+  a minute worth optimising for, drop to `t1`. Its voice catalogue is two
+  voices — `ashu` and `aishe`, see [Voices](/v2/voices).
 - **`t5`** — you want to author the flow yourself, node by node, and version it
-  like code.
+  like code. Not live.
 
 ## What a minute costs
 
@@ -59,13 +73,13 @@ Billing is **per-minute blocks, rounded up, with a one-minute minimum.** The
 minute is the billing unit, not just the price: a call is not prorated to the
 second, and a part-minute is a whole minute.
 
-| Call duration | Billed minutes | `t1` cost |
-| :--- | :--- | :--- |
-| 8 seconds | 1 | ₹1.00 |
-| 59 seconds | 1 | ₹1.00 |
-| 61 seconds | 2 | ₹2.00 |
-| 96 seconds | 2 | ₹2.00 |
-| 3 min 01 s | 4 | ₹4.00 |
+| Call duration | Billed minutes | `t3` cost | `t1` cost |
+| :--- | :--- | :--- | :--- |
+| 8 seconds | 1 | ₹3.00 | ₹1.00 |
+| 59 seconds | 1 | ₹3.00 | ₹1.00 |
+| 61 seconds | 2 | ₹6.00 | ₹2.00 |
+| 96 seconds | 2 | ₹6.00 | ₹2.00 |
+| 3 min 01 s | 4 | ₹12.00 | ₹4.00 |
 
 ### Metering
 
@@ -82,7 +96,7 @@ def cost_inr(duration_secs: int, per_min_inr: float) -> float:
     return minutes * per_min_inr
 ```
 
-You never have to compute this — `cost.amount_inr` on the call object and the
+You never have to compute this — `cost_inr` on the call object and the
 debit row in the [ledger](/v2/wallet#list-transactions) are authoritative. Use
 the formula to forecast, not to reconcile.
 
@@ -115,12 +129,12 @@ monthly ₹ = answered_calls × mean(ceil(secs / 60)) × rate
 ```
 
 A campaign of 50,000 dials at a 35% answer rate and 80 seconds mean talk time,
-on `t1`:
+on `t3`:
 
 ```text
 50,000 × 0.35 = 17,500 answered
 80 seconds -> 2 billed minutes each
-17,500 × 2 × ₹1 = ₹35,000
+17,500 × 2 × ₹3 = ₹105,000        (the same list on t1: ₹35,000)
 ```
 
 Unanswered dials cost nothing, so the 32,500 that rang out are free.
@@ -137,7 +151,7 @@ moves it.
 Billing is prepaid against one INR wallet per workspace.
 
 ```bash
-curl https://api.voice.miraiminds.co/v2/wallet \
+curl https://sandbox.voice.miraiminds.co/v2/wallet \
   -H "Authorization: Bearer sk_live_YOUR_API_KEY"
 ```
 
@@ -164,7 +178,7 @@ call's tier. If it cannot:
 {
   "error": {
     "code": "insufficient_balance",
-    "message": "wallet balance 0.40 INR is below the minimum for one minute at t1"
+    "message": "wallet balance 0.40 INR is below the minimum for one minute at t3"
   }
 }
 ```
@@ -175,6 +189,10 @@ call's tier. If it cannot:
 - **Calls already in flight are not killed.** A call that started with credit
   runs to its natural end and then debits. Your balance can therefore dip below
   what the pre-dial check implied during a busy minute.
+
+- **Inside a [campaign](/v2/campaigns) this is not an error.** The campaign
+  pauses itself with `pause_reason: "insufficient_balance"`, keeps every
+  contact's place, and continues from there once you top up and start it again.
 
 Alert on balance yourself, hourly, at a threshold covering a day of traffic. A
 `402` mid-campaign is an expensive way to find out.
@@ -199,35 +217,43 @@ Alert on balance yourself, hourly, at a threshold covering a day of traffic. A
 
 ## Setting the tier
 
-Your key carries a default tier. Every call inherits it unless you override:
+Your key carries a default tier — `t3` unless you asked for something else.
+Every call and every campaign inherits it unless you override:
 
 ```json
 {
-  "agent_id": "agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ",
+  "agent_id": "agt_01K7Q9F3K7M2N5P9R4T6V8W0XZ",
   "to": "+919876543210",
   "tier": "t1"
 }
 ```
 
-The rate applied is reported back on the call object as `cost.per_min_inr`, so
-you can always see which rate card a given call was billed under.
+Override downward per call when a particular job is simple enough for `t1`.
+There is no way to set a tier per *agent*: the same agent can be run at either
+rate.
+
+The call object reports the `tier` it ran at alongside `cost_inr`, so you can
+always see which rate card a given call was billed under. A
+[campaign](/v2/campaigns) sets its tier once, at create time, and every call it
+places inherits it.
 
 ## Coming soon
 
-`t3` and `t5` are in the contract but not in production. Today:
+`t3` [went live in August 2026](/general/roadmap) and is now the default.
+`t5` is in the contract but not in production. Today:
 
 ```json title="501 Not Implemented"
 {
   "error": {
     "code": "tier_unavailable",
-    "message": "tier t3 is not available yet; use t1"
+    "message": "Tier t5 is not available on this deployment yet."
   }
 }
 ```
 
-Design against them if you like — the field name and the values will not change
-— but do not ship a code path that depends on them until we tell you they are
-live. Current targets: **`t3` in August 2026, `t5` with node graphs in
-Q4 2026** — see the [roadmap](/general/roadmap) for the full list, and ask
-your account contact to confirm before you plan a launch around them.
+Design against it if you like — the field name and the values will not change —
+but do not ship a code path that depends on it until we tell you it is live.
+Current target: **`t5` with node graphs in Q4 2026**. See the
+[roadmap](/general/roadmap), and ask your account contact to confirm before you
+plan a launch around it.
 

@@ -1,0 +1,777 @@
+---
+title: Campaigns
+description: Upload a contact list, set a calling window and a budget, and let the platform dial it — with retries, pacing, do-not-call suppression and a report.
+---
+
+
+A **campaign** is a contact list plus the rules for dialling it: which
+[agent](/v2/agents) runs, what hours it may ring people, how many lines it may
+use at once, how often to retry, and how much it is allowed to spend.
+
+You upload the list once and start it. From there the platform owns the dialling
+— it paces itself, sleeps out the night, retries what did not connect, skips
+anything on your [do-not-call list](/v2/dnc), pauses itself when the money runs
+out, and hands you a per-contact report at the end.
+
+Base URL `https://sandbox.voice.miraiminds.co`.
+
+<Note>
+A campaign's calls are ordinary [calls](/v2/calls). They appear in
+`GET /v2/calls`, they emit the same `call.*` [webhooks](/v2/webhooks), and they
+debit the same wallet at the same per-minute rate. A campaign is a dialler on
+top of the call API, not a separate billing path.
+</Note>
+
+## The campaign object
+
+```json
+{
+  "id": "cmp_01K7QAC5N9P4R7S3T6V8W2X4YB",
+  "object": "campaign",
+  "name": "Order confirmations — Mumbai batch",
+  "agent_id": "agt_01K7Q9F3K7M2N5P9R4T6V8W0XZ",
+  "tier": "t3",
+  "status": "play",
+  "pause_reason": null,
+  "timezone": "Asia/Kolkata",
+  "start_date": "2026-08-11",
+  "end_date": "2026-08-18",
+  "slots": [{ "start": "10:00", "end": "19:00" }],
+  "max_concurrent": 2,
+  "retry_count": 1,
+  "re_attempt_period_secs": 900,
+  "max_duration_secs": 300,
+  "budget_paise": 50000,
+  "spent_paise": 12900,
+  "webhook_url": "https://example.com/mirai/webhook",
+  "created_at": "2026-08-10T09:21:44Z",
+  "updated_at": "2026-08-10T11:04:02Z",
+  "counters": { "pending": 812, "dialing": 2, "completed": 174, "no_answer": 9, "suppressed": 3 }
+}
+```
+
+| Field | Type | Description |
+| :--- | :--- | :--- |
+| `id` | string | `cmp_<ulid>`. Opaque. |
+| `name` | string | Yours. 1–120 characters. |
+| `agent_id` | string | The agent every contact is dialled with. Must exist in your workspace **at create time**. |
+| `tier` | string | The rate card every call in this campaign bills at. Defaults to your key's tier — `t3` on a partner key. See [tiers](/general/tiers). |
+| `status` | enum | `draft` \| `play` \| `paused` \| `stopped` \| `completed`. See [lifecycle](#lifecycle). |
+| `pause_reason` | string \| null | Why *we* paused it. `null` when a human paused it, and `null` whenever it is not paused. See [pause reasons](#pause-reasons). |
+| `timezone` | string | IANA name, e.g. `Asia/Kolkata`. Slots and dates are **local to this**. |
+| `start_date` / `end_date` | string | `YYYY-MM-DD`, inclusive, local dates. |
+| `slots` | array | 1–4 `{start, end}` windows in `HH:MM`, local time. See [calling window](#calling-window). |
+| `max_concurrent` | integer | 1–50. How many of this campaign's calls may be live at once. |
+| `retry_count` | integer | 0–5. Retries **after** the first attempt. `0` means one attempt per contact. |
+| `re_attempt_period_secs` | integer | 60–86400. How long a contact waits before it is eligible again. |
+| `max_duration_secs` | integer | 30–1800. Per-call cap. Defaults to the agent's. |
+| `budget_paise` | integer \| null | Spend cap in **paise**. `null` = no cap. |
+| `spent_paise` | integer | Billed so far, in paise. |
+| `webhook_url` | string | Receives both this campaign's `campaign.*` events and every child call's `call.*` events. |
+| `counters` | object | Contacts by [status](#contact-statuses). Present on `GET /v2/campaigns/{id}`, omitted from list pages. |
+
+<Warning>
+**Campaign money is in paise, call money is in rupees.**
+
+`budget_paise` and `spent_paise` are integer paise (100 paise = ₹1), so a ₹500
+cap is `"budget_paise": 50000`. The [call object](/v2/calls#the-call-object) and
+the [wallet](/v2/wallet) use rupee fields (`amount_inr`, `balance_inr`). Nothing
+mixes the two units inside one object.
+</Warning>
+
+## Lifecycle
+
+```mermaid
+stateDiagram-v2
+    [*] --> draft: POST /v2/campaigns
+    draft --> play: POST /start
+    draft --> stopped: POST /stop
+    play --> paused: POST /pause
+    play --> paused: budget gate
+    paused --> play: POST /resume
+    paused --> play: POST /start
+    play --> completed: nothing left to dial
+    play --> stopped: POST /stop
+    paused --> stopped: POST /stop
+    completed --> [*]
+    stopped --> [*]
+```
+
+| Status | Dials? | Meaning |
+| :--- | :---: | :--- |
+| `draft` | ❌ | Created. Accepts contacts and edits. Nothing rings until you start it. |
+| `play` | ✅ | Running. It may still be *asleep* — outside the calling window `play` is the correct status, the dialler is simply waiting for the window to open. |
+| `paused` | ❌ | Reversible. New calls stop; **calls already in progress are not hung up.** |
+| `stopped` | ❌ | Terminal, by you. Live calls are aborted, pending contacts are marked `aborted`. |
+| `completed` | ❌ | Terminal, by us. Every contact reached a final state, or the date range ran out. |
+
+Only `draft` and `paused` can be edited or started. `stopped` and `completed`
+never dial again — and a campaign in either refuses new contacts with `409`,
+rather than accepting rows that would never ring.
+
+### Pause reasons
+
+`pause_reason` distinguishes "the operator stopped this" from "we stopped it for
+them". A pause you asked for carries **no reason** (`null`); the two reasons
+below are set by the money gate.
+
+| `pause_reason` | Set when | What to do |
+| :--- | :--- | :--- |
+| `null` | You called [`POST /pause`](#pause-a-campaign). | Resume when you are ready. |
+| `insufficient_balance` | The wallet cannot cover another minute at this campaign's tier. | [Top up](/v2/wallet#top-up), then `POST /start` or `/resume`. |
+| `budget_exhausted` | `spent_paise` has reached `budget_paise`. | Raise `budget_paise` with `PATCH`, then resume. |
+
+<Note>
+Being outside the calling window is **not** a pause. The campaign stays `play`
+and sleeps until the next opening edge — a durable sleep, so a campaign
+scheduled for 10:00 tomorrow costs nothing overnight and survives our restarts.
+An offline fleet is not a pause either: it is a `503 fleet_offline` refusal at
+[start](#start-a-campaign) time.
+</Note>
+
+## Contact statuses
+
+Every row you upload carries its own status. The first block mirrors the
+[call status](/v2/calls#statuses) vocabulary, so a campaign report reads the same
+way the call list does; the last three exist only inside campaigns.
+
+| Status | Terminal | Meaning |
+| :--- | :---: | :--- |
+| `pending` | | Waiting to be dialled — either never attempted, or waiting out `re_attempt_period_secs`. |
+| `claimed` | | Picked up by the dialler this tick. |
+| `dialing` | | A call has been placed for this contact. |
+| `completed` | ✅ | Connected and finished. **Billed.** |
+| `voicemail` | ✅ | An answering machine answered. **Billed.** Never retried. |
+| `timeout` | ✅ | Hit `max_duration_secs`. **Billed.** Never retried. |
+| `no_answer` | ✅ | Rang out. Free. Retried while attempts remain. |
+| `busy` | ✅ | Line busy. Free. Retried while attempts remain. |
+| `failed` | ✅ | Did not connect, or our pipeline errored. Free. Retried while attempts remain. |
+| `exhausted` | ✅ | Retried up to `retry_count + 1` attempts and never connected. |
+| `suppressed` | ✅ | The number is on your [do-not-call list](/v2/dnc). Never dialled, never billed. |
+| `aborted` | ✅ | The campaign was stopped while this contact was pending or in flight. |
+
+`exhausted` is the one to watch: it is the honest count of "we tried everything
+you paid for and never reached this person". A contact that ends `no_answer`
+still had attempts left; one that ends `exhausted` did not.
+
+## Calling window
+
+Three things together decide whether the dialler may ring right now, all in the
+campaign's own `timezone`:
+
+1. today's local date is between `start_date` and `end_date`, inclusive; **and**
+2. the local `HH:MM` falls inside at least one `slots` entry.
+
+```json
+{
+  "timezone": "Asia/Kolkata",
+  "start_date": "2026-08-11",
+  "end_date": "2026-08-18",
+  "slots": [
+    { "start": "10:00", "end": "13:00" },
+    { "start": "16:00", "end": "19:00" }
+  ]
+}
+```
+
+- **1 to 4 slots.** Fewer is a `400`; five is a `400`.
+- **A slot may cross midnight.** `21:00`–`06:00` is open on both sides of it.
+  Legal, and almost never what you want in India — see
+  [calling rules](/v2/limits#india-calling-rules).
+- **A zero-length slot is a `400`.** `{"start":"10:00","end":"10:00"}` is
+  rejected rather than read as "all day": guessing wrong there means ringing
+  somebody at 03:00.
+- **Local means local.** Times are stored and evaluated in `timezone`, not UTC,
+  so `Asia/Kolkata`'s half-hour offset and every daylight-saving boundary are
+  handled for you. This is the difference between a campaign that respects the
+  window and one that respects it except twice a year.
+
+When the date range runs out entirely, the campaign finishes as `completed` —
+even with contacts still `pending`. A window that never opens again cannot
+dial them.
+
+## Retries
+
+| Knob | Range | Effect |
+| :--- | :--- | :--- |
+| `retry_count` | 0–5 | Retries **after** the first attempt. `1` means up to 2 attempts total. |
+| `re_attempt_period_secs` | 60–86400 | Minimum wait before a contact becomes eligible again. |
+
+Only outcomes that never reached a human are retried: `no_answer`, `busy` and
+`failed`. `completed`, `voicemail` and `timeout` all produced live media — the
+call happened, and re-dialling somebody who already spoke to us is worse than
+not calling at all.
+
+A retry that lands outside the calling window simply waits: eligibility is a
+lower bound, not a schedule.
+
+## Budget and pacing
+
+**`max_concurrent`** (1–50) is this campaign's own ceiling on live calls. It is
+independent of — and additionally bounded by — your workspace
+[concurrency and queue-depth limits](/v2/limits). Two campaigns at
+`max_concurrent: 20` on a workspace provisioned for 5 concurrent calls will
+share those 5.
+
+**`budget_paise`** caps the spend of this campaign alone. When `spent_paise`
+reaches it, the campaign pauses with `budget_exhausted` — contacts keep their
+place, so raising the budget and resuming continues where it stood.
+
+**The wallet** is checked before every dialling tick. If it cannot cover another
+minute at the campaign's tier, the campaign pauses with `insufficient_balance`.
+[`POST /start`](#start-a-campaign) also does a wallet estimate up front and
+tells you how far your balance goes, in `funded_calls`.
+
+<Tip>
+Set `budget_paise` on every campaign, even when you trust the list. It is the
+one control that bounds a mistake in the *list* — a duplicated CSV, a column
+shifted by one — rather than a mistake in the code.
+</Tip>
+
+---
+
+## Create a campaign
+
+```http
+POST /v2/campaigns
+```
+
+### Request
+
+| Field | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `name` | string | yes | 1–120 characters. |
+| `agent_id` | string | yes | Must exist in your workspace. |
+| `tier` | string | no | `t1` \| `t3`. Defaults to your key's tier. `t5` answers `501`. |
+| `timezone` | string | yes | IANA name, e.g. `Asia/Kolkata`. |
+| `start_date` / `end_date` | string | yes | `YYYY-MM-DD`, local, inclusive. |
+| `slots` | array | yes | 1–4 × `{start, end}` as `HH:MM`. |
+| `max_concurrent` | integer | no | 1–50. Default `1`. |
+| `retry_count` | integer | no | 0–5. Default `0`. |
+| `re_attempt_period_secs` | integer | no | 60–86400. Default `900`. |
+| `max_duration_secs` | integer | no | 30–1800. Defaults to the agent's. |
+| `budget_paise` | integer | no | Positive paise. Omit for no cap. |
+| `webhook_url` | string | no | HTTPS. Gets `campaign.*` **and** `call.*` events. |
+| `contacts` | array | no | Up to **1000** rows per request. `{phone, variables?, id?}`. Add more later. |
+
+```bash
+curl -X POST https://sandbox.voice.miraiminds.co/v2/campaigns \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Order confirmations — Mumbai batch",
+    "agent_id": "agt_01K7Q9F3K7M2N5P9R4T6V8W0XZ",
+    "tier": "t3",
+    "timezone": "Asia/Kolkata",
+    "start_date": "2026-08-11",
+    "end_date": "2026-08-18",
+    "slots": [{ "start": "10:00", "end": "19:00" }],
+    "max_concurrent": 2,
+    "retry_count": 1,
+    "re_attempt_period_secs": 900,
+    "max_duration_secs": 300,
+    "budget_paise": 50000,
+    "webhook_url": "https://example.com/mirai/webhook",
+    "contacts": [
+      { "id": "cust-1001", "phone": "+919876543210",
+        "variables": { "customer_name": "Rohit Sharma", "order_id": "AC-88213" } },
+      { "id": "cust-1002", "phone": "+919876543211",
+        "variables": { "customer_name": "Anita Desai", "order_id": "AC-88219" } }
+    ]
+  }'
+```
+
+```json title="201 Created"
+{
+  "id": "cmp_01K7QAC5N9P4R7S3T6V8W2X4YB",
+  "object": "campaign",
+  "name": "Order confirmations — Mumbai batch",
+  "agent_id": "agt_01K7Q9F3K7M2N5P9R4T6V8W0XZ",
+  "tier": "t3",
+  "status": "draft",
+  "pause_reason": null,
+  "timezone": "Asia/Kolkata",
+  "start_date": "2026-08-11",
+  "end_date": "2026-08-18",
+  "slots": [{ "start": "10:00", "end": "19:00" }],
+  "max_concurrent": 2,
+  "retry_count": 1,
+  "re_attempt_period_secs": 900,
+  "max_duration_secs": 300,
+  "budget_paise": 50000,
+  "spent_paise": 0,
+  "webhook_url": "https://example.com/mirai/webhook",
+  "created_at": "2026-08-10T09:21:44Z",
+  "updated_at": "2026-08-10T09:21:44Z",
+  "contacts_accepted": 2,
+  "contacts_duplicate": 0,
+  "contacts_rejected": []
+}
+```
+
+<Warning>
+**The response is the campaign object itself**, with three extra top-level keys —
+not `{"campaign": …, "contacts": …}`. Read the id at `.id`, and the upload result
+at `.contacts_accepted` / `.contacts_duplicate` / `.contacts_rejected`.
+</Warning>
+
+### Contacts are reported row by row, not rejected as a batch
+
+A 900-row upload with two bad numbers is **not** an all-or-nothing `400`. The
+good rows are stored and the bad ones come back by index:
+
+```json title="201 Created — two rows rejected, one duplicate"
+{
+  "id": "cmp_01K7QAC5N9P4R7S3T6V8W2X4YB",
+  "status": "draft",
+  "contacts_accepted": 3,
+  "contacts_duplicate": 1,
+  "contacts_rejected": [
+    { "index": 1, "phone": "9876543211", "reason": "phone must be an E.164 number" },
+    { "index": 4, "phone": "+91984500112", "reason": "phone must be an E.164 number" }
+  ]
+}
+```
+
+| Counter | Meaning |
+| :--- | :--- |
+| `contacts_accepted` | Rows stored and dialable. |
+| `contacts_duplicate` | The phone number was already in this campaign, or repeated inside this batch. Not an error — deduplication is the point. |
+| `contacts_rejected` | Rows we could not store, each with the **index in the array you sent** and why. |
+
+Two things *do* fail the whole request: more than 1000 rows
+(`400 invalid_request`), and a malformed body. Everything else is a row report.
+
+`variables` follow the same rules as [call variables](/v2/calls#variables) — a
+flat string map, 32 keys, 512 characters per value — and fill the same
+`{{placeholders}}` in the agent's prompt. `id` is your own key for the row; omit
+it and we mint one.
+
+### Errors
+
+| Status | `error.code` | Cause |
+| :--- | :--- | :--- |
+| `400` | `invalid_request` | Missing `name`/`agent_id`/`timezone`/dates/`slots`, a knob out of range, a bad window, or more than 1000 contacts. |
+| `404` | `not_found` | `agent_id` does not exist in your workspace. Checked now, so a typo is not a campaign that fails every contact tomorrow morning. |
+| `501` | `tier_unavailable` | `tier` is `t5`. |
+| `503` | `campaigns_unavailable` | Campaigns are not enabled for your workspace. Not your request — ask your Mirai contact. |
+
+---
+
+## List campaigns
+
+```http
+GET /v2/campaigns?limit=&cursor=
+```
+
+```bash
+curl -G https://sandbox.voice.miraiminds.co/v2/campaigns \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+  --data-urlencode "limit=20"
+```
+
+Returns the standard [paginated envelope](/v2/overview#pagination) of campaign
+objects, newest first. `counters` is omitted on list pages — fetch one campaign
+to get them.
+
+---
+
+## Get a campaign
+
+```http
+GET /v2/campaigns/{id}
+```
+
+```bash
+curl https://sandbox.voice.miraiminds.co/v2/campaigns/cmp_01K7QAC5N9P4R7S3T6V8W2X4YB \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY"
+```
+
+```json title="200 OK"
+{
+  "id": "cmp_01K7QAC5N9P4R7S3T6V8W2X4YB",
+  "object": "campaign",
+  "name": "Order confirmations — Mumbai batch",
+  "tier": "t3",
+  "status": "paused",
+  "pause_reason": "insufficient_balance",
+  "spent_paise": 49800,
+  "budget_paise": 50000,
+  "counters": {
+    "pending": 612,
+    "completed": 174,
+    "no_answer": 9,
+    "exhausted": 2,
+    "suppressed": 3
+  },
+  "created_at": "2026-08-10T09:21:44Z",
+  "updated_at": "2026-08-10T11:04:02Z"
+}
+```
+
+`counters` comes from the contact table, not from the running dialler, so a
+finished campaign answers exactly like a live one. That is what makes this
+endpoint safe to build a dashboard on.
+
+`404 not_found` for an unknown id and for one in another workspace — the two are
+deliberately indistinguishable.
+
+---
+
+## Update a campaign
+
+```http
+PATCH /v2/campaigns/{id}
+```
+
+Editable while `draft` or `paused` only. Anything else is `409 conflict`:
+changing the slots, the retry policy or the budget under a live dialler would
+mean the campaign's own report describes settings that were never in force for
+half of its calls. Pause it, patch it, resume it.
+
+Patchable: `name`, `slots`, `start_date`, `end_date`, `max_concurrent`,
+`retry_count`, `re_attempt_period_secs`, `max_duration_secs`, `budget_paise`,
+`webhook_url`. Not patchable: `agent_id`, `tier`, `timezone`.
+
+```bash
+curl -X PATCH https://sandbox.voice.miraiminds.co/v2/campaigns/cmp_01K7QAC5N9P4R7S3T6V8W2X4YB \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "budget_paise": 120000, "max_concurrent": 4 }'
+```
+
+Returns `200 OK` with the campaign object.
+
+---
+
+## Add contacts
+
+```http
+POST /v2/campaigns/{id}/contacts
+```
+
+Up to **1000 rows per request**. Call it repeatedly for a larger list — a
+running campaign accepts new contacts and will pick them up on its next tick,
+which is the whole point of keeping the list in a table rather than in the
+dialler.
+
+```bash
+curl -X POST https://sandbox.voice.miraiminds.co/v2/campaigns/cmp_01K7QAC5N9P4R7S3T6V8W2X4YB/contacts \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "contacts": [
+      { "id": "cust-2001", "phone": "+919812345678",
+        "variables": { "customer_name": "Vikram Rao", "order_id": "AC-88224" } },
+      { "id": "cust-2002", "phone": "+919833221100",
+        "variables": { "customer_name": "Meera Nair", "order_id": "AC-88231" } }
+    ]
+  }'
+```
+
+```json title="200 OK"
+{
+  "id": "cmp_01K7QAC5N9P4R7S3T6V8W2X4YB",
+  "object": "campaign",
+  "status": "play",
+  "contacts_accepted": 2,
+  "contacts_duplicate": 0,
+  "contacts_rejected": []
+}
+```
+
+Same body as create, for the same reason: one shape for the two routes that add
+contacts means one parser in your client.
+
+`409 conflict` if the campaign is `stopped` or `completed` — nothing would ever
+dial those rows, and accepting them silently is worse than refusing them.
+
+---
+
+## List contacts
+
+```http
+GET /v2/campaigns/{id}/contacts?status=&limit=&cursor=
+```
+
+| Query param | Description |
+| :--- | :--- |
+| `status` | Filter by one [contact status](#contact-statuses), e.g. `exhausted`. |
+| `limit` | 1–100, default 20. |
+| `cursor` | From `next_cursor`. |
+
+```bash
+curl -G https://sandbox.voice.miraiminds.co/v2/campaigns/cmp_01K7QAC5N9P4R7S3T6V8W2X4YB/contacts \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+  --data-urlencode "status=exhausted" \
+  --data-urlencode "limit=100"
+```
+
+```json title="200 OK"
+{
+  "data": [
+    {
+      "id": "cust-1002",
+      "phone": "+919876543211",
+      "status": "exhausted",
+      "attempts": 2,
+      "variables": { "customer_name": "Anita Desai", "order_id": "AC-88219" },
+      "last_call_id": "call_01K7QB4M8N3P6R2S5T7V9W1YA",
+      "last_status": "no_answer",
+      "eligible_at": "2026-08-11T11:19:02Z",
+      "updated_at": "2026-08-11T11:34:10Z"
+    }
+  ],
+  "has_more": false,
+  "next_cursor": null
+}
+```
+
+`last_call_id` is an ordinary `call_` id: fetch it from
+[`GET /v2/calls/{id}`](/v2/calls#get-a-call) for the full outcome.
+
+---
+
+## Start a campaign
+
+```http
+POST /v2/campaigns/{id}/start
+```
+
+Legal from `draft` and from `paused` — starting a paused campaign is how you
+resume one whose dialler is no longer running (after a top-up, say), because
+`start` re-runs the fleet and wallet preflight that a bare
+[resume](#resume-a-campaign) skips.
+
+```bash
+curl -X POST https://sandbox.voice.miraiminds.co/v2/campaigns/cmp_01K7QAC5N9P4R7S3T6V8W2X4YB/start \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY"
+```
+
+```json title="202 Accepted"
+{ "id": "cmp_01K7QAC5N9P4R7S3T6V8W2X4YB", "status": "play" }
+```
+
+`202` means the dialler is running — **not** that a phone is ringing. Outside the
+calling window it will sit and wait, correctly, in `play`.
+
+### `funded_calls`: an underfunded campaign still starts
+
+If your wallet cannot cover every remaining contact, the response carries a
+warning rather than a refusal:
+
+```json title="202 Accepted — partially funded"
+{
+  "id": "cmp_01K7QAC5N9P4R7S3T6V8W2X4YB",
+  "status": "play",
+  "funded_calls": 166
+}
+```
+
+The campaign starts, dials what the balance covers, and then pauses itself with
+`pause_reason: "insufficient_balance"`. Top up and start it again to continue.
+`funded_calls` is a one-minute-per-call estimate at this campaign's tier — a
+floor on how far you get, not a promise.
+
+### Errors
+
+| Status | `error.code` | Cause |
+| :--- | :--- | :--- |
+| `409` | `conflict` | The campaign is already `play`, or is `stopped`/`completed`. |
+| `429` | `rate_limited` | Your workspace queue is full (500 calls accepted and not yet ended). Honour `Retry-After`. |
+| `503` | `fleet_offline` | Speech capacity is offline. `Retry-After: 300`. Nothing is charged and the campaign stays where it was. |
+| `503` | `campaigns_unavailable` | Campaigns are not enabled for your workspace. |
+
+---
+
+## Pause a campaign
+
+```http
+POST /v2/campaigns/{id}/pause
+```
+
+```bash
+curl -X POST https://sandbox.voice.miraiminds.co/v2/campaigns/cmp_01K7QAC5N9P4R7S3T6V8W2X4YB/pause \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY"
+```
+
+```json title="202 Accepted"
+{ "id": "cmp_01K7QAC5N9P4R7S3T6V8W2X4YB", "status": "paused" }
+```
+
+Takes effect immediately, including while the campaign is asleep waiting for
+tomorrow's window. **Calls already live are not hung up** — pause stops new
+calls, it does not cut off people mid-conversation. Use
+[`POST /v2/calls/{id}/abort`](/v2/calls#abort-a-call) if you really need a live
+call to end now.
+
+Only a `play` campaign can be paused; anything else is `409 conflict`.
+
+---
+
+## Resume a campaign
+
+```http
+POST /v2/campaigns/{id}/resume
+```
+
+```json title="202 Accepted"
+{ "id": "cmp_01K7QAC5N9P4R7S3T6V8W2X4YB", "status": "play" }
+```
+
+`409 conflict` if the campaign is not `paused` — and also if it is paused but
+has **no running dialler**, in which case the message tells you to use
+[`POST /start`](#start-a-campaign) instead. That is deliberate: a bare resume
+would skip the wallet and fleet preflight.
+
+---
+
+## Stop a campaign
+
+```http
+POST /v2/campaigns/{id}/stop
+```
+
+```json title="202 Accepted"
+{ "id": "cmp_01K7QAC5N9P4R7S3T6V8W2X4YB", "status": "stopped" }
+```
+
+**Terminal and irreversible.** Live calls are hung up, pending contacts are
+marked `aborted`, and the campaign will never dial again. Legal from `draft`,
+`play` and `paused`.
+
+If you might want to continue later, [pause](#pause-a-campaign) instead.
+
+---
+
+## Campaign report
+
+```http
+GET /v2/campaigns/{id}/report
+GET /v2/campaigns/{id}/report?format=csv
+```
+
+### JSON — the aggregate
+
+```bash
+curl https://sandbox.voice.miraiminds.co/v2/campaigns/cmp_01K7QAC5N9P4R7S3T6V8W2X4YB/report \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY"
+```
+
+```json title="200 OK"
+{
+  "campaign_id": "cmp_01K7QAC5N9P4R7S3T6V8W2X4YB",
+  "status": "completed",
+  "counters": {
+    "completed": 174,
+    "voicemail": 12,
+    "no_answer": 9,
+    "exhausted": 21,
+    "suppressed": 3
+  },
+  "contacts": 219,
+  "dialed": 216,
+  "attempts": 251,
+  "connected": 186,
+  "spent_paise": 60300,
+  "spent_inr": 603,
+  "budget_paise": 120000
+}
+```
+
+| Field | Meaning |
+| :--- | :--- |
+| `counters` | Contacts by final status. |
+| `contacts` | Rows uploaded. |
+| `dialed` | Contacts with at least one attempt. |
+| `attempts` | Total dial attempts, retries included. `attempts − dialed` is what retrying cost you. |
+| `connected` | `completed` + `voicemail` + `timeout` — the calls that produced live media, and the ones you paid for. |
+| `spent_paise` / `spent_inr` | The same number in both units, for convenience. |
+
+`connected / dialed` is your answer rate. `attempts / dialed` is whether
+`retry_count` is earning its place.
+
+### CSV — per contact
+
+```bash
+curl -G https://sandbox.voice.miraiminds.co/v2/campaigns/cmp_01K7QAC5N9P4R7S3T6V8W2X4YB/report \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+  --data-urlencode "format=csv" \
+  -o campaign.csv
+```
+
+```csv
+id,phone,status,attempts,last_call_id
+cust-1001,+919876543210,completed,1,call_01K7QB4M8N3P6R2S5T7V9W1YA
+cust-1002,+919876543211,exhausted,2,call_01K7QB4M8N3P6R2S5T7V9W1YB
+cust-1003,+919812345678,suppressed,0,
+```
+
+Streamed, not buffered, so it is safe on a six-figure campaign. Join
+`last_call_id` against [`GET /v2/calls`](/v2/calls#list-calls) for durations and
+costs.
+
+---
+
+## Webhooks
+
+Set `webhook_url` on the campaign and you receive **both** its lifecycle events
+and every child call's [`call.*` events](/v2/webhooks#event-types), signed with
+the same workspace secret and verified by the same code path.
+
+| Type | Fires when |
+| :--- | :--- |
+| `campaign.started` | The first `POST /start` takes effect. Once per campaign, never on an internal restart. |
+| `campaign.paused` | You paused it, or the money gate did. Read `data.campaign.pause_reason`. |
+| `campaign.resumed` | Dialling resumed. |
+| `campaign.completed` | Every contact reached a final state, or the date range ran out. |
+| `campaign.stopped` | You stopped it. |
+
+```json title="POST https://example.com/mirai/webhook"
+{
+  "id": "evt_01K7QC5N9P4R7S3T6V8W2X4YB",
+  "type": "campaign.paused",
+  "created_at": "2026-08-11T13:04:02Z",
+  "data": {
+    "campaign": {
+      "id": "cmp_01K7QAC5N9P4R7S3T6V8W2X4YB",
+      "object": "campaign",
+      "name": "Order confirmations — Mumbai batch",
+      "status": "paused",
+      "pause_reason": "insufficient_balance",
+      "counters": { "pending": 612, "completed": 174, "no_answer": 9 },
+      "dialed": 216
+    }
+  }
+}
+```
+
+Same envelope as a call event — `{id, type, created_at, data}` — with
+`data.campaign` where `data.call` would be. Verification, retries and replay
+protection are identical: see [Webhooks](/v2/webhooks#signature-verification).
+
+<Tip>
+Alert on `campaign.paused` with a `pause_reason`. That event is the platform
+telling you a campaign has stopped spending money for a reason you can fix in
+one API call.
+</Tip>
+
+---
+
+## A campaign that behaves
+
+1. **Scrub first.** Push known opt-outs to [`POST /v2/dnc`](/v2/dnc) *before*
+   you upload the list. Suppression is checked at dial time, so late additions
+   still work — but a number dialled at 10:00 cannot be un-dialled at 10:05.
+2. **Keep the window legal.** `09:00`–`21:00` IST is the outer bound for
+   commercial calls in India, and most enterprise programmes run `10:00`–`19:00`.
+   See [calling rules](/v2/limits#india-calling-rules).
+3. **Budget every campaign.** `budget_paise` is the cheapest insurance against a
+   bad CSV there is.
+4. **Retry once, wait fifteen minutes.** `retry_count: 1`,
+   `re_attempt_period_secs: 900` is the shape that works for most Indian mobile
+   lists. Retrying five times in five minutes annoys people and does not connect.
+5. **Start small.** Ten contacts, one slot, `max_concurrent: 1`. Read the
+   transcripts. Then upload the rest into the same campaign.
+6. **Watch `exhausted` and `suppressed` in the report.** They are the two
+   numbers that tell you about your *list* rather than about your agent.
