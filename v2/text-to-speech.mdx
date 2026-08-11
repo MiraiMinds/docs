@@ -1,0 +1,147 @@
+---
+title: Text to speech
+description: Turn text into Hindi/Hinglish speech over a single HTTP call — OpenAI-compatible, no agent and no call required.
+---
+
+The speech endpoint is the voice from our agents, on its own. Send text, get a
+WAV back. It takes the same request shape as the OpenAI audio API, so any
+OpenAI SDK works by swapping `base_url` and the key.
+
+This is a **separate key** from your `sk_live_` API key — ask us for one; it is
+not minted from the dashboard.
+
+## Quickstart
+
+```bash
+curl https://sandbox.voice.miraiminds.co/tts/v1/audio/speech \
+  -H "Authorization: Bearer $MIRA_TTS_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "mira-tts-v51",
+    "input": "नमस्ते, मैं आशु बोल रहा हूं। आपका ऑर्डर तैयार है।",
+    "voice": "aishe"
+  }' \
+  --output speech.wav
+```
+
+The response body **is** the audio: `audio/wav`, 48 kHz mono PCM16. On a
+400-character input expect roughly 3 seconds end to end — the whole file is
+rendered before the first byte is sent, so this endpoint is built for
+generating clips, not for driving a live conversation. For interactive
+latency, use an [agent](/v2/agents) and place a [call](/v2/calls).
+
+## Request
+
+| Field | Type | Notes |
+| :--- | :--- | :--- |
+| `model` | string | **Required.** Must be `mira-tts-v51`. |
+| `input` | string | **Required.** Up to **600 characters**. |
+| `voice` | string | `ashu` (default) or `aishe`. Same catalogue as [Voices](/v2/voices). |
+| `response_format` | string | `wav` only, and it is the default. Anything else is a 400. |
+| `speech_ready` | boolean | `true` (default) runs the rewrite pass below. `false` sends your text to the engine untouched. |
+| `instructions` | string | Up to 500 characters, steers the rewrite (tone, pacing). Ignored when `speech_ready` is `false`. |
+| `lexicon` | object | Pronunciation overrides, `{"Gallabox": "Galla Box"}`. Applied as a deterministic replace, never by the model. |
+| `numbers` | string | `auto` (default), `english`, or `native` — which language digits are spoken in. |
+
+<Note>
+`model` is a stable public name, not the build number. It always points at the
+current production voice, which we upgrade underneath you — so a clip you
+generate today may sound better than one from last month without your code
+changing.
+</Note>
+
+## The rewrite pass
+
+Raw text is rarely speech-ready. `97%` should be read as "ninety-seven
+percent", a product name should not be transliterated, and a bare URL should
+not be spelled out character by character. By default we run your text through
+a rewrite that fixes exactly that, preserving meaning, before it reaches the
+engine.
+
+Every response carries a header naming what happened:
+
+| `X-Mira-Speech-Ready` | Meaning |
+| :--- | :--- |
+| `rewritten` | The rewrite ran and its output was synthesised. |
+| `bypassed` | You sent `"speech_ready": false`. Your text, untouched. |
+| `fallback` | The rewrite was unavailable, so your **original** text was synthesised. |
+
+`fallback` is a degradation, never an error: you still get audio and still get
+a 200. If you are debugging pronunciation and the header says `fallback`, the
+rewrite is not what shaped that clip.
+
+```bash title="Skip the rewrite"
+curl https://sandbox.voice.miraiminds.co/tts/v1/audio/speech \
+  -H "Authorization: Bearer $MIRA_TTS_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"mira-tts-v51","input":"Order #4417 ready","voice":"ashu","speech_ready":false}' \
+  --output raw.wav
+```
+
+## Listing models
+
+```bash
+curl https://sandbox.voice.miraiminds.co/tts/v1/models \
+  -H "Authorization: Bearer $MIRA_TTS_KEY"
+```
+
+```json
+{
+  "object": "list",
+  "data": [
+    { "id": "mira-tts-v51", "object": "model", "owned_by": "miraiminds" }
+  ]
+}
+```
+
+## Errors
+
+Errors use the same envelope as the rest of the API — see [Errors](/v2/errors).
+
+| Status | `code` | Cause |
+| :--- | :--- | :--- |
+| 400 | `missing_input` | `input` absent or empty. |
+| 400 | `input_too_long` | Over 600 characters. Split it. |
+| 400 | `invalid_voice` | Not `ashu` or `aishe`. |
+| 400 | `invalid_response_format` | Anything other than `wav`. |
+| 400 | `invalid_instructions` | Not a string, or over 500 characters. |
+| 400 | `invalid_lexicon` | Not an object of string → string. |
+| 400 | `invalid_numbers` | Not `auto`, `english` or `native`. |
+| 400 | `invalid_json` | Body is not valid JSON. |
+| 401 | `invalid_api_key` | Missing or unknown key. |
+| 404 | `model_not_found` | `model` is not `mira-tts-v51`. |
+
+```json title="404 Not Found"
+{
+  "error": {
+    "message": "Unknown model 'tts-1'. Use 'mira-tts-v51'.",
+    "type": "invalid_request_error",
+    "code": "model_not_found"
+  }
+}
+```
+
+## Using an OpenAI SDK
+
+The shape matches, so point the client at us and keep your code:
+
+```python
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://sandbox.voice.miraiminds.co/tts/v1",
+    api_key=MIRA_TTS_KEY,
+)
+
+client.audio.speech.create(
+    model="mira-tts-v51",
+    voice="aishe",
+    input="नमस्ते, आपका ऑर्डर तैयार है।",
+).stream_to_file("speech.wav")
+```
+
+<Note>
+`lexicon`, `numbers`, `instructions` and `speech_ready` are ours, not
+OpenAI's. SDKs that validate their request body may reject them — send those
+with a plain HTTP client, or use `extra_body` where your SDK supports it.
+</Note>
