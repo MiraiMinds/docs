@@ -29,6 +29,7 @@ Base URL `https://sandbox.voice.miraiminds.co`. All endpoints require
     "confirm": true
   },
   "voicemail": { "action": "hangup" },
+  "background_sound": { "sound": "off" },
   "created_at": "2026-07-26T09:14:02Z",
   "updated_at": "2026-07-26T09:14:02Z"
 }
@@ -46,6 +47,7 @@ Base URL `https://sandbox.voice.miraiminds.co`. All endpoints require
 | `max_duration_secs` | integer | no | Hard cap. The call is ended with `ended_reason: exceeded-max-duration`. Minimum `30`, maximum `1800`, default `300`. |
 | `end_call` | object | no | See [Ending a call](#ending-a-call). |
 | `voicemail` | object | no | See [Voicemail](#voicemail). |
+| `background_sound` | string \| object | no | Room ambience under the agent's voice. See [Background sound](#background-sound). Default `off`. |
 
 Server-set and read-only: `id`, `object`, `created_at`, `updated_at`.
 
@@ -118,6 +120,33 @@ hanging up on a customer mid-sentence.
 Either way the call ends with `status: voicemail` and fires a
 [`call.voicemail`](/v2/webhooks#callvoicemail) event. Voicemail detection is
 available on every tier — see the [feature matrix](/general/tiers#feature-matrix).
+
+### Background sound
+
+An agent answering out of complete silence is the loudest tell that nobody is
+there. `background_sound` plays a room under the voice for the whole call.
+
+```json
+{ "background_sound": "office" }
+```
+
+Or, with the level:
+
+```json
+{ "background_sound": { "sound": "office", "volume": 0.2 } }
+```
+
+| Field | Type | Description |
+| :--- | :--- | :--- |
+| `sound` | `off` \| `office` | Which room. Default `off`. |
+| `volume` | number | `0`–`1`, default `0.15`. The default sits about 17 dB under the agent's voice — audible on a phone earpiece, never competing with the words. |
+
+Two things worth knowing before you turn it on:
+
+- The bed is in the **call recording** too, because it is what the callee
+  heard. If you run your own transcription over recordings, test it first.
+- It does not touch what the agent hears. Ambience is mixed into the outbound
+  audio only, so your callers' speech recognition is unchanged.
 
 ---
 
@@ -272,6 +301,7 @@ curl "https://sandbox.voice.miraiminds.co/v2/agents?limit=20" \
         "confirm": true
       },
       "voicemail": { "action": "hangup" },
+      "background_sound": { "sound": "off" },
       "created_at": "2026-07-26T09:14:02Z",
       "updated_at": "2026-07-26T09:14:02Z"
     }
