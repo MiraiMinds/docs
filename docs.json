@@ -40,12 +40,18 @@
             "group": "Build",
             "pages": [
               "v2/agents",
-              "v2/voices",
-              "v2/text-to-speech",
               "v2/calls",
               "v2/campaigns",
               "v2/dnc",
               "v2/webhooks"
+            ]
+          },
+          {
+            "group": "Text to speech",
+            "pages": [
+              "v2/text-to-speech",
+              "v2/voices",
+              "v2/tts-languages"
             ]
           },
           {

@@ -1,0 +1,71 @@
+---
+title: Language roadmap
+description: Six new languages — Telugu, Tamil, Marathi, Kannada, Gujarati and Bengali — join the voice engine over the next two months.
+---
+
+Today the engine speaks **Hindi, English, and the Hinglish most real calls
+actually are**. Over the next two months it learns six more: **Telugu, Tamil,
+Marathi, Kannada, Gujarati and Bengali**.
+
+<img className="block dark:hidden" src="/images/tts/language-roadmap-light.svg" alt="Roadmap: Hindi, Hinglish and English code-switch are live today; Bengali, Marathi, Telugu, Tamil, Gujarati and Kannada arrive over the next two months, dates to be announced per language." />
+<img className="hidden dark:block" src="/images/tts/language-roadmap-dark.svg" alt="Roadmap: Hindi, Hinglish and English code-switch are live today; Bengali, Marathi, Telugu, Tamil, Gujarati and Kannada arrive over the next two months, dates to be announced per language." />
+
+Per-language dates are announced as each one clears evaluation — the same
+rule as everything else on the [roadmap](/general/roadmap): dates are targets,
+quality wins every time. A language does not ship because the calendar says
+so; it ships when it sounds like a person.
+
+## Why these six
+
+Together these languages are the mother tongue of **429 million people** —
+roughly every third Indian. And Hindi is not a substitute for most of them:
+the census records, for each language, how many of its speakers also speak
+Hindi, and for four of the six the answer is *almost none*.
+
+<img className="block dark:hidden" src="/images/tts/language-market-light.svg" alt="Bar chart of first-language speakers per language, with the portion that does not speak Hindi highlighted: Bengali 97.2M of whom 88.9M, Marathi 83.0M of whom 48.4M, Telugu 81.1M of whom 76.5M, Tamil 69.0M of whom 68.0M, Gujarati 55.5M of whom 33.8M, Kannada 43.7M of whom 41.7M." />
+<img className="hidden dark:block" src="/images/tts/language-market-dark.svg" alt="Bar chart of first-language speakers per language, with the portion that does not speak Hindi highlighted: Bengali 97.2M of whom 88.9M, Marathi 83.0M of whom 48.4M, Telugu 81.1M of whom 76.5M, Tamil 69.0M of whom 68.0M, Gujarati 55.5M of whom 33.8M, Kannada 43.7M of whom 41.7M." />
+
+| Language | First-language speakers | Also speak Hindi | Reachable only in their own language |
+| :--- | ---: | ---: | ---: |
+| Bengali | 97.2M | 8.6% | **88.9M** |
+| Marathi | 83.0M | 41.7% | **48.4M** |
+| Telugu | 81.1M | 5.7% | **76.5M** |
+| Tamil | 69.0M | 1.5% | **68.0M** |
+| Gujarati | 55.5M | 39.0% | **33.8M** |
+| Kannada | 43.7M | 4.7% | **41.7M** |
+| **Total** | **429.5M** | | **357.3M** |
+
+**357 million people cannot be called in Hindi at all.** Only 1.5% of Tamil
+speakers report speaking Hindi; for Telugu it is 5.7%, Kannada 4.7%, Bengali
+8.6%. A voice agent that speaks only Hindi does not reach these customers
+badly — it does not reach them.
+
+With Hindi and these six together, an agent can speak the mother tongue of
+**about four in five Indians**.
+
+<Note>
+Speaker counts are first-language speakers from the 2011 Census of India;
+"also speak Hindi" is Hindi reported as a second language (table C-17). These
+are the most recent official figures — the next census is due in 2027.
+</Note>
+
+## What support means
+
+- **Same endpoint, same request shape.** The
+  [speech endpoint](/v2/text-to-speech) does not change — you send text in the
+  language's own script, code-switched with English the way real conversation
+  is, and get audio back. No new API to learn.
+- **Native voices, not accents.** Each language ships with its own voices in
+  the [voice gallery](/v2/voices), evaluated by native speakers — not a Hindi
+  voice reading Tamil.
+- **TTS ships first.** This page tracks the voice. A full agent conversation
+  in a language also needs our speech recognition and LLM to clear the same
+  bar, and that follows the voice — the speech endpoint is where each
+  language lands first.
+
+## Get early access
+
+Each language runs an alpha with a small set of customers before it reaches
+the gallery. If calls in one of these languages matter to your business, tell
+your account contact which one — alpha slots are allocated in order of ask,
+and alpha customers' text is what we tune the final voices on.

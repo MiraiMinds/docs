@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="400" viewBox="0 0 900 400" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, 'Noto Sans', sans-serif">
+  <!-- timeline axis -->
+  <line x1="60" y1="44" x2="840" y2="44" stroke="#2E332F" stroke-width="2"/>
+  <rect x="380" y="34" width="440" height="20" rx="10" fill="#07C983" opacity="0.14"/>
+  <circle cx="140" cy="44" r="6" fill="#07C983"/>
+  <text x="140" y="22" text-anchor="middle" font-size="12" font-weight="700" fill="#07C983" letter-spacing="1">TODAY</text>
+  <text x="600" y="22" text-anchor="middle" font-size="12" font-weight="700" fill="#07C983" letter-spacing="1">THE NEXT TWO MONTHS</text>
+  <line x1="140" y1="52" x2="140" y2="84" stroke="#3A423C" stroke-width="1.5" stroke-dasharray="3 3"/>
+  <line x1="600" y1="56" x2="600" y2="84" stroke="#3A423C" stroke-width="1.5" stroke-dasharray="3 3"/>
+
+  <!-- live-now card -->
+  <rect x="60" y="84" width="280" height="216" rx="12" fill="#1B201C" stroke="#2E3A33" stroke-width="1.5"/>
+  <text x="84" y="118" font-size="11" font-weight="700" fill="#07C983" letter-spacing="1.5">LIVE NOW</text>
+  <text x="84" y="150" font-size="16" font-weight="600" fill="#E8EAE8">Hindi</text>
+  <text x="84" y="176" font-size="16" font-weight="600" fill="#E8EAE8">Hinglish</text>
+  <text x="84" y="202" font-size="16" font-weight="600" fill="#E8EAE8">English code-switch</text>
+  <text x="84" y="238" font-size="12" fill="#9AA39D">On every production call</text>
+  <text x="84" y="256" font-size="12" fill="#9AA39D">today.</text>
+
+  <!-- six-languages card -->
+  <rect x="380" y="84" width="460" height="216" rx="12" fill="#17211B" stroke="#07C983" stroke-width="1.5" stroke-dasharray="5 4"/>
+  <text x="404" y="118" font-size="11" font-weight="700" fill="#07C983" letter-spacing="1.5">SIX NEW LANGUAGES · DATES TO BE ANNOUNCED</text>
+
+  <!-- chips: 2 cols x 3 rows, ordered by speakers -->
+  <!-- Bengali -->
+  <rect x="404" y="134" width="196" height="44" rx="8" fill="#212823" stroke="#33413A"/>
+  <text x="418" y="162" font-size="17" fill="#E8EAE8">বাংলা</text>
+  <text x="480" y="156" font-size="13" font-weight="600" fill="#E8EAE8">Bengali</text>
+  <text x="480" y="171" font-size="11" fill="#9AA39D">97M speakers</text>
+  <!-- Marathi -->
+  <rect x="620" y="134" width="196" height="44" rx="8" fill="#212823" stroke="#33413A"/>
+  <text x="634" y="162" font-size="17" fill="#E8EAE8">मराठी</text>
+  <text x="696" y="156" font-size="13" font-weight="600" fill="#E8EAE8">Marathi</text>
+  <text x="696" y="171" font-size="11" fill="#9AA39D">83M speakers</text>
+  <!-- Telugu -->
+  <rect x="404" y="186" width="196" height="44" rx="8" fill="#212823" stroke="#33413A"/>
+  <text x="418" y="214" font-size="17" fill="#E8EAE8">తెలుగు</text>
+  <text x="480" y="208" font-size="13" font-weight="600" fill="#E8EAE8">Telugu</text>
+  <text x="480" y="223" font-size="11" fill="#9AA39D">81M speakers</text>
+  <!-- Tamil -->
+  <rect x="620" y="186" width="196" height="44" rx="8" fill="#212823" stroke="#33413A"/>
+  <text x="634" y="214" font-size="17" fill="#E8EAE8">தமிழ்</text>
+  <text x="696" y="208" font-size="13" font-weight="600" fill="#E8EAE8">Tamil</text>
+  <text x="696" y="223" font-size="11" fill="#9AA39D">69M speakers</text>
+  <!-- Gujarati -->
+  <rect x="404" y="238" width="196" height="44" rx="8" fill="#212823" stroke="#33413A"/>
+  <text x="418" y="266" font-size="17" fill="#E8EAE8">ગુજરાતી</text>
+  <text x="480" y="260" font-size="13" font-weight="600" fill="#E8EAE8">Gujarati</text>
+  <text x="480" y="275" font-size="11" fill="#9AA39D">56M speakers</text>
+  <!-- Kannada -->
+  <rect x="620" y="238" width="196" height="44" rx="8" fill="#212823" stroke="#33413A"/>
+  <text x="634" y="266" font-size="17" fill="#E8EAE8">ಕನ್ನಡ</text>
+  <text x="696" y="260" font-size="13" font-weight="600" fill="#E8EAE8">Kannada</text>
+  <text x="696" y="275" font-size="11" fill="#9AA39D">44M speakers</text>
+
+  <!-- footer -->
+  <text x="450" y="340" text-anchor="middle" font-size="13" fill="#9AA39D">Each language ships when it clears the same quality bar as our Hindi voices —</text>
+  <text x="450" y="360" text-anchor="middle" font-size="13" fill="#9AA39D">dates are announced here as they land.</text>
+</svg>
