@@ -50,7 +50,6 @@
             "group": "Text to speech",
             "pages": [
               "v2/tts-quickstart",
-              "v2/text-to-speech",
               "v2/voices",
               "v2/tts-languages"
             ]
@@ -108,6 +107,7 @@
               "v1/telephony",
               "v1/tools",
               "v1/knowledge-base",
+              "v2/text-to-speech",
               "api-reference/introduction"
             ]
           },
