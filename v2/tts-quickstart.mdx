@@ -1,0 +1,129 @@
+---
+title: "TTS quickstart"
+description: Key → curl → Hindi audio in two minutes, then the same endpoint inside your own orchestrator.
+---
+
+The voice from our agents, as a standalone API. It speaks OpenAI's
+`POST /v1/audio/speech` protocol, so every OpenAI SDK and every framework
+with an OpenAI TTS integration already knows how to call it — you change a
+base URL and a model name, not your code.
+
+## 1. Get a key
+
+Sign in to the [console](https://sandbox.voice.miraiminds.co) with your access
+code, open **Developers**, and create an API key. It is a `sk_live_` secret,
+shown **once** — only its hash is stored, so a lost key is rotated, never
+recovered. The same key works for TTS and the rest of the
+[v2 API](/v2/overview).
+
+## 2. First audio
+
+```bash
+curl https://sandbox.voice.miraiminds.co/v1/audio/speech \
+  -H "Authorization: Bearer $MIRA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "mira-tts",
+    "voice": "ashu",
+    "response_format": "wav",
+    "input": "नमस्ते, मैं आशु बोल रहा हूं। आपका ऑर्डर तैयार है।"
+  }' \
+  --output speech.wav
+```
+
+The response body **is** the audio — `--output` matters, because a terminal
+handed 300 KB of binary is a terminal you have to reset. Play `speech.wav`
+and you have completed the integration; everything below is refinement.
+
+Two formats exist, and only two:
+
+| `response_format` | You get |
+| :--- | :--- |
+| `wav` | A playable file — 48 kHz mono PCM16 with a header. |
+| `pcm` | The same samples, raw and **streamed** — first bytes arrive while the rest is still rendering. Use this in anything live. |
+
+Anything else (including OpenAI's default `mp3`) is a 400 naming these two.
+Always send `response_format` explicitly.
+
+## 3. Pick a voice
+
+```bash
+curl https://sandbox.voice.miraiminds.co/v2/voices \
+  -H "Authorization: Bearer $MIRA_API_KEY"
+```
+
+Currently `ashu`, `aishe` and `neha` — Hindi voices that code-switch through
+the English of real Indian speech. Each entry carries a `sampleAudio` URL;
+listen before you choose. An unknown voice is a 400, not a silent
+substitution. Six more languages are on the way — see the
+[language roadmap](/v2/tts-languages).
+
+## 4. Stream it with the OpenAI SDK
+
+```python
+from openai import OpenAI
+
+client = OpenAI(
+    api_key="sk_live_...",
+    base_url="https://sandbox.voice.miraiminds.co/v1",
+)
+
+with client.audio.speech.with_streaming_response.create(
+    model="mira-tts",
+    voice="ashu",
+    response_format="pcm",
+    input="चलिए numbers से start करते हैं।",
+) as response:
+    for chunk in response.iter_bytes():
+        ...  # raw s16le mono @ 48 kHz — feed your player as it arrives
+```
+
+## 5. Drop it into your orchestrator
+
+Frameworks with an OpenAI TTS integration need no custom code. pipecat, for
+example — the stock `OpenAITTSService` is the whole integration:
+
+```python
+from pipecat.services.openai.tts import VALID_VOICES, OpenAITTSService
+
+# pipecat validates voices against OpenAI's own hardcoded list (alloy, nova, …)
+# before it ever sends a request — without this line every Mirai voice raises
+# KeyError: 'ashu' client-side.
+VALID_VOICES.update({name: name for name in ("ashu", "aishe", "neha")})
+
+tts = OpenAITTSService(
+    api_key=os.environ["MIRA_API_KEY"],
+    base_url="https://sandbox.voice.miraiminds.co/v1",
+    sample_rate=48000,
+    settings=OpenAITTSService.Settings(model="mira-tts", voice="ashu"),
+)
+```
+
+<Note>
+`sample_rate=48000` makes pipecat log "OpenAI TTS only supports 24000Hz" at
+startup. Cosmetic — our audio is 48 kHz native and the frames are tagged
+correctly. A complete ~100-line agent (browser mic → ASR → LLM → Mirai TTS)
+built this way is available on request — ask on your onboarding thread.
+</Note>
+
+## Billing
+
+Per character. Every response reports its own cost in headers, so you can
+meter spend without a second request:
+
+| Header | Meaning |
+| :--- | :--- |
+| `X-Chars-Billed` | Characters billed for this request. |
+| `X-Cost-Paise` | What this request cost, in paise. |
+
+## When something fails
+
+| Status | Cause |
+| :--- | :--- |
+| 400 | Unknown voice, or a `response_format` other than `wav` / `pcm`. The message names the valid values. |
+| 401 | Missing or unknown key. Check the `Authorization: Bearer sk_live_…` header. |
+| 404 | `model` is not `mira-tts`. |
+
+Errors use the same envelope as the rest of the API — see
+[Errors](/v2/errors). Stuck on something this page does not cover? Reply on
+your onboarding thread — a human reads it.

@@ -3,6 +3,15 @@ title: Text to speech
 description: Turn text into Hindi/Hinglish speech over a single HTTP call — OpenAI-compatible, no agent and no call required.
 ---
 
+<Warning>
+This page documents the **original** speech endpoint (`/tts/v1`, model
+`mira-tts-v51`, separate key). New integrations should start at the
+[TTS quickstart](/v2/tts-quickstart) instead — the current endpoint lives at
+`/v1/audio/speech`, uses model `mira-tts`, streams, and takes the same
+`sk_live_` key as the rest of the API. This endpoint keeps working for
+existing callers.
+</Warning>
+
 The speech endpoint is the voice from our agents, on its own. Send text, get a
 WAV back. It takes the same request shape as the OpenAI audio API, so any
 OpenAI SDK works by swapping `base_url` and the key.

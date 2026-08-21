@@ -49,6 +49,7 @@
           {
             "group": "Text to speech",
             "pages": [
+              "v2/tts-quickstart",
               "v2/text-to-speech",
               "v2/voices",
               "v2/tts-languages"
