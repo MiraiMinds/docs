@@ -47,6 +47,13 @@
             ]
           },
           {
+            "group": "Prompting",
+            "pages": [
+              "v2/prompting-guide",
+              "v2/zen-of-voice-agents"
+            ]
+          },
+          {
             "group": "Text to speech",
             "pages": [
               "v2/tts-quickstart",

@@ -260,7 +260,10 @@ matching `{{key}}` placeholder in the agent's `system_prompt` and
 { "variables": { "customer_name": "Rahul", "order_id": "8842" } }
 ```
 
-- Keys are matched literally and case-sensitively.
+- Plain `{{key}}` placeholders match loosely: letters and digits only,
+  case-insensitive, so `{{Customer Name}}`, `{{customer_name}}` and
+  `{{CustomerName}}` all read the same variable. Only a Liquid expression
+  with a filter (`{{ key | upcase }}`) needs the exact key.
 - A placeholder with no matching variable is substituted with an empty string —
   it does not error, and it does not leave `{{braces}}` for the agent to read
   aloud. Validate on your side.

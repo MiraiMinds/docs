@@ -1,0 +1,123 @@
+---
+title: The Zen of Voice Agents
+description: Nineteen lines on writing for the ear, in the tradition of the Zen of Python. Read them before you write a prompt.
+---
+
+Every rule in the [prompting guide](/v2/prompting-guide) started as a phone
+call that went wrong. These are the rules with the explanations taken out, the
+way the Zen of Python does it. Read them before you write a prompt; come back
+to them when a transcript reads badly and you cannot say why.
+
+```text
+The Zen of Voice Agents
+
+Spoken is better than written.
+Short is better than complete.
+One question is better than two.
+The first word matters more than the last paragraph.
+Silence is a bug. So is a monologue.
+Numbers are words. Identifiers are digits, one at a time.
+Read back what changed, not what was already agreed.
+When a digit is unclear, ask again. Never guess.
+Write in the language you will speak.
+Facts live in the prompt. The customer lives in the variables.
+What the prompt leaves out, the model will make up.
+The caller may interrupt. The agent may not.
+No is an answer. Nudge once, then accept it.
+Never promise what the agent cannot do.
+Thank them once.
+Every turn moves the call forward.
+The ending is part of the call.
+Three real calls beat thirty imagined ones.
+Hinglish is one honking great idea — let's do more of that.
+```
+
+## Each line, in one breath
+
+**Spoken is better than written.** The caller cannot scroll, skim or re-read.
+Whatever you write is heard once, at talking speed, on a phone. Write what a
+person would say, not what a page would show.
+
+**Short is better than complete.** A reply is the thing the caller waits
+through. One short sentence, two at most; the rest can wait for the next turn.
+
+**One question is better than two.** Ask two things and the caller answers
+neither. One ask, then stop and listen.
+
+**The first word matters more than the last paragraph.** The opening line is
+spoken before the model even runs — it is your first-audio latency and your
+first impression. Name, brand, person check, done. And a lead word at the top
+of every reply ("जी।", "अच्छा—", "ठीक है।") starts the voice sooner and sounds
+like someone who was listening.
+
+**Silence is a bug. So is a monologue.** Dead air makes people hang up; a
+lecture makes them stop listening. Both are fixed by the same thing: short
+turns that keep moving.
+
+**Numbers are words. Identifiers are digits, one at a time.** "five thousand
+two hundred rupees", never ₹5,200. A pincode is "three nine five zero zero
+seven", and it has six digits — if the agent heard three, the recogniser dropped
+some, and the agent should say so.
+
+**Read back what changed, not what was already agreed.** Confirmation by
+exception. One consolidated read-back at the end, not a receipt after every
+turn.
+
+**When a digit is unclear, ask again. Never guess.** A wrong address is a failed
+delivery; a wrong phone number is a lost customer. "सिर्फ pincode दोबारा बोलिए"
+costs three seconds.
+
+**Write in the language you will speak.** A Hindi call driven by an English
+prompt code-switches badly. Hindi words in Devanagari, everyday English words in
+Roman, and no romanized Hindi anywhere.
+
+**Facts live in the prompt. The customer lives in the variables.** The prompt is
+what the agent may say about the business. Names, amounts, dates and order IDs
+arrive per call, already in spoken form. One agent, thousands of calls.
+
+**What the prompt leaves out, the model will make up.** Unstated policy gets
+invented; an unlisted price gets quoted. Write the facts, and write what to say
+when the answer is not in them: "आपको team से call आएगा."
+
+**The caller may interrupt. The agent may not.** The engine lets the caller cut
+in, and the agent stops. When they are dictating an address, the agent's whole
+job is "जी", "हम्म" — and one read-back when they are done.
+
+**No is an answer. Nudge once, then accept it.** One light nudge is persuasion;
+a second is harassment. Capture the refusal as an outcome and close warmly. The
+engine enforces this ending — the prompt has to want it too.
+
+**Never promise what the agent cannot do.** Today the agent can talk, and it can
+end the call. It cannot transfer, send a link, or book anything in your system.
+"The team will call you back" is the honest line.
+
+**Thank them once.** In the goodbye, nowhere else. Models over-thank, and a
+धन्यवाद in every turn sounds like a machine.
+
+**Every turn moves the call forward.** No turn is only an acknowledgement. "जी,
+order confirm हो गया — अब address एक बार check कर लेते हैं" is one utterance,
+and it advances the call.
+
+**The ending is part of the call.** Write the success ending explicitly:
+summarise in one line, say goodbye, end the call. Without it the model keeps
+talking until the timeout, and the caller sits through the awkwardness.
+
+**Three real calls beat thirty imagined ones.** Call yourself. Say no, correct a
+digit, ask something off-script, go quiet. Read the transcript, change one
+thing, call again. A phone line is a different acoustic world from a browser
+mic.
+
+**Hinglish is one honking great idea — let's do more of that.** Real calls are
+not Hindi or English; they are "payment कब तक हो जाएगा", with the Hindi in
+Devanagari and the English in Roman. Write the way people already talk, and the
+agent sounds like one of them.
+
+---
+
+The long version, with the structure, the number tables and the test loop, is
+the [prompting guide](/v2/prompting-guide).
+
+<Note>
+After Tim Peters, *The Zen of Python* (PEP 20). Python got nineteen lines and
+an unwritten twentieth; so did we.
+</Note>

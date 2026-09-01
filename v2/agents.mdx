@@ -82,7 +82,7 @@ hangs up.
 | Field | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
 | `enabled` | boolean | `true` | Set `false` to remove the tool entirely — the call then ends only on the callee hanging up or `max_duration_secs`. **Accepted and stored; enforcement rolling out.** |
-| `message` | string | `"Thanks, have a good day"` | Spoken farewell. Live today. |
+| `message` | string | `""` | Spoken farewell, played **after** the agent's own goodbye when the call ends. Empty by default — the agent's last line is the farewell. Live today. |
 | `confirm` | boolean | `true` | Require a second `end_call` within the confirmation window before hanging up. Guards against fast models ending on a bare "ok". **Accepted and stored; enforcement rolling out.** |
 
 <Warning>
@@ -396,7 +396,8 @@ longer be used for new calls, but historical calls keep resolving their
 ## Writing a good prompt
 
 A v2 call is a **single-prompt** call — one job, start to finish, usually in
-under two or three minutes. Prompts that work:
+under two or three minutes. The [prompting guide](/v2/prompting-guide) is the
+long version; the short one:
 
 - **Name the job in the first line.** "Confirm order `{{order_id}}`. Nothing else."
 - **Cap reply length explicitly.** "One or two short sentences." Long turns are

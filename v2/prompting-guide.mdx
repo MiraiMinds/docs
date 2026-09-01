@@ -1,0 +1,590 @@
+---
+title: Prompting guide
+description: How to write a system prompt and opening line for a voice agent that sounds like a person on an Indian phone call — structure, language rules, numbers, endings, and the test loop.
+---
+
+
+A voice prompt is not a chatbot persona. It is a script for a two-minute phone
+call: one job, one caller, one ending. Everything the model writes is spoken out
+loud, at speaking speed, to someone holding a phone to their ear — so length is
+a cost, ambiguity is a hang-up, and a paragraph is a monologue.
+
+The method is the same every time. **Design** the call as a structure, **test**
+it against a caller who says no, **refine** one line at a time. This page is the
+mechanics; the thinking behind it is on
+[The Zen of Voice Agents](/v2/zen-of-voice-agents).
+
+## Why voice is not chat
+
+Three constraints. Everything below follows from them.
+
+**The caller cannot scroll, and cannot re-read.** A sentence they missed is
+gone. Anything that matters gets said once, short, and gets read back.
+
+**A long reply is the thing they wait through.** They hear every word before
+they can answer. Reply length is the single biggest latency lever you own —
+bigger than anything in the stack. Cap it in the prompt, in words the model
+cannot round up: "one short sentence, maximum two".
+
+**Turn-taking replaces reading.** In chat you can ask three things in one
+message and let the reader sort it out. On a call, two questions in one turn get
+one answer and you will not know which. One ask, then stop.
+
+## What the engine already does
+
+A lot of what people write into voice prompts is already handled below the
+prompt. Writing it again does not make it truer; it just spends turns and
+tokens.
+
+- **The opening line runs before the model does.** `first_message` is spoken the
+  moment the callee answers. It is your first-audio latency. The model is told
+  what was said, so it does not greet twice.
+- **Refusals already end the call.** When `end_call.enabled` is true (the
+  default), the engine appends an ending rule to every prompt: if the caller
+  refuses or asks to end — "नहीं चाहिए", "बात नहीं करनी", "रखता हूं",
+  "call खत्म करो" — the agent does not re-sell, says one farewell sentence and
+  calls `end_call`. Same on a second refusal. You do not write this.
+- **A bare "ok" does not hang up.** With
+  [`end_call.confirm: true`](/v2/agents#ending-a-call) (the default), the first
+  `end_call` inside the window asks the caller to confirm; the second one ends
+  the call.
+- **Barge-in is automatic.** The caller can talk over the agent — after two
+  words of caller speech the agent stops and listens. If they barge in without
+  actual words, the agent says "हाँ, बोलिए ना, क्या बात है?".
+- **Silence is handled.** If the caller goes quiet, the agent checks in after
+  about 15 seconds; after three unanswered check-ins the call ends. Nothing to
+  write.
+- **Voicemail is detected** by the engine and handled by the agent's
+  [`voicemail`](/v2/agents#voicemail) setting. Nothing to write.
+- **Per-call data is substituted for you.** `{{placeholders}}` in both
+  `system_prompt` and `first_message` are filled from the call's `variables`.
+
+So do not write any of that into the prompt. Write the job.
+
+<Warning>
+**The agent's only tool today is `end_call`.**
+
+No transfer to a human, no SMS, WhatsApp or email, no CRM lookup, no calendar,
+no payment link — nothing that fetches or sends mid-call. A prompt must
+therefore never promise "I'll transfer you", "I'll send you the link" or
+"I'm booking it in the system". The honest line is "the team will call you back"
+/ "आपको team से call आएगा". Mid-call data and branching flows are the
+node-graph runtime — see [tiers](/general/tiers).
+</Warning>
+
+## The structure
+
+Every house template follows one discipline. Six blocks, in this order, nothing
+else:
+
+```text
+ROLE                                   who the agent is, for whom, calling why — one sentence
+FACTS                                  the specific, verifiable things it may say (edit these)
+CALL FLOW                              numbered steps; one ask per step; never assume what wasn't said
+IF THEY PUSH BACK                      one light nudge, then accept and close
+EXAMPLE EXCHANGE                       2–4 turns showing the hard moment done right
+LANGUAGE RULES + CONVERSATION STYLE    the fixed block, pasted verbatim
+```
+
+**ROLE** is one sentence: name, company, and the reason for the call. Not a
+character study. "You are मीरा, a polite female voice agent calling from Mirai
+Finance to remind the customer their EMI is due and capture a clear payment
+commitment" is a complete role.
+
+**FACTS** is the boundary of what the agent may say. Amounts, dates, policy,
+what it cannot do. If a claim is not in FACTS the agent does not make it — the
+answer is that the team will call back. This is the block your customer edits.
+
+**CALL FLOW** is numbered steps, one ask per step, in the order a person would
+ask them. Steps are instructions to the agent, not lines to read aloud.
+
+**IF THEY PUSH BACK** is one nudge and then acceptance. Not three. The engine
+already stops a hard refusal; this block is for the soft "not right now".
+
+**EXAMPLE EXCHANGE** is two to four turns of the hardest moment done right.
+Models copy tone from examples far more reliably than from adjectives — two good
+turns beat a paragraph about being warm and professional.
+
+**LANGUAGE RULES + CONVERSATION STYLE** is fixed. Paste it verbatim at the end
+of every prompt. It is the block below.
+
+## The opening line
+
+`first_message` is spoken before the model runs, so it is pure first-audio
+latency and it should be short: name, brand, person check. Nothing else.
+
+```text
+नमस्ते, मैं मीरा बोल रही हूं Mirai Finance से. क्या मेरी बात {{customer_name}} जी से हो रही है?
+```
+
+The pitch does not go in the opener. The model already knows what was said and
+will carry on from there.
+
+One thing catches everybody: **Hindi verbs are gendered, and the verb has to
+match the voice.**
+
+| `voice_id` | Voice | Say |
+| :--- | :--- | :--- |
+| `ashu` | male | मैं … बोल रहा हूं |
+| `aishe` | female | मैं … बोल रही हूं |
+
+The console renders this for you when you pick a template. The API does not —
+if you switch `voice_id` on an existing agent, fix the opening line in the same
+request.
+
+## Language rules for Hinglish
+
+Real Indian phone calls are not Hindi and are not English. They are Hindi
+grammar carrying English nouns, and an agent that picks one pure language sounds
+like a recording. This block is what the console appends to every template.
+Paste it at the end of your prompt, unchanged:
+
+```text
+LANGUAGE RULES — keep these; they make the agent sound natural
+- Everyday Hinglish: Hindi words in Devanagari script, NEVER romanized Hindi ('aap kab tak kar payenge' is WRONG — write 'आप कब तक कर पाएंगे').
+- Everyday English words stay in Roman script: payment, EMI, order, address, delivery, challan, invoice, penalty, policy, service, slot.
+- No formal shuddh Hindi (भुगतान, देय, राशि, पुष्टि).
+- Every number is English words in Roman script — never digits, never Hindi numbers ('pandra' is WRONG, 'fifteen' is right). Identifiers digit-by-digit: 'three nine five zero zero seven'.
+- When the customer states or corrects any number — flat, pincode, phone, amount — read it back digit-by-digit and confirm (e.g. 'आपका pincode है four zero zero zero five three, सही है?'). If it sounds unclear or incomplete, do NOT guess — ask them to repeat it slowly.
+
+CONVERSATION STYLE
+- One short sentence, maximum two.
+- धन्यवाद appears exactly ONCE in the whole call — only in the final goodbye.
+- After a clear promise or confirmation: repeat it back, say goodbye, end the call.
+- Never invent policy or waive penalties; unknown questions → the team will call back.
+```
+
+Why each rule is there:
+
+- **Devanagari for Hindi words.** Romanized Hindi in the prompt gets read as
+  English. "kar payenge" comes out with English vowels and the caller hears an
+  accent, not a person.
+- **Roman script for English words.** Nobody on a phone call says भुगतान. They
+  say payment. Writing the English word in Roman is not laziness — it is how the
+  sentence is actually spoken.
+- **No shuddh Hindi.** Formal Hindi is the register of a government notice, not
+  a phone call. It reads as a recording even when the audio is perfect.
+- **Numbers as English words.** The voice reads English number words most
+  reliably. Digits and Hindi number words are read inconsistently.
+- **धन्यवाद once.** Models over-thank. Thanking four times in ninety seconds is
+  the clearest tell that nobody is there.
+
+**For English calls** (`language: "en-IN"`) the shape is identical — drop the
+Devanagari rule and keep everything else. Numbers still go in as words, and
+identifiers are still read digit by digit.
+
+## Numbers, dates, amounts and identifiers
+
+The model copies what you write straight into speech. Write for the ear.
+
+| Written | Put it in the prompt as |
+| :--- | :--- |
+| ₹5,200 | `five thousand two hundred rupees` |
+| 15/07 | `fifteen July` |
+| 2:15 PM | `two fifteen in the afternoon` — or `दोपहर two fifteen` |
+| Pincode 395007 | `three nine five zero zero seven` |
+| +91 98765 43210 | digit by digit, in groups: `nine eight seven six five, four three two one zero` |
+| MH02AB1234 | `MH zero two AB one two three four` |
+
+Amounts and quantities are natural words; quantities can sit inline in a Hindi
+sentence ("दो items"). Identifiers — pincode, phone, order id, vehicle number,
+challan number — are always digit by digit, never grouped into "ninety-eight
+thousand".
+
+**Digit-count sanity.** An Indian pincode is six digits. A mobile number is ten.
+If a read-back is short, the recogniser dropped digits — the agent must push
+back, never accept:
+
+```text
+मुझे सिर्फ three digits मिले, दोबारा बोलिए
+```
+
+**The read-back protocol** is three moves, and it belongs in every flow that
+touches a number: the caller states it → the agent reads it back digit by digit
+→ the agent asks "सही है?". Nothing gets written down until the caller confirms.
+
+## Facts, and the customer
+
+FACTS is a contract. The agent may say what is in it and nothing more. Anything
+outside — a policy question, an exception, a price you did not list — is
+answered with "the team will call you back". Never invent policy, never waive a
+penalty, never quote a number that is not in FACTS.
+
+**Per-call data goes in `variables`, not in the prompt.** One agent runs
+thousands of calls; the customer's name, amount and date change every time.
+Hard-coding them means one agent per customer, and nobody wants to manage that.
+
+```json
+{ "variables": { "customer_name": "राहुल", "emi_amount": "five thousand two hundred", "due_date": "five July" } }
+```
+
+Notice that those values are already in spoken form. That is deliberate: the
+model copies a variable's value verbatim into speech, so format it for the ear
+at the point you build the map, not in the prompt. `5200` is a gamble;
+`five thousand two hundred` is not.
+
+A few properties worth knowing:
+
+- Names are matched loosely. `{{Customer Name}}`, `{{customer_name}}` and
+  `{{CustomerName}}` are the same variable — letters and digits only,
+  case-insensitive.
+- An unknown placeholder in the system prompt becomes an empty string. It does
+  not error, and it does not leave braces for the agent to read aloud.
+- Values are plain strings, and braces inside a value are stripped.
+- Variables are static per call. There is no way to change one mid-call.
+- Keep them short. They are prompt tokens on every turn.
+
+**Tell the agent what day it is.** Without it the model does not know, and
+"tomorrow" or "this Friday" becomes a guess. The prompt supports Liquid filters,
+so put the real date in at call time, in IST:
+
+```text
+Today is {{ "now" | date: "%A, %d %B %Y", "Asia/Kolkata" }}.
+```
+
+With the clock too, when the script mentions a time window:
+
+```text
+{{ "now" | date: "%A, %d %B %Y, %I:%M %p", "Asia/Kolkata" }}
+```
+
+## The flow
+
+- **One ask per step.** Two questions in one turn get one answer, and you will
+  not know which one it was.
+- **Never assume what was not clearly said.** If the caller mumbled a date, the
+  agent asks again. A confidently wrong confirmation is worse than a second
+  question.
+- **Confirm by exception.** Read back only what changed, and do one consolidated
+  read-back at the end. Confirming every field turns a ninety-second call into
+  three minutes.
+- **Listen when they are dictating.** While the caller reads out an address, the
+  agent's job is backchannels — "जी", "हम्म" — and then one read-back at the
+  end. Interrupting a dictated address to confirm line one is how you lose the
+  rest of it.
+- **Mishear recovery is surgical.** Re-ask the one field that was wrong. Never
+  restart the flow.
+- **Answer, then return.** If the caller derails with a question, answer it in
+  one line from FACTS and go straight back to the step you were on.
+- **Every turn moves forward.** Acknowledge and ask the next thing in one
+  utterance. A turn that only says "ठीक है" costs the caller time and buys
+  nothing.
+
+## Pushback and endings
+
+One light nudge, then accept. The engine already enforces the refusal ending, so
+your job is the **success** ending — and it is the line people forget:
+
+```text
+When the payment date is confirmed, repeat it back in one line, say goodbye, and end the call.
+```
+
+Without it the model keeps talking. It has nothing telling it the job is done.
+
+"No" is an outcome, not a failure. Capture it and close cleanly — a refusal that
+ends in twenty seconds is a good call.
+
+The close is three moves: a one-line summary of what was agreed, a goodbye, then
+`end_call`. Say धन्यवाद once, in that goodbye. Leave
+[`end_call.message`](/v2/agents#ending-a-call) empty — the default — and the
+model's own goodbye is the farewell. If you do set a message, it is spoken
+*after* the model's goodbye, so it must not repeat it: a धन्यवाद in both means
+the caller hears it twice.
+
+Finally, size the call. `max_duration_secs` is a hard cap, and hitting it ends
+the call with `ended_reason: exceeded-max-duration` mid-sentence. For a one-job
+call, 180–300 seconds is right. The default is 300; the range is 30–1800.
+
+## Sounding like a person
+
+- **Lead word up front.** "जी।", "अच्छा—", "ठीक है।" at the start of a turn does
+  two things: the voice starts sooner, and it sounds like somebody who was
+  listening rather than a system that was processing.
+- **Punctuation is your only expressiveness control.** Interjections and
+  emphasis at the moments that carry them — an apology, a pushback — and flat
+  everywhere else. Expressiveness everywhere is the same as expressiveness
+  nowhere.
+- **No stage directions, no tags, no emoji, no markdown.** The voice reads the
+  text it is given. Asterisks, bullet characters and `(warmly)` come out as
+  noise.
+- **Match the caller's register.** If they answer in English, the agent
+  continues in English. If they switch to Hindi mid-call, so does it.
+- **Contractions and everyday words.** Write the sentence you would say out
+  loud, not the one you would put in an email.
+
+## What not to write
+
+| Anti-pattern | What happens | Write instead |
+| :--- | :--- | :--- |
+| A persona paragraph — "you are a friendly, empathetic AI assistant" | Adjectives do not survive contact with a call. The model still runs long. | One ROLE sentence, and an EXAMPLE EXCHANGE that shows the tone |
+| Digits and currency symbols: `₹5,200`, `15/07` | Read inconsistently, sometimes as separate digits | `five thousand two hundred rupees`, `fifteen July` |
+| Romanized Hindi: `aap kab tak kar payenge` | Read with English vowels; sounds like an accent, not a person | Devanagari: `आप कब तक कर पाएंगे` |
+| Shuddh Hindi: भुगतान, देय, राशि | The register of a notice, not a call | The words people use: payment, due date |
+| Two questions in one turn | One answer, and you cannot tell which question it belongs to | One ask per step |
+| Multi-branch scripts — "if they say X, ask the following seven questions" | The model loses its place and the call sprawls | A linear flow, plus one IF THEY PUSH BACK block |
+| "I'll transfer you" / "I'll send the link" / "I'm booking it in the system" | The agent has no tool but `end_call`. It is a promise nobody keeps. | "the team will call you back" / "आपको team से call आएगा" |
+| Customer data hard-coded: "Rahul's EMI is 5200" | One agent per customer, forever | `{{customer_name}}`, `{{emi_amount}}` in `variables` |
+| A long list of forbidden phrases | Naming a phrase primes it. Listing what not to say teaches it to say it. | The positive rule: "one short sentence, maximum two" |
+| "Wait for the user to finish speaking" | The engine owns turn-taking. The prompt controls what is said, not when. | Nothing — delete the line |
+| "Remind them about last week's call" | There is no memory across calls | Pass the fact in `variables` |
+| A 600-word FACTS block | Re-read on every turn, and the model picks the wrong fact | The ten facts this call actually needs |
+| Emoji, markdown, stage directions | Spoken aloud as noise | Plain sentences |
+| An English prompt for a Hindi call | Code-switches badly and drifts back to English | Write the prompt in the language the call will be in |
+
+## Test, then refine
+
+Every real phone call costs money — there is no test key — so the loop is
+designed to find problems in the cheapest place first.
+
+<Steps>
+
+<Step title="Start from a template">
+Agent Studio in the [console](https://sandbox.voice.miraiminds.co) has six house
+scripts in the template dropdown — Govt · Traffic challan, BFSI · EMI reminder,
+BFSI · GSTR-1 filing, D2C · Order confirmation, D2C · Service reminder,
+Hospitality · Booking confirmation. All six are already in the structure above.
+If none of them is close, use **Describe the call and we draft it → Generate
+script**: a one-line brief comes back as a house-style prompt and opening line
+to edit.
+</Step>
+
+<Step title="Call yourself on the web phone">
+The web phone in the right rail runs the agent without dialling a phone. Play
+the customer you are afraid of: say no, correct a digit half-way through, ask
+something that is not in FACTS, then go quiet and see what happens. Most prompt
+bugs die here, for free.
+</Step>
+
+<Step title="Read the transcript, change one thing">
+```bash
+curl https://sandbox.voice.miraiminds.co/v2/calls/call_01K7Q9B4M8N3P6R2S5T7V9W1YA/transcript \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY"
+```
+
+Turns come back as they were spoken, nothing translated — see
+[Get the transcript](/v2/calls#get-the-transcript). Read where it went wrong,
+change one line, run it again. Changing three lines at once tells you nothing
+about which one worked.
+</Step>
+
+<Step title="Three real calls to your own number">
+The phone line is a different acoustic world from a browser mic: carrier codecs,
+background noise, a caller who is walking. Prompts that pass on the web phone and
+fail on a real handset are common, and they fail on numbers first.
+</Step>
+
+<Step title="A small campaign, then read it">
+Twenty to fifty contacts. Read the transcripts and the campaign report before
+you scale — see [Campaigns](/v2/campaigns). Fix what you find, then go wide.
+</Step>
+
+</Steps>
+
+<Tip>
+Measure by outcome, not vibe. Did the call reach a defined end state —
+confirmed, refused, callback? "It sounded nice" is not a metric, and a warm
+agent that never gets a commitment is a failed call.
+</Tip>
+
+## A worked example
+
+The EMI reminder, rendered for the `aishe` voice with the agent named मीरा.
+
+`system_prompt`:
+
+```text
+ROLE
+You are मीरा, a polite female voice agent calling from Mirai Finance to remind the customer their EMI is due and capture a clear payment commitment.
+
+FACTS — edit these for your use case
+- Customer: {{customer_name}}
+- EMI: {{emi_amount}} rupees, due {{due_date}}
+- After {{due_date}}: late payment penalty may apply
+- Payment: Mirai Finance app or website
+- You cannot extend the due date or waive any penalty.
+
+CALL FLOW
+1. Confirm the person.
+2. State the EMI amount and due date.
+3. Use the penalty hook gently; ask when they will pay.
+4. Never assume a date they did not clearly say; read the promised date back.
+5. Close.
+
+IF THEY REFUSE OR CAN'T COMMIT
+One light nudge about the penalty, then accept and note that the team will follow up.
+
+EXAMPLE EXCHANGE
+[User] थोड़ा टाइम मिलेगा क्या?
+[You] {{customer_name}} जी, {{due_date}} के बाद payment करने पर late payment penalty लग सकती है, आप कब तक payment कर पाएंगे?
+[User] मैं दस जुलाई तक कर दूंगा।
+[You] ठीक है {{customer_name}} जी, आपने बताया कि आप ten July तक payment कर देंगे, मैंने note कर लिया है. धन्यवाद, आपका दिन शुभ हो!
+
+<LANGUAGE RULES + CONVERSATION STYLE block>
+```
+
+The last line is where the fixed block from
+[Language rules](#language-rules-for-hinglish) gets pasted, verbatim.
+
+`first_message`:
+
+```text
+नमस्ते, मैं मीरा बोल रही हूं Mirai Finance से. क्या मेरी बात {{customer_name}} जी से हो रही है?
+```
+
+### Create the agent
+
+<Tabs>
+  <Tab title="cURL">
+    ```json title="emi-agent.json"
+    {
+      "name": "EMI reminder",
+      "system_prompt": "ROLE\nYou are मीरा, a polite female voice agent calling from Mirai Finance to remind the customer their EMI is due and capture a clear payment commitment.\n\nFACTS — edit these for your use case\n- Customer: {{customer_name}}\n- EMI: {{emi_amount}} rupees, due {{due_date}}\n- After {{due_date}}: late payment penalty may apply\n- Payment: Mirai Finance app or website\n- You cannot extend the due date or waive any penalty.\n\nCALL FLOW\n1. Confirm the person.\n2. State the EMI amount and due date.\n3. Use the penalty hook gently; ask when they will pay.\n4. Never assume a date they did not clearly say; read the promised date back.\n5. Close.\n\nIF THEY REFUSE OR CAN'T COMMIT\nOne light nudge about the penalty, then accept and note that the team will follow up.\n\nEXAMPLE EXCHANGE\n[User] थोड़ा टाइम मिलेगा क्या?\n[You] {{customer_name}} जी, {{due_date}} के बाद payment करने पर late payment penalty लग सकती है, आप कब तक payment कर पाएंगे?\n[User] मैं दस जुलाई तक कर दूंगा।\n[You] ठीक है {{customer_name}} जी, आपने बताया कि आप ten July तक payment कर देंगे, मैंने note कर लिया है. धन्यवाद, आपका दिन शुभ हो!\n\n<LANGUAGE RULES + CONVERSATION STYLE block>",
+      "first_message": "नमस्ते, मैं मीरा बोल रही हूं Mirai Finance से. क्या मेरी बात {{customer_name}} जी से हो रही है?",
+      "voice": { "voice_id": "aishe", "language": "hi-IN" },
+      "language": "hi-IN",
+      "max_duration_secs": 240,
+      "voicemail": { "action": "hangup" }
+    }
+    ```
+
+    ```bash
+    curl -X POST https://sandbox.voice.miraiminds.co/v2/agents \
+      -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+      -H "Content-Type: application/json" \
+      -d @emi-agent.json
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    import os, httpx
+
+    API = "https://sandbox.voice.miraiminds.co"
+    auth = {"Authorization": f"Bearer {os.environ['MIRAI_API_KEY']}"}
+
+    SYSTEM_PROMPT = open("emi_prompt.txt", encoding="utf-8").read()
+
+    agent = httpx.post(
+        f"{API}/v2/agents",
+        headers=auth,
+        json={
+            "name": "EMI reminder",
+            "system_prompt": SYSTEM_PROMPT,
+            "first_message": "नमस्ते, मैं मीरा बोल रही हूं Mirai Finance से. क्या मेरी बात {{customer_name}} जी से हो रही है?",
+            "voice": {"voice_id": "aishe", "language": "hi-IN"},
+            "language": "hi-IN",
+            "max_duration_secs": 240,
+            "voicemail": {"action": "hangup"},
+        },
+        timeout=30,
+    ).raise_for_status().json()
+
+    print(agent["id"])
+    ```
+  </Tab>
+  <Tab title="Node.js">
+    ```javascript
+    import { readFileSync } from "node:fs";
+
+    const API = "https://sandbox.voice.miraiminds.co";
+    const auth = { Authorization: `Bearer ${process.env.MIRAI_API_KEY}` };
+
+    const systemPrompt = readFileSync("emi_prompt.txt", "utf8");
+
+    const res = await fetch(`${API}/v2/agents`, {
+      method: "POST",
+      headers: { ...auth, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: "EMI reminder",
+        system_prompt: systemPrompt,
+        first_message:
+          "नमस्ते, मैं मीरा बोल रही हूं Mirai Finance से. क्या मेरी बात {{customer_name}} जी से हो रही है?",
+        voice: { voice_id: "aishe", language: "hi-IN" },
+        language: "hi-IN",
+        max_duration_secs: 240,
+        voicemail: { action: "hangup" },
+      }),
+    });
+    if (!res.ok) throw new Error(JSON.stringify(await res.json()));
+    const agent = await res.json();
+    ```
+  </Tab>
+</Tabs>
+
+Keep the prompt in a file next to your code and read it in — it is a script, it
+will change often, and it does not belong inline in a JSON literal. `end_call`
+is left at its defaults on purpose: confirmation on, no canned farewell, so the
+धन्यवाद in the EXAMPLE EXCHANGE is the only one the caller hears.
+
+### Place the call
+
+The variable values are already in spoken form. That is the point.
+
+```bash
+curl -X POST https://sandbox.voice.miraiminds.co/v2/calls \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: emi-88213-jul-1" \
+  -d '{
+    "agent_id": "agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ",
+    "to": "+919876543210",
+    "variables": {
+      "customer_name": "राहुल",
+      "emi_amount": "five thousand two hundred",
+      "due_date": "five July"
+    },
+    "webhook_url": "https://example.com/mirai/webhook"
+  }'
+```
+
+## Copy-paste skeleton
+
+Fill the angle brackets, keep everything else.
+
+```text
+ROLE
+You are <AGENT NAME>, a polite <male|female> voice agent calling from <COMPANY> to <THE ONE JOB>.
+
+FACTS — edit these for your use case
+- Customer: {{customer_name}}
+- <FACT: the amount, date, order, slot — in spoken form>
+- <FACT: the consequence or the benefit>
+- <FACT: where the customer can act — app, website, branch>
+- You cannot <THE THING THIS AGENT MAY NOT PROMISE>.
+Today is {{ "now" | date: "%A, %d %B %Y", "Asia/Kolkata" }}.
+
+CALL FLOW
+1. Confirm the person.
+2. <STATE THE REASON FOR THE CALL, one sentence>
+3. <THE ONE ASK>
+4. Never assume anything they did not clearly say; read it back digit-by-digit and confirm.
+5. When <THE OUTCOME> is confirmed, summarise it in one line, say goodbye, and end the call.
+
+IF THEY PUSH BACK
+One light nudge about <THE CONSEQUENCE>, then accept and note that the team will follow up.
+
+EXAMPLE EXCHANGE
+[User] <THE HARD THING THEY ACTUALLY SAY>
+[You] <THE ANSWER, one or two short sentences>
+[User] <THEIR COMMITMENT>
+[You] <READ IT BACK, goodbye>
+
+LANGUAGE RULES — keep these; they make the agent sound natural
+- Everyday Hinglish: Hindi words in Devanagari script, NEVER romanized Hindi ('aap kab tak kar payenge' is WRONG — write 'आप कब तक कर पाएंगे').
+- Everyday English words stay in Roman script: payment, EMI, order, address, delivery, challan, invoice, penalty, policy, service, slot.
+- No formal shuddh Hindi (भुगतान, देय, राशि, पुष्टि).
+- Every number is English words in Roman script — never digits, never Hindi numbers ('pandra' is WRONG, 'fifteen' is right). Identifiers digit-by-digit: 'three nine five zero zero seven'.
+- When the customer states or corrects any number — flat, pincode, phone, amount — read it back digit-by-digit and confirm (e.g. 'आपका pincode है four zero zero zero five three, सही है?'). If it sounds unclear or incomplete, do NOT guess — ask them to repeat it slowly.
+
+CONVERSATION STYLE
+- One short sentence, maximum two.
+- धन्यवाद appears exactly ONCE in the whole call — only in the final goodbye.
+- After a clear promise or confirmation: repeat it back, say goodbye, end the call.
+- Never invent policy or waive penalties; unknown questions → the team will call back.
+```
+
+---
+
+That is the whole method: one job, six blocks, numbers as words, one ending you
+wrote yourself. When a prompt still is not landing and the structure is right,
+the problem is usually a belief about what a call *is* — that is
+[The Zen of Voice Agents](/v2/zen-of-voice-agents).
