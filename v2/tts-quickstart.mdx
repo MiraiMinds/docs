@@ -200,6 +200,7 @@ curl "https://sandbox.voice.miraiminds.co/v2/tts/requests?limit=50" \
   "id": "tts_01K4N7Q0V8ZR3M6D9F2H5J7K1P",
   "object": "tts_request",
   "created_at": "2026-09-09T09:16:39Z",
+  "source": "api",
   "voice": "shruti",
   "model": "mira-tts",
   "format": "pcm",
@@ -222,6 +223,7 @@ Rows come newest first, only ever your own workspace's:
 | `cursor` | Opaque, from the response's `next_cursor`. |
 | `from`, `to` | RFC3339 timestamps. |
 | `status` | `completed`, `failed`, `truncated` or `rejected`. |
+| `source` | `api` or `playground`. |
 
 `GET /v2/tts/requests/{id}` returns a single row — the id is the
 `X-Request-Id` you got back from the request.
@@ -229,6 +231,7 @@ Rows come newest first, only ever your own workspace's:
 | Field | Meaning |
 | :--- | :--- |
 | `status` | `completed` (audio relayed in full), `failed` (nothing usable), `truncated` (the stream stopped part-way), `rejected` (refused before synthesis — a bad field, no balance, no slot). |
+| `source` | `api` for a request made with your key. `playground` for a synth from the console's **Hear it** button — logged like any other, never charged, so `cost_inr` is `0`. |
 | `cost_inr` | What it cost. `0` unless `completed`. |
 | `first_byte_ms` | Time to the first audio byte — the number that matters in a live pipeline. |
 | `total_ms`, `bytes` | Wall time and audio size for the whole request. |
