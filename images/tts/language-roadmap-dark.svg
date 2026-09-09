@@ -14,14 +14,17 @@
   <text x="84" y="150" font-size="16" font-weight="600" fill="#E8EAE8">Hindi</text>
   <text x="84" y="176" font-size="16" font-weight="600" fill="#E8EAE8">Hinglish</text>
   <text x="84" y="202" font-size="16" font-weight="600" fill="#E8EAE8">English code-switch</text>
-  <text x="84" y="238" font-size="12" fill="#9AA39D">On every production call</text>
-  <text x="84" y="256" font-size="12" fill="#9AA39D">today.</text>
+  <text x="84" y="228" font-size="16" font-weight="600" fill="#E8EAE8">Gujarati</text>
+  <rect x="166" y="215" width="46" height="18" rx="9" fill="#07C983" opacity="0.14"/>
+  <text x="189" y="227" text-anchor="middle" font-size="9.5" font-weight="700" fill="#07C983" letter-spacing="0.8">BETA</text>
+  <text x="84" y="258" font-size="12" fill="#9AA39D">Hindi on every production call today.</text>
+  <text x="84" y="276" font-size="12" fill="#9AA39D">Gujarati in beta, still tuning.</text>
 
   <!-- six-languages card -->
   <rect x="380" y="84" width="460" height="216" rx="12" fill="#17211B" stroke="#07C983" stroke-width="1.5" stroke-dasharray="5 4"/>
-  <text x="404" y="118" font-size="11" font-weight="700" fill="#07C983" letter-spacing="1.5">SIX NEW LANGUAGES · DATES TO BE ANNOUNCED</text>
+  <text x="404" y="118" font-size="11" font-weight="700" fill="#07C983" letter-spacing="1.5">FIVE MORE LANGUAGES · DATES TO BE ANNOUNCED</text>
 
-  <!-- chips: 2 cols x 3 rows, ordered by speakers -->
+  <!-- chips: 2 cols, ordered by speakers -->
   <!-- Bengali -->
   <rect x="404" y="134" width="196" height="44" rx="8" fill="#212823" stroke="#33413A"/>
   <text x="418" y="162" font-size="17" fill="#E8EAE8">বাংলা</text>
@@ -42,16 +45,11 @@
   <text x="634" y="214" font-size="17" fill="#E8EAE8">தமிழ்</text>
   <text x="696" y="208" font-size="13" font-weight="600" fill="#E8EAE8">Tamil</text>
   <text x="696" y="223" font-size="11" fill="#9AA39D">69M speakers</text>
-  <!-- Gujarati -->
-  <rect x="404" y="238" width="196" height="44" rx="8" fill="#212823" stroke="#33413A"/>
-  <text x="418" y="266" font-size="17" fill="#E8EAE8">ગુજરાતી</text>
-  <text x="480" y="260" font-size="13" font-weight="600" fill="#E8EAE8">Gujarati</text>
-  <text x="480" y="275" font-size="11" fill="#9AA39D">56M speakers</text>
   <!-- Kannada -->
-  <rect x="620" y="238" width="196" height="44" rx="8" fill="#212823" stroke="#33413A"/>
-  <text x="634" y="266" font-size="17" fill="#E8EAE8">ಕನ್ನಡ</text>
-  <text x="696" y="260" font-size="13" font-weight="600" fill="#E8EAE8">Kannada</text>
-  <text x="696" y="275" font-size="11" fill="#9AA39D">44M speakers</text>
+  <rect x="404" y="238" width="196" height="44" rx="8" fill="#212823" stroke="#33413A"/>
+  <text x="418" y="266" font-size="17" fill="#E8EAE8">ಕನ್ನಡ</text>
+  <text x="480" y="260" font-size="13" font-weight="600" fill="#E8EAE8">Kannada</text>
+  <text x="480" y="275" font-size="11" fill="#9AA39D">44M speakers</text>
 
   <!-- footer -->
   <text x="450" y="340" text-anchor="middle" font-size="13" fill="#9AA39D">Each language ships when it clears the same quality bar as our Hindi voices —</text>
