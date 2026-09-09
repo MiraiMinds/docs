@@ -15,6 +15,7 @@ Limits are per **secret key**.
 | Request rate | 10 requests/second, burst 20 | all `/v2/*` endpoints | `429 rate_limited` |
 | Concurrent live calls | 5 | calls in `dialing` or `in_progress` | the call **queues** |
 | Queue depth | 500 | calls accepted and not yet ended | `429 rate_limited` |
+| TTS requests in flight | 10 **per workspace** | `/v1/audio/speech` and `/v2/tts` | `429 at_capacity` |
 
 <Warning>
 **Pilot keys are provisioned individually**
@@ -41,10 +42,11 @@ about how many phones are ringing.
 
 ### Concurrency
 
-Concurrency does **not** produce a `429`. A `POST /v2/calls` beyond your
-concurrent-call ceiling is still accepted with `202` and sits in `queued` until a
-slot frees, then dials — nothing is rejected and nothing is lost. `429` is
-request-rate only.
+**Call** concurrency does **not** produce a `429`. A `POST /v2/calls` beyond
+your concurrent-call ceiling is still accepted with `202` and sits in `queued`
+until a slot frees, then dials — nothing is rejected and nothing is lost. On the
+call path, `429` is request-rate only. ([Text to speech](#text-to-speech) is the
+one exception: it has no queue, so it refuses.)
 
 That makes the ceiling a **pacer**, not a gate. Two consequences:
 
@@ -105,6 +107,21 @@ def pump():
 Do not drive pacing off a fixed `sleep()`. Answer rates vary by hour, and a
 fixed delay either wastes capacity or hammers the limit.
 
+### Text to speech
+
+The [speech API](/v2/tts-quickstart) has no queue, so its concurrency is a gate,
+not a pacer.
+
+| Limit | Default | Over the limit |
+| :--- | :--- | :--- |
+| Requests in flight | **10 per workspace** | `429 at_capacity` with `Retry-After`. The request is refused, not queued. |
+| `input` length | **2,000 characters** | `400 invalid_request`. Split longer text. |
+| Request rate | 10 requests/second, burst 20, per key | `429 rate_limited` with `Retry-After`. |
+
+`at_capacity` can also come from a deployment-wide ceiling when the speech node
+is saturated — the same code, handled the same way. A refused request holds no
+slot and is never charged.
+
 ## Payload and duration ceilings
 
 | Thing | Limit |
@@ -116,6 +133,7 @@ fixed delay either wastes capacity or hammers the limit.
 | `max_duration_secs` | 30–1800, default 300 |
 | `webhook_url` | HTTPS only, 2,048 characters |
 | Idempotency key | 255 characters, 24-hour window |
+| TTS `input` | 2,000 characters per request |
 
 ## Campaign ceilings
 
@@ -258,6 +276,7 @@ the same retention and access controls as the rest of your customer data.
 | Wallet balance before dialling | ✅ `402 insufficient_balance` |
 | Request rate | ✅ `429 rate_limited` |
 | Concurrency ceiling | ✅ over-cap calls wait in `queued` |
+| TTS requests in flight | ✅ `429 at_capacity` past 10 per workspace |
 | Queue depth | ✅ `429 rate_limited` past 500 outstanding |
 | Maximum call duration | ✅ `status: timeout` |
 | Campaign budget cap | ✅ campaign pauses, `pause_reason: budget_exhausted` |

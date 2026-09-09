@@ -1,49 +1,77 @@
 ---
 title: "Speech endpoint (legacy)"
-description: The original /tts/v1 speech endpoint — model mira-tts-v51, separate key. Kept for existing callers; new integrations start at the TTS quickstart.
+description: The original /tts/v1 speech endpoint. The URL still works as an alias for /v1/audio/speech; the old mira_ keys are retired.
 ---
 
 <Warning>
-This page documents the **original** speech endpoint (`/tts/v1`, model
-`mira-tts-v51`, separate key). New integrations should start at the
-[TTS quickstart](/v2/tts-quickstart) instead — the current endpoint lives at
+This page documents the **original** speech endpoint. Start new integrations at
+the [TTS quickstart](/v2/tts-quickstart): the current endpoint lives at
 `/v1/audio/speech`, uses model `mira-tts`, streams, and takes the same
-`sk_live_` key as the rest of the API. This endpoint keeps working for
-existing callers.
+`sk_live_` key as the rest of the API.
 </Warning>
+
+## What `/tts/v1` does now
+
+**The URL keeps working.** `POST /tts/v1/audio/speech` is an alias for
+[`POST /v1/audio/speech`](/v2/tts-quickstart) — the same handler, the same
+audio — so a caller that only changes its key needs no other change:
+
+- **Auth is your `sk_live_` API key**, the one you mint in the
+  [console](https://sandbox.voice.miraiminds.co) under **Developers**. The old
+  `mira_` speech keys are **retired**; if you are still holding one, get an
+  `sk_live_` key from the [quickstart](/v2/tts-quickstart#1-get-a-key).
+- **`model` is `mira-tts`**, and `mira-tts-v51` is accepted as an alias, so an
+  existing body keeps working unchanged.
+- **Everything else follows the current endpoint** — voices, `pcm` streaming,
+  the 2,000-character ceiling, the response headers, the
+  [price](/v2/tts-quickstart#billing), the wallet it debits, and the
+  [request log](/v2/tts-quickstart#your-request-log). One contract, documented
+  in one place.
+- **The options below that were unique to this endpoint** — `speech_ready`,
+  `instructions`, `lexicon` and `numbers` — are no longer applied. They are
+  ignored, not rejected.
+
+The rest of this page describes the original endpoint as it behaved, for
+callers reading old code.
+
+## The original endpoint
 
 The speech endpoint is the voice from our agents, on its own. Send text, get a
 WAV back. It takes the same request shape as the OpenAI audio API, so any
 OpenAI SDK works by swapping `base_url` and the key.
 
-This is a **separate key** from your `sk_live_` API key — ask us for one; it is
-not minted from the dashboard.
-
 The engine speaks Hindi, English and the Hinglish in between. Six more
 languages — Telugu, Tamil, Marathi, Kannada, Gujarati and Bengali — arrive
 over the next two months: see the [language roadmap](/v2/tts-languages).
 
-## Quickstart
+## Calling the alias
+
+The old body, the new key:
 
 ```bash
 curl https://sandbox.voice.miraiminds.co/tts/v1/audio/speech \
-  -H "Authorization: Bearer $MIRA_TTS_KEY" \
+  -H "Authorization: Bearer $MIRA_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "model": "mira-tts-v51",
     "input": "नमस्ते, मैं आशु बोल रहा हूं। आपका ऑर्डर तैयार है।",
-    "voice": "aishe"
+    "voice": "ashu"
   }' \
   --output speech.wav
 ```
 
-The response body **is** the audio: `audio/wav`, 48 kHz mono PCM16. On a
-400-character input expect roughly 3 seconds end to end — the whole file is
-rendered before the first byte is sent, so this endpoint is built for
-generating clips, not for driving a live conversation. For interactive
-latency, use an [agent](/v2/agents) and place a [call](/v2/calls).
+The response body **is** the audio: 48 kHz mono PCM16, `wav` by default. Ask
+for `"response_format": "pcm"` and it **streams**, which is what you want in a
+live pipeline — see the [TTS quickstart](/v2/tts-quickstart#2-first-audio).
 
 ## Request
+
+<Note>
+Read as history. On the alias, `model`, `input`, `voice` and `response_format`
+behave as the [TTS quickstart](/v2/tts-quickstart) documents — `input` goes up
+to 2,000 characters and `pcm` streams — and the four fields below that are ours
+alone are ignored.
+</Note>
 
 | Field | Type | Notes |
 | :--- | :--- | :--- |
@@ -65,6 +93,12 @@ changing.
 
 ## The rewrite pass
 
+<Warning>
+The rewrite pass is **not** part of the current endpoint. `speech_ready`,
+`instructions` and `lexicon` are ignored and no `X-Mira-Speech-Ready` header is
+returned. Send text you are happy to hear read aloud.
+</Warning>
+
 Raw text is rarely speech-ready. `97%` should be read as "ninety-seven
 percent", a product name should not be transliterated, and a bare URL should
 not be spelled out character by character. By default we run your text through
@@ -85,7 +119,7 @@ rewrite is not what shaped that clip.
 
 ```bash title="Skip the rewrite"
 curl https://sandbox.voice.miraiminds.co/tts/v1/audio/speech \
-  -H "Authorization: Bearer $MIRA_TTS_KEY" \
+  -H "Authorization: Bearer $MIRA_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"model":"mira-tts-v51","input":"Order #4417 ready","voice":"ashu","speech_ready":false}' \
   --output raw.wav
@@ -95,17 +129,21 @@ curl https://sandbox.voice.miraiminds.co/tts/v1/audio/speech \
 
 ```bash
 curl https://sandbox.voice.miraiminds.co/tts/v1/models \
-  -H "Authorization: Bearer $MIRA_TTS_KEY"
+  -H "Authorization: Bearer $MIRA_API_KEY"
 ```
+
+The list names one model — the current one:
 
 ```json
 {
   "object": "list",
   "data": [
-    { "id": "mira-tts-v51", "object": "model", "owned_by": "miraiminds" }
+    { "id": "mira-tts", "object": "model", "owned_by": "miraiminds" }
   ]
 }
 ```
+
+`mira-tts-v51` is still accepted in a request body; it is no longer listed.
 
 ## Errors
 
@@ -134,6 +172,11 @@ Errors use the same envelope as the rest of the API — see [Errors](/v2/errors)
 }
 ```
 
+The alias returns the current endpoint's codes instead —
+`invalid_request`, `unauthorized`, `insufficient_balance`, `at_capacity`,
+`rate_limited`, `model_not_found`, `upstream_error`. See
+[When something fails](/v2/tts-quickstart#when-something-fails).
+
 ## Using an OpenAI SDK
 
 The shape matches, so point the client at us and keep your code:
@@ -143,12 +186,12 @@ from openai import OpenAI
 
 client = OpenAI(
     base_url="https://sandbox.voice.miraiminds.co/tts/v1",
-    api_key=MIRA_TTS_KEY,
+    api_key=MIRA_API_KEY,   # sk_live_… — the mira_ speech keys are retired
 )
 
 client.audio.speech.create(
     model="mira-tts-v51",
-    voice="aishe",
+    voice="neha",
     input="नमस्ते, आपका ऑर्डर तैयार है।",
 ).stream_to_file("speech.wav")
 ```

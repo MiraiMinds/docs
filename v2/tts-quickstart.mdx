@@ -14,7 +14,7 @@ Sign in to the [console](https://sandbox.voice.miraiminds.co) with your access
 code, open **Developers**, and create an API key. It is a `sk_live_` secret,
 shown **once** — only its hash is stored, so a lost key is rotated, never
 recovered. The same key works for TTS and the rest of the
-[v2 API](/v2/overview).
+[v2 API](/v2/overview), and draws on the same [wallet](/v2/wallet).
 
 ## 2. First audio
 
@@ -45,6 +45,17 @@ Two formats exist, and only two:
 Anything else (including OpenAI's default `mp3`) is a 400 naming these two.
 Always send `response_format` explicitly.
 
+<Note>
+**One model name.** `model` is `mira-tts`. `mira-tts-v51` — the old
+build-numbered name — is still accepted as an alias, so existing callers keep
+working. Anything else is a `404`.
+</Note>
+
+The same endpoint is mounted at **`POST /v2/tts`** for callers who would rather
+keep every URL under `/v2`. It is the same handler, and it accepts `text` as an
+alias of `input`. Nothing else differs: auth, fields, headers and billing are
+identical, so moving between the two changes the URL and nothing more.
+
 ## 3. Pick a voice
 
 ```bash
@@ -52,10 +63,11 @@ curl https://sandbox.voice.miraiminds.co/v2/voices \
   -H "Authorization: Bearer $MIRA_API_KEY"
 ```
 
-Currently `ashu`, `aishe` and `neha` — Hindi voices that code-switch through
-the English of real Indian speech. Each entry carries a `sampleAudio` URL;
-listen before you choose. An unknown voice is a 400, not a silent
-substitution. Six more languages are on the way — see the
+Currently `ashu`, `neha`, `shruti` and `sameer` — Hindi voices that code-switch
+through the English of real Indian speech. `neha` is the default if you omit
+`voice`. Each entry carries a `sampleAudio` URL; listen before you choose. An
+unknown voice is a 400 naming the allowed set, not a silent substitution. Six
+more languages are on the way — see the
 [language roadmap](/v2/tts-languages).
 
 ## 4. Stream it with the OpenAI SDK
@@ -89,7 +101,7 @@ from pipecat.services.openai.tts import VALID_VOICES, OpenAITTSService
 # pipecat validates voices against OpenAI's own hardcoded list (alloy, nova, …)
 # before it ever sends a request — without this line every Mirai voice raises
 # KeyError: 'ashu' client-side.
-VALID_VOICES.update({name: name for name in ("ashu", "aishe", "neha")})
+VALID_VOICES.update({name: name for name in ("ashu", "neha", "shruti", "sameer")})
 
 tts = OpenAITTSService(
     api_key=os.environ["MIRA_API_KEY"],
@@ -106,23 +118,141 @@ correctly. A complete ~100-line agent (browser mic → ASR → LLM → Mirai TTS
 built this way is available on request — ask on your onboarding thread.
 </Note>
 
-## Billing
+## What comes back
 
-Per character. Every response reports its own cost in headers, so you can
-meter spend without a second request:
+Every `200` carries its own accounting in headers, so you can meter spend and
+pin a build without a second request:
 
 | Header | Meaning |
 | :--- | :--- |
-| `X-Chars-Billed` | Characters billed for this request. |
-| `X-Cost-Paise` | What this request cost, in paise. |
+| `X-Request-Id` | `tts_…` — this request's id. It is the row in your [request log](#your-request-log) and the `reference` on the [ledger row](#billing). |
+| `X-Chars-Billed` | Characters counted for billing. |
+| `X-Cost-Paise` | What this request costs, in paise, once it completes. |
+| `X-Sample-Rate` | `48000`. Always. |
+| `X-Mira-Model` | The build that actually spoke, e.g. `miraiminds/mira-tts-v53`. Pin it when you are comparing quality across releases. |
+
+Every error after authentication carries `X-Request-Id` too, so a failure is as
+traceable as a success — quote it when you ask us about one.
+
+## Limits
+
+| Limit | Default | Over the limit |
+| :--- | :--- | :--- |
+| Requests in flight | **10 per workspace** | `429 at_capacity` with a `Retry-After` header. |
+| `input` length | **2,000 characters** | `400 invalid_request`. Split longer text. |
+| Request rate | Per key — see [Limits](/v2/limits) | `429 rate_limited` with a `Retry-After` header. |
+
+The eleventh concurrent request is **refused, not queued**: honour
+`Retry-After` and send it again. A refused request holds no slot and moves no
+money. `at_capacity` can also come from a deployment-wide ceiling when the
+speech node is saturated — same code, same handling.
+
+Need more than 10 in flight? Ask your Mirai contact; it is a provisioning
+change, not a code change.
+
+## Billing
+
+**₹1.80 per 1,000 characters**, rounded up to the paisa, and charged **only for
+completed audio**. If the engine fails, the stream stalls, or your client
+disconnects part-way, nothing is charged and no ledger row is written — the
+request still appears in your log, with the status that says why.
+
+The charge is one debit row on the same [wallet](/v2/wallet) your calls draw
+from, and it appears on the console billing statement under **Text to speech**:
+
+```json title="GET /v2/wallet/transactions"
+{
+  "id": "txn_01K4N7Q2R5S8T4V7W9X1Y3ZB6C",
+  "object": "wallet_transaction",
+  "type": "debit",
+  "amount_inr": 0.12,
+  "balance_after_inr": 498.32,
+  "call_id": null,
+  "kind": "tts",
+  "reference": "tts_01K4N7Q0V8ZR3M6D9F2H5J7K1P",
+  "quantity": 62,
+  "description": "Text to speech · 62 characters · shruti",
+  "created_at": "2026-09-09T09:16:39Z"
+}
+```
+
+| Field | Meaning |
+| :--- | :--- |
+| `kind` | `tts` here, `call` on call rows. **Classify on this**, never by reading `description`. |
+| `reference` | The `X-Request-Id` of the request that produced the audio. |
+| `quantity` | Characters billed — the same number as `X-Chars-Billed`. |
+
+A wallet that cannot cover the request is a `402` **before** anything is
+synthesised. See [Wallet](/v2/wallet#list-transactions).
+
+## Your request log
+
+Every request is logged — completed, failed or rejected — and the log is yours
+to read.
+
+```bash
+curl "https://sandbox.voice.miraiminds.co/v2/tts/requests?limit=50" \
+  -H "Authorization: Bearer $MIRA_API_KEY"
+```
+
+```json title="200 OK"
+{
+  "id": "tts_01K4N7Q0V8ZR3M6D9F2H5J7K1P",
+  "object": "tts_request",
+  "created_at": "2026-09-09T09:16:39Z",
+  "voice": "shruti",
+  "model": "mira-tts",
+  "format": "pcm",
+  "chars": 62,
+  "status": "completed",
+  "cost_inr": 0.12,
+  "first_byte_ms": 93,
+  "total_ms": 3210,
+  "bytes": 437760,
+  "preview": "नमस्ते, मैं शालिनी बोल रही हूँ …",
+  "error_code": null
+}
+```
+
+Rows come newest first, only ever your own workspace's:
+
+| Query | Meaning |
+| :--- | :--- |
+| `limit` | Up to 200, default 50. |
+| `cursor` | Opaque, from the response's `next_cursor`. |
+| `from`, `to` | RFC3339 timestamps. |
+| `status` | `completed`, `failed`, `truncated` or `rejected`. |
+
+`GET /v2/tts/requests/{id}` returns a single row — the id is the
+`X-Request-Id` you got back from the request.
+
+| Field | Meaning |
+| :--- | :--- |
+| `status` | `completed` (audio relayed in full), `failed` (nothing usable), `truncated` (the stream stopped part-way), `rejected` (refused before synthesis — a bad field, no balance, no slot). |
+| `cost_inr` | What it cost. `0` unless `completed`. |
+| `first_byte_ms` | Time to the first audio byte — the number that matters in a live pipeline. |
+| `total_ms`, `bytes` | Wall time and audio size for the whole request. |
+| `error_code` | The `error.code` that was returned, or `null`. |
+
+<Note>
+**We do not keep the text you send.** `preview` is the first 48 characters of
+`input`, so a row is recognisable in a list. The rest is never stored.
+</Note>
+
+The same table is in the console under **TTS → Requests**, if you would rather
+look than poll.
 
 ## When something fails
 
-| Status | Cause |
-| :--- | :--- |
-| 400 | Unknown voice, or a `response_format` other than `wav` / `pcm`. The message names the valid values. |
-| 401 | Missing or unknown key. Check the `Authorization: Bearer sk_live_…` header. |
-| 404 | `model` is not `mira-tts`. |
+| Status | `code` | Cause |
+| :--- | :--- | :--- |
+| 400 | `invalid_request` | Empty `input`, more than 2,000 characters, an unknown voice, or a `response_format` other than `wav` / `pcm`. The message names the valid values. |
+| 401 | `unauthorized` | Missing or unknown key. Check the `Authorization: Bearer sk_live_…` header. |
+| 402 | `insufficient_balance` | The wallet cannot cover this request. Nothing was synthesised and nothing was charged. |
+| 404 | `model_not_found` | `model` is neither `mira-tts` nor the `mira-tts-v51` alias. |
+| 429 | `at_capacity` | You already have 10 requests in flight, or the deployment is saturated. Honour `Retry-After`. |
+| 429 | `rate_limited` | Per-key request rate. Honour `Retry-After` — see [Limits](/v2/limits). |
+| 502 | `upstream_error` | The engine refused, returned no audio, or the stream stalled past its timeout. Nothing was charged; the message says which. Retry. |
 
 Errors use the same envelope as the rest of the API — see
 [Errors](/v2/errors). Stuck on something this page does not cover? Reply on

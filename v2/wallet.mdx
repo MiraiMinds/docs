@@ -5,7 +5,8 @@ description: Check your prepaid balance and read the transaction ledger.
 
 
 Mirai Voice is **prepaid**. Every workspace has one INR wallet. Calls debit it
-when they end; ops credits it when you top up. If the wallet cannot cover a
+when they end, [text-to-speech](/v2/tts-quickstart) requests debit it when they
+complete, and ops credits it when you top up. If the wallet cannot cover a
 minute, `POST /v2/calls` returns [`402`](#402-insufficient-balance) and no call
 is placed.
 
@@ -131,6 +132,7 @@ The ledger. One row per credit or debit, newest first.
       "amount_inr": 6,
       "balance_after_inr": 494,
       "call_id": "call_01JZQ9B4M8N3P6R2S5T7V9W1YA",
+      "kind": "call",
       "description": "call 96s (2 min, t3)",
       "created_at": "2026-07-26T09:16:39Z"
     },
@@ -156,9 +158,43 @@ The ledger. One row per credit or debit, newest first.
 | `amount_inr` | number | Always positive; read `type` for direction. |
 | `balance_after_inr` | number | Balance immediately after this row. |
 | `call_id` | string \| null | Set on call debits, `null` on top-ups and adjustments. |
+| `kind` | string | What the row paid for: `call` or `tts`. **Branch on this**, never on `description`. |
+| `reference` | string | The id of the thing billed on a `tts` row — the `tts_…` request id. |
+| `quantity` | number | How much was billed on a `tts` row: characters. |
 | `description` | string | Human-readable. Do not parse it. |
 
+<Note>
+**`kind`, `reference` and `quantity` are additive.** Rows written before they
+existed carry no `kind` — read a missing `kind` as `call`. Nothing else about
+the shape changed, so a reader that ignores all three keeps working.
+</Note>
+
 Reconcile against `call_id`: every billable call produces exactly one debit row.
+
+### A text-to-speech row
+
+[Speech requests](/v2/tts-quickstart#billing) debit the same wallet, at
+₹1.80 per 1,000 characters, and only when the audio was delivered in full:
+
+```json
+{
+  "id": "txn_01K4N7Q2R5S8T4V7W9X1Y3ZB6C",
+  "object": "wallet_transaction",
+  "type": "debit",
+  "amount_inr": 0.12,
+  "balance_after_inr": 494.88,
+  "call_id": null,
+  "kind": "tts",
+  "reference": "tts_01K4N7Q0V8ZR3M6D9F2H5J7K1P",
+  "quantity": 62,
+  "description": "Text to speech · 62 characters · shruti",
+  "created_at": "2026-09-09T09:16:39Z"
+}
+```
+
+`reference` is the `X-Request-Id` the speech request returned, so a row
+reconciles against your [request log](/v2/tts-quickstart#your-request-log) the
+way a call row reconciles against `call_id`.
 
 ## Top up
 
