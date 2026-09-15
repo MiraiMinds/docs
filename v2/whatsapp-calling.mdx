@@ -1,0 +1,518 @@
+---
+title: WhatsApp calling
+description: Put a Voice Infra agent on a WhatsApp Business number — Meta hands the call to our SIP edge, the agent answers, and the call reports exactly like a phone call.
+---
+
+
+<Note>
+**Pilot.** WhatsApp calling is running with selected partners.
+Registrations are accepted over the API, but a number becomes
+active only once the Voice Infra team confirms it. Talk to your
+account contact before you build a launch around this page.
+</Note>
+
+Customers already message your merchants on WhatsApp. Since Meta
+opened calling on the WhatsApp Business Platform, they can also tap
+**Call** in the same thread, and your merchants can call them back
+with permission. This page connects that call to a Voice Infra
+agent.
+
+The split is simple. **You keep everything Meta**: the WhatsApp
+Business Account, the phone number, templates, the call-permission
+messages, the Meta bill. **We take the audio**: Meta sends the call
+to our SIP edge, the agent answers, and you get the transcript, the
+outcome and the [webhooks](/v2/webhooks) you already know from
+phone calls.
+
+Base URL `https://sandbox.voice.miraiminds.co`.
+
+## How it works
+
+Meta's Calling API has two signalling modes. Over WebRTC, your
+servers have to terminate the media themselves. Over **SIP**, Meta
+sends the call to whichever SIP server the number is configured
+with. You configure that server to be ours. From then on:
+
+1. A customer taps **Call** on the merchant's WhatsApp number.
+2. Meta opens a TLS connection to our SIP edge on port 5061 and
+   sends the INVITE. We answer with a digest challenge and
+   authenticate the number against the credentials Meta generated
+   for it.
+3. We resolve the number to the workspace and agent you
+   registered, optionally ask your backend for context, and admit
+   the call — the whole admission budget is **3 seconds**, of which
+   your resolver may use up to **1 second**.
+4. The agent talks. When the call ends you get the same `call.*`
+   [webhooks](/v2/webhooks) a phone call produces, and the call
+   object carries `route: "whatsapp"` and the caller's WhatsApp
+   identity.
+
+Outbound works the same way in reverse: once the customer has
+granted permission in WhatsApp, you call
+[`POST /v2/calls`](/v2/calls#create-a-call) with `route:
+"whatsapp"` and we place the call through Meta.
+
+Meta does not support mutual TLS, so our edge never asks Meta for a
+client certificate; both sides validate the other's server
+certificate against the configured SIP domain.
+
+<Warning>
+**SIP mode is exclusive per number.**
+
+While a number is pointed at us, Meta's calling-related Graph API
+endpoints are disabled for it, and Meta allows exactly one SIP
+server per phone number. Any other calling integration on that
+number stops working. Use a number you can dedicate to the agent.
+</Warning>
+
+## Prerequisites
+
+On the Meta side, all of this is yours and unchanged by us:
+
+- A WhatsApp Business Account on the Cloud API, with a phone number
+  whose **messaging limit is 2,000 or above**. Meta will not enable
+  calling below that.
+- A system-user access token that can read and write the number's
+  settings.
+- For outbound calls, a country where Meta offers business-initiated
+  calling. It is **not** available in the United States, Canada,
+  Egypt, Vietnam or Nigeria. India is available.
+
+On our side: a live workspace, an `sk_live_` key, and the
+[agent](/v2/agents) you want answering. Nothing about the agent is
+WhatsApp-specific — the same agent can run phone calls too.
+
+## Step 1: Enable calling on the number
+
+Turn calling on and tell Meta to negotiate the key exchange and
+codecs our edge speaks. One request to the number's settings:
+
+```bash
+curl -X POST "https://graph.facebook.com/GRAPH_VERSION/PHONE_NUMBER_ID/settings" \
+  -H "Authorization: Bearer META_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "calling": {
+      "status": "ENABLED",
+      "srtp_key_exchange_protocol": "SDES",
+      "audio": { "additional_codecs": ["PCMA", "PCMU"] }
+    }
+  }'
+```
+
+Use the Graph API version your platform already uses for the Cloud
+API in place of `GRAPH_VERSION` — the calling settings fields are
+the same across current versions.
+
+Both fields matter. `srtp_key_exchange_protocol` defaults to
+`DTLS`; our edge negotiates **SDES only** and refuses anything
+else, so a number left on the default will not complete a call.
+`additional_codecs` is what enables G.711 — Meta's default is Opus,
+which we do not carry yet.
+
+## Step 2: Fetch the SIP credentials Meta generated
+
+Meta creates a SIP username and password per number. Read them
+once:
+
+```bash
+curl "https://graph.facebook.com/GRAPH_VERSION/PHONE_NUMBER_ID/settings?include_sip_credentials=true" \
+  -H "Authorization: Bearer META_ACCESS_TOKEN"
+```
+
+The username is the business phone number, normalised to E.164.
+The password is in `calling.sip.servers[].sip_user_password`. You
+hand both to us in the next step; we encrypt them before they are
+stored and never return them — not in a response body, not in a
+log, not in a URL.
+
+## Step 3: Register the number with Voice Infra
+
+```http
+POST /v2/whatsapp/numbers
+```
+
+| Field | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `business_number` | string | yes | The WhatsApp Business number, E.164. |
+| `phone_number_id` | string | yes | Meta's phone number ID for it. |
+| `agent_id` | string | yes | The agent that answers by default. |
+| `sip_username` | string | yes | From [step 2](#step-2-fetch-the-sip-credentials-meta-generated) — the normalised business number. |
+| `sip_password` | string | yes | From step 2. Stored encrypted, never returned. |
+| `resolver_url` | string | no | HTTPS endpoint we ask for context before answering. See [resolver](#optional-give-the-agent-context-before-it-answers). |
+| `webhook_url` | string | no | HTTPS URL for [lifecycle events](/v2/webhooks) on this number's calls. |
+
+```bash
+curl -X POST https://sandbox.voice.miraiminds.co/v2/whatsapp/numbers \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "business_number": "+919876543210",
+    "phone_number_id": "PHONE_NUMBER_ID",
+    "agent_id": "agt_01K7Q9F3K7M2N5P9R4T6V8W0XZ",
+    "sip_username": "+919876543210",
+    "sip_password": "META_GENERATED_PASSWORD",
+    "resolver_url": "https://example.com/mirai/resolve",
+    "webhook_url": "https://example.com/mirai/webhook"
+  }'
+```
+
+The response tells you exactly what to configure on Meta:
+
+```json
+{
+  "id": "wan_01K7Q9B4M8N3P6R2S5T7V9W1YA",
+  "state": "pending",
+  "business_number": "+919876543210",
+  "agent_id": "agt_01K7Q9F3K7M2N5P9R4T6V8W0XZ",
+  "sip": {
+    "hostname": "sip.miraiminds.co",
+    "port": 5061,
+    "request_uri_user_params": { "ws": "ws_…", "agent": "agt_…" }
+  },
+  "meta_settings_example": {
+    "calling": {
+      "sip": {
+        "status": "ENABLED",
+        "servers": [
+          {
+            "hostname": "sip.miraiminds.co",
+            "port": 5061,
+            "request_uri_user_params": { "ws": "ws_…", "agent": "agt_…" }
+          }
+        ]
+      }
+    }
+  },
+  "sip_password_set": true,
+  "key_version": 1
+}
+```
+
+| Field | Meaning |
+| :--- | :--- |
+| `id` | The registration. Use it on `GET`, `PATCH` and `DELETE`. |
+| `state` | See [registration states](#registration-states). |
+| `sip` | Where Meta should send calls for this number. Take the values from here rather than hard-coding them. |
+| `meta_settings_example` | The exact Meta settings body for [step 4](#step-4-point-meta-at-our-sip-edge). Send it back to Meta unchanged. |
+| `sip_password_set` | Whether we hold a SIP password for this number. The password itself is never returned. |
+| `key_version` | Which encryption key version the stored credentials use. Changes when credentials are re-encrypted; nothing on your side has to react to it. |
+
+A business number can be registered in **one** workspace only.
+Registering a number that already belongs to another workspace is
+refused — that is what stops one tenant claiming another's number.
+
+The collection is workspace-scoped: `GET /v2/whatsapp/numbers`
+lists your registrations and `GET /v2/whatsapp/numbers/{id}`
+returns one.
+
+<Note>
+**Register every WhatsApp number in a workspace with one API key**
+— or with keys that share the same webhook secret and tier. The
+first registration pins both to the workspace's WhatsApp
+integration: that key's secret signs every resolver call and
+webhook for these numbers, and its tier bills inbound calls. A
+later registration sent with a key whose secret or tier differs is
+refused with `409 integration_conflict`. Changing what is pinned is
+an operation done with the Voice Infra team.
+</Note>
+
+### Registration states
+
+| `state` | Meaning |
+| :--- | :--- |
+| `pending` | Accepted and stored. Our edge has not acknowledged the configuration yet, or activation has not been approved. |
+| `active` | Our edge is provisioned and will admit calls for this number. |
+| `failed` | The registration could not be brought up. Contact us with the `id`. |
+| `disabling` | A `DELETE` has been accepted. New calls are already refused; calls in progress are finishing. |
+| `disabled` | No longer serving calls. |
+
+<Note>
+`active` means **our** edge is ready. It is not proof that Meta's
+settings are configured — [step 4](#step-4-point-meta-at-our-sip-edge)
+is still yours to do, and a number can be `active` here while Meta
+still points somewhere else.
+
+During the pilot the move from `pending` to `active` is confirmed
+by our team. Poll `GET /v2/whatsapp/numbers/{id}` to see it; there
+is no registration webhook today.
+</Note>
+
+## Step 4: Point Meta at our SIP edge
+
+Send the `meta_settings_example` block back to Meta, unchanged:
+
+```bash
+curl -X POST "https://graph.facebook.com/GRAPH_VERSION/PHONE_NUMBER_ID/settings" \
+  -H "Authorization: Bearer META_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d @meta_settings_example.json
+```
+
+The `request_uri_user_params` are how Meta labels the INVITE with
+the workspace and agent it belongs to. Meta caps each key and each
+value at 128 characters; the values we hand you are inside that.
+Do not edit them — they are hints we cross-check, and a mismatch
+against the authenticated number is refused.
+
+That is the whole integration. Open WhatsApp, find the merchant's
+number, tap **Call**. The agent answers.
+
+<Note>
+Meta's optional `sip.webhook_delivery` setting gives you
+`call_created` and `call_terminate` webhooks from Meta itself, with
+no SDP. We neither require it nor read it. Enable it if you want
+Meta's own view of a call alongside ours.
+</Note>
+
+## Knowing who is calling
+
+Every WhatsApp call carries the caller's identity into the agent's
+prompt and into your webhook, whether or not you use a resolver.
+
+| Variable | Meaning |
+| :--- | :--- |
+| `caller_number` | The customer's WhatsApp number, E.164. |
+| `wacid` | Meta's call ID, for correlating with Meta's own records. |
+| `wa_user_id` | The customer's business-scoped user ID (BSUID). |
+| `wa_username` | The customer's WhatsApp username, when they have one. |
+
+These keys are reserved: a resolver cannot overwrite them, and
+neither can `variables` on an outbound call.
+
+The same four values are on the
+[call object](/v2/calls#the-call-object) too — on
+`GET /v2/calls/{id}`, in the list and on every `call.*` webhook —
+as a nested `identity` object:
+
+```json
+"identity": {
+  "caller_number": "+919812345678",
+  "wacid": "…",
+  "wa_user_id": "…",
+  "wa_username": ""
+}
+```
+
+`identity` is **not** part of `variables`. `variables` stays the
+map you and your resolver supply; `identity` is ours to write, and
+nothing you send can change it.
+
+<Note>
+Every value is a **string**, and an **empty string** when Meta does
+not send it — none of them is ever absent or `null`.
+</Note>
+
+## Optional: give the agent context before it answers
+
+If you set `resolver_url` on the registration, we POST to it the
+moment a call arrives and wait up to **one second**:
+
+```json
+{
+  "event": "call.resolve",
+  "call_id": "call_01K7Q9B4M8N3P6R2S5T7V9W1YA",
+  "direction": "inbound",
+  "from": "+919812345678",
+  "to": "+919876543210",
+  "wacid": "…",
+  "wa_user_id": "…",
+  "wa_username": "…",
+  "cta_payload": "…",
+  "deeplink_payload": "…"
+}
+```
+
+`cta_payload` and `deeplink_payload` are the payloads you set on a
+call button or a call deeplink, passed through from Meta. Treat
+them as context, not as proof of who is calling.
+
+Reply with anything the agent should know, and optionally a
+different agent from the same workspace:
+
+```json
+{
+  "allow": true,
+  "agent_id": "agt_01K7Q9F3K7M2N5P9R4T6V8W0XZ",
+  "variables": { "customer_name": "Priya", "last_order": "A1234, delivered Monday" }
+}
+```
+
+Rules that keep the call fast and safe:
+
+- The request is signed with the webhook secret of **the API key
+  that registered the number**, over `timestamp + "." + body`,
+  using the same header and scheme as every other webhook. Verify
+  it the same way — see
+  [signature verification](/v2/webhooks#signature-verification).
+  That secret is **pinned at registration**: rotating or deleting
+  that API key later does not change the secret these resolver
+  calls and webhooks are signed with. Changing it is a separate
+  operation, done with the Voice Infra team.
+- **One attempt, one second.** If you do not answer in time, or
+  answer with anything other than a `200` and valid JSON, the call
+  proceeds with the registered agent. The resolver enriches; it
+  does not gate.
+- `allow: false` declines the call. The customer sees a declined
+  call and nothing is billed.
+- `agent_id` must be an agent in the same workspace. `variables`
+  is a flat string map, subject to the same rules as
+  [call variables](/v2/calls#variables), and it cannot touch the
+  reserved identity keys above.
+- The response body must be **16 KiB or smaller**.
+- `resolver_url` must be HTTPS on a public host. Redirects are not
+  followed and private or non-public targets are refused — point
+  it at a real, internet-reachable endpoint.
+- The resolver runs once, before the call is admitted. There is no
+  resolver call once media is live.
+
+## Outbound calls
+
+Business-initiated WhatsApp calls need the customer's permission
+first, and Meta enforces it. The permission flow is a WhatsApp
+message, so it stays on your platform:
+
+1. Send a call-permission request to the customer — an interactive
+   message on your WABA.
+2. Meta delivers the customer's reply on your webhooks. Store the
+   approval and its expiry.
+3. Place the call.
+
+```bash
+curl -X POST https://sandbox.voice.miraiminds.co/v2/calls \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "agent_id": "agt_01K7Q9F3K7M2N5P9R4T6V8W0XZ",
+    "route": "whatsapp",
+    "from": "+919876543210",
+    "to": "+919812345678",
+    "variables": { "customer_name": "Priya", "order_id": "A1234" },
+    "webhook_url": "https://example.com/mirai/webhook",
+    "max_duration_secs": 240
+  }'
+```
+
+Two fields are new, and everything else on
+[`POST /v2/calls`](/v2/calls#create-a-call) behaves as documented:
+
+| Field | Description |
+| :--- | :--- |
+| `route` | `trunk` \| `whatsapp`. Omit it on a phone call and it defaults to `trunk`. |
+| `from` | Required when `route` is `whatsapp`: a business number registered in **your** workspace and in state `active`. |
+| everything else | `tier`, `variables`, `webhook_url`, `max_duration_secs`, `Idempotency-Key` — unchanged. They mean on a WhatsApp call exactly what they mean on a phone call, including tier availability and how the call is quoted. See [the request fields](/v2/calls#request). |
+
+An explicit phone route is rejected on a web call; browser calls
+have no phone route at all.
+
+### What Meta enforces
+
+Meta's published limits, which your platform already tracks for
+human calling:
+
+- One permission request per customer per **24 hours**, and two
+  per **7 days**.
+- An approval is valid for **7 days**.
+- An approval is revoked automatically after **four consecutive**
+  rejected or unanswered calls.
+- At most **100 business-initiated calls** per day to one customer.
+- Business-initiated calling is unavailable in the United States,
+  Canada, Egypt, Vietnam and Nigeria.
+
+We do not second-guess any of this; we return Meta's answer. If
+Meta refuses the call because permission is missing or has expired,
+the call ends unconnected with a permission-denied reason — the
+exact `ended_reason` code is published when the feature leaves
+pilot. Nothing is billed: no media, no charge.
+
+There is no fallback. A WhatsApp call Meta rejects is not retried
+over the phone network, and one uncertain dial is never turned into
+two calls to the same customer.
+
+## Webhooks and history
+
+No new event types. `call.started`, `call.completed`,
+`call.failed` and `call.aborted` fire exactly as they do for phone
+calls, to the `webhook_url` on the call or on the registration, and
+the existing [status](/v2/calls#statuses) and
+[ended reason](/v2/calls#ended-reasons) vocabulary is unchanged.
+
+The [call object](/v2/calls#the-call-object) — on the webhook, on
+`GET /v2/calls/{id}` and in the list — gains four fields:
+
+| Field | Meaning |
+| :--- | :--- |
+| `route` | `trunk` \| `whatsapp`. Existing phone calls read `trunk`. |
+| `direction` | `inbound` \| `outbound`. Existing phone calls read `outbound`. |
+| `from` | The business number the call used. |
+| `identity` | Object, present on WhatsApp calls: `caller_number`, `wacid`, `wa_user_id` and `wa_username`, each a string and empty when Meta omits it. See [knowing who is calling](#knowing-who-is-calling). |
+
+Transcripts, recordings, analysis and the wallet ledger work
+exactly as they do for phone calls.
+
+Deliveries for this number are signed with the webhook secret
+pinned to the registration — the secret of the API key that
+registered it, unchanged by any later rotation or deletion of that
+key — and verified exactly as on
+[any other webhook](/v2/webhooks#signature-verification).
+
+## Billing
+
+WhatsApp calls are billed at the workspace tier's per-minute rate
+with the tier's existing billing increment, exactly like phone
+calls; no separate WhatsApp charge from Voice Infra; Meta's own
+business-initiated charges are billed by Meta to the partner's
+WABA; customer-initiated calls carry no Meta charge.
+
+Which tier that is depends on the direction. An **inbound** call —
+the customer taps **Call** — has no API request to name a tier, so
+it bills at the tier of the API key that registered the number,
+pinned at registration. An **outbound** call bills exactly as its
+[`POST /v2/calls`](/v2/calls#create-a-call) request does today.
+
+See [tiers](/general/tiers#metering) for the rate card and the
+increment. The unbillable cases are the ones you already know: a
+call that never carried media is not charged, a resolver `allow:
+false` is not charged, and teardown after the conversation ends is
+never billed.
+
+## Troubleshooting
+
+| Symptom | Likely cause |
+| :--- | :--- |
+| Meta returns `SIP server … does not match any SIP server configured for phone number id …` | The number's configured SIP server is not the hostname we returned. Re-send [step 4](#step-4-point-meta-at-our-sip-edge). |
+| The call is refused immediately and never rings | `srtp_key_exchange_protocol` is still `DTLS`. Set `SDES` — [step 1](#step-1-enable-calling-on-the-number). |
+| The call connects with no audio, or drops just after answer | `audio.additional_codecs` is missing. Add `PCMA` and `PCMU` — step 1. |
+| `409 integration_conflict` when registering a number | The request used a different API key from the one that pinned this workspace's WhatsApp integration. Re-send it with that key, or ask us to rotate what is pinned. |
+| The registration stays `pending` | Pilot activation is confirmed by us; or the SIP credentials were reset on Meta after you registered. Fetch them again and `PATCH` the registration. |
+| Meta refuses to enable calling at all | The number's messaging limit is below 2,000. |
+| An outbound call ends with a permission-denied reason | No valid permission for that customer. Send the permission request again, within Meta's limits. |
+| Your other WhatsApp calling integration stopped working | Expected. SIP mode is exclusive per number. |
+
+A call we cannot admit — an unknown or disabled registration, a
+disabled workspace, an empty [wallet](/v2/wallet), or no free
+capacity — is refused at the SIP layer. The customer sees a failed
+call, and nothing is charged.
+
+<Note>
+Concurrency on a WhatsApp number is capped during the pilot and set
+with you per partner. Ask your account contact before planning
+volume.
+</Note>
+
+## Rotating credentials or removing a number
+
+```http
+PATCH /v2/whatsapp/numbers/{id}
+DELETE /v2/whatsapp/numbers/{id}
+```
+
+- **Rotating the SIP password.** Reset it on Meta first — disable
+  SIP, delete the server entry, then reconfigure — and `PATCH` the
+  registration with the new `sip_password`. A `PATCH` only changes
+  the configuration future calls use; calls in progress keep the
+  snapshot they started with.
+- **Removing a number.** `DELETE` blocks new calls immediately;
+  the registration moves through `disabling` while calls in
+  progress finish. Remove or repoint the SIP server on Meta as
+  well, or customers will hear a failed call.

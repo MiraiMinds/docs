@@ -41,6 +41,7 @@
             "pages": [
               "v2/agents",
               "v2/calls",
+              "v2/whatsapp-calling",
               "v2/campaigns",
               "v2/dnc",
               "v2/webhooks"
