@@ -18,10 +18,10 @@ Migrate when you want one of these:
 - **[Campaigns](/v2/campaigns)** — a server-side dialler with calling windows,
   retries, budgets, do-not-call suppression and a per-contact report.
 
-Stay on v1 if you need: inbound calls, phone-number purchase, knowledge
-base/RAG, API tools (function calling), web calls, or post-call analysis.
-**v2 has none of these yet.** The two APIs can address the same workspace side
-by side — migrate calls first, keep the rest on v1.
+You can migrate function calling to [v2 tools](/v2/tools), including background
+on-call requests and post-call actions. Recreate each tool definition on your
+v2 agent; v1 tool IDs do not transfer. Review each remaining capability before
+cutover, and keep your v1 integration active until its replacement is tested.
 
 ## Hosts
 
@@ -66,7 +66,7 @@ way to accidentally address the wrong workspace with the right credentials.
 | `PUT /v2/call/{callId}` (update payload) | — | No equivalent. Set everything at create time. |
 | `POST /v2/call/web` | — | Web calls are v1-only. |
 | `GET /v1/number-pool/*` | — | [v1 Telephony](/v1/telephony). |
-| `/v1/admin/tool/api` (all methods) | — | [v1 Tools](/v1/tools). |
+| `/v1/admin/tool/api` (all methods) | [`/v2/agents/{id}/tools/{name}`](/v2/tools#api-routes) | Tools belong to an agent; recreate the definition instead of copying a v1 ID. |
 | `/v1/knowledge-base/*` | — | [v1 Knowledge Base](/v1/knowledge-base). |
 | [`GET /v1/admin/voice-gallery`](/v1/assistants#voice-gallery) | — | Still v1. v2 `voice_id` values come from this same catalogue — see [Voices](/v2/voices). |
 | — | [`GET /v2/calls/{id}/transcript`](/v2/calls#get-the-transcript) | **New.** Turn-by-turn, as spoken. |
@@ -90,7 +90,7 @@ way to accidentally address the wrong workspace with the right credentials.
 | `callSettings.maxCallDuration` | `max_duration_secs` |
 | `variant.type` / `variant.config` | — (no variants; one shape) |
 | `variant.config.inputSchema` | — (declare nothing; just pass `variables`) |
-| `agent.tools` | — (v1 only) |
+| `agent.tools` | [`tools`](/v2/tools) — full definitions, not v1 tool IDs |
 | `telephony.inbound` / `telephony.outbound` | — (managed) |
 | `callSettings.slots` (calling window) | `slots` + `timezone` on a [campaign](/v2/campaigns#calling-window) (or [your scheduler](/v2/limits#calling-window) for single calls) |
 | `callSettings.concurrentCallCount` | `max_concurrent` on a [campaign](/v2/campaigns); the workspace ceiling is provisioned per key, see [Limits](/v2/limits) |
@@ -241,4 +241,5 @@ returns the resource itself. See the [error reference](/v2/errors).
    live during cutover.
 4. Switch one low-volume campaign to `POST /v2/calls`. Compare outcomes against
    the same campaign's v1 numbers for a day.
-5. Move the rest. Leave numbers, knowledge base and tools on v1.
+5. Recreate and test your [tools](/v2/tools) on the v2 agent, then migrate the
+   remaining calls. Check support for other capabilities before moving them.

@@ -40,6 +40,7 @@
             "group": "Build",
             "pages": [
               "v2/agents",
+              "v2/tools",
               "v2/calls",
               "v2/campaigns",
               "v2/dnc",

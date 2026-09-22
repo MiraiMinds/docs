@@ -11,6 +11,13 @@ an agent by ID; per-call differences go in [`variables`](/v2/calls#variables).
 Base URL `https://sandbox.voice.miraiminds.co`. All endpoints require
 `Authorization: Bearer sk_live_…`.
 
+## Tools
+
+Add `tools` to connect your APIs before, during, or after a call. On-call HTTP
+tools can run synchronously or in the background, with the result returned to
+the voice agent when ready. See [Tools](/v2/tools) for setup, conditions, secrets,
+callbacks, and examples.
+
 ## The agent object
 
 ```json
@@ -45,6 +52,8 @@ Base URL `https://sandbox.voice.miraiminds.co`. All endpoints require
 | `voice` | object | yes | See [Voice](#voice). |
 | `language` | string | yes | BCP-47 conversation language, e.g. `hi-IN`, `en-IN`. Drives ASR and the model's default output language. |
 | `max_duration_secs` | integer | no | Hard cap. The call is ended with `ended_reason: exceeded-max-duration`. Minimum `30`, maximum `1800`, default `300`. |
+| `tools` | array | no | Tool definitions for this agent. See [Tools](/v2/tools). PATCH replaces the full list. |
+| `emit_processed_webhook` | boolean | no | Defaults to `true`. Set `false` to suppress `call.processed` while keeping analysis and post-call tools enabled. |
 | `end_call` | object | no | See [Ending a call](#ending-a-call). |
 | `voicemail` | object | no | See [Voicemail](#voicemail). |
 | `background_sound` | string \| object | no | Room ambience under the agent's voice. See [Background sound](#background-sound). Default `off`. |
@@ -81,19 +90,14 @@ hangs up.
 
 | Field | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
-| `enabled` | boolean | `true` | Set `false` to remove the tool entirely — the call then ends only on the callee hanging up or `max_duration_secs`. **Accepted and stored; enforcement rolling out.** |
+| `enabled` | boolean | `true` | Set `false` to remove the tool entirely — the call then ends only on the callee hanging up or `max_duration_secs`. |
 | `message` | string | `""` | Spoken farewell, played **after** the agent's own goodbye when the call ends. Empty by default — the agent's last line is the farewell. Live today. |
-| `confirm` | boolean | `true` | Require a second `end_call` within the confirmation window before hanging up. Guards against fast models ending on a bare "ok". **Accepted and stored; enforcement rolling out.** |
+| `confirm` | boolean | `true` | Require a second `end_call` within the confirmation window before hanging up. Guards against fast models ending on a bare "ok". |
 
-<Warning>
-**Only `message` is enforced today**
-
-`enabled` and `confirm` are validated, stored, echoed back and carried into the
-call payload, but the agent currently reads only `end_call.message`. Until the
-worker picks the other two up, assume the tool is available and confirmation
-behaves at its default. Set them now — they take effect without any change on
-your side.
-</Warning>
+If you define an explicit `end_call` entry in `tools`, that entry controls whether
+the tool is available, including its condition. Its `builtin.enabled`,
+`builtin.message`, and `builtin.confirm` settings override the corresponding
+agent settings when supplied. See [Tools](/v2/tools).
 
 <Tip>
 Leave `confirm: true` unless you are running a one-turn notification. It costs

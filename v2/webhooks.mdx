@@ -55,12 +55,18 @@ Ignore what you do not recognise.
 | `call.queued` | The call is admitted to the queue. **Opt-in** — ask your Mirai contact to enable it. | `queued` |
 | `call.started` | Media is live; the conversation has begun. | `in_progress` |
 | `call.completed` | The call connected and finished normally. | `completed` |
+| `call.processed` | Analysis and post-call tool processing finished for a call with those features enabled. | Unchanged terminal status |
 | `call.voicemail` | An answering machine answered. | `voicemail` |
 | `call.failed` | The call did not connect, or the pipeline errored. | `no_answer`, `busy`, `failed`, `timeout` |
 | `call.aborted` | You cancelled it with [`POST /abort`](/v2/calls#abort-a-call) — queued, ringing or mid-conversation. | `aborted` |
 
 Exactly one terminal event fires per call: `call.completed`, `call.voicemail`,
 `call.failed` or `call.aborted`.
+
+`call.processed` is a separate processing event, not another terminal event.
+It includes `data.processing.version`, analysis status, and post-call tool status.
+Explicit reruns produce a new version. Background on-call tools can finish
+later; read their receipts separately. See [Tools: call.processed](/v2/tools#receive-callprocessed).
 
 [Campaigns](/v2/campaigns) add five more. They are delivered to the campaign's
 own `webhook_url`, signed with the same workspace secret, in the same envelope —

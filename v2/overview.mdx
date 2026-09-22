@@ -4,8 +4,8 @@ description: REST API for placing AI voice calls. One auth header, predictable e
 ---
 
 
-Four resources — agents, calls, campaigns and your do-not-call list — one auth
-header, and the same error envelope everywhere.
+Build with agents, calls, campaigns, your do-not-call list, and [tools](/v2/tools)
+using one workspace API key.
 
 ```bash
 https://sandbox.voice.miraiminds.co
@@ -17,6 +17,9 @@ https://sandbox.voice.miraiminds.co
   </Card>
   <Card title="Agents" icon="robot">
     The reusable configuration a call runs. [Reference](/v2/agents).
+  </Card>
+  <Card title="Tools" icon="wrench">
+    Connect your APIs before, during, and after calls, with synchronous or background execution. [Guide](/v2/tools).
   </Card>
   <Card title="Calls" icon="phone">
     Place, inspect and abort outbound calls; read transcripts and recordings. [Reference](/v2/calls).
@@ -69,7 +72,8 @@ strings — do not parse them.
 | Campaign | `cmp_<ulid>` | `cmp_01K7QAC5N9P4R7S3T6V8W2X4YB` |
 | Webhook event | `evt_<ulid>` | `evt_01K7QC5N9P4R7S3T6V8W2X4YB` |
 
-**Errors** always use one envelope. See the full [error reference](/v2/errors).
+**Errors** normally use the envelope below. [Tool validation](/v2/tools#validation-and-runtime-errors)
+returns a list of field errors. See the full [error reference](/v2/errors).
 
 ```json
 {
@@ -130,7 +134,7 @@ find out here rather than halfway through a build:
 
 - **Inbound calls.** Outbound only.
 - **Buying phone numbers.** We provide the line.
-- **Knowledge base / RAG** and **function calling** during a call.
+- **Knowledge base / RAG**. For function calling, use [v2 tools](/v2/tools).
 - **Self-serve wallet top-up** — see the [roadmap](/general/roadmap).
 - **OAuth or user-scoped tokens.** Secret keys only.
 
