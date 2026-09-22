@@ -19,6 +19,51 @@ agent's configuration, so editing a tool affects new calls.
 Pre-call and post-call tools run in the order you list them. On-call tools use
 `description` and `when` to tell the voice agent when to invoke them.
 
+## Configure tools in Agent Studio
+
+Open an agent in **Agent Studio**, then choose **Tools** in the agent navigation.
+The main navigation becomes an icon rail while you work. Switch to **Prompt**
+to edit the conversation without losing your tool changes.
+
+1. Choose **Pre-call**, **On-call**, or **Post-call**, then click **HTTP request**.
+2. Enter a unique tool name, an HTTP method, and your HTTPS endpoint. Expand
+   **Headers**, **Query parameters**, or **JSON body** as needed.
+3. For on-call requests, describe what the tool does and add the inputs the
+   agent should collect. Each input has a name, type, description, and required
+   setting. Reference these values in your request with `{{ args.order_id }}`.
+4. Open **Behavior** to set conditions and failure handling. For an on-call
+   HTTP tool, choose **Wait for result** or **Run in background**. A background
+   result goes back to the agent when it is ready.
+5. Click **Save changes** at the top of the agent workspace. Prompt and tool
+   edits save together as one agent revision.
+6. Open the tool's **Test** tab, supply sample inputs, and click **Run test**.
+   Inspect the status, response time, returned fields, and full receipt.
+
+<Note>
+  **Run test** executes the saved tool against your real endpoint. It does not
+  place a phone call. Save your edits before testing a new version; the result
+  shows the revision that was tested.
+</Note>
+
+In **Response**, optionally transform the result with jq. For a pre-call tool,
+choose which returned fields become prompt variables. For example, selecting
+`name` from `lookup_customer` makes `{{lookup_customer.name}}` available in the
+prompt and `{{ vars.lookup_customer.name }}` available to later requests.
+
+Use **Authentication & secrets** to store a credential or select a stored
+Bearer token. You can reference any stored secret in a header with
+`{{ secrets.crm_api_key }}`. Secret values are never returned to the editor.
+
+Pre-call and post-call tools run independently of the conversation's LLM. Use
+**Move up** and **Move down** to arrange their order. An on-call condition is
+checked from call inputs and pre-call results before the conversation; the
+tool's **When should the agent use it?** instructions guide invocation during
+the call.
+
+Supported actions such as ending a call or scheduling a callback appear under
+**Add built-in** for their available phases. Nested conditions and more complex
+argument schemas remain editable through the advanced JSON fields.
+
 ## Connect your first tool
 
 Use your workspace API key and an existing agent ID. Create an agent with the
