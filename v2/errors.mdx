@@ -1,11 +1,12 @@
 ---
 title: Errors
-description: One error envelope, every status code and error code, and what to do about each.
+description: Error envelopes, status codes, tool validation errors, and how to handle them.
 ---
 
 
-Every v2 error — validation, auth, billing, rate limiting — uses one envelope.
-There is no second shape to special-case.
+Most v2 errors use the envelope below. [Tool-definition validation](/v2/tools#validation-and-runtime-errors)
+is an exception: it returns `{"error":"invalid_tools","details":[...]}` with
+all offending field paths. Handle that shape when saving agent tools.
 
 ```json
 {

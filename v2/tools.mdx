@@ -1,0 +1,619 @@
+---
+title: Tools
+description: Connect your APIs before, during, and after a call. Mix synchronous and background tools, use conditions and secrets, and inspect every result.
+---
+
+Use tools to look up customer information, check an order, book an appointment,
+or send a call outcome to your CRM. You choose when each tool runs and whether
+the voice agent waits for its result or keeps the conversation going.
+
+Tools belong to an [agent](/v2/agents). Each call uses a snapshot of that
+agent's configuration, so editing a tool affects new calls.
+
+| Phase | When it runs | Use it for |
+| --- | --- | --- |
+| `pre_call` | Before dialing or opening browser audio. | Fetch context, personalize the greeting, or skip a call. |
+| `on_call` | When the voice agent chooses it during the conversation. | Lookups, bookings, and background requests. |
+| `post_call` | After the call has settled. | Send outcomes to your CRM or schedule a follow-up. |
+
+Pre-call and post-call tools run in the order you list them. On-call tools use
+`description` and `when` to tell the voice agent when to invoke them.
+
+## Connect your first tool
+
+Use your workspace API key and an existing agent ID. Create an agent with the
+[quickstart](/v2/quickstart) if you do not have one yet.
+
+```bash
+export MIRAI_API_BASE="https://sandbox.voice.miraiminds.co"
+export MIRAI_API_KEY="sk_live_YOUR_API_KEY"
+export MIRAI_AGENT_ID="agt_YOUR_AGENT_ID"
+```
+
+Keep your API key on your server. Every route on this page uses
+`Authorization: Bearer YOUR_API_KEY`.
+
+### 1. Define the request
+
+Save this as `order-status.json`. Replace `https://api.example.com/orders/status`
+with your public HTTPS endpoint. This example sends `{"order_id":"ORD-123"}`
+and expects a JSON response such as `{"status":"shipped","eta":"Friday"}`.
+
+```json title="order-status.json"
+{
+  "name": "order_status",
+  "phase": "on_call",
+  "execution": "sync",
+  "description": "Look up the delivery status of an order.",
+  "when": "Use this when the customer asks where their order is. Ask for the order ID if needed.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "order_id": {
+        "type": "string",
+        "description": "The customer's order ID, such as ORD-123."
+      }
+    },
+    "required": ["order_id"]
+  },
+  "request": {
+    "method": "POST",
+    "url": "https://api.example.com/orders/status",
+    "body": { "order_id": "{{ args.order_id }}" }
+  },
+  "response": { "transform": "{status, eta}" },
+  "timeout_ms": 8000
+}
+```
+
+### 2. Save it on your agent
+
+This creates or replaces just `order_status`, preserving the agent's other tools.
+The response is `200 OK` with the updated agent, including its `tools` and `revision`.
+
+<CodeGroup>
+```bash cURL
+curl --fail-with-body -X PUT \
+  "$MIRAI_API_BASE/v2/agents/$MIRAI_AGENT_ID/tools/order_status" \
+  -H "Authorization: Bearer $MIRAI_API_KEY" \
+  -H "Content-Type: application/json" \
+  --data-binary @order-status.json
+```
+
+```python Python
+import json
+import os
+import urllib.request
+
+base = os.environ["MIRAI_API_BASE"]
+agent_id = os.environ["MIRAI_AGENT_ID"]
+with open("order-status.json", "rb") as file:
+    definition = file.read()
+request = urllib.request.Request(
+    f"{base}/v2/agents/{agent_id}/tools/order_status",
+    data=definition,
+    method="PUT",
+    headers={
+        "Authorization": f"Bearer {os.environ['MIRAI_API_KEY']}",
+        "Content-Type": "application/json",
+    },
+)
+with urllib.request.urlopen(request, timeout=30) as response:
+    agent = json.load(response)
+print(agent["id"], agent["revision"])
+```
+
+```javascript Node.js
+import { readFile } from "node:fs/promises";
+
+const { MIRAI_API_BASE, MIRAI_API_KEY, MIRAI_AGENT_ID } = process.env;
+const response = await fetch(
+  `${MIRAI_API_BASE}/v2/agents/${MIRAI_AGENT_ID}/tools/order_status`,
+  {
+    method: "PUT",
+    headers: {
+      Authorization: `Bearer ${MIRAI_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: await readFile("order-status.json", "utf8"),
+  },
+);
+const agent = await response.json();
+if (!response.ok) throw new Error(JSON.stringify(agent));
+console.log(agent.id, agent.revision);
+```
+</CodeGroup>
+
+You can also supply `tools: [ ... ]` when creating or updating an agent.
+`PATCH /v2/agents/{id}` with `tools` replaces the **entire list**; use the
+single-tool route above to change one entry. Set `tools: []` to remove all tools.
+
+### 3. Test without placing a call
+
+```bash
+curl --fail-with-body -X POST \
+  "$MIRAI_API_BASE/v2/agents/$MIRAI_AGENT_ID/tools/order_status/test" \
+  -H "Authorization: Bearer $MIRAI_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"args":{"order_id":"ORD-123"}}'
+```
+
+A successful response looks like this:
+
+```json
+{
+  "tool": "order_status",
+  "phase": "on_call",
+  "kind": "http",
+  "tool_run_id": "trun_EXAMPLE",
+  "condition": { "result": true, "failed_leaf": "" },
+  "request": {
+    "method": "POST",
+    "url": "https://api.example.com/orders/status",
+    "headers": { "Content-Type": "application/json" },
+    "body": { "order_id": "ORD-123" }
+  },
+  "response": {
+    "status": 200,
+    "ms": 240,
+    "body_preview": "{\"status\":\"shipped\",\"eta\":\"Friday\"}"
+  },
+  "transform": { "output": { "status": "shipped", "eta": "Friday" } },
+  "promoted": {},
+  "missing": [],
+  "would": "run",
+  "status": "ok"
+}
+```
+
+<Warning>
+The test endpoint makes a **real HTTP request** to your endpoint. Use test data
+for tools that book, charge, send messages, or update records. The
+`schedule_callback` builtin is an exception: testing it validates the request
+and returns `would_schedule` without scheduling a call.
+</Warning>
+
+The optional test input fields are `vars`, `args`, `call`, and `analysis`.
+The response shows the condition verdict, masked request, response, transformed
+result, promoted values, and missing template paths. Check `status` as well as
+HTTP status: the test route can return `200` with a failed tool receipt.
+
+Place a new call with this agent to try the conversation. Ask about an order;
+the voice agent collects the ID, invokes the tool, and uses its result.
+
+## Synchronous and background tools
+
+Set `execution` separately on each **on-call HTTP tool**. You can mix both modes
+on one agent.
+
+| Mode | Conversation behavior | Maximum timeout |
+| --- | --- | --- |
+| `"sync"` — default | The voice agent waits for the tool result before continuing its response. | 30 seconds |
+| `"async"` | The tool runs in the background. The voice agent can keep talking and receives the result when ready. | 300 seconds |
+
+For example, collect another detail while a slow delivery lookup runs:
+
+```json
+{
+  "name": "delivery_lookup",
+  "phase": "on_call",
+  "execution": "async",
+  "description": "Check delivery availability for this customer.",
+  "when": "Start once when the customer asks about delivery. While the lookup runs, ask for their preferred delivery day. Use the returned availability when it arrives.",
+  "request": {
+    "url": "https://api.example.com/delivery",
+    "query": { "customer_id": "{{ vars.customer_id }}" }
+  },
+  "timeout_ms": 60000
+}
+```
+
+Pass `customer_id` in the call's `variables`. The voice agent should acknowledge
+that work is pending, continue with useful questions, and confirm the outcome
+only after receiving the final result. Do not ask it to repeat the same request
+while the first one is running.
+
+- A user interruption does not cancel an accepted background request.
+- If the result arrives during the call, the voice agent can use it when ready.
+- If the call ends first, the request continues and its result is available in
+  [tool receipts](#inspect-tool-results). It cannot be spoken to a caller who has left.
+- Late results do not rewrite a `call.completed` event already delivered. Read
+  receipts for the final result; `call.processed` is not a completion signal for
+  background on-call tools.
+- `execution: "async"` is rejected for builtins and other phases. Pre-call work
+  must finish before dialing; post-call tools already run after the conversation.
+
+`speak_while` is an optional short line spoken as a tool starts, such as
+`"Let me check that for you."`. Leaving it empty adds no canned filler; an async
+tool can still allow the voice agent to continue the conversation.
+
+## Before a call: fetch context or skip dialing
+
+### Personalize the greeting
+
+Add this tool to your agent. Suppose the endpoint returns
+`{"name":"Asha","plan":"Premium"}`:
+
+```json
+{
+  "name": "customer_lookup",
+  "phase": "pre_call",
+  "request": {
+    "url": "https://api.example.com/customers/{{ vars.customer_id }}"
+  },
+  "response": { "select": ["name", "plan"] },
+  "on_failure": "abort"
+}
+```
+
+Pass `{"customer_id":"cus_42"}` in the call's `variables`. The selected fields
+become `customer_lookup.name` and `customer_lookup.plan`.
+
+Use `{{customer_lookup.name}}` in the agent's `first_message` or `system_prompt`.
+Inside another tool's template, use `{{ vars.customer_lookup.name }}` instead.
+Pre-call HTTP time happens before dialing or opening browser audio.
+
+`on_failure: "abort"` prevents the call if this lookup fails. The default,
+`"continue"`, allows the call to proceed; design the greeting to handle missing
+values if you choose that behavior.
+
+### Skip when a condition holds
+
+```json
+{
+  "name": "skip_call",
+  "phase": "pre_call",
+  "condition": { "field": "vars.do_not_call", "op": "is_true" },
+  "builtin": { "reason": "Customer requested no further calls" }
+}
+```
+
+When the condition matches, nothing is dialed and the call is not charged.
+The call ends as `aborted` with a skip reason. A campaign contact becomes
+`skipped` and is not retried as a failed attempt. This complements your
+[workspace do-not-call list](/v2/dnc).
+
+## Conditions and templates
+
+`condition` decides whether a tool is available or runs. `when` is a natural
+language instruction telling the voice agent when to choose an on-call tool.
+They serve different purposes.
+
+```json
+{
+  "all": [
+    { "field": "vars.customer_id", "op": "exists" },
+    { "field": "vars.do_not_call", "op": "is_false" }
+  ]
+}
+```
+
+Combine conditions with `all`, `any`, and `not`. Supported operators are:
+
+| Operators | Meaning |
+| --- | --- |
+| `eq`, `neq` | Equality or inequality. |
+| `contains`, `not_contains`, `starts_with`, `ends_with` | Case-insensitive text comparisons. |
+| `gt`, `gte`, `lt`, `lte` | Numeric comparisons, or lexical comparisons for nonnumeric values. |
+| `in`, `not_in` | Membership in the supplied `value` array. |
+| `exists`, `not_exists` | Present and nonempty, or absent/empty. |
+| `is_true`, `is_false` | Recognizes `true/1/yes/on` and `false/0/no/off`. |
+| `matches` | RE2 regular expression, at most 200 characters. |
+
+Conditions support up to eight nested levels and 64 comparisons. Use `exists`
+or `not_exists` when checking for a missing value.
+
+Pre-call and post-call conditions are evaluated before each tool. On-call
+availability is selected when the call is prepared, after pre-call outputs
+exist. Base that condition on call inputs and pre-call results. It does not
+dynamically expose new tools after another on-call tool finishes; model
+arguments are not available when the initial tool list is selected.
+
+### Values you can reference
+
+| Namespace | Available values |
+| --- | --- |
+| `vars.*` | Call input values and promoted pre-call outputs. |
+| `call.*` | Call identifiers, destination, tier, and status; final duration and outcome after the call. |
+| `now.*` | Date, time, weekday, greeting, and timezone. Uses the call's timezone, defaulting to `Asia/Kolkata`. |
+| `tools.<name>.*` | Results from earlier tools in the same pre-call or post-call phase. |
+| `args.*` | Model-supplied arguments for an on-call request. |
+| `analysis.*` | Post-call `status`, `summary`, `success`, and `data.*` when analysis is enabled. |
+| `secrets.*` | Stored workspace secrets, in request templates only. Never in conditions. |
+
+Write `{{ vars.customer_id }}` to insert text. Inside `request.body`, an entire
+value such as `"{{= args.quantity }}"` preserves its JSON type instead of
+converting it to a string. A missing text value renders empty and is listed
+in the receipt; a missing typed value becomes `null`.
+
+Filters are `default:"value"`, `json`, and `urlencode`, for example
+`{{ vars.customer_name | default:"there" }}`. Use `request.query` for query
+parameters; values are URL-encoded automatically.
+
+Test a condition without calling an external endpoint:
+
+```bash
+curl --fail-with-body -X POST \
+  "$MIRAI_API_BASE/v2/agents/$MIRAI_AGENT_ID/conditions/test" \
+  -H "Authorization: Bearer $MIRAI_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "condition":{"field":"vars.do_not_call","op":"is_true"},
+    "scope":{"vars":{"do_not_call":"true"}}
+  }'
+```
+
+## Store credentials as workspace secrets
+
+Store a secret before saving a tool that references it:
+
+```bash
+curl --fail-with-body -X PUT "$MIRAI_API_BASE/v2/secrets/crm_key" \
+  -H "Authorization: Bearer $MIRAI_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"value":"YOUR_CRM_API_KEY"}'
+```
+
+Reference its name in your tool's request headers:
+
+```json
+{
+  "Authorization": "Bearer {{ secrets.crm_key }}"
+}
+```
+
+Secrets are scoped to your workspace, encrypted at rest, and write-only.
+`GET /v2/secrets` returns names and timestamps, never values. Requests and
+results shown in receipts mask resolved secret values. Keep credentials out of
+prompts, call variables, and literal tool definitions.
+
+To rotate a credential, `PUT` the new value to the same secret name. To delete
+it, remove references from your agents first, then call
+`DELETE /v2/secrets/crm_key`; a referenced secret returns `409`.
+
+## After a call: send the outcome to your CRM
+
+```json
+{
+  "name": "crm_update",
+  "phase": "post_call",
+  "request": {
+    "method": "POST",
+    "url": "https://api.example.com/call-outcomes",
+    "headers": { "Authorization": "Bearer {{ secrets.crm_key }}" },
+    "body": {
+      "call_id": "{{ call.id }}",
+      "status": "{{ call.status }}",
+      "duration_seconds": "{{= call.duration_secs }}"
+    }
+  },
+  "retry": { "attempts": 2, "backoff_ms": 500 }
+}
+```
+
+Post-call tools run after settlement. Their failure does not change call status
+or billing. If your agent has analysis enabled, a post-call tool can also read
+`analysis.summary`, `analysis.success`, and `analysis.data.*`. Use a condition on
+`analysis.status` or `analysis.success` when the request requires a successful
+analysis result.
+
+### Receive `call.processed`
+
+The terminal event, such as `call.completed`, describes the finished call.
+`call.processed` reports the subsequent analysis and post-call tool results. It
+is emitted when the agent has post-call tools or analysis enabled, unless you
+set `emit_processed_webhook: false` on the agent. That setting disables the
+event, not the work.
+
+The event uses your call's `webhook_url` and the normal
+[webhook signature verification](/v2/webhooks#signature-verification).
+Alongside `data.call`, it includes:
+
+```json title="Processing portion of a call.processed event"
+{
+  "processing": {
+    "analysis": "not_enabled",
+    "post_call_tools": "done",
+    "version": 1
+  }
+}
+```
+
+This object is at `data.processing`. `post_call_tools` is `done`, `partial`,
+`failed`, or `none`; `analysis` is `done`, `failed`, `skipped`, or `not_enabled`.
+A tool skipped by its condition is not a processing failure. Webhook retries
+can change delivery order, so handle events by their type and processing version.
+
+### Rerun post-call tools
+
+```bash
+curl --fail-with-body -X POST \
+  "$MIRAI_API_BASE/v2/calls/call_YOUR_CALL_ID/post_call/rerun" \
+  -H "Authorization: Bearer $MIRAI_API_KEY"
+```
+
+```json
+{ "call_id": "call_YOUR_CALL_ID", "status": "processing", "version": 2 }
+```
+
+A rerun uses the call's saved agent configuration, creates new tool-run IDs,
+and emits a new `call.processed` version. It does not rewrite the earlier event.
+It returns `409` if the call has not finished or processing is already running.
+
+<Warning>
+An explicit rerun repeats external actions. For requests that update records or
+create bookings, deduplicate retries using the `X-Mirai-Tool-Run-Id` header.
+The same logical retry keeps this ID; an explicit rerun gets a new one. Network
+failures can leave an external action's outcome uncertain, so do not assume
+exactly-once delivery.
+</Warning>
+
+## Schedule a callback
+
+Add this minimal builtin to let the voice agent arrange a later call:
+
+```json
+{ "name": "schedule_callback", "phase": "on_call" }
+```
+
+The tool automatically exposes a required `at` argument and optional `note` to
+the model. `at` should be a future RFC3339 timestamp with a UTC offset, such as
+`2026-10-01T15:00:00+05:30`. Ask the customer to clarify an ambiguous time.
+Custom `description` and `parameters` are preserved if supplied.
+
+The default window is at least 30 minutes and at most 14 days ahead. Change it
+with `builtin.min_delay_minutes` and `builtin.max_days`. For a post-call
+callback, configure `builtin.at` and optionally `builtin.note` as templates.
+
+The new call targets the same person at the same tier and uses ordinary call
+admission and billing. It carries `parent_call_id` and a `callback_note` input.
+A scheduled callback can fail if the agent is no longer available or the
+workspace cannot place the call at that time.
+
+The tool result includes a `callback_id`. Cancel before dialing:
+
+```bash
+curl --fail-with-body -X DELETE \
+  "$MIRAI_API_BASE/v2/callbacks/cbk_YOUR_CALLBACK_ID" \
+  -H "Authorization: Bearer $MIRAI_API_KEY"
+```
+
+Cancellation succeeds only while the callback is pending or scheduled. Once
+it has been claimed for dialing, or was already canceled, the route returns
+`404`. Schedule callbacks only with the customer's agreement and observe your
+[calling-window and consent requirements](/v2/limits#calling-window).
+
+## Inspect tool results
+
+```bash
+curl --fail-with-body \
+  "$MIRAI_API_BASE/v2/calls/call_YOUR_CALL_ID/tool_runs" \
+  -H "Authorization: Bearer $MIRAI_API_KEY"
+```
+
+The `data` array contains receipts with the tool name, phase, status,
+`tool_run_id`, start/end times, duration in milliseconds, HTTP status, transformed
+result, and any error. Receipts can also include the condition verdict, masked
+request, missing paths, and warnings. Read these when a tool was skipped,
+timed out, returned an unexpected result, or finished after hangup.
+
+Use `GET /v2/tools/catalog` to discover supported tools, available phases,
+execution modes, limits, and whether your configured model accepts structured
+tool arguments. Builtins currently include:
+
+| Name | Phase | Purpose |
+| --- | --- | --- |
+| `skip_call` | `pre_call` | Prevent dialing when a condition holds. |
+| `end_call` | `on_call` | End the conversation. |
+| `schedule_callback` | `on_call`, `post_call` | Arrange a later call. |
+| `webhook` | `post_call` | Send the finished call and analysis to an additional HTTPS URL supplied in `builtin.url`. |
+
+An explicit `end_call` tool can use `builtin.enabled`, `builtin.message`, and
+`builtin.confirm` to override the agent's [ending settings](/v2/agents#ending-a-call).
+Its tool-level `enabled` and `condition` also control whether it is available.
+
+`transfer_call` and `send_dtmf` are listed as unavailable. Saving an unavailable
+builtin returns `tool_unavailable`.
+
+## Tool definition reference
+
+| Field | Required | Meaning |
+| --- | --- | --- |
+| `name` | Yes | Unique per agent; 2–40 characters matching `[a-z][a-z0-9_]{1,39}`. |
+| `phase` | Yes | `pre_call`, `on_call`, or `post_call`. |
+| `kind` | No | `http` or `builtin`; inferred from the definition. |
+| `enabled` | No | Defaults to `true`. Set `false` to keep a tool configured but inactive. |
+| `condition` | No | Condition object; omitted or `null` means no condition. |
+| `description` | No | What an on-call tool does; up to 500 characters. |
+| `when` | No | When the voice agent should invoke an on-call tool; up to 1,000 characters. |
+| `parameters` | No | JSON Schema for model arguments; on-call only. Requires a model with native tool calling. |
+| `execution` | No | `sync` by default; `async` is available for on-call HTTP tools. |
+| `speak_while` | No | Optional on-call filler line, up to 300 characters. Empty by default. |
+| `request` | For HTTP | Required `url`; optional `method` (default `GET`), `headers`, `query`, and `body`. |
+| `response` | No | Optional jq `transform`, `select` keys to promote, and `strict` (default `false`). |
+| `timeout_ms` | No | Per-attempt timeout; at least 100 ms. See phase limits below. |
+| `retry` | No | `attempts` and optional `backoff_ms` (default 500; maximum 10,000). |
+| `on_failure` | No | `continue` by default. `abort` is accepted only for pre-call tools. |
+| `builtin` | Depends on builtin | Builtin configuration, such as a skip reason or callback window. |
+
+Requests support `GET`, `POST`, `PUT`, `PATCH`, and `DELETE`. GET and DELETE
+requests cannot carry a body. If a POST, PUT, or PATCH tool omits its body,
+the model's arguments become the body. Do not set transport-owned headers
+`Host`, `Content-Length`, `Transfer-Encoding`, or `Connection`.
+
+Responses with non-2xx status fail. JSON is parsed automatically; non-JSON
+becomes `{"text":"..."}` unless `response.strict` is `true`. A jq transform
+selects the result returned to the voice agent. `response.select` promotes
+fields for use by later lifecycle steps; it does not replace `transform` for
+narrowing the result the voice agent receives.
+
+### Limits and retries
+
+| Limit | Pre-call | On-call sync | On-call async | Post-call |
+| --- | --- | --- | --- | --- |
+| Default timeout | 5 s | 10 s | 10 s | 15 s |
+| Maximum timeout | 15 s | 30 s | 300 s | 60 s |
+| Default retries | 0 | 0 | 0 | 2 |
+| Maximum retries | 2 | 0 | 0 | 5 |
+| Maximum tools | 10 | 20 total across both on-call modes | Shared with sync | 10 |
+
+You can define up to 40 tools per agent. On-call execution is limited to
+40 runs per call and four concurrent requests per call. The pre-call phase has
+a 30-second total budget; the post-call tool phase has a five-minute budget,
+separate from any wait for analysis.
+
+- Endpoints must use public HTTPS on port 443. Private-network destinations and
+  redirects are refused.
+- Request and response bodies are limited to 256 KB; URLs to 2,048 characters;
+  headers and query entries to 20 each.
+- jq transforms have a 100 ms budget and 64 KB output limit. Up to 16 selected
+  fields can be promoted, each with a maximum value length of 512 characters.
+- Retries apply to timeouts, connection failures, and server errors. Client
+  errors, blocked destinations, and transform failures are not retried.
+- Tool executions currently have no separate charge. Calls and callbacks use
+  the normal [call pricing](/general/tiers); your API provider may charge separately.
+
+### Validation and runtime errors
+
+Invalid tool definitions return `400` with a list of field errors. This shape
+differs from the API's usual error envelope:
+
+```json
+{
+  "error": "invalid_tools",
+  "details": [
+    {
+      "path": "tools[0].execution",
+      "message": "async is available for on_call HTTP tools; lifecycle gates and builtins run synchronously"
+    }
+  ]
+}
+```
+
+`error` can also be `tool_unavailable` or `tool_style_unsupported`. Fix the
+listed fields before retrying. Ordinary authentication, lookup, and conflict
+errors keep the [standard error shape](/v2/errors).
+
+At runtime, inspect the receipt for errors such as `timeout`, `http_429`,
+`http_500`, `egress_denied`, `redirect_refused`, `transform_failed`,
+`response_too_large`, `rate_limited`, or `budget_exhausted`. An on-call tool
+failure is returned to the voice agent so it can explain the problem and
+continue the conversation.
+
+## API routes
+
+| Method and path | Action |
+| --- | --- |
+| `GET /v2/tools/catalog` | Discover capabilities and limits. |
+| `POST /v2/agents` | Create an agent with a `tools` list. |
+| `PATCH /v2/agents/{id}` | Replace the agent's `tools` list. |
+| `PUT /v2/agents/{id}/tools/{name}` | Create or replace one tool. Optional `if_revision` in the body prevents overwriting a newer revision. |
+| `DELETE /v2/agents/{id}/tools/{name}` | Remove one tool. Optional `?if_revision=N` checks the revision. Returns the updated agent. |
+| `POST /v2/agents/{id}/tools/{name}/test` | Test one tool with supplied input values. |
+| `POST /v2/agents/{id}/conditions/test` | Test a condition without an external request. |
+| `GET /v2/calls/{id}/tool_runs` | Read a call's tool receipts. |
+| `GET /v2/secrets` | List secret names and timestamps. |
+| `PUT /v2/secrets/{name}` | Store or rotate a secret using `{"value":"..."}`. |
+| `DELETE /v2/secrets/{name}` | Delete an unreferenced secret. |
+| `POST /v2/calls/{id}/post_call/rerun` | Repeat post-call processing as a new version. |
+| `DELETE /v2/callbacks/{id}` | Cancel a callback before dialing. |
