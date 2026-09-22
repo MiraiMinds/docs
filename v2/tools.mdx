@@ -25,13 +25,19 @@ Open an agent in **Agent Studio**, then choose **Tools** in the agent navigation
 The main navigation becomes an icon rail while you work. Switch to **Prompt**
 to edit the conversation without losing your tool changes.
 
+The first tool opens automatically when you choose a phase. **Test agent** stays
+visible while you edit. Type `@` in the prompt or a supported tool field to insert
+available context. Variables and tool references have distinct highlights in the
+prompt; pre-call results are grouped under the tool that returned them.
+
 1. Choose **Pre-call**, **On-call**, or **Post-call**, then click **HTTP request**.
 2. Enter a unique tool name, an HTTP method, and your HTTPS endpoint. Expand
    **Headers**, **Query parameters**, or **JSON body** as needed.
-3. For on-call requests, describe what the tool does and add the inputs the
+3. For on-call requests, open **Inputs** to add the values the
    agent should collect. Each input has a name, type, description, and required
    setting. Reference these values in your request with `{{ args.order_id }}`.
-4. Open **Behavior** to set conditions and failure handling. For an on-call
+4. Open **Behavior** to describe when an on-call tool should run and set
+   conditions and failure handling. For an on-call
    HTTP tool, choose **Wait for result** or **Run in background**. A background
    result goes back to the agent when it is ready.
 5. Click **Save changes** at the top of the agent workspace. Prompt and tool
@@ -61,8 +67,75 @@ tool's **When should the agent use it?** instructions guide invocation during
 the call.
 
 Supported actions such as ending a call or scheduling a callback appear under
-**Add built-in** for their available phases. Nested conditions and more complex
+**Add preset** for their available phases. Nested conditions and more complex
 argument schemas remain editable through the advanced JSON fields.
+
+## Default tools
+
+New agents created in Agent Studio include two editable tools. Existing agents
+keep their current configuration. To add either tool to an existing agent,
+choose its phase and use **Add preset**. Duplicating an agent copies its saved
+tools, including any tools you disabled or removed.
+
+| Tool | Phase | What it does |
+| --- | --- | --- |
+| Greeting & local time | Pre-call | Fetches a time-aware greeting and local date information. Defaults to `Asia/Kolkata`. |
+| End call | On-call | Lets the agent finish a conversation, with confirmation enabled. |
+
+### Greeting and local time
+
+The greeting preset is an ordinary HTTP request you can inspect and customize.
+It runs without an LLM. Open **Query parameters** to change `timezone` to an
+IANA timezone such as `Europe/London` or `America/New_York`.
+
+```bash
+curl --fail-with-body --get 'https://voice.miraiminds.co/tools/greeting' \
+  --data-urlencode 'timezone=Asia/Kolkata'
+```
+
+This public clock endpoint requires no API key and receives no customer data.
+`timezone` is optional and defaults to `Asia/Kolkata`. Invalid or empty timezone
+names return `400` with `error.code: "invalid_timezone"`. Responses are not cached.
+
+```json title="Example response"
+{
+  "greeting": "Good afternoon",
+  "outro_greeting": "Have a good day",
+  "date": "2026-09-23",
+  "time": "14:30:00",
+  "datetime": "2026-09-23T14:30:00+05:30",
+  "epoch": 1790154000,
+  "timezone": "Asia/Kolkata",
+  "day_of_week": "Wednesday",
+  "is_weekend": false,
+  "period": "afternoon"
+}
+```
+
+Greetings are English: **Good morning** from 05:00, **Good afternoon** from
+12:00, **Good evening** from 17:00, and **Hello** from 22:00 until 05:00, all
+in the selected timezone. `epoch` is Unix time in seconds; `datetime` includes
+the local UTC offset. Daylight-saving changes follow the selected timezone.
+
+The preset selects greeting, farewell, date, time, weekday, weekend, timezone,
+and period fields for your prompt. Type `@` in **First message**, choose
+**greeting**, then **greeting** to insert `{{ greeting.greeting }}`. For example:
+
+```text
+{{ greeting.greeting }}! How can I help you today?
+```
+
+Later HTTP tools can use `{{ vars.greeting.date }}` and the other selected
+fields. The preset has a two-second timeout and continues the call if the
+request fails. You can change these settings in **Behavior**. Current-time
+values describe when the pre-call request ran; they do not update during the call.
+
+### End call
+
+End call runs directly on the voice worker during a conversation. It does not
+make an HTTP request. The default requires confirmation before hanging up and
+keeps the agent's **Closing message**. Configure it under **On-call → End call**.
+Testing the tool by itself does not place or end a phone call.
 
 ## Connect your first tool
 
@@ -75,7 +148,7 @@ export MIRAI_API_KEY="sk_live_YOUR_API_KEY"
 export MIRAI_AGENT_ID="agt_YOUR_AGENT_ID"
 ```
 
-Keep your API key on your server. Every route on this page uses
+Keep your API key on your server. The agent and tool management routes below use
 `Authorization: Bearer YOUR_API_KEY`.
 
 ### 1. Define the request
