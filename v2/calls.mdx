@@ -26,7 +26,7 @@ Base URL `https://sandbox.voice.miraiminds.co`.
   "started_at": "2026-08-10T09:15:02Z",
   "ended_at": "2026-08-10T09:16:38Z",
   "duration_secs": 96,
-  "cost_inr": 6,
+  "cost_inr": 5,
   "recording_available": true,
   "transcript_available": true,
   "analysis": null
@@ -39,7 +39,7 @@ Base URL `https://sandbox.voice.miraiminds.co`.
 | `agent_id` | string | The agent this call ran. |
 | `to` | string | E.164 destination. |
 | `status` | enum | See [statuses](#statuses). |
-| `tier` | string | The rate card this call was billed under — `t3` unless you asked for `t1`. See [tiers](/general/tiers). |
+| `tier` | string | The rate card this call was billed under — your company's plan. See [tiers](/general/tiers). |
 | `ended_reason` | string \| null | Why it ended. See [ended reasons](#ended-reasons). `null` while running. |
 | `created_at` | string | RFC 3339, UTC. When we accepted the request. |
 | `started_at` | string \| null | RFC 3339, UTC. Set when **media goes live**, not when we dialled. `null` if the call never connected. |
@@ -110,14 +110,14 @@ for control flow; use `ended_reason` for analytics and support.
 | `no-media` | `failed` | The call was placed but audio never flowed. See the note below. Not billed. |
 | `aborted-by-api` | `aborted` | You called [`POST /abort`](#abort-a-call). The only reason an abort produces. |
 | `assistant-error` | `failed` | Pipeline failure on our side. Not billed. |
-| `transferred` | `completed` | The call ended in a completed warm transfer to a human. Handoff is [part of every tier](/general/tiers#feature-matrix); the rollout is completing — **no call emits this yet**, see the [roadmap](/general/roadmap). |
+| `transferred` | `completed` | The call ended in a completed warm transfer to a human. Handoff is [part of every tier](/general/tiers#one-stack-on-every-tier); the rollout is completing — **no call emits this yet**, see the [roadmap](/general/roadmap). |
 | `balance-exhausted` | `completed` | Reserved for a call ended when the wallet emptied mid-call. **Not wired — no call emits this yet.** |
 
 <Note>
 Treat `ended_reason` as an open vocabulary. New values are added without a
 version bump — always have a default branch. The last two rows above are in the
 vocabulary but **no call emits them today**; they arrive with the warm-transfer
-rollout and the `t3`/`t5` tiers — see the [roadmap](/general/roadmap).
+rollout and later releases — see the [roadmap](/general/roadmap).
 </Note>
 
 <Warning>
@@ -157,7 +157,7 @@ POST /v2/calls
 | `variables` | object | no | Flat string map substituted into the agent's prompt. See [variables](#variables). |
 | `webhook_url` | string | no | HTTPS URL for [lifecycle events](/v2/webhooks). |
 | `max_duration_secs` | integer | no | Overrides the agent's cap for this call only. |
-| `tier` | string | no | `t1` \| `t3`. Defaults to your key's tier — `t3` (₹3/min) on a partner key. `t5` answers `501`. See [tiers](/general/tiers). |
+| `tier` | string | no | `t1` \| `t3` \| `t5`. Defaults to your key's tier, which is your company's plan — leave it out. Any other tier is refused with `403 contract_unavailable`. See [tiers](/general/tiers#setting-the-tier). |
 
 <Tabs>
   <Tab title="cURL">
@@ -169,7 +169,6 @@ POST /v2/calls
       -d '{
         "agent_id": "agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ",
         "to": "+919876543210",
-        "tier": "t3",
         "variables": { "customer_name": "Rahul", "order_id": "8842" },
         "webhook_url": "https://example.com/mirai/webhook",
         "max_duration_secs": 240
@@ -189,7 +188,6 @@ POST /v2/calls
         json={
             "agent_id": "agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ",
             "to": "+919876543210",
-            "tier": "t3",
             "variables": {"customer_name": "Rahul", "order_id": "8842"},
             "webhook_url": "https://example.com/mirai/webhook",
             "max_duration_secs": 240,
@@ -217,7 +215,6 @@ POST /v2/calls
       body: JSON.stringify({
         agent_id: "agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ",
         to: "+919876543210",
-        tier: "t3",
         variables: { customer_name: "Rahul", order_id: "8842" },
         webhook_url: "https://example.com/mirai/webhook",
         max_duration_secs: 240,
@@ -244,11 +241,13 @@ The full call object is available from [`GET /v2/calls/{id}`](#get-a-call).
 | `400` | `invalid_request` | Missing `agent_id`/`to`, `to` not E.164, `max_duration_secs` out of range |
 | `401` | `unauthorized` | Bad or missing key |
 | `402` | `insufficient_balance` | Wallet cannot cover the first minute at your tier. **Checked before we dial** — no partial charge. See [Wallet](/v2/wallet#402-insufficient-balance). |
+| `403` | `contract_unavailable` | The call is not covered by an active production contract: `tier` is not your company's plan, or the company has not finished going live. See [setting the tier](/general/tiers#setting-the-tier). |
 | `404` | `not_found` | `agent_id` does not exist in your workspace — including one that exists in someone else's |
 | `409` | `duplicate_call` | A request with this `Idempotency-Key` is still being processed. See [idempotency](#idempotency). |
+| `409` | `flow_agent_web_only` | `agent_id` is a node-based agent. Node-based agents run as browser calls for now; phone calls for flows are coming. Use a single-prompt agent. |
 | `429` | `rate_limited` | Request rate exceeded, **or** your queue is full (500 calls accepted and not yet ended). Concurrency does **not** 429 — over-cap calls queue. `error.message` says which. Honour `Retry-After`. See [Limits](/v2/limits). |
 | `429` | `at_capacity` | Every line on the deployment is busy. `Retry-After: 30`. Nothing was charged. |
-| `501` | `tier_unavailable` | `tier` is `t5`, which is not live yet |
+| `501` | `tier_unavailable` | `tier` names a tier that is not enabled on this deployment |
 
 ### Variables
 
@@ -522,7 +521,7 @@ curl -G https://sandbox.voice.miraiminds.co/v2/calls \
       "started_at": "2026-08-10T09:15:02Z",
       "ended_at": "2026-08-10T09:16:38Z",
       "duration_secs": 96,
-      "cost_inr": 6,
+      "cost_inr": 5,
       "recording_available": true,
       "transcript_available": true,
       "analysis": null

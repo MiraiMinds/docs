@@ -10,25 +10,26 @@ account contact.
 
 | What | Target | Status |
 | :--- | :--- | :--- |
-| [Post-call analytics on `t1`](#post-call-analytics-everywhere) — AI summary + QA score in the v2 API | August 2026 | rolling out |
+| [Post-call analytics on every tier](#post-call-analytics-everywhere) — AI summary + QA score in the v2 API | August 2026 | rolling out |
 | [Warm transfer on every tier](#warm-transfer-everywhere) — `ended_reason: transferred` goes live | August 2026 | rolling out |
-| [`t3` conversational tier](/general/tiers) — premium voice, always-on path | August 2026 | ✅ **live, and now the default tier** |
+| [Price ladder](/general/tiers) — T5 pay as you go, T3 and T1 with a monthly commitment, one Mira stack on every tier | September 2026 | ✅ **live** |
 | [Campaigns](/v2/campaigns) — server-side dialler with windows, retries, budgets and a report | August 2026 | ✅ **live** |
 | [Transcripts + recordings](/v2/calls#get-the-transcript) in the v2 API | August 2026 | rolling out |
 | [New voices](#new-voices) — fresh additions to the catalogue | monthly, from August 2026 | ongoing |
 | [Model APIs](#model-apis) — ASR, TTS and LLM as standalone endpoints | September 2026 | in development |
 | [Six new TTS languages](#new-tts-languages) — Telugu, Tamil, Marathi, Kannada, Gujarati, Bengali | September – October 2026 | in development |
 | [Next-generation TTS](#next-generation-tts) — the voice engine behind every tier, upgraded | October 2026 | in development |
-| Node graphs + `t5` — author calls as versioned graphs | Q4 2026 | schema preview published |
+| Node-based agents on every tier — browser calls today; phone calls for flows next | Q4 2026 | browser calls live; creation in Agent Studio rolling out |
 | [Orchestration platform](#orchestration-platform) — visual node-graph builder for your team | Q4 2026 | design |
 | [Email + channel integrations](#channels) — email follow-ups from call outcomes | Q4 2026 | design |
-| Self-serve signup and wallet top-up | Q4 2026 | design |
+| Self-serve Go live and wallet top-ups — from the console | September 2026 | ✅ **live** |
+| Self-serve signup | Q4 2026 | design |
 
 ## Post-call analytics everywhere
 
 Every call on every tier gets opened: an AI summary and a QA score, on 100% of
-calls, not a sample. The capability is in the
-[feature matrix](/general/tiers#feature-matrix) today; what lands in August is
+calls, not a sample. The capability is part of
+[every tier](/general/tiers#one-stack-on-every-tier) today; what lands in August is
 the **v2 API surface** — an analysis object on the call and a webhook event when
 it is ready. Until then the summaries exist but are not queryable over v2.
 
@@ -65,8 +66,8 @@ start sounding better.
 ## Orchestration platform
 
 Node graphs get a canvas. Build, test and version call flows visually — the
-same graphs `t5` runs from JSON, authored by your ops team instead of your
-engineers. Validation runs as you draw, and every published version is
+same graphs node-based agents run on every tier, authored by your ops team
+instead of your engineers. Validation runs as you draw, and every published version is
 immutable, so a live campaign never runs an unreviewed edit.
 
 ## New voices

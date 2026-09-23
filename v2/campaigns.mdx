@@ -55,7 +55,7 @@ top of the call API, not a separate billing path.
 | `id` | string | `cmp_<ulid>`. Opaque. |
 | `name` | string | Yours. 1–120 characters. |
 | `agent_id` | string | The agent every contact is dialled with. Must exist in your workspace **at create time**. |
-| `tier` | string | The rate card every call in this campaign bills at. Defaults to your key's tier — `t3` on a partner key. See [tiers](/general/tiers). |
+| `tier` | string | The rate card every call in this campaign bills at. Defaults to your key's tier, which is your company's plan. See [tiers](/general/tiers#setting-the-tier). |
 | `status` | enum | `draft` \| `play` \| `paused` \| `stopped` \| `completed`. See [lifecycle](#lifecycle). |
 | `pause_reason` | string \| null | Why *we* paused it. `null` when a human paused it, and `null` whenever it is not paused. See [pause reasons](#pause-reasons). |
 | `timezone` | string | IANA name, e.g. `Asia/Kolkata`. Slots and dates are **local to this**. |
@@ -242,7 +242,7 @@ POST /v2/campaigns
 | :--- | :--- | :--- | :--- |
 | `name` | string | yes | 1–120 characters. |
 | `agent_id` | string | yes | Must exist in your workspace. |
-| `tier` | string | no | `t1` \| `t3`. Defaults to your key's tier. `t5` answers `501`. |
+| `tier` | string | no | `t1` \| `t3` \| `t5`. Defaults to your key's tier, which is your company's plan — leave it out. Calls at any other tier are not covered by your plan. |
 | `timezone` | string | yes | IANA name, e.g. `Asia/Kolkata`. |
 | `start_date` / `end_date` | string | yes | `YYYY-MM-DD`, local, inclusive. |
 | `slots` | array | yes | 1–4 × `{start, end}` as `HH:MM`. |
@@ -261,7 +261,6 @@ curl -X POST https://sandbox.voice.miraiminds.co/v2/campaigns \
   -d '{
     "name": "Order confirmations — Mumbai batch",
     "agent_id": "agt_01K7Q9F3K7M2N5P9R4T6V8W0XZ",
-    "tier": "t3",
     "timezone": "Asia/Kolkata",
     "start_date": "2026-08-11",
     "end_date": "2026-08-18",
@@ -353,7 +352,8 @@ it and we mint one.
 | :--- | :--- | :--- |
 | `400` | `invalid_request` | Missing `name`/`agent_id`/`timezone`/dates/`slots`, a knob out of range, a bad window, or more than 1000 contacts. |
 | `404` | `not_found` | `agent_id` does not exist in your workspace. Checked now, so a typo is not a campaign that fails every contact tomorrow morning. |
-| `501` | `tier_unavailable` | `tier` is `t5`. |
+| `409` | `flow_agent_web_only` | `agent_id` is a node-based agent. Node-based agents run as browser calls for now, so they cannot run campaigns yet. Use a single-prompt agent. |
+| `501` | `tier_unavailable` | `tier` names a tier that is not enabled on this deployment. |
 | `503` | `campaigns_unavailable` | Campaigns are not enabled for your workspace. Not your request — ask your Mirai contact. |
 
 ---

@@ -29,7 +29,7 @@ all offending field paths. Handle that shape when saving agent tools.
 | `400` | The request is malformed or a field is invalid. | No — fix the request. |
 | `401` | Missing, malformed or unknown key. | No. |
 | `402` | Wallet cannot cover the call. | After topping up. |
-| `403` | The key is valid but **revoked**. That is the only thing that returns `403`. | No. |
+| `403` | The key is valid but **revoked**, or the call is not covered by your company's plan. | No. |
 | `404` | No such resource in your workspace — including one that exists in someone else's. | No. |
 | `409` | State conflict — a request with the same `Idempotency-Key` still in flight, or an operation the current state forbids. | No. |
 | `429` | Request-rate limit. Concurrency does not `429`. | Yes, with backoff. |
@@ -43,14 +43,16 @@ all offending field paths. Handle that shape when saving agent tools.
 | :--- | :--- | :--- | :--- |
 | `invalid_request` | `400` | Missing required field, wrong type, `to` not E.164, `max_duration_secs` out of range, unknown `voice_id`, malformed JSON. | Read `message`; it names the field. |
 | `unauthorized` | `401` | No `Authorization` header, not `Bearer `-prefixed, or the key is unknown. | Check the header. A trailing newline from `cat`-ing a key file is the usual culprit. |
-| `forbidden` | `403` | The key was revoked. Nothing else returns `403`. | Get a new key. |
+| `forbidden` | `403` | The key was revoked. | Get a new key. |
+| `contract_unavailable` | `403` | The call is not covered by an active production contract: `tier` is not your company's plan, or the company has not finished going live. Nothing was dialled. | Leave `tier` out — calls default to your plan's tier. See [setting the tier](/general/tiers#setting-the-tier). |
 | `insufficient_balance` | `402` | Pre-dial wallet gate. No call was placed and nothing was charged. The same condition inside a running [campaign](/v2/campaigns) is not an error — the campaign pauses with `pause_reason: "insufficient_balance"`. | [Top up](/v2/wallet#top-up) and retry with the same `Idempotency-Key`. |
 | `not_found` | `404` | Unknown `agt_`/`call_`/`cmp_` ID, a soft-deleted agent, a number not on the [do-not-call list](/v2/dnc), a transcript or recording that does not exist, or an ID that belongs to another workspace. | Check the ID. For artifacts, check `transcript_available` / `recording_available` on the call. |
 | `duplicate_call` | `409` | A request with this `Idempotency-Key` is still being processed; when the original completes, the same key replays its stored response. | Not an error if you are retrying — no second call was placed. |
 | `conflict` | `409` | The operation is illegal in the current state: aborting a call that has already ended, editing or starting a campaign that is `play`, adding contacts to one that is `stopped`/`completed`, or resuming one with no running dialler. | Read the resource's `status` first. A paused campaign with no dialler is resumed with [`POST /start`](/v2/campaigns#start-a-campaign). |
 | `rate_limited` | `429` | Request rate exceeded, **or** your queue is full (500 calls accepted and not yet ended). Being at your *concurrency* ceiling does **not** produce this: those calls queue. `error.message` says which limit you hit. | Honour `Retry-After` and back off. See [Limits](/v2/limits). |
 | `at_capacity` | `429` | No capacity for this request: on calls, every line on the deployment is busy — a fleet-wide ceiling, not your workspace's. On [text to speech](/v2/tts-quickstart#limits) it also means your workspace already has its 10 requests in flight. Nothing was charged either way. | Honour `Retry-After` and retry. |
-| `tier_unavailable` | `501` | `tier` was `t5`. It is announced but not live. | Use `t3` (the default) or `t1`. See [tiers](/general/tiers). |
+| `flow_agent_web_only` | `409` | A phone call or campaign named a node-based agent. Node-based agents run as browser calls for now. | Use a single-prompt agent for phone calls and campaigns. See [tiers](/general/tiers#one-stack-on-every-tier). |
+| `tier_unavailable` | `501` | `tier` names a tier that is not enabled on this deployment. | Leave `tier` out — calls default to your plan's tier. See [tiers](/general/tiers#setting-the-tier). |
 | `campaigns_unavailable` | `503` | Campaigns are not enabled for your workspace. Every `/v2/campaigns` and `/v2/dnc` route answers this; everything else keeps working. | Not a mistake in your request, and retrying will not clear it — ask your Mirai contact to enable them. |
 | `fleet_offline` | `503` | Speech capacity is offline, so a [campaign start](/v2/campaigns#start-a-campaign) was refused. Nothing was charged and the campaign stayed where it was. | Honour `Retry-After` (300s) and start it again. |
 | `internal` | `500` | Our bug. Already alarming on our side. | Retry with backoff; if it persists, send us the `call_id`. |

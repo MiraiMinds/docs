@@ -156,8 +156,7 @@ Bad contact rows do **not** fail the batch: they come back by index in
 `contacts_rejected`. Only exceeding 1000 rows fails the whole request.
 
 Long prompts are a latency problem before they are a limit problem. The
-transactional tier is tuned for prompts in the hundreds of tokens, not
-thousands.
+stack is tuned for prompts in the hundreds of tokens, not thousands.
 
 ## Timeouts
 
