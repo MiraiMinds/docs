@@ -65,14 +65,14 @@ part-block is a whole block, and nothing smaller than 10 seconds is billed.
 
 {/* pricing:blocks:start */}
 
-| Call duration | Billed blocks | T5 cost | T3 cost | T1 cost |
+| Call duration | Billed blocks | T5 cost | T3 cost | T1 cost (end to end) |
 | --- | --- | --- | --- | --- |
-| 8 seconds | 1 (10 s) | ₹0.83 | ₹0.50 | ₹0.17 |
-| 35 seconds | 4 (40 s) | ₹3.33 | ₹2.00 | ₹0.67 |
-| 59 seconds | 6 (60 s) | ₹5.00 | ₹3.00 | ₹1.00 |
-| 61 seconds | 7 (70 s) | ₹5.83 | ₹3.50 | ₹1.17 |
-| 96 seconds | 10 (100 s) | ₹8.33 | ₹5.00 | ₹1.67 |
-| 181 seconds | 19 (190 s) | ₹15.83 | ₹9.50 | ₹3.17 |
+| 8 seconds | 1 (10 s) | ₹0.84 | ₹0.50 | ₹0.25 |
+| 35 seconds | 4 (40 s) | ₹3.34 | ₹2.00 | ₹1.00 |
+| 59 seconds | 6 (60 s) | ₹5.00 | ₹3.00 | ₹1.50 |
+| 61 seconds | 7 (70 s) | ₹5.84 | ₹3.50 | ₹1.75 |
+| 96 seconds | 10 (100 s) | ₹8.34 | ₹5.00 | ₹2.50 |
+| 181 seconds | 19 (190 s) | ₹15.84 | ₹9.50 | ₹4.75 |
 
 Every tier: Single-prompt and node-based agents. T5: Telephony included. T3: Telephony included. T1: Telco: +₹0.30 / minute. Insights: +₹0.20 / minute. All prices exclude GST.
 
@@ -133,9 +133,9 @@ A campaign of 50,000 dials at a 35% answer rate and 80 seconds mean talk time:
 ```text
 50,000 × 0.35 = 17,500 answered
 80 seconds -> 8 billed blocks each
-T5 agent usage: ₹1,16,666.67
+T5 agent usage: ₹1,16,725
 T3 agent usage: ₹70,000
-T1 agent usage: ₹23,333.33
+T1 agent usage: ₹35,000
 ```
 
 These are usage charges. T3 and T1 monthly commitments still apply. T5 has no monthly commitment. Unused wallet credit carries forward.
