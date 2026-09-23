@@ -95,7 +95,7 @@ way to accidentally address the wrong workspace with the right credentials.
 | `callSettings.slots` (calling window) | `slots` + `timezone` on a [campaign](/v2/campaigns#calling-window) (or [your scheduler](/v2/limits#calling-window) for single calls) |
 | `callSettings.concurrentCallCount` | `max_concurrent` on a [campaign](/v2/campaigns); the workspace ceiling is provisioned per key, see [Limits](/v2/limits) |
 | `callSettings.retryProtocol` | `retry_count` + `re_attempt_period_secs` on a [campaign](/v2/campaigns#retries) |
-| `analysisPlan` | — (`t3`/`t5`, [not live](/general/tiers)) |
+| `analysisPlan` | — (post-call analysis is part of every tier; its v2 surface is on the [roadmap](/general/roadmap)) |
 
 ### Placing a call
 
@@ -196,7 +196,7 @@ snake_case and separates `status` from `ended_reason`.
 +      "tier": "t3",
 +      "ended_reason": "assistant-ended-call",
 +      "duration_secs": 96,
-+      "cost_inr": 6
++      "cost_inr": 5
 +    }
 +  }
  }
@@ -214,7 +214,7 @@ Note the differences that will bite:
 - **`credits` becomes `cost`** on the call itself, in rupees rather than credit
   units, and the running balance moves to [`GET /v2/wallet`](/v2/wallet).
 - **No `end-of-call` analysis event yet.** Post-call analytics (AI summary +
-  QA score on every call) is [part of every tier](/general/tiers#feature-matrix)
+  QA score on every call) is [part of every tier](/general/tiers#one-stack-on-every-tier)
   and its v2 API surface is rolling out — see the
   [roadmap](/general/roadmap). Until it lands, v1's `analysisPlan` is the only
   API surface for post-call analysis.

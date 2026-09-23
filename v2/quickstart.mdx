@@ -4,8 +4,8 @@ description: Get a key, create an agent, place a real call and receive the webho
 ---
 
 
-Five minutes, four requests, one real phone call. Calls bill at your key's
-[tier](/general/tiers) — `t3`, ₹3 a minute, unless you ask for `t1`.
+Five minutes, four requests, one real phone call. Calls bill at your plan's
+[tier](/general/tiers); the example call below ran on T3.
 
 <Note>
 Partner? [**Start building**](/v2/start-building) is the longer version of this
@@ -59,7 +59,7 @@ voice, language, limits. Create it once, call it thousands of times.
         "name": "Order Confirmation",
         "system_prompt": "You are Priya from Acme. Confirm order {{order_id}} with {{customer_name}} and ask whether the delivery address is unchanged. Keep replies to one or two short sentences. When the customer is done, thank them and end the call.",
         "first_message": "नमस्ते {{customer_name}}, मैं Acme से Priya बोल रही हूँ।",
-        "voice": { "voice_id": "ashutosh", "language": "hi-IN" },
+        "voice": { "voice_id": "ashu", "language": "hi-IN" },
         "language": "hi-IN",
         "max_duration_secs": 300
       }'
@@ -84,7 +84,7 @@ voice, language, limits. Create it once, call it thousands of times.
                 "the customer is done, thank them and end the call."
             ),
             "first_message": "नमस्ते {{customer_name}}, मैं Acme से Priya बोल रही हूँ।",
-            "voice": {"voice_id": "ashutosh", "language": "hi-IN"},
+            "voice": {"voice_id": "ashu", "language": "hi-IN"},
             "language": "hi-IN",
             "max_duration_secs": 300,
         },
@@ -109,7 +109,7 @@ voice, language, limits. Create it once, call it thousands of times.
           "and ask whether the delivery address is unchanged. Keep replies to one or " +
           "two short sentences. When the customer is done, thank them and end the call.",
         first_message: "नमस्ते {{customer_name}}, मैं Acme से Priya बोल रही हूँ।",
-        voice: { voice_id: "ashutosh", language: "hi-IN" },
+        voice: { voice_id: "ashu", language: "hi-IN" },
         language: "hi-IN",
         max_duration_secs: 300,
       }),
@@ -126,7 +126,7 @@ voice, language, limits. Create it once, call it thousands of times.
   "id": "agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ",
   "object": "agent",
   "name": "Order Confirmation",
-  "voice": { "voice_id": "ashutosh", "language": "hi-IN" },
+  "voice": { "voice_id": "ashu", "language": "hi-IN" },
   "language": "hi-IN",
   "max_duration_secs": 300,
   "created_at": "2026-07-26T09:14:02Z"
@@ -156,7 +156,6 @@ how to end a call cleanly.
       -d '{
         "agent_id": "agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ",
         "to": "+919876543210",
-        "tier": "t3",
         "variables": { "customer_name": "Rahul", "order_id": "8842" },
         "webhook_url": "https://example.com/mirai/webhook"
       }'
@@ -170,7 +169,6 @@ how to end a call cleanly.
         json={
             "agent_id": "agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ",
             "to": "+919876543210",
-            "tier": "t3",
             "variables": {"customer_name": "Rahul", "order_id": "8842"},
             "webhook_url": "https://example.com/mirai/webhook",
         },
@@ -192,7 +190,6 @@ how to end a call cleanly.
       body: JSON.stringify({
         agent_id: "agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ",
         to: "+919876543210",
-        tier: "t3",
         variables: { customer_name: "Rahul", order_id: "8842" },
         webhook_url: "https://example.com/mirai/webhook",
       }),
@@ -309,14 +306,14 @@ The final event for a connected call:
       "started_at": "2026-07-26T09:15:02Z",
       "ended_at": "2026-07-26T09:16:38Z",
       "duration_secs": 96,
-      "cost_inr": 6
+      "cost_inr": 5
     }
   }
 }
 ```
 
-96 seconds is billed as 2 minutes — ₹6.00 at `t3`.
-[Minutes are whole and rounded up](/general/tiers#metering), with a one-minute
+96 seconds is billed as 10 blocks of 10 seconds — ₹5.00 on T3.
+[Blocks are whole and rounded up](/general/tiers#metering), with a one-block
 minimum.
 </Step>
 </Steps>
@@ -330,7 +327,7 @@ minimum.
   windows, retries, budgets and a report.
 - [Webhooks](/v2/webhooks) — every event type, retries, replay protection.
 - [Calls](/v2/calls) — statuses, `ended_reason`, transcripts, recordings, abort.
-- [Billing & tiers](/general/tiers) — what a minute costs and what each tier can do.
+- [Billing & tiers](/general/tiers) — the price ladder and what a minute costs.
 - [Limits](/v2/limits) — rate limits, concurrency, India calling-window rules.
 
 ## Troubleshooting the first call
@@ -338,8 +335,8 @@ minimum.
 | Symptom | Cause | Fix |
 | :--- | :--- | :--- |
 | `401 unauthorized` | Missing `Bearer ` prefix, or a copy-paste with a newline | Re-copy the key; check `Authorization: Bearer sk_live_…` |
-| `402 insufficient_balance` | Wallet cannot cover one minute at your tier (₹3 on `t3`) | Check `GET /v2/wallet`; ask your Mirai contact for a top-up |
-| `400 invalid_request` on `voice_id` | The voice is not in your tier's catalogue | `t1` says `ashu` or `aishe` only; see [Voices](/v2/voices) |
+| `402 insufficient_balance` | Wallet cannot cover one minute at your tier (₹5 on T5) | Check `GET /v2/wallet`; add credit from the console's **Billing** page, or ask your Mirai contact before you go live |
+| `400 invalid_request` on `voice_id` | The voice is not in the catalogue | `ashu`, `neha`, `shruti` or `sameer`, on every tier; see [Voices](/v2/voices) |
 | `400 invalid_request` on `to` | Number not E.164 | Use `+919876543210`, not `9876543210` or `091 98765 43210` |
 | Call ends instantly, `status: no_answer` | Number unreachable or DND-blocked | Try another handset; see [compliance](/v2/limits#india-calling-rules) |
 | No webhook arrives | URL not publicly reachable, or not HTTPS | Test with `curl -X POST` against your own URL first |

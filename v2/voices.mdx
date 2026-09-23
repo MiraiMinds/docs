@@ -1,54 +1,39 @@
 ---
 title: Voices
-description: Choosing a voice_id for your agent — the two t1 voices, the t3 catalogue, and the one caveat about the language field.
+description: Choosing a voice_id for your agent — one catalogue on every tier, and the one caveat about the language field.
 ---
 
-Every agent speaks in one voice, set by `voice.voice_id`. **Which voices exist
-depends on the [tier](/general/tiers)**, because the tiers speak through
-different engines.
+Every agent speaks in one voice, set by `voice.voice_id`. **Every
+[tier](/general/tiers) speaks through the same Mira voices**, so the catalogue
+does not change with your plan.
 
-## `t3` — the default
+## The catalogue
 
-`t3` speaks through a premium third-party catalogue (Sarvam). There is no short
-allowlist to memorise: pass the vendor's voice id, e.g. `ashutosh`.
-
-```json
-{
-  "voice": { "voice_id": "ashutosh", "language": "hi-IN" },
-  "language": "hi-IN"
-}
-```
-
-On `t3` **`voice` is required** when you create an agent. There is no safe
-default to pick from somebody else's catalogue, so an agent without one is a
-`400`.
-
-## `t1` — exactly two voices
-
-`t1` speaks through our own stack, and it loads exactly two voices:
-
-| `voice_id` | Notes |
+| `voice_id` | Voice |
 | :--- | :--- |
-| `ashu` | Hindi / Hinglish. **The default** — omit `voice` entirely on `t1` and you get this. |
-| `aishe` | Hindi / Hinglish, second option. |
+| `ashu` | Male |
+| `neha` | Female |
+| `shruti` | Female |
+| `sameer` | Male |
 
-Anything else is rejected at agent-create time, and the error names both so you
-are not left guessing:
+All four are Hindi voices that code-switch through the English of real Indian
+speech. **`voice` is required** when you create an agent. Anything outside the
+catalogue is rejected at agent-create time, and the error names the allowed set
+so you are not left guessing:
 
 ```json title="400 Bad Request"
 {
   "error": {
     "code": "invalid_request",
-    "message": "voice.voice_id 'priya' is not available. Use 'ashu' or 'aishe'."
+    "message": "unknown voice_id \"priya\" — voice.voice_id must be one of ashu, neha, sameer, shruti"
   }
 }
 ```
 
 <Note>
-The same agent can be run at either tier — `tier` is set per call and per
-[campaign](/v2/campaigns), not on the agent. If you create an agent with a `t3`
-voice and then place a `t1` call with it, the voice will not be one `t1` can
-say. Keep one agent per tier when you use both.
+Because the catalogue is the same on every tier, an agent's voice never depends
+on your plan. Moving to a different plan changes what your calls cost, not how
+they sound.
 </Note>
 
 ## Hearing them first
@@ -70,14 +55,14 @@ prompt wording does.
 {
   "name": "Order confirmations",
   "system_prompt": "…",
-  "voice": { "voice_id": "ashutosh", "language": "hi-IN" },
+  "voice": { "voice_id": "ashu", "language": "hi-IN" },
   "language": "hi-IN"
 }
 ```
 
 | Field | Type | Description |
 | :--- | :--- | :--- |
-| `voice_id` | string | A voice your tier can say. Required on `t3`; optional on `t1`, where it defaults to `ashu`. Unknown on `t1` ⇒ `400`. |
+| `voice_id` | string | **Required.** A voice from [the catalogue](#the-catalogue) — the same on every tier. Unknown ⇒ `400`. |
 | `language` | string | Rendering language. Omit to inherit the agent's top-level `language`. **Accepted and stored, not yet honoured** — see below. |
 
 Change it later with `PATCH /v2/agents/{id}`:
@@ -86,7 +71,7 @@ Change it later with `PATCH /v2/agents/{id}`:
 curl -X PATCH https://sandbox.voice.miraiminds.co/v2/agents/agt_… \
   -H "Authorization: Bearer sk_live_…" \
   -H "Content-Type: application/json" \
-  -d '{ "voice": { "voice_id": "aishe", "language": "hi-IN" } }'
+  -d '{ "voice": { "voice_id": "neha", "language": "hi-IN" } }'
 ```
 
 See the [Agents reference](/v2/agents#voice) for the full agent shape.

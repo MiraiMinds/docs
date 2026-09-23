@@ -44,8 +44,9 @@ Authorization: Bearer sk_live_YOUR_API_KEY
 ```
 
 A secret key is `sk_live_` followed by 32 hex characters. It is scoped to one
-workspace and carries your default [tier](/general/tiers) — `t3`, ₹3 a minute,
-unless you asked for something else. Create, rotate and
+workspace. A key created after your company goes live carries your plan's
+[tier](/general/tiers) — T5, pay as you go, unless you have committed to T3 or
+T1. Create, rotate and
 revoke keys yourself in the [console](https://sandbox.voice.miraiminds.co)
 under **Developers**.
 
@@ -135,7 +136,8 @@ find out here rather than halfway through a build:
 - **Inbound calls.** Outbound only.
 - **Buying phone numbers.** We provide the line.
 - **Knowledge base / RAG**. For function calling, use [v2 tools](/v2/tools).
-- **Self-serve wallet top-up** — see the [roadmap](/general/roadmap).
+- **Wallet top-up over the API.** Add credit from the **Billing** page of the
+  console instead.
 - **OAuth or user-scoped tokens.** Secret keys only.
 
 If one of these is in your way, say so — several are on the

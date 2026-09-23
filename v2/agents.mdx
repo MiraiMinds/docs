@@ -27,7 +27,7 @@ callbacks, and examples.
   "name": "Order Confirmation",
   "system_prompt": "You are Priya from Acme. Confirm order {{order_id}} with {{customer_name}}…",
   "first_message": "नमस्ते {{customer_name}}, मैं Acme से Priya बोल रही हूँ।",
-  "voice": { "voice_id": "ashutosh", "language": "hi-IN" },
+  "voice": { "voice_id": "ashu", "language": "hi-IN" },
   "language": "hi-IN",
   "max_duration_secs": 300,
   "end_call": {
@@ -63,12 +63,12 @@ Server-set and read-only: `id`, `object`, `created_at`, `updated_at`.
 ### Voice
 
 ```json
-{ "voice": { "voice_id": "ashutosh", "language": "hi-IN" } }
+{ "voice": { "voice_id": "ashu", "language": "hi-IN" } }
 ```
 
 | Field | Type | Description |
 | :--- | :--- | :--- |
-| `voice_id` | string | A voice your [tier](/general/tiers) can say. On `t3` (the default) it is a name from the Sarvam catalogue, e.g. `ashutosh`, and it is **required**. On `t1` it is `ashu` (the default) or `aishe`, and nothing else. See [Voices](/v2/voices). |
+| `voice_id` | string | **Required.** A voice from the catalogue — `ashu`, `neha`, `shruti` or `sameer`, the same on every [tier](/general/tiers). Anything else is a `400` that names the allowed set. See [Voices](/v2/voices). |
 | `language` | string | Rendering language for that voice. Omit to inherit the agent's `language`. **Accepted and stored, not yet honoured** — see below. |
 
 <Note>
@@ -123,7 +123,7 @@ hanging up on a customer mid-sentence.
 
 Either way the call ends with `status: voicemail` and fires a
 [`call.voicemail`](/v2/webhooks#callvoicemail) event. Voicemail detection is
-available on every tier — see the [feature matrix](/general/tiers#feature-matrix).
+available on every tier — see [tiers](/general/tiers#one-stack-on-every-tier).
 
 ### Background sound
 
@@ -170,7 +170,7 @@ POST /v2/agents
         "name": "Order Confirmation",
         "system_prompt": "You are Priya from Acme. Confirm order {{order_id}} with {{customer_name}}.",
         "first_message": "नमस्ते {{customer_name}}, मैं Acme से Priya बोल रही हूँ।",
-        "voice": { "voice_id": "ashutosh", "language": "hi-IN" },
+        "voice": { "voice_id": "ashu", "language": "hi-IN" },
         "language": "hi-IN",
         "max_duration_secs": 300,
         "end_call": { "enabled": true, "message": "धन्यवाद, आपका दिन शुभ हो।", "confirm": true },
@@ -192,7 +192,7 @@ POST /v2/agents
             "name": "Order Confirmation",
             "system_prompt": "You are Priya from Acme. Confirm order {{order_id}} with {{customer_name}}.",
             "first_message": "नमस्ते {{customer_name}}, मैं Acme से Priya बोल रही हूँ।",
-            "voice": {"voice_id": "ashutosh", "language": "hi-IN"},
+            "voice": {"voice_id": "ashu", "language": "hi-IN"},
             "language": "hi-IN",
             "max_duration_secs": 300,
             "end_call": {"enabled": True, "message": "धन्यवाद, आपका दिन शुभ हो।", "confirm": True},
@@ -216,7 +216,7 @@ POST /v2/agents
         name: "Order Confirmation",
         system_prompt: "You are Priya from Acme. Confirm order {{order_id}} with {{customer_name}}.",
         first_message: "नमस्ते {{customer_name}}, मैं Acme से Priya बोल रही हूँ।",
-        voice: { voice_id: "ashutosh", language: "hi-IN" },
+        voice: { voice_id: "ashu", language: "hi-IN" },
         language: "hi-IN",
         max_duration_secs: 300,
         end_call: { enabled: true, message: "धन्यवाद, आपका दिन शुभ हो।", confirm: true },
@@ -296,7 +296,7 @@ curl "https://sandbox.voice.miraiminds.co/v2/agents?limit=20" \
       "name": "Order Confirmation",
       "system_prompt": "You are Priya from Acme. Confirm order {{order_id}} with {{customer_name}}…",
       "first_message": "नमस्ते {{customer_name}}, मैं Acme से Priya बोल रही हूँ।",
-      "voice": { "voice_id": "ashutosh", "language": "hi-IN" },
+      "voice": { "voice_id": "ashu", "language": "hi-IN" },
       "language": "hi-IN",
       "max_duration_secs": 300,
       "end_call": {
@@ -416,5 +416,6 @@ long version; the short one:
 Prompts that cause trouble: multi-branch scripts ("if they say X, then go
 through the following seven questions"), instructions that assume the model
 remembers a previous call, and anything that needs a database lookup mid-call —
-that needs the node-graph runtime, which is a `t5` feature — see
-[tiers](/general/tiers).
+that needs a node-based agent. Node-based agents are available on every tier
+and run as browser calls for now — see
+[tiers](/general/tiers#one-stack-on-every-tier).

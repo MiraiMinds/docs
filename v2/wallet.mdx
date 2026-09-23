@@ -6,11 +6,12 @@ description: Check your prepaid balance and read the transaction ledger.
 
 Mirai Voice is **prepaid**. Every workspace has one INR wallet. Calls debit it
 when they end, [text-to-speech](/v2/tts-quickstart) requests debit it when they
-complete, and ops credits it when you top up. If the wallet cannot cover a
+complete, and top-ups credit it. If the wallet cannot cover a
 minute, `POST /v2/calls` returns [`402`](#402-insufficient-balance) and no call
 is placed.
 
-For rates and how minutes are counted, see [Billing & tiers](/general/tiers).
+For rates and how call time is counted — 10-second blocks, rounded up — see
+[Billing & tiers](/general/tiers).
 
 ## Get balance
 
@@ -129,11 +130,11 @@ The ledger. One row per credit or debit, newest first.
       "id": "txn_01JZQ9D6P2R5S8T4V7W9X1Y3ZB",
       "object": "wallet_transaction",
       "type": "debit",
-      "amount_inr": 6,
-      "balance_after_inr": 494,
+      "amount_inr": 5,
+      "balance_after_inr": 495,
       "call_id": "call_01JZQ9B4M8N3P6R2S5T7V9W1YA",
       "kind": "call",
-      "description": "call 96s (2 min, t3)",
+      "description": "call 96s @ t3",
       "created_at": "2026-07-26T09:16:39Z"
     },
     {
@@ -198,11 +199,15 @@ way a call row reconciles against `call_id`.
 
 ## Top up
 
-There is no self-serve top-up yet — it is on the
-[roadmap](/general/roadmap). Until then your Mirai contact credits the
-workspace; the credit appears as a `credit` row within minutes and takes effect
-immediately. Your live balance is always `GET /v2/wallet`, and on the
-**Developers** page of the [console](https://sandbox.voice.miraiminds.co).
+Once your company has gone live, add credit yourself from the **Billing** page
+of the [console](https://sandbox.voice.miraiminds.co), whenever you need it.
+Credit is spent at your plan's rate and never expires. On T3 and T1, each
+monthly commitment is credited to the same wallet. Before you go live, your
+Mirai contact credits the workspace.
+
+A credit appears as a `credit` row and takes effect immediately. Your live
+balance is always `GET /v2/wallet`, and on the **Developers** page of the
+console. There is no top-up endpoint in the API.
 
 ## `402` insufficient balance
 

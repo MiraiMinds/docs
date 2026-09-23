@@ -45,8 +45,9 @@ A `401` here is almost always a trailing newline from `cat`-ing a key file.
 Paste the key; do not pipe it.
 
 That balance is real money and it is what pays for the calls below. Billing is
-**per minute, rounded up, one-minute minimum**, at your key's
-[tier](/general/tiers) — `t3` at ₹3/minute on a partner key.
+**in 10-second blocks, rounded up, one-block minimum**, at your plan's
+[tier](/general/tiers). The examples below ran on T3: ₹3 a minute, ₹0.50 a
+block.
 
 </Step>
 
@@ -82,7 +83,7 @@ curl -X POST https://sandbox.voice.miraiminds.co/v2/agents \
     "name": "Order confirmations",
     "system_prompt": "You are Priya from Acme. Confirm order {{order_id}} with {{customer_name}} and ask whether the delivery address is unchanged. Keep replies to one or two short sentences. When the customer is done, thank them and end the call.",
     "first_message": "नमस्ते {{customer_name}}, मैं Acme से Priya बोल रही हूँ। एक मिनट बात कर सकती हूँ?",
-    "voice": { "voice_id": "ashutosh", "language": "hi-IN" },
+    "voice": { "voice_id": "ashu", "language": "hi-IN" },
     "language": "hi-IN",
     "max_duration_secs": 300
   }'
@@ -93,7 +94,7 @@ curl -X POST https://sandbox.voice.miraiminds.co/v2/agents \
   "id": "agt_01K7Q9F3K7M2N5P9R4T6V8W0XZ",
   "object": "agent",
   "name": "Order confirmations",
-  "voice": { "voice_id": "ashutosh", "language": "hi-IN" },
+  "voice": { "voice_id": "ashu", "language": "hi-IN" },
   "language": "hi-IN",
   "max_duration_secs": 300,
   "created_at": "2026-08-10T09:14:02Z"
@@ -107,9 +108,8 @@ call from `variables`. They are not shell or Postman variables — leave them
 exactly as they are.
 
 <Tip>
-`voice_id` depends on your tier. On `t3` it is a name from the Sarvam catalogue
-(`ashutosh` above); on `t1` it is `ashu` or `aishe` and nothing else. See
-[Voices](/v2/voices).
+`voice_id` is `ashu`, `neha`, `shruti` or `sameer` — the same catalogue on
+every tier. See [Voices](/v2/voices).
 </Tip>
 
 </Step>
@@ -126,7 +126,6 @@ curl -X POST https://sandbox.voice.miraiminds.co/v2/calls \
   -d '{
     "agent_id": "agt_01K7Q9F3K7M2N5P9R4T6V8W0XZ",
     "to": "+919876543210",
-    "tier": "t3",
     "variables": { "customer_name": "Rohit", "order_id": "AC-88213" },
     "webhook_url": "https://example.com/mirai/webhook"
   }'
@@ -152,11 +151,11 @@ curl https://sandbox.voice.miraiminds.co/v2/calls/call_01K7QB4M8N3P6R2S5T7V9W1YA
   "ended_reason": "assistant-ended-call",
   "duration_secs": 96,
   "tier": "t3",
-  "cost_inr": 6
+  "cost_inr": 5
 }
 ```
 
-96 seconds is 2 billed minutes — ₹6 at `t3`. See
+96 seconds rounds up to 10 blocks of 10 seconds — ₹5 on T3. See
 [what a minute costs](/general/tiers#what-a-minute-costs).
 
 <Warning>
@@ -225,7 +224,6 @@ curl -X POST https://sandbox.voice.miraiminds.co/v2/campaigns \
   -d '{
     "name": "First campaign",
     "agent_id": "agt_01K7Q9F3K7M2N5P9R4T6V8W0XZ",
-    "tier": "t3",
     "timezone": "Asia/Kolkata",
     "start_date": "2026-08-11",
     "end_date": "2026-08-13",
@@ -343,7 +341,7 @@ it. Alert on `campaign.paused`.
 `GET /v2/wallet` at a threshold covering a day of traffic. A `402` mid-campaign
 is an expensive way to find out you are empty — and an underfunded campaign
 starts, dials what it can, and then pauses itself on `insufficient_balance`.
-Top-ups are not self-serve yet: ask your Mirai contact.
+Once your company is live, top up from the **Billing** page of the console.
 </Accordion>
 
 <Accordion title="Know the three limits that will actually bite you">
@@ -366,7 +364,8 @@ change, not a code change — ask before the campaign, not during it.
 | `duplicate_call` | `409` | Not an error — the same `Idempotency-Key` is still in flight. No second call. |
 | `at_capacity` | `429` | Every line is busy. Retry in 30 seconds. |
 | `fleet_offline` | `503` | Speech capacity is down. Retry in a few minutes; nothing was charged. |
-| `tier_unavailable` | `501` | You asked for `t5`. Use `t3` or `t1`. |
+| `contract_unavailable` | `403` | The call's `tier` is not your plan's, or the company has not finished going live. Leave `tier` out. |
+| `flow_agent_web_only` | `409` | Node-based agents run as browser calls for now. Use a single-prompt agent for phone calls and campaigns. |
 | `campaigns_unavailable` | `503` | Campaigns are not enabled on your workspace. Ask us — retrying will not clear it. |
 
 Branch on status first, then on `error.code`. Full table and a retry wrapper in
@@ -397,7 +396,7 @@ costs one clause and it reduces early hang-ups.
     Every event, the signature scheme, retries. [Guide](/v2/webhooks).
   </Card>
   <Card title="Billing & tiers" icon="indian-rupee-sign">
-    What a minute costs and what each tier can do. [Reference](/general/tiers).
+    The price ladder and what a minute costs. [Reference](/general/tiers).
   </Card>
 </CardGroup>
 

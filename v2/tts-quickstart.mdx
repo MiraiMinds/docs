@@ -147,15 +147,31 @@ The eleventh concurrent request is **refused, not queued**: honour
 money. `at_capacity` can also come from a deployment-wide ceiling when the
 speech node is saturated — same code, same handling.
 
-Need more than 10 in flight? Ask your Mirai contact; it is a provisioning
-change, not a code change.
+A workspace is provisioned at 10 in flight unless its plan says otherwise —
+see the plans under [Billing](#billing). Need more? Ask your Mirai contact; it
+is a provisioning change, not a code change.
 
 ## Billing
 
-**₹1.80 per 1,000 characters**, rounded up to the paisa, and charged **only for
-completed audio**. If the engine fails, the stream stalls, or your client
-disconnects part-way, nothing is charged and no ledger row is written — the
-request still appears in your log, with the status that says why.
+{/* pricing:tts:start */}
+
+**₹1.80 per 1,000 characters.** Top-ups use the same rate.
+
+| Plan | Monthly commitment | Concurrent requests | Top-ups |
+| --- | --- | --- | --- |
+| Pay as you go | None | 5 | Top up anytime at the same rate: ₹1.80 / 1,000 characters |
+| Business | ₹50,000 | 25 | Top up anytime at the same rate: ₹1.80 / 1,000 characters |
+
+Shared endpoint. No contractual SLA. Monthly commitments are credited to your wallet. Unused credit never expires. All prices exclude GST.
+
+**Enterprise:** Custom volume pricing, concurrency, dedicated endpoint and SLA. Top up anytime at the same rate.
+
+{/* pricing:tts:end */}
+
+Each request is rounded up to the paisa and charged **only for completed
+audio**. If the engine fails, the stream stalls, or your client disconnects
+part-way, nothing is charged and no ledger row is written — the request still
+appears in your log, with the status that says why.
 
 The charge is one debit row on the same [wallet](/v2/wallet) your calls draw
 from, and it appears on the console billing statement under **Text to speech**:
