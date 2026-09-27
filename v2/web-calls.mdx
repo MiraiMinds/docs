@@ -1,0 +1,981 @@
+---
+title: Browser calls
+description: Run a voice conversation in your user's browser — create it on your server, stream audio and live text in the page, steer or close it, and receive the final transcript.
+---
+
+
+A **browser call** runs an [agent](/v2/agents) with your user's microphone and
+speakers instead of a phone line. It is the same call as a phone call — same
+agent, same [tier](/general/tiers), same billing from the moment audio goes live,
+same [webhooks](/v2/webhooks) — created with `channel: "web"` and no `to`.
+
+Your backend keeps the API key. It creates the call and hands the page two
+short-lived links: one for audio, one for live events. The page never sees a
+secret key.
+
+Base URL `https://sandbox.voice.miraiminds.co`. API requests use
+`Authorization: Bearer sk_live_…`.
+
+## How it fits together
+
+1. Your page asks your backend to start a session.
+2. Your backend calls [`POST /v2/calls`](#create-the-call) with
+   `channel: "web"`, stores the returned call `id` beside its own session, and
+   returns `ws_url` and `events_url` to the page.
+3. The page opens the [audio socket](#audio-socket) at `ws_url` and the
+   [event stream](#live-events) at `events_url`. The call moves from `queued` to
+   `in_progress`, and `call.started` is sent to your webhook.
+4. While the call runs, the page shows each turn and the agent's state. Your
+   backend can [send an instruction or close the call](#live-control).
+5. The call ends. The page receives `call.ended` on the event stream. Your
+   webhook receives one terminal event, then — if you opted in —
+   `call.processed` with the [final transcript](#ending-and-results).
+
+```mermaid
+sequenceDiagram
+    participant Page as Your page
+    participant Backend as Your backend
+    participant API as Mirai Voice
+
+    Page->>Backend: start a session
+    Backend->>API: POST /v2/calls (channel web)
+    API-->>Backend: 202 {id, ws_url, events_url}
+    Backend-->>Page: ws_url, events_url
+    Page->>API: open ws_url (audio)
+    Page->>API: open events_url (live events)
+    API-->>Backend: call.started
+    Note over Page,API: conversation, live text, agent state
+    Backend->>API: POST /v2/calls/{id}/control (optional)
+    API-->>Page: call.ended
+    API-->>Backend: call.completed (or call.failed / call.aborted)
+    API-->>Backend: call.processed (final results)
+```
+
+A browser call never rings anything, so it skips `dialing`: it stays `queued`
+until the page connects its audio, then goes straight to `in_progress`.
+
+---
+
+## Create the call
+
+```http
+POST /v2/calls
+```
+
+Create the call from your backend, with the same request as a
+[phone call](/v2/calls#create-a-call), plus `channel: "web"` and without `to`.
+Sending `to` with `channel: "web"` returns `400 invalid_request`: no number is
+ever dialled.
+
+The fields below matter most for browser calls. The full list, with limits,
+is in [Calls](/v2/calls#request).
+
+| Field | Description |
+| :--- | :--- |
+| `channel` | `"web"`. |
+| `metadata` | Your own identifiers, such as `session_id` and `user_id`. Returned unchanged on the call object and in every webhook for this call. Never shown to the agent. See [metadata](/v2/calls#metadata). |
+| `first_message` | The opening line for this call only, up to 500 characters. Replaces the agent's stored `first_message`; `{{variable}}` placeholders work the same way. |
+| `max_duration_secs` | Hard cap for this call. `600` is a 10-minute call. |
+| `timing` | Wrap up, close and silence timers. See [timing policy](#timing-policy). |
+| `recording_enabled` | `false` stores no audio for this call. The transcript and live text still work. |
+| `final_results` | `true` sends one `call.processed` webhook with the finished transcript. See [ending and results](#ending-and-results). |
+| `webhook_url` | Where this call's events go. Applies to this call only. |
+
+Send an `Idempotency-Key` derived from your own session, so a retried request
+never creates a second call.
+
+<Tabs>
+  <Tab title="cURL">
+    ```bash
+    curl -X POST https://sandbox.voice.miraiminds.co/v2/calls \
+      -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+      -H "Content-Type: application/json" \
+      -H "Idempotency-Key: voice-session-sess_8f2c41" \
+      -d '{
+        "agent_id": "agt_01K7Q9F3K7M2N5P9R4T6V8W0XZ",
+        "channel": "web",
+        "variables": { "first_name": "Asha" },
+        "metadata": { "session_id": "sess_8f2c41", "user_id": "usr_1042" },
+        "first_message": "Hi {{first_name}}, thanks for joining. Shall we start?",
+        "max_duration_secs": 600,
+        "timing": {
+          "wrap_up_secs_before_end": 120,
+          "wrap_up_instruction": "Time is nearly up. Ask no new questions; summarise and wrap up.",
+          "close_secs_before_end": 30,
+          "close_message": "That is all we have time for. Thank you, and goodbye!",
+          "user_silence_close_secs": 60,
+          "user_silence_message": "It seems you have stepped away, so I will end here. Goodbye!"
+        },
+        "recording_enabled": false,
+        "final_results": true,
+        "webhook_url": "https://example.com/mirai/webhook"
+      }'
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    import os, httpx
+
+    API = "https://sandbox.voice.miraiminds.co"
+    auth = {"Authorization": f"Bearer {os.environ['MIRAI_API_KEY']}"}
+
+    r = httpx.post(
+        f"{API}/v2/calls",
+        headers={**auth, "Idempotency-Key": "voice-session-sess_8f2c41"},
+        json={
+            "agent_id": "agt_01K7Q9F3K7M2N5P9R4T6V8W0XZ",
+            "channel": "web",
+            "variables": {"first_name": "Asha"},
+            "metadata": {"session_id": "sess_8f2c41", "user_id": "usr_1042"},
+            "first_message": "Hi {{first_name}}, thanks for joining. Shall we start?",
+            "max_duration_secs": 600,
+            "timing": {
+                "wrap_up_secs_before_end": 120,
+                "wrap_up_instruction": "Time is nearly up. Ask no new questions; summarise and wrap up.",
+                "close_secs_before_end": 30,
+                "close_message": "That is all we have time for. Thank you, and goodbye!",
+                "user_silence_close_secs": 60,
+                "user_silence_message": "It seems you have stepped away, so I will end here. Goodbye!",
+            },
+            "recording_enabled": False,
+            "final_results": True,
+            "webhook_url": "https://example.com/mirai/webhook",
+        },
+        timeout=30,
+    )
+    call = r.raise_for_status().json()
+    # Hand only these two links to the page.
+    links = {"ws_url": call["ws_url"], "events_url": call["events_url"]}
+    ```
+  </Tab>
+  <Tab title="Node.js">
+    ```javascript
+    const API = "https://sandbox.voice.miraiminds.co";
+    const auth = { Authorization: `Bearer ${process.env.MIRAI_API_KEY}` };
+
+    const res = await fetch(`${API}/v2/calls`, {
+      method: "POST",
+      headers: {
+        ...auth,
+        "Content-Type": "application/json",
+        "Idempotency-Key": "voice-session-sess_8f2c41",
+      },
+      body: JSON.stringify({
+        agent_id: "agt_01K7Q9F3K7M2N5P9R4T6V8W0XZ",
+        channel: "web",
+        variables: { first_name: "Asha" },
+        metadata: { session_id: "sess_8f2c41", user_id: "usr_1042" },
+        first_message: "Hi {{first_name}}, thanks for joining. Shall we start?",
+        max_duration_secs: 600,
+        timing: {
+          wrap_up_secs_before_end: 120,
+          wrap_up_instruction: "Time is nearly up. Ask no new questions; summarise and wrap up.",
+          close_secs_before_end: 30,
+          close_message: "That is all we have time for. Thank you, and goodbye!",
+          user_silence_close_secs: 60,
+          user_silence_message: "It seems you have stepped away, so I will end here. Goodbye!",
+        },
+        recording_enabled: false,
+        final_results: true,
+        webhook_url: "https://example.com/mirai/webhook",
+      }),
+    });
+    const call = await res.json();
+    if (!res.ok) throw new Error(`${call.error.code}: ${call.error.message}`);
+    // Hand only these two links to the page.
+    const links = { ws_url: call.ws_url, events_url: call.events_url };
+    ```
+  </Tab>
+</Tabs>
+
+```json title="202 Accepted"
+{
+  "id": "call_01K8B2M4Q6S8T0V2X4Z6A8C0EG",
+  "status": "queued",
+  "transport": "web",
+  "ws_url": "wss://sandbox.voice.miraiminds.co/v2/calls/call_01K8B2M4Q6S8T0V2X4Z6A8C0EG/media?token=Qm9vdHN0cmFwLW1lZGlhLXRva2Vu",
+  "ws_url_expires_at": "2026-09-27T10:05:00Z",
+  "events_url": "https://sandbox.voice.miraiminds.co/v2/calls/call_01K8B2M4Q6S8T0V2X4Z6A8C0EG/events?token=ZXZlbnRzLXRva2VuLWV4YW1wbGU"
+}
+```
+
+| Field | Description |
+| :--- | :--- |
+| `id` | The call ID. Store it beside your session. It is the `data.call.id` of every webhook for this call. |
+| `status` | `queued` until the page connects its audio. |
+| `transport` | `web`. |
+| `ws_url` | The [audio socket](#audio-socket). **Single use.** Connect within 5 minutes. |
+| `ws_url_expires_at` | When an unused `ws_url` stops working. RFC 3339, UTC. |
+| `events_url` | The [live event stream](#live-events). Reusable for the whole call and for one hour after it ends. |
+
+Both URLs are absolute and ready to use. Pass them to the page as they are —
+do not build them yourself.
+
+<Warning>
+**The two links are credentials for this one call.** Anyone holding `ws_url`
+can speak to your agent; anyone holding `events_url` can read the conversation.
+Send them only to the page running this call, over HTTPS, and keep them out of
+logs and analytics. Never send your `sk_live_` key to a browser.
+</Warning>
+
+What happens around the links:
+
+- **The page never connects.** If no audio connects before `ws_url` expires,
+  the call ends as `failed` with `ended_reason: "no-media"` and is not billed.
+- **You retry the create request.** With the same `Idempotency-Key`, you get the
+  same call. The replay includes `ws_url` only while that link is still unused.
+- **The audio drops mid-call.** `ws_url` cannot be used twice, so a dropped audio
+  socket cannot be reconnected. Create a new call to continue.
+
+---
+
+## Audio socket
+
+Open `ws_url` as a WebSocket from the page. Audio travels as binary messages in
+both directions; the server also sends one kind of text message.
+
+| Direction | Message | Content |
+| :--- | :--- | :--- |
+| Browser → Mirai | Binary | Microphone audio: raw PCM, 16-bit signed little-endian, mono, **48,000 Hz**. No header, no container. |
+| Mirai → browser | Binary | The agent's audio, in the same format: PCM16, mono, 48,000 Hz. Play it in the order it arrives. |
+| Mirai → browser | Text `{"event":"clear"}` | The user interrupted the agent. Discard all agent audio you have queued but not yet played. |
+
+- **Send small frames, continuously.** 20 ms per message (960 samples, 1,920
+  bytes) works well.
+- **To mute, send silence.** Keep sending frames filled with zeros instead of
+  stopping. The agent then hears a quiet line, not a dropped one.
+- **Keep echo cancellation on** (`echoCancellation: true`), so a user on
+  speakers does not feed the agent its own voice.
+- **Ignore anything else.** Text messages you send are ignored. Skip any text
+  message from the server that you do not recognise.
+- **Closing the socket ends the conversation.** Do it when the user leaves the
+  page.
+
+Browsers allow microphone access only on secure pages: serve the page over
+HTTPS (`localhost` is fine while you build). The socket accepts any origin that
+presents a valid token, so the page can live on your own domain.
+
+<Note>
+The browser does not tell your code why a WebSocket or EventSource was refused.
+If the audio socket closes before it opens, the link has expired or was already
+used. Create a new call.
+</Note>
+
+---
+
+## Live events
+
+Open `events_url` with `EventSource`. It is a
+[Server-Sent Events](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events)
+stream: the page receives the agent's state and each completed turn as the
+conversation happens.
+
+```javascript
+const events = new EventSource(events_url);
+events.addEventListener("transcript.turn", (e) => {
+  const { role, text } = JSON.parse(e.data).data;
+});
+```
+
+### Framing
+
+Each event is one SSE message with three lines:
+
+```text
+id: 1790503302114-0
+event: transcript.turn
+data: {"v":1,"seq":7,"type":"transcript.turn","call_id":"call_01K8B2M4Q6S8T0V2X4Z6A8C0EG","at":"2026-09-27T10:01:42.114Z","data":{"role":"user","text":"I have about three years of experience with that.","turn":4,"interrupted":false}}
+```
+
+- `id` is the position in the stream. Treat it as opaque: it is what a
+  reconnect resumes from.
+- `event` is the event type. Because every event is named, listen with
+  `addEventListener(type, …)`. `onmessage` receives nothing.
+- `data` is a JSON envelope:
+
+| Field | Description |
+| :--- | :--- |
+| `v` | Schema version. `1`. |
+| `seq` | Sequence number of the event within this call, increasing. |
+| `type` | `agent.state`, `transcript.turn` or `call.ended`. The same value as the SSE `event` line. |
+| `call_id` | The call this event belongs to. |
+| `at` | When it happened. RFC 3339, UTC. |
+| `data` | The type-specific payload below. |
+
+Treat the envelope as additive: new fields and new event types can appear.
+Ignore what you do not recognise.
+
+### `agent.state`
+
+```json
+{
+  "v": 1, "seq": 5, "type": "agent.state",
+  "call_id": "call_01K8B2M4Q6S8T0V2X4Z6A8C0EG",
+  "at": "2026-09-27T10:01:43.020Z",
+  "data": { "state": "speaking" }
+}
+```
+
+| `state` | Meaning |
+| :--- | :--- |
+| `listening` | Waiting for the user. The agent returns here when its audio stops. |
+| `processing` | The user finished a turn; the agent is preparing its reply. |
+| `speaking` | The agent's audio is playing. This follows the actual audio, not the text being written, so it is safe to drive a "speaking" indicator or to mute the microphone. |
+| `ended` | The conversation is over. `call.ended` follows. |
+
+The page's own playback buffer can add a short delay between `speaking` and
+the moment sound comes out of the speaker.
+
+### `transcript.turn`
+
+One event per completed turn, for both speakers.
+
+```json
+{
+  "v": 1, "seq": 9, "type": "transcript.turn",
+  "call_id": "call_01K8B2M4Q6S8T0V2X4Z6A8C0EG",
+  "at": "2026-09-27T10:01:51.380Z",
+  "data": {
+    "role": "assistant",
+    "text": "Thanks. Could you tell me about a project where",
+    "turn": 5,
+    "interrupted": true
+  }
+}
+```
+
+| Field | Description |
+| :--- | :--- |
+| `role` | `user` or `assistant`. |
+| `text` | What was said in that turn. |
+| `turn` | The turn's number within the call. |
+| `interrupted` | `true` when the user cut the agent off. `text` is then what the user actually heard, not the full reply the agent had planned. |
+
+Text arrives once per **completed** turn: the user's after they finish
+speaking, the agent's after its turn ends. There are no word-by-word captions
+yet.
+
+### `call.ended`
+
+Always the last event. The stream closes after it.
+
+```json
+{
+  "v": 1, "seq": 31, "type": "call.ended",
+  "call_id": "call_01K8B2M4Q6S8T0V2X4Z6A8C0EG",
+  "at": "2026-09-27T10:09:30.412Z",
+  "data": { "reason": "time-limit-close", "status": "completed" }
+}
+```
+
+| Field | Description |
+| :--- | :--- |
+| `reason` | Why the conversation ended, from the [ended reason](/v2/calls#ended-reasons) vocabulary. |
+| `status` | The call's final [status](/v2/calls#statuses), when it is already known. It can be missing. |
+
+`call.ended` is sent even when the conversation ends abnormally. Use it to end
+the session in the page. The [webhook](#ending-and-results) is the record your
+backend acts on.
+
+### Reconnecting
+
+- **Automatic resume.** `EventSource` reconnects on its own and sends the
+  `Last-Event-ID` header. The stream continues after that event, so no turn is
+  missed or repeated.
+- **Manual resume.** Add `after=<id>` to `events_url` to start after a given
+  event, for example after a page reload.
+- **One-hour buffer.** Events are kept for one hour after the call ends.
+  Opening the stream for a finished call replays what happened, then closes.
+- **Close it yourself.** Call `events.close()` when you receive `call.ended`.
+  Otherwise `EventSource` keeps reconnecting to a stream that has nothing left
+  to send.
+- **Keep-alives.** The server sends an SSE comment every 15 seconds.
+  `EventSource` ignores these; they keep proxies from closing an idle stream.
+
+The stream allows every origin (`Access-Control-Allow-Origin: *`) and uses no
+cookies: the token in `events_url` is the credential. Your backend can read the
+same stream with `Authorization: Bearer sk_live_…` instead of the token:
+
+```bash
+curl -N https://sandbox.voice.miraiminds.co/v2/calls/call_01K8B2M4Q6S8T0V2X4Z6A8C0EG/events \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY"
+```
+
+---
+
+## Live control
+
+```http
+POST /v2/calls/{id}/control
+```
+
+Steer or close a browser call while it is in progress. Send it from your
+backend with your API key. If the user starts the action in the page, the page
+asks your backend.
+
+| Field | Required | Description |
+| :--- | :--- | :--- |
+| `type` | yes | `instruction` or `close`. |
+| `text` | `instruction` only | 1–1,000 characters. The direction to give the agent. |
+| `message` | no | `close` only, up to 500 characters. The goodbye line to speak. |
+
+- **`instruction`** adds your text to the agent's context. The agent follows it
+  from its next reply for the rest of the call. The text is not read aloud.
+- **`close`** speaks `message`, then ends the call. Without `message`, the agent
+  speaks its [`end_call.message`](/v2/agents#ending-a-call), or else a short
+  goodbye of its own. The call ends even if the agent would not have chosen
+  to end it. It ends `completed` with `ended_reason: "api-ended-call"`.
+
+<Tabs>
+  <Tab title="cURL">
+    ```bash
+    # Steer
+    curl -X POST https://sandbox.voice.miraiminds.co/v2/calls/call_01K8B2M4Q6S8T0V2X4Z6A8C0EG/control \
+      -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+      -H "Content-Type: application/json" \
+      -H "Idempotency-Key: sess_8f2c41-wrap-up" \
+      -d '{ "type": "instruction", "text": "Stop asking new questions and start wrapping up." }'
+
+    # Close with a goodbye
+    curl -X POST https://sandbox.voice.miraiminds.co/v2/calls/call_01K8B2M4Q6S8T0V2X4Z6A8C0EG/control \
+      -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+      -H "Content-Type: application/json" \
+      -H "Idempotency-Key: sess_8f2c41-close" \
+      -d '{ "type": "close", "message": "Thank you for your time today. Goodbye!" }'
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    def control(call_id: str, body: dict, key: str) -> dict:
+        r = httpx.post(
+            f"{API}/v2/calls/{call_id}/control",
+            headers={**auth, "Idempotency-Key": key},
+            json=body,
+            timeout=30,
+        )
+        return r.raise_for_status().json()
+
+    control(call_id, {"type": "instruction",
+                      "text": "Stop asking new questions and start wrapping up."},
+            key="sess_8f2c41-wrap-up")
+    control(call_id, {"type": "close",
+                      "message": "Thank you for your time today. Goodbye!"},
+            key="sess_8f2c41-close")
+    ```
+  </Tab>
+  <Tab title="Node.js">
+    ```javascript
+    async function control(callId, body, key) {
+      const res = await fetch(`${API}/v2/calls/${callId}/control`, {
+        method: "POST",
+        headers: { ...auth, "Content-Type": "application/json", "Idempotency-Key": key },
+        body: JSON.stringify(body),
+      });
+      const out = await res.json();
+      if (!res.ok) throw new Error(`${out.error.code}: ${out.error.message}`);
+      return out; // out.status: applied | pending | rejected | failed
+    }
+
+    await control(callId, {
+      type: "instruction",
+      text: "Stop asking new questions and start wrapping up.",
+    }, "sess_8f2c41-wrap-up");
+    ```
+  </Tab>
+</Tabs>
+
+```json title="200 OK"
+{
+  "id": "ctl_01K8B3F7H9K1M3P5R7T9V1X3Z5",
+  "object": "call_control",
+  "call_id": "call_01K8B2M4Q6S8T0V2X4Z6A8C0EG",
+  "type": "instruction",
+  "status": "applied",
+  "created_at": "2026-09-27T10:08:00.120Z",
+  "applied_at": "2026-09-27T10:08:00.410Z"
+}
+```
+
+The response is `200` when the live call answered within 3 seconds, with
+`applied` or `rejected`. Otherwise it is `202` with `status: "pending"`. Check
+a pending control with `GET`:
+
+```http
+GET /v2/calls/{id}/control/{control_id}
+```
+
+```bash
+curl https://sandbox.voice.miraiminds.co/v2/calls/call_01K8B2M4Q6S8T0V2X4Z6A8C0EG/control/ctl_01K8B3F7H9K1M3P5R7T9V1X3Z5 \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY"
+```
+
+| `status` | Meaning |
+| :--- | :--- |
+| `pending` | Sent, not yet confirmed by the live call. Check again. |
+| `applied` | The live call accepted it. `applied_at` is set. |
+| `rejected` | The live call refused it. `reason` says why: `call_ending` (the call is already ending) or `already_closed` (a `close` was already applied). |
+| `failed` | It could not be applied. |
+
+**Idempotency.** Send an `Idempotency-Key`. A repeat with the same key returns
+the same control record and is never delivered twice, so a retry cannot make
+the agent say goodbye twice.
+
+| Status | `error.code` | Cause |
+| :--- | :--- | :--- |
+| `400` | `invalid_request` | Unknown `type`, `text` missing or longer than 1,000 characters, `message` longer than 500 |
+| `400` | `unsupported_channel` | The call is not a browser call. Live control is for `channel: "web"` only. |
+| `404` | `not_found` | Unknown call ID, or a call in another workspace |
+| `409` | `call_not_active` | The call is not in progress: still `queued` (the page has not connected yet), or already ended |
+
+### Close or abort
+
+Both end a live browser call. They are different tools.
+
+| | `close` control | [`POST /v2/calls/{id}/abort`](/v2/calls#abort-a-call) |
+| :--- | :--- | :--- |
+| What the user hears | A goodbye line, then the call ends | Nothing more. Audio stops at once. |
+| Browser audio | Closed after the goodbye has played | Closed immediately |
+| Final status | `completed`, `ended_reason: "api-ended-call"` | `aborted`, `ended_reason: "aborted-by-api"` |
+| Terminal webhook | `call.completed` | `call.aborted` |
+| Billing | Billed like any completed call | Not billed |
+
+Use `close` for a graceful ending the user hears. Use `abort` when the
+conversation must stop now. If a `close`, an `abort`, the user leaving, and a
+timer all happen at once, the call still ends exactly once: one terminal status,
+one terminal webhook, and at most one goodbye.
+
+---
+
+## Timing policy
+
+`timing` on [`POST /v2/calls`](#create-the-call) lets the call end gracefully
+instead of being cut off at its hard cap. It works on browser and phone calls.
+Every field is optional.
+
+| Field | Range | What happens |
+| :--- | :--- | :--- |
+| `wrap_up_secs_before_end` | 10 to `max_duration_secs` − 10 | At this many seconds before the cap, `wrap_up_instruction` is given to the agent, like an [`instruction`](#live-control) control. |
+| `wrap_up_instruction` | up to 1,000 characters | The direction the agent follows from then on. |
+| `close_secs_before_end` | 5 to `max_duration_secs` − 10 | At this many seconds before the cap, the agent speaks `close_message` and the call ends, `completed` with `ended_reason: "time-limit-close"`. Must be smaller than `wrap_up_secs_before_end` when both are set. |
+| `close_message` | up to 500 characters | The goodbye line for the timed close. |
+| `user_silence_close_secs` | 15–600 | After this many seconds without the user speaking, the agent speaks `user_silence_message` and the call ends, `completed` with `ended_reason: "user-silence-close"`. |
+| `user_silence_message` | up to 500 characters | The goodbye line for the silence close. |
+
+`max_duration_secs` here is the call's effective cap: the value on the request,
+or else the agent's. Set each timer together with its message.
+
+How the clock works:
+
+- **It starts when audio goes live**: when the page connects, or when the phone
+  is answered. Time spent `queued` does not count.
+- **The hard cap still applies.** If a timed close cannot finish, the call still
+  ends at `max_duration_secs` (`status: timeout`,
+  `ended_reason: "exceeded-max-duration"`).
+- **Only the user resets the silence timer.** The agent's own speech does not
+  count as a user response.
+- **Placeholders work.** `{{variable}}` placeholders in the messages and the
+  instruction are filled from the call's `variables`.
+
+For `max_duration_secs: 600` with the example above:
+
+| Time after audio starts | Event |
+| :--- | :--- |
+| 0:00 | Conversation starts. |
+| 8:00 | The agent receives `wrap_up_instruction` and starts wrapping up. |
+| 9:30 | The agent speaks `close_message`; the call ends (`time-limit-close`). |
+| 10:00 | Hard cap. Reached only if the timed close did not finish. |
+| Any time | 60 seconds without the user speaking: `user_silence_message`, then the call ends (`user-silence-close`). |
+
+Invalid timing returns `400 invalid_request`.
+
+---
+
+## Browser example
+
+A complete page: microphone capture with an AudioWorklet, PCM16 over the audio
+socket, playback with interruption, and a live transcript for both speakers. It
+assumes the backend routes in the [next section](#backend-example).
+
+```html title="index.html"
+<!doctype html>
+<meta charset="utf-8" />
+<button id="start">Start</button>
+<button id="end" disabled>End</button>
+<p id="state"></p>
+<ol id="transcript"></ol>
+
+<script type="module">
+  const RATE = 48000; // PCM16 mono, both directions
+  const FRAME = 960;  // 20 ms per message we send
+
+  // Two small AudioWorklets: "mic" turns microphone samples into PCM16 frames;
+  // "speaker" plays the agent's PCM16 in order and can be flushed.
+  const WORKLETS = `
+    class Mic extends AudioWorkletProcessor {
+      constructor() { super(); this.buf = new Int16Array(${FRAME}); this.n = 0; }
+      process([input]) {
+        const ch = input[0];
+        if (!ch) return true;
+        for (let i = 0; i < ch.length; i++) {
+          const s = Math.max(-1, Math.min(1, ch[i]));
+          this.buf[this.n++] = s < 0 ? s * 0x8000 : s * 0x7fff;
+          if (this.n === ${FRAME}) {
+            this.port.postMessage(this.buf.slice().buffer);
+            this.n = 0;
+          }
+        }
+        return true;
+      }
+    }
+    class Speaker extends AudioWorkletProcessor {
+      constructor() {
+        super();
+        this.queue = [];
+        this.port.onmessage = ({ data }) => {
+          if (data === "clear") { this.queue = []; return; }
+          const pcm = new Int16Array(data, 0, data.byteLength >> 1);
+          if (pcm.length) this.queue.push({ pcm, pos: 0 });
+        };
+      }
+      process(_inputs, [output]) {
+        const out = output[0];
+        for (let i = 0; i < out.length; i++) {
+          const head = this.queue[0];
+          if (!head) { out[i] = 0; continue; }
+          out[i] = head.pcm[head.pos++] / 0x8000;
+          if (head.pos === head.pcm.length) this.queue.shift();
+        }
+        return true;
+      }
+    }
+    registerProcessor("mic", Mic);
+    registerProcessor("speaker", Speaker);
+  `;
+
+  const $ = (id) => document.getElementById(id);
+  let ctx, mic, ws, events, session;
+  let muted = false;
+  let ended = false;
+
+  $("start").onclick = async () => {
+    $("start").disabled = true;
+
+    // 1. Audio first: create the context inside the click, and ask for the
+    //    microphone before creating the call, so a denied prompt costs nothing.
+    ctx = new AudioContext({ sampleRate: RATE });
+    const url = URL.createObjectURL(new Blob([WORKLETS], { type: "text/javascript" }));
+    await ctx.audioWorklet.addModule(url);
+    mic = await navigator.mediaDevices.getUserMedia({
+      audio: { channelCount: 1, echoCancellation: true },
+    });
+    const capture = new AudioWorkletNode(ctx, "mic", { numberOfOutputs: 0 });
+    const speaker = new AudioWorkletNode(ctx, "speaker", {
+      numberOfInputs: 0,
+      outputChannelCount: [1],
+    });
+    ctx.createMediaStreamSource(mic).connect(capture);
+    speaker.connect(ctx.destination);
+
+    // 2. Your backend creates the call and returns the two links.
+    session = await fetch("/api/voice-sessions", { method: "POST" }).then((r) => r.json());
+
+    // 3. Audio socket: binary PCM16 both ways, {"event":"clear"} on interruption.
+    ws = new WebSocket(session.ws_url);
+    ws.binaryType = "arraybuffer";
+    capture.port.onmessage = ({ data }) => {
+      if (ws.readyState !== WebSocket.OPEN) return;
+      if (muted) new Int16Array(data).fill(0); // stay connected, send silence
+      ws.send(data);
+    };
+    ws.onmessage = ({ data }) => {
+      if (typeof data === "string") {
+        if (JSON.parse(data).event === "clear") speaker.port.postMessage("clear");
+        return;
+      }
+      speaker.port.postMessage(data, [data]);
+    };
+    ws.onclose = stopAudio;
+
+    // 4. Live events. EventSource resumes with Last-Event-ID by itself.
+    events = new EventSource(session.events_url);
+    events.addEventListener("agent.state", (e) => {
+      const { state } = JSON.parse(e.data).data;
+      $("state").textContent = state;
+      // Optional — no barge-in: mute the mic while the agent speaks.
+      // muted = state === "speaking";
+    });
+    events.addEventListener("transcript.turn", (e) => {
+      const { role, text, turn, interrupted } = JSON.parse(e.data).data;
+      const id = `turn-${role}-${turn}`;
+      let li = document.getElementById(id);
+      if (!li) {
+        li = document.createElement("li");
+        li.id = id;
+        $("transcript").append(li);
+      }
+      // textContent, never innerHTML: transcript text is user speech.
+      li.textContent = `${role === "user" ? "You" : "Agent"}: ${text}` +
+        (interrupted ? " (interrupted)" : "");
+    });
+    events.addEventListener("call.ended", () => {
+      events.close(); // otherwise EventSource keeps reconnecting
+      stopAudio();
+    });
+
+    $("end").disabled = false;
+  };
+
+  // Ending from the page: ask your backend to close the call with a goodbye.
+  $("end").onclick = () => {
+    $("end").disabled = true;
+    fetch(`/api/voice-sessions/${session.session_id}/end`, { method: "POST" });
+  };
+
+  function stopAudio() {
+    if (ended) return;
+    ended = true;
+    ws?.close();
+    mic?.getTracks().forEach((t) => t.stop());
+    ctx?.close();
+    $("end").disabled = true;
+    $("state").textContent = "ended";
+  }
+</script>
+```
+
+Notes on the sample:
+
+- **Barge-in is on by default.** The user can talk over the agent; the server
+  sends `clear` and the speaker worklet drops what it had queued. Uncomment the
+  `muted` line to turn barge-in off. The microphone then sends silence while the
+  agent speaks, so the user cannot interrupt.
+- **Sample rate.** Most browsers convert the microphone into a 48 kHz
+  `AudioContext` for you. If one does not, capture at the device's rate and
+  resample to 48,000 Hz before sending.
+- **Playback smoothing.** The speaker worklet plays audio as soon as it arrives.
+  On unreliable networks, buffer 100–200 ms before starting each reply.
+
+---
+
+## Backend example
+
+Three routes in Node.js with Express: start a session, end it gracefully, and
+receive webhooks. `db`, `queue`, `requireUser`, `verifySignature` and
+`alreadyProcessed` stand in for your own code. The last two are on the
+[webhooks page](/v2/webhooks#signature-verification).
+
+```javascript title="server.js"
+import express from "express";
+
+const API = "https://sandbox.voice.miraiminds.co";
+const auth = { Authorization: `Bearer ${process.env.MIRAI_API_KEY}` };
+const app = express();
+
+// 1. The page asks for a session. The call is created here, where the key lives.
+app.post("/api/voice-sessions", requireUser, async (req, res) => {
+  const session = await db.sessions.create({ userId: req.user.id });
+  const r = await fetch(`${API}/v2/calls`, {
+    method: "POST",
+    headers: {
+      ...auth,
+      "Content-Type": "application/json",
+      "Idempotency-Key": `voice-session-${session.id}`,
+    },
+    body: JSON.stringify({
+      agent_id: process.env.MIRAI_AGENT_ID,
+      channel: "web",
+      variables: { first_name: req.user.firstName },
+      metadata: { session_id: session.id, user_id: req.user.id },
+      first_message: "Hi {{first_name}}, thanks for joining. Shall we start?",
+      max_duration_secs: 600,
+      timing: {
+        wrap_up_secs_before_end: 120,
+        wrap_up_instruction: "Time is nearly up. Ask no new questions; summarise and wrap up.",
+        close_secs_before_end: 30,
+        close_message: "That is all we have time for. Thank you, and goodbye!",
+        user_silence_close_secs: 60,
+        user_silence_message: "It seems you have stepped away, so I will end here. Goodbye!",
+      },
+      recording_enabled: false,
+      final_results: true,
+      webhook_url: "https://example.com/mirai/webhook",
+    }),
+  });
+  const call = await r.json();
+  if (!r.ok) return res.status(502).json({ error: call.error.code });
+
+  await db.sessions.update(session.id, { miraiCallId: call.id });
+  // The page gets the two links and your own session ID. Nothing else.
+  res.json({ session_id: session.id, ws_url: call.ws_url, events_url: call.events_url });
+});
+
+// 2. End gracefully: the agent says goodbye, then the call ends.
+app.post("/api/voice-sessions/:id/end", requireUser, async (req, res) => {
+  const session = await db.sessions.get(req.params.id, { userId: req.user.id });
+  const r = await fetch(`${API}/v2/calls/${session.miraiCallId}/control`, {
+    method: "POST",
+    headers: {
+      ...auth,
+      "Content-Type": "application/json",
+      "Idempotency-Key": `voice-session-${session.id}-close`,
+    },
+    body: JSON.stringify({ type: "close", message: "Thank you for your time. Goodbye!" }),
+  });
+  // 409 call_not_active: the call already ended, or never connected. Nothing to do.
+  res.status(r.status === 409 ? 200 : r.status).json(await r.json());
+});
+
+// 3. Webhooks: "the session is over", then "process the transcript".
+app.post("/mirai/webhook", express.raw({ type: "application/json" }), async (req, res) => {
+  const signature = req.get("X-Mirai-Signature") ?? "";
+  if (!verifySignature(req.body, signature, process.env.MIRAI_WEBHOOK_SECRET)) {
+    return res.sendStatus(401);
+  }
+  const event = JSON.parse(req.body.toString("utf8"));
+  if (await alreadyProcessed(event.id)) return res.sendStatus(200);
+
+  const { call } = event.data;
+  const sessionId = call.metadata?.session_id;
+
+  switch (event.type) {
+    case "call.completed":
+    case "call.failed":
+    case "call.aborted":
+      await db.sessions.update(sessionId, { ended: true, callStatus: call.status });
+      break;
+    case "call.processed":
+      // Slow work off the request: store turns, score, notify.
+      await queue.add("process-transcript", {
+        sessionId,
+        callId: call.id,
+        transcript: event.data.transcript,
+      });
+      break;
+  }
+  res.sendStatus(200);
+});
+
+app.listen(3000);
+```
+
+---
+
+## Ending and results
+
+A browser call sends the same [webhooks](/v2/webhooks) as a phone call, in this
+order:
+
+1. `call.queued` — only if enabled for your workspace.
+2. `call.started` — the page connected its audio.
+3. Exactly one terminal event:
+   - `call.completed` — the conversation finished: the user left, the agent
+     ended it, or a `close`, timed close or silence close ended it.
+   - `call.failed` — it never connected (`status: failed`,
+     `ended_reason: "no-media"`, not billed), it hit the hard cap
+     (`status: timeout`, billed), or it failed on our side (not billed).
+   - `call.aborted` — you called [`POST /abort`](/v2/calls#abort-a-call).
+4. `call.processed` — when you set `final_results: true` (or the agent has
+   analysis or post-call tools). With `final_results`, it carries the finished
+   transcript.
+
+Which event to act on:
+
+| You want to | Use |
+| :--- | :--- |
+| Mark the session as over | Any terminal event: `call.completed`, `call.failed` or `call.aborted`. In the page, `call.ended` on the event stream. |
+| Process the transcript | `call.processed` with `final_results: true`. Read [`data.transcript`](/v2/webhooks#final-results). |
+
+`call.processed` is not the "session over" signal. It arrives after the
+terminal event: the transcript settles within about 2 minutes of the call
+ending, plus the time analysis and post-call tools take when the agent has them.
+Mark the session over on the terminal event, and start your transcript
+processing on `call.processed`.
+
+`data.transcript.status` is one of:
+
+| Status | What to do |
+| :--- | :--- |
+| `ready` | `data.transcript.turns` holds the final turns, `{role, text, start_ms, end_ms}`. Process them. |
+| `empty` | Nobody spoke. There is nothing to process. |
+| `failed` | The transcript could not be produced. Record it; do not wait for another event. |
+| `fetch_required` | The transcript is larger than 512 KB, so it is not inline. Fetch it with [`GET /v2/calls/{id}/transcript`](/v2/calls#get-the-transcript). It is never truncated. |
+
+Deliveries are at least once, and order is not guaranteed. Deduplicate on the
+event `id` — retries keep it — and order your own state by `data.call.status`,
+not by arrival. `data.call.metadata` carries your `session_id` on every event,
+so you can match an event even before your own create request has finished
+writing the call ID.
+
+---
+
+## Privacy and security
+
+- **Keys stay on your server.** The page gets two links scoped to one call.
+- **Keep metadata opaque.** `metadata` is stored with the call and sent on every
+  webhook. Put IDs in it, not secrets or personal answers.
+- **Turn off stored audio when you do not need it.** `recording_enabled: false`
+  keeps no recording. Live audio is still processed during the call, and the
+  transcript is still kept.
+- **Tell users.** Say in the opening line that they are speaking with an AI and
+  whether the conversation is recorded or transcribed. Collect the consent your
+  jurisdiction requires (for example under GDPR or India's DPDP Act) before you
+  start the call.
+
+---
+
+## FAQ
+
+<AccordionGroup>
+
+<Accordion title="We use POST /v2/call/web. What do we use now?">
+`POST /v2/call/web` is the v1 endpoint. Use [`POST /v2/calls`](#create-the-call)
+with `channel: "web"`. You get a call ID, an audio link, a live event link,
+[live control](#live-control), [timing](#timing-policy), `metadata` on every
+webhook and the [final transcript](#ending-and-results).
+</Accordion>
+
+<Accordion title="How long can the prompt be?">
+An agent's `system_prompt` holds up to **8,000 characters**. There is no
+per-call system prompt. Per call, you can set the opening line with
+`first_message` (up to 500 characters), pass data into the prompt with
+`variables`, and direct the agent mid-call with an
+[`instruction`](#live-control).
+</Accordion>
+
+<Accordion title="Can a call last 10 minutes?">
+Yes. Set `max_duration_secs: 600` on the call. The accepted range is on
+[Limits](/v2/limits#payload-and-duration-ceilings). Add a
+[timing policy](#timing-policy) so the agent wraps up and says goodbye before
+the cap.
+</Accordion>
+
+<Accordion title="Does a per-call webhook_url affect other calls?">
+No. Each call's events go only to the `webhook_url` it was created with. A call
+without one sends no webhooks. Every delivery is signed with your workspace's
+webhook secret.
+</Accordion>
+
+<Accordion title="Can we turn recording off?">
+Yes. Create the call with `recording_enabled: false`. No audio is stored,
+`recording_available` is `false`, and `GET /v2/calls/{id}/recording` returns
+`404`. The transcript, live events and billing are unchanged. To turn recording
+off for your whole workspace, ask support. After that, a request with
+`recording_enabled: true` returns `403 recording_disabled`.
+</Accordion>
+
+<Accordion title="How long are transcripts kept?">
+Transcripts are retained for 365 days today. If you need a different retention
+period, ask support.
+</Accordion>
+
+<Accordion title="Can we show captions word by word?">
+Not yet. The event stream sends each turn when it is complete. For an
+interrupted agent turn, the text is what the user actually heard.
+</Accordion>
+
+<Accordion title="Does the agent see our metadata?">
+No. `metadata` is for your systems only. Anything the agent should know goes in
+`variables`.
+</Accordion>
+
+</AccordionGroup>

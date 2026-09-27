@@ -44,6 +44,7 @@ Every event has the same shape.
 | `type` | See [event types](#event-types). |
 | `created_at` | When the event was generated, not when it was delivered. |
 | `data.call` | The [call object](/v2/calls#the-call-object), exactly as `GET /v2/calls/{id}` would return it at that moment. On a `campaign.*` event this is `data.campaign` instead. |
+| `data.call.metadata` | The [`metadata`](/v2/calls#metadata) you set when creating the call, unchanged, on every event for that call. Absent when the call has none. |
 
 Treat the envelope as **additive**: new fields appear without a version bump.
 Ignore what you do not recognise.
@@ -55,7 +56,7 @@ Ignore what you do not recognise.
 | `call.queued` | The call is admitted to the queue. **Opt-in** — ask your Mirai contact to enable it. | `queued` |
 | `call.started` | Media is live; the conversation has begun. | `in_progress` |
 | `call.completed` | The call connected and finished normally. | `completed` |
-| `call.processed` | Analysis and post-call tool processing finished for a call with those features enabled. | Unchanged terminal status |
+| `call.processed` | Analysis and post-call tool processing finished for a call with those features enabled — or, for a call created with `final_results: true`, the [final results](#final-results) are ready. | Unchanged terminal status |
 | `call.voicemail` | An answering machine answered. | `voicemail` |
 | `call.failed` | The call did not connect, or the pipeline errored. | `no_answer`, `busy`, `failed`, `timeout` |
 | `call.aborted` | You cancelled it with [`POST /abort`](/v2/calls#abort-a-call) — queued, ringing or mid-conversation. | `aborted` |
@@ -67,6 +68,8 @@ Exactly one terminal event fires per call: `call.completed`, `call.voicemail`,
 It includes `data.processing.version`, analysis status, and post-call tool status.
 Explicit reruns produce a new version. Background on-call tools can finish
 later; read their receipts separately. See [Tools: call.processed](/v2/tools#receive-callprocessed).
+For the finished transcript in the same event, create the call with
+`final_results: true` — see [final results](#final-results).
 
 [Campaigns](/v2/campaigns) add five more. They are delivered to the campaign's
 own `webhook_url`, signed with the same workspace secret, in the same envelope —
@@ -188,6 +191,101 @@ Voicemail calls **are billed** — media was live. 18 seconds bills as two
 `aborted-by-api` is the only `ended_reason` an abort produces, whether you
 cancelled the call in the queue, mid-ring or mid-conversation. Aborted calls are
 never billed.
+
+---
+
+## Final results
+
+Create a call with `final_results: true` to receive **one** `call.processed`
+event with everything about the finished call: the call object, the transcript,
+and the status of analysis and post-call tools. It is the event to start
+processing a conversation on.
+
+```json title="call.processed with final_results: true"
+{
+  "id": "evt_01K8B4R2T4V6X8Z0B2D4F6H8K0",
+  "type": "call.processed",
+  "created_at": "2026-09-27T10:10:41Z",
+  "data": {
+    "call": {
+      "id": "call_01K8B2M4Q6S8T0V2X4Z6A8C0EG",
+      "object": "call",
+      "agent_id": "agt_01K7Q9F3K7M2N5P9R4T6V8W0XZ",
+      "status": "completed",
+      "tier": "t3",
+      "ended_reason": "time-limit-close",
+      "started_at": "2026-09-27T10:00:04Z",
+      "ended_at": "2026-09-27T10:09:34Z",
+      "duration_secs": 570,
+      "cost_inr": 28.5,
+      "recording_available": false,
+      "transcript_available": true,
+      "transcript_status": "ready",
+      "metadata": { "session_id": "sess_8f2c41", "user_id": "usr_1042" },
+      "analysis": null
+    },
+    "processing": {
+      "transcript": "ready",
+      "analysis": "not_enabled",
+      "post_call_tools": "not_enabled",
+      "version": 1
+    },
+    "transcript": {
+      "status": "ready",
+      "turns": [
+        {
+          "role": "assistant",
+          "text": "Hi Asha, thanks for joining. Shall we start?",
+          "start_ms": 380,
+          "end_ms": 3120
+        },
+        { "role": "user", "text": "Yes, let's start.", "start_ms": 3900, "end_ms": 5010 }
+      ]
+    }
+  }
+}
+```
+
+| Field | Description |
+| :--- | :--- |
+| `data.call` | The [call object](/v2/calls#the-call-object) in its final state, with your `metadata` and the `analysis` result. |
+| `data.transcript.status` | `ready`, `empty`, `failed` or `fetch_required`. See below. |
+| `data.transcript.turns` | Present when `ready`: the final user and agent turns, shaped exactly like [`GET /v2/calls/{id}/transcript`](/v2/calls#get-the-transcript) — `role`, `text`, `start_ms`, `end_ms`. |
+| `data.processing` | One status per part: `transcript`, `analysis` and `post_call_tools`, plus `version`. A part that is off for this call reports `not_enabled`. |
+
+| `data.transcript.status` | Meaning |
+| :--- | :--- |
+| `ready` | The turns are inline. They are the same turns `GET /v2/calls/{id}/transcript` returns. |
+| `empty` | Nobody spoke. There are no turns. |
+| `failed` | The transcript could not be produced. |
+| `fetch_required` | The transcript is larger than the 512 KB inline limit, so no turns are included. Fetch them with `GET /v2/calls/{id}/transcript`. The transcript is never truncated. |
+
+`analysis` is `done`, `failed`, `skipped` or `not_enabled`. `post_call_tools` is
+`done`, `partial` or `failed` when the agent has post-call tools. See
+[Tools: call.processed](/v2/tools#receive-call-processed).
+
+**When it arrives.** After the terminal event, once the transcript has settled —
+within about 2 minutes of the call ending — and once any analysis and post-call
+tools have finished, which can take longer. Do not wait for it to decide that a
+conversation is over.
+
+**One event, stable ID.** With `final_results: true`, this is the call's
+`call.processed` — it replaces the ordinary one, never adds a second. Retries
+keep its `id`, so dedupe on it as usual. An explicit
+[post-call rerun](/v2/tools#rerun-post-call-tools) produces a new `version`.
+
+Final results are delivered only to the call's `webhook_url`. Set one when you
+set `final_results`.
+
+### Which event to act on
+
+| You want to | Use |
+| :--- | :--- |
+| Know the conversation ended | The terminal event: `call.completed`, `call.failed`, `call.aborted` (or `call.voicemail` on phone calls). It arrives promptly and is never delayed by processing. |
+| Process the transcript now | `call.processed` from a call created with `final_results: true`, when `data.transcript.status` is `ready` — or fetch it on `fetch_required`. |
+
+For the whole browser-call flow, see
+[Browser calls → Ending and results](/v2/web-calls#ending-and-results).
 
 ---
 
@@ -509,8 +607,11 @@ webhook can land while the placing request is still in flight, and a handler
 that cannot find the call yet has to either drop the event or retry blindly.
 
 `variables` are substituted into the prompt; they are **not** echoed back on
-the event. Anything you need at webhook time belongs in your own row, keyed by
-`call_id`.
+the event. [`metadata`](/v2/calls#metadata) is: set small identifiers such as
+your `session_id` when you create the call, and every event for the call
+carries them in `data.call.metadata`. That also covers a webhook that lands
+before your own `call_id` write has finished. Anything larger belongs in your
+own row, keyed by `call_id`.
 
 ## Idempotency
 
