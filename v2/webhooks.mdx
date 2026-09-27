@@ -67,7 +67,7 @@ Exactly one terminal event fires per call: `call.completed`, `call.voicemail`,
 `call.processed` is a separate processing event, not another terminal event.
 It includes `data.processing.version`, analysis status, and post-call tool status.
 Explicit reruns produce a new version. Background on-call tools can finish
-later; read their receipts separately. See [Tools: call.processed](/v2/tools#receive-callprocessed).
+later; read their receipts separately. See [Tools: call.processed](/v2/tools#receive-call-processed).
 For the finished transcript in the same event, create the call with
 `final_results: true` — see [final results](#final-results).
 

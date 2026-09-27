@@ -541,7 +541,7 @@ curl -X POST https://sandbox.voice.miraiminds.co/v2/calls/call_01JZQ9B4M8N3P6R2S
 
 `202` means the cancel was signalled. The call reaches `aborted` shortly after
 with `ended_reason: "aborted-by-api"`, and a
-[`call.aborted`](/v2/webhooks#callaborted) event fires. An aborted call is never
+[`call.aborted`](/v2/webhooks#call-aborted) event fires. An aborted call is never
 billed — including one aborted after media went live.
 
 | Status | `error.code` | Cause |
