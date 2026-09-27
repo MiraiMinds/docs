@@ -202,15 +202,14 @@ stack is tuned for prompts in the hundreds of tokens, not thousands.
 | Data | Retained |
 | :--- | :--- |
 | Call record (status, duration, cost) | 90 days |
-| Call recordings | 90 days, then deleted |
-| Call transcripts | 365 days today. Ask support if you need a different period. |
+| Call recordings and transcripts | 90 days, then deleted |
 | Wallet ledger | 12 months |
 | Campaigns and their contact rows | For the life of the workspace |
 
 Recordings and transcripts are available through the API —
 [`GET /v2/calls/{id}/recording`](/v2/calls#get-the-recording) and
 [`/transcript`](/v2/calls#get-the-transcript). Pull anything you need to keep
-longer into your own system. To store no audio, create calls with
+beyond 90 days into your own system. To store no audio, create calls with
 `recording_enabled: false`, or ask us to turn recording off for your whole
 workspace.
 
