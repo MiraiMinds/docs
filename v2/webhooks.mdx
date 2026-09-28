@@ -75,7 +75,8 @@ For the finished transcript in the same event, create the call with
 
 A call run by a [node-based agent](/v2/node-agents) always sends
 `call.processed` when it has a `webhook_url`, with the flow's outcome at
-`data.call.flow`. See [final results](#final-results).
+`data.call.flow`, unless the agent sets `emit_processed_webhook: false`. See
+[final results](#final-results).
 
 {/* /FLOW-OUTCOME */}
 

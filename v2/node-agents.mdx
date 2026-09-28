@@ -820,7 +820,8 @@ complete record of the flow.
 **When it arrives.** The block is absent until the call's outcome is recorded,
 usually within seconds of the call ending, so it can be missing from the
 terminal event. A node-based agent's call always sends `call.processed` when
-the call has a `webhook_url`. That event waits up to 2 minutes for the outcome,
+the call has a `webhook_url` (unless the agent sets
+`emit_processed_webhook: false`). That event waits up to 2 minutes for the outcome,
 and is sent without `flow` if it has not arrived by then; read
 `GET /v2/calls/{id}` later in that case.
 
