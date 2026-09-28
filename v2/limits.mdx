@@ -183,11 +183,13 @@ over-long generation `brief` or `language` returns `400 invalid_request`.
 | Node IDs, labels, variable names | 64 characters: a letter or underscore, then letters, digits or underscores |
 | Generation `brief` | 1–6,000 characters |
 | Generation `language` | 32 characters |
+| Generation `model` | `gemini-3.8-flash` (default), `gpt-6-sol` or `claude-opus-5.5` |
 
-A flow generation usually takes 15 to 40 seconds; set a client timeout of a few
-minutes. When the generator is busy with other requests, it answers
-`429 rate_limited` with `Retry-After`, and that refusal does not count against
-the hourly limit.
+A flow generation typically takes 15 to 60 seconds, depending on the model; set
+a client timeout of a few minutes. When the generator is busy with other
+requests, it answers `429 rate_limited` with `Retry-After`, and that refusal
+does not count against the hourly limit. Each generation is charged to your
+wallet by the tokens it used; see [AI flow drafts](/general/tiers#ai-flow-drafts).
 
 ## Campaign ceilings
 
@@ -220,7 +222,7 @@ stack is tuned for prompts in the hundreds of tokens, not thousands.
 | Ring / answer | ~60 seconds. No media by then → `no_answer`. |
 | Call duration | Ends at `max_duration_secs` with `status: timeout`. |
 | Browser connect | 5 minutes after the call is created. If no audio connects, the call ends `failed` with `ended_reason: "no-media"` and is not billed. |
-| Flow generation | Usually 15 to 40 seconds. Set a client timeout of a few minutes. |
+| Flow generation | Typically 15–20 s on Gemini 3.8 Flash, 20–60 s on GPT-6 Sol and 25–35 s on Claude Opus 5.5. Set a client timeout of a few minutes. |
 | Final results | `call.processed` follows the terminal event once the transcript settles (within about 2 minutes of the call ending) and any analysis and post-call tools finish. |
 | Webhook delivery | Your endpoint should answer well under a second. Slow responses are treated as failures and [retried](/v2/webhooks#retries). |
 

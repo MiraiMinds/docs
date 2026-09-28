@@ -84,13 +84,18 @@ POST /v2/agents/flow/generate
 | :--- | :--- | :--- | :--- |
 | `brief` | string | yes | 1–6,000 characters. What the agent does: who it talks to, what it says and asks, how each answer is handled, what to record, and the language. |
 | `language` | string | no | Up to 32 characters. A language code or name for the spoken lines, such as `hi`, `en` or `Hinglish`. Without it, the brief decides. |
+| `model` | string | no | The model that writes the draft: `gemini-3.8-flash` (default), `gpt-6-sol` or `claude-opus-5.5`. See [choose a model](#choose-a-model). Any other value is refused with `400 invalid_request`. |
 | `flow` | object | no | A graph to revise, as `GET /v2/agents/{id}/flow` returns it. It must itself be valid. See [revise a flow](#revise-a-flow). |
 
 **Nothing is saved.** The response is a draft for you to review, test and save.
+Each generation is [charged to your wallet](#what-a-draft-costs) for the tokens
+the model used.
 
 ```json title="200 OK"
 {
+  "id": "fgen_01K8D3G5J7L9N1Q3S5U7W9Y1A3",
   "object": "flow_draft",
+  "model": "gemini-3.8-flash",
   "flow": { "nodes": [ … ], "edges": [ … ] },
   "variables": [
     { "name": "customer_name", "type": "string", "description": "The customer's name, used to confirm who answered." },
@@ -109,20 +114,23 @@ POST /v2/agents/flow/generate
     "required": ["customer_name", "order_id", "delivery_date", "delivery_window"]
   },
   "flow_revision": "5b1e0c9a7d2f4e8b3a6c",
-  "rounds": 1
+  "rounds": 1,
+  "usage": { "prompt_tokens": 1840, "completion_tokens": 2610 },
+  "cost": { "amount_inr": 1.18 }
 }
 ```
 
 | Field | Description |
 | :--- | :--- |
+| `id` | The generation's ID, `fgen_…`. The wallet row for its charge carries the same ID. |
+| `model` | The model that wrote the draft. |
 | `flow` | The draft graph, with every default filled in. It passes every rule `PUT /v2/agents/{id}/flow` applies. |
 | `variables` | The call variables the draft reads as `{{name}}`: facts you know before the call, such as a name or an order number. What the caller says is captured by the nodes' [extraction variables](#extraction) instead. |
 | `input_schema` | The same variables as the agent's `input_schema`, every one required. Save it together with the flow. |
 | `flow_revision` | The draft's [fingerprint](#step-2-validate-it). Saved unchanged, the graph keeps it. |
 | `rounds` | How many attempts the draft took, from 1 to 3. Each attempt is checked against the graph rules, and any problems are sent back for another attempt. |
-
-A generation usually takes 15 to 40 seconds. Set your client's timeout to a few
-minutes; the examples below use 5.
+| `usage` | Tokens the model used, summed over every attempt: `prompt_tokens` in, `completion_tokens` out. |
+| `cost` | What was charged to your wallet, `amount_inr`. |
 
 <Warning>
 **Review and test every draft before it takes a real call.** Read each node's
@@ -131,18 +139,51 @@ and refuses what you intended. Then run a [browser test with live
 events](#step-4-test-it-in-the-browser) and take every branch at least once.
 </Warning>
 
+### Choose a model
+
+| Model | `model` | Typical draft | Typical time |
+| :--- | :--- | :--- | :--- |
+| Gemini 3.8 Flash (default) | `gemini-3.8-flash` | about ₹1.20 | 15–20 s |
+| GPT-6 Sol | `gpt-6-sol` | about ₹3 | 20–60 s |
+| Claude Opus 5.5 | `claude-opus-5.5` | about ₹7 | 25–35 s |
+
+Start with the default. Try another model when a draft misses branches or rules
+your brief asked for. Whatever the model, set your client's timeout to a few
+minutes; the examples below use 5.
+
+### What a draft costs
+
+Each generation is charged to your [wallet](/v2/wallet) for the tokens the model
+used, at the chosen model's rate per million input and output tokens. The rates
+are on [Billing & tiers](/general/tiers#ai-flow-drafts).
+
+- **Every attempt counts.** Tokens from every attempt are added up, and the
+  total is rounded up to the paisa once.
+- **Failures are charged too.** A `422 flow_generation_failed`, and a `503`
+  after the model had already answered, are charged for the tokens used. Both
+  responses carry `id`, `model`, `usage` and `cost`. Nothing is charged when
+  the model never answered.
+- **The wallet must hold a positive balance.** An empty wallet is refused with
+  `402 insufficient_balance` before the model runs. A charge never takes the
+  wallet below zero.
+- **Where it shows.** Each charge is one wallet transaction of kind
+  [`flow_generation`](/v2/wallet#a-flow-generation-row), and the billing
+  statement lists the charges as **AI flow drafts**.
+
 ### Generate a draft
 
 <Tabs>
   <Tab title="cURL">
     ```bash
     jq -n --arg brief "Call customers of Acme Retail to confirm the delivery slot for their order. Speak everyday Hindi and say you are an AI assistant. First confirm you are speaking to the customer by name; if it is someone else, apologise and end the call without mentioning the order. Then give the order number, delivery date and time window, and ask whether someone will be at home. If yes, thank them and end. If not, ask which day in the next seven days suits them, read it back, and end once they confirm. Record whether they confirmed who they are, whether they accepted the slot, and the new day if they chose one." \
-      '{brief: $brief, language: "hi"}' |
+      '{brief: $brief, language: "hi", model: "gemini-3.8-flash"}' |
     curl -X POST https://sandbox.voice.miraiminds.co/v2/agents/flow/generate \
       -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
       -H "Content-Type: application/json" \
       --max-time 300 \
       --data-binary @- > draft.json
+
+    jq '{id, model, cost}' draft.json
     ```
   </Tab>
   <Tab title="Python">
@@ -167,15 +208,16 @@ events](#step-4-test-it-in-the-browser) and take every branch at least once.
     r = httpx.post(
         f"{API}/v2/agents/flow/generate",
         headers=auth,
-        json={"brief": BRIEF, "language": "hi"},
-        timeout=300,  # a generation usually takes 15-40 s
+        json={"brief": BRIEF, "language": "hi", "model": "gemini-3.8-flash"},
+        timeout=300,  # allow a few minutes
     )
     if r.status_code in (429, 503):
         raise RuntimeError(f"retry in {r.headers.get('Retry-After')} s")
-    if r.status_code == 422:
+    if r.status_code == 422:  # charged: the body carries id, usage and cost
         for problem in r.json()["details"]:
             print(problem["path"], "-", problem["message"])
     draft = r.raise_for_status().json()
+    print(draft["id"], draft["model"], draft["cost"]["amount_inr"])
     print([v["name"] for v in draft["variables"]])
     ```
   </Tab>
@@ -199,8 +241,8 @@ events](#step-4-test-it-in-the-browser) and take every branch at least once.
     const res = await fetch(`${API}/v2/agents/flow/generate`, {
       method: "POST",
       headers: { ...auth, "Content-Type": "application/json" },
-      body: JSON.stringify({ brief: BRIEF, language: "hi" }),
-      signal: AbortSignal.timeout(300_000), // a generation usually takes 15-40 s
+      body: JSON.stringify({ brief: BRIEF, language: "hi", model: "gemini-3.8-flash" }),
+      signal: AbortSignal.timeout(300_000), // allow a few minutes
     });
     const draft = await res.json();
     if (!res.ok) {
@@ -210,6 +252,7 @@ events](#step-4-test-it-in-the-browser) and take every branch at least once.
       for (const { path, message } of draft.details ?? []) console.error(path, "-", message);
       throw new Error(draft.error?.code ?? draft.error);
     }
+    console.log(draft.id, draft.model, draft.cost.amount_inr);
     console.log(draft.variables.map((v) => v.name));
     ```
   </Tab>
@@ -389,17 +432,33 @@ agent revision like any other save, so you can [roll it back](#versions).
 
 ### Generation errors
 
-| Status | `error` | When | What to do |
-| :--- | :--- | :--- | :--- |
-| `400` | `invalid_request` | `brief` is missing, blank or over 6,000 characters, `language` is over 32 characters, or the body has an unknown field. | Fix the request. |
-| `400` | `invalid_flow` | The `flow` you sent to revise breaks a rule, or your tier's model cannot run flows. Same shape as [flow errors](#errors). | Fix the listed paths. |
-| `422` | `flow_generation_failed` | No valid graph after three attempts. `details` lists what was still wrong, as `{"path","message"}` pairs, like `invalid_flow`. Nothing was saved. | Rephrase the brief: name each step and each branch explicitly, or shorten it. Or fix the graph by hand. |
-| `429` | `rate_limited` | Your workspace has used its 30 generations for the hour, or the generator is busy with other requests. | Wait for `Retry-After` seconds, then retry. |
-| `503` | `upstream_unavailable` | The generator is unavailable. | Wait for `Retry-After` seconds, then retry. |
+| Status | `error` | When | Charged | What to do |
+| :--- | :--- | :--- | :--- | :--- |
+| `400` | `invalid_request` | `brief` is missing, blank or over 6,000 characters, `language` is over 32 characters, `model` is not one of the three, or the body has an unknown field. | No | Fix the request. |
+| `400` | `invalid_flow` | The `flow` you sent to revise breaks a rule, or your tier's call model cannot run flows. Same shape as [flow errors](#errors). | No | Fix the listed paths. |
+| `402` | `insufficient_balance` | Your wallet is empty. | No | [Top up](/v2/wallet#top-up), then retry. |
+| `422` | `flow_generation_failed` | No valid graph after three attempts. `details` lists what was still wrong. Nothing was saved. | Yes, for the tokens used | Rephrase the brief: name each step and each branch explicitly, or shorten it. Try another model, or fix the graph by hand. |
+| `429` | `rate_limited` | Your workspace has used its 30 generations for the hour, or the generator is busy with other requests. | No | Wait for `Retry-After` seconds, then retry. |
+| `503` | `upstream_unavailable` | The model is unavailable, or stopped answering part way. | Only if the model had already answered | Wait for `Retry-After` seconds, then retry. |
 
-`422` uses the same shape as `invalid_flow`: `error` is a string and `details`
-a list. The other errors use the [standard envelope](/v2/errors). A `503`, and
-a `429` sent because the generator is busy, do not count against the hourly
+`422` uses the same shape as `invalid_flow`, plus the charge:
+
+```json title="422 Unprocessable Entity"
+{
+  "error": "flow_generation_failed",
+  "details": [
+    { "path": "flow.nodes[4]", "message": "node \"reschedule\" has no path to an endCall node" }
+  ],
+  "id": "fgen_01K8D4H6K8M0P2R4T6V8X0Z2B4",
+  "model": "gemini-3.8-flash",
+  "usage": { "prompt_tokens": 6120, "completion_tokens": 7480 },
+  "cost": { "amount_inr": 3.45 }
+}
+```
+
+The other errors use the [standard envelope](/v2/errors). A charged `503` also
+carries `id`, `model`, `usage` and `cost` beside `error`. A `503`, a `402`, and
+a `429` sent because the generator is busy do not count against the hourly
 limit.
 
 ---
