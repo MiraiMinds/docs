@@ -351,8 +351,8 @@ it and we mint one.
 | Status | `error.code` | Cause |
 | :--- | :--- | :--- |
 | `400` | `invalid_request` | Missing `name`/`agent_id`/`timezone`/dates/`slots`, a knob out of range, a bad window, or more than 1000 contacts. |
+| `400` | `invalid_flow` | `agent_id` is a [node-based agent](/v2/node-agents) and your tier's model cannot run flows. Checked again at start and resume. |
 | `404` | `not_found` | `agent_id` does not exist in your workspace. Checked now, so a typo is not a campaign that fails every contact tomorrow morning. |
-| `409` | `flow_agent_web_only` | `agent_id` is a node-based agent. Node-based agents run as browser calls for now, so they cannot run campaigns yet. Use a single-prompt agent. |
 | `501` | `tier_unavailable` | `tier` names a tier that is not enabled on this deployment. |
 | `503` | `campaigns_unavailable` | Campaigns are not enabled for your workspace. Not your request — ask your Mirai contact. |
 
