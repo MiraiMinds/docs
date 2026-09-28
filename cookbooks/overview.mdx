@@ -1,0 +1,58 @@
+---
+title: Cookbooks
+description: End-to-end recipes for real products built on Mirai Voice — the agent, your backend, your page, the webhooks and a production checklist, in one place.
+---
+
+A cookbook takes one use case from an empty workspace to production. Where the
+[Documentation](/v2/overview) explains each feature on its own, a cookbook
+shows how the features fit together for a specific product, with code you can
+copy.
+
+## Available cookbooks
+
+### Browser voice apps
+
+<CardGroup cols={2}>
+  <Card title="Timed voice interviews in the browser" icon="user-tie" href="/cookbooks/browser-voice-interviews">
+    A 10-minute AI interview in your web app: personalised opening, live
+    captions, a graceful wrap-up and goodbye, moderator controls, an automatic
+    score and a text-only record.
+  </Card>
+</CardGroup>
+
+## How every cookbook is laid out
+
+Each cookbook follows the same order, so you can jump to the part you need.
+
+| Section | What you get |
+| :--- | :--- |
+| **What you'll build** | The finished behaviour, in plain terms, and what you need before you start. |
+| **How it works** | The moving parts and the order they talk to each other. |
+| **Steps** | Numbered steps, each with complete code in cURL, Python and Node.js where it applies. |
+| **Test it** | A short configuration that shows every behaviour in a few minutes, and a troubleshooting table. |
+| **Privacy and compliance** | What the recipe stores, what you must tell your users, and how to keep keys and links safe. |
+| **Production checklist** | What to confirm before real users arrive. |
+
+Cookbooks link to the reference pages for every field and error code instead of
+repeating them. When a cookbook and a reference page seem to disagree, the
+reference page is correct — tell us at [help@miraiminds.co](mailto:help@miraiminds.co).
+
+## Before you start
+
+Every cookbook assumes:
+
+- A workspace API key (`sk_live_…`) and its webhook secret (`whsec_…`). See the
+  [Quickstart](/v2/quickstart).
+- A backend that can keep the key secret. The key never goes to a browser or a
+  mobile app.
+- An HTTPS endpoint for [webhooks](/v2/webhooks). While you build, a tunnel to
+  your laptop works.
+
+Base URL in the examples: `https://sandbox.voice.miraiminds.co`. Use the API
+host your key was issued for.
+
+## Ask for a cookbook
+
+Building something the cookbooks don't cover yet? Write to
+[help@miraiminds.co](mailto:help@miraiminds.co) with a one-line description of
+your use case.

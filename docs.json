@@ -82,6 +82,23 @@
         ]
       },
       {
+        "tab": "Cookbooks",
+        "groups": [
+          {
+            "group": "Cookbooks",
+            "pages": [
+              "cookbooks/overview"
+            ]
+          },
+          {
+            "group": "Browser voice apps",
+            "pages": [
+              "cookbooks/browser-voice-interviews"
+            ]
+          }
+        ]
+      },
+      {
         "tab": "v1 (legacy)",
         "groups": [
           {
