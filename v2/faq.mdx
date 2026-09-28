@@ -52,12 +52,18 @@ completing now; see the [roadmap](/general/roadmap) for status and ask your
 account contact to enable it on your workspace.
 
 **Can I change the prompt or variables mid-call?**
-No. `variables` are static per call — create the call with what you want it to
-say.
+The prompt and `variables` are fixed for a call. On a
+[browser call](/v2/web-calls), your backend can still direct the agent while it
+runs with a [live `instruction`](/v2/web-calls#live-control), close it with a
+spoken goodbye, and let it wrap up on time with a
+[timing policy](/v2/web-calls#timing-policy).
 
 **Can I get the recording or transcript?**
-Not through the v2 API. Recordings are retained 30 days; ask your Mirai contact if you need
-access. If your use case requires that we do not record, tell us up front.
+Yes. Fetch them with [`GET /v2/calls/{id}/transcript`](/v2/calls#get-the-transcript)
+and [`GET /v2/calls/{id}/recording`](/v2/calls#get-the-recording), or receive the
+transcript in a webhook with [final results](/v2/webhooks#final-results). To
+store no audio, create calls with `recording_enabled: false`. Retention is on
+the [limits page](/v2/limits#data-retention).
 
 **What happens if the customer does not answer?**
 `status: no_answer`, a `call.failed` webhook, and no charge. v2 does not retry
