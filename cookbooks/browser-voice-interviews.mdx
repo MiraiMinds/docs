@@ -1,0 +1,962 @@
+---
+title: Timed voice interviews in the browser
+description: Run a 10-minute AI voice interview in your web app — a personalised opening, live captions, a graceful wrap-up and goodbye, moderator controls, an automatic score and a text-only record.
+---
+
+In this cookbook you build a voice interview that runs in the candidate's
+browser. The same pattern fits any timed, spoken session: screening interviews,
+mock interviews, oral assessments, language practice or structured feedback
+calls.
+
+## What you'll build
+
+- A candidate opens your page, allows the microphone and talks to an AI
+  interviewer that greets them by name.
+- The page shows live captions for both speakers and whether the interviewer is
+  listening, thinking or speaking.
+- The interview keeps time on its own. At **8:00** the interviewer stops
+  starting new topics, at **9:30** it thanks the candidate and says goodbye, and
+  **10:00** is a hard stop. After **60 seconds** without an answer it closes
+  politely.
+- A moderator on your side can nudge the interviewer or end the interview
+  gracefully while it runs.
+- When it ends, your backend receives one webhook with the full transcript and a
+  structured score, tagged with your own interview and candidate IDs.
+- No audio is stored. The transcript is the record.
+
+**You need:** a workspace API key (`sk_live_…`) and webhook secret
+(`whsec_…`), a backend in Python 3.10+ or Node.js 18+, and an HTTPS URL that
+can receive webhooks (a tunnel to your laptop works while you build).
+
+<Note>
+Keep the API key on your server. The browser only ever receives two per-call
+links, which work for that one interview and nothing else.
+</Note>
+
+## How it works
+
+```mermaid
+sequenceDiagram
+    participant Page as Interview page
+    participant App as Your backend
+    participant Mirai as Mirai Voice
+    participant Mod as Moderator
+
+    Page->>App: POST /api/interviews
+    App->>Mirai: POST /v2/calls (channel web, timing, metadata)
+    Mirai-->>App: id, ws_url, events_url
+    App-->>Page: ws_url, events_url
+    Page->>Mirai: audio (ws_url) + live events (events_url)
+    Note over Page,Mirai: interview runs, captions stream
+    Mod->>App: "slow down" / "end now"
+    App->>Mirai: POST /v2/calls/{id}/control
+    Mirai-->>Page: call.ended
+    Mirai-->>App: call.completed
+    Mirai-->>App: call.processed (transcript + score)
+```
+
+| Time after audio starts | What happens | Set by |
+| :--- | :--- | :--- |
+| 0:00 | The interviewer speaks your opening line. | `first_message` |
+| 8:00 | The interviewer is told to stop starting new topics and wrap up. | `timing.wrap_up_secs_before_end: 120` |
+| 9:30 | The interviewer says goodbye and the call ends as `time-limit-close`. | `timing.close_secs_before_end: 30` |
+| 10:00 | Hard stop, reached only if the goodbye could not finish. | `max_duration_secs: 600` |
+| Any time | 60 seconds without the candidate speaking: a goodbye, then `user-silence-close`. | `timing.user_silence_close_secs: 60` |
+
+---
+
+## Step 1: Create the interviewer
+
+An [agent](/v2/agents) holds everything that is the same for every interview of
+one kind: the interviewer's instructions, voice and language, how it ends a
+call, and how the finished conversation is scored. Everything about one
+candidate goes on the call in step 2.
+
+### Write the instructions
+
+The agent's `system_prompt` holds up to **8,000 characters**. An interview guide
+fits comfortably if it contains only what the interviewer needs *during* the
+conversation. Move everything that is only needed afterwards, such as the
+scoring rubric, into [analysis](#score-the-interview-automatically), which has
+its own instructions.
+
+This layout works well for voice interviews:
+
+```text title="system_prompt"
+# Role
+You are Asha, a friendly screening interviewer for {{company_name}}.
+You are interviewing {{candidate_name}} for the {{role_title}} role.
+
+# How you speak
+- This is a spoken conversation. Keep every turn under three sentences.
+- Ask one question at a time, then stop and listen.
+- Never read out lists, headings or numbering.
+- If the candidate mixes Hindi and English, reply the same way.
+
+# Interview plan
+Cover these areas in order, about two minutes each:
+1. Their current role and one recent project.
+2. {{focus_areas}}
+3. A time they disagreed with a teammate and what happened.
+4. Why this role interests them.
+Ask at most one follow-up per area, and only when an answer is vague.
+
+# Rules
+- Do not comment on answers, scores or hiring outcomes.
+- Never ask about age, religion, caste, marital status, health or other
+  personal characteristics.
+- If asked about salary or next steps, say the hiring team will follow up
+  by email.
+- If the candidate asks you to repeat, rephrase the question more simply.
+
+# Timekeeping
+The interview has a strict time limit. When you are told that time is nearly
+up, do not start a new area. Let the candidate finish, then move to closing.
+
+# Closing
+When every area is covered, thank the candidate, say the hiring team will be
+in touch, and end the call.
+```
+
+The `{{placeholders}}` are filled per interview from the call's `variables`
+(up to 32 variables, 512 characters each). One agent then serves every
+candidate for that role type. See the [prompting guide](/v2/prompting-guide) for
+more on writing for voice.
+
+<Tip>
+Keep one agent per interview type (for example "Sales screening" and "Support
+screening") rather than one agent per candidate. Changing a prompt is then a
+single edit, and every interview of that type stays comparable.
+</Tip>
+
+### Score the interview automatically
+
+Turn on `analysis` and the agent scores each finished interview against your
+rubric. The result arrives with the transcript in step 5.
+
+| Field | Limit | Use it for |
+| :--- | :--- | :--- |
+| `analysis.enabled` | — | `true` to score every call of this agent. |
+| `analysis.prompt` | 2,000 characters | Your rubric: what to look for and how to score it. |
+| `analysis.success_criteria` | 2,000 characters | What makes an interview "successful" (usable), independent of the candidate's score. |
+| `analysis.output_schema` | 32 properties | The JSON shape of the result. |
+
+### Create the agent
+
+<Tabs>
+  <Tab title="cURL">
+    ```bash
+    curl -X POST https://sandbox.voice.miraiminds.co/v2/agents \
+      -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+      -H "Content-Type: application/json" \
+      -d @interviewer.json
+    ```
+
+    ```json title="interviewer.json"
+    {
+      "name": "Screening interviewer",
+      "system_prompt": "# Role\nYou are Asha, a friendly screening interviewer for {{company_name}}. …",
+      "first_message": "Hi {{candidate_name}}, thanks for joining. This screening takes about ten minutes. Shall we start?",
+      "voice": { "voice_id": "neha" },
+      "language": "en-IN",
+      "max_duration_secs": 600,
+      "end_call": {
+        "enabled": true,
+        "message": "Thank you for your time today. The hiring team will be in touch. Goodbye!",
+        "confirm": true
+      },
+      "analysis": {
+        "enabled": true,
+        "prompt": "Score the candidate from the transcript only. communication: clarity and structure of answers. role_fit: relevant experience for the role discussed in the interview. Use 1 (weak) to 5 (strong). List at most three strengths and three concerns, each quoting or paraphrasing what the candidate said.",
+        "success_criteria": "The candidate answered at least three of the four interview areas.",
+        "output_schema": {
+          "type": "object",
+          "properties": {
+            "communication": { "type": "integer", "minimum": 1, "maximum": 5 },
+            "role_fit": { "type": "integer", "minimum": 1, "maximum": 5 },
+            "strengths": { "type": "array", "items": { "type": "string" }, "maxItems": 3 },
+            "concerns": { "type": "array", "items": { "type": "string" }, "maxItems": 3 },
+            "recommendation": { "type": "string", "enum": ["advance", "human_review"] }
+          },
+          "required": ["communication", "role_fit", "recommendation"]
+        }
+      }
+    }
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    import os
+    from pathlib import Path
+
+    import httpx
+
+    API = "https://sandbox.voice.miraiminds.co"
+    auth = {"Authorization": f"Bearer {os.environ['MIRAI_API_KEY']}"}
+
+    agent = httpx.post(f"{API}/v2/agents", headers=auth, timeout=30, json={
+        "name": "Screening interviewer",
+        "system_prompt": Path("interviewer_prompt.txt").read_text(),
+        "first_message": "Hi {{candidate_name}}, thanks for joining. "
+                         "This screening takes about ten minutes. Shall we start?",
+        "voice": {"voice_id": "neha"},
+        "language": "en-IN",
+        "max_duration_secs": 600,
+        "end_call": {
+            "enabled": True,
+            "message": "Thank you for your time today. The hiring team will be in touch. Goodbye!",
+            "confirm": True,
+        },
+        "analysis": {
+            "enabled": True,
+            "prompt": Path("scoring_rubric.txt").read_text(),
+            "success_criteria": "The candidate answered at least three of the four interview areas.",
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "communication": {"type": "integer", "minimum": 1, "maximum": 5},
+                    "role_fit": {"type": "integer", "minimum": 1, "maximum": 5},
+                    "strengths": {"type": "array", "items": {"type": "string"}, "maxItems": 3},
+                    "concerns": {"type": "array", "items": {"type": "string"}, "maxItems": 3},
+                    "recommendation": {"type": "string", "enum": ["advance", "human_review"]},
+                },
+                "required": ["communication", "role_fit", "recommendation"],
+            },
+        },
+    }).raise_for_status().json()
+
+    print(agent["id"])  # save as MIRAI_AGENT_ID
+    ```
+  </Tab>
+  <Tab title="Node.js">
+    ```javascript
+    import { readFile } from "node:fs/promises";
+
+    const API = "https://sandbox.voice.miraiminds.co";
+    const auth = { Authorization: `Bearer ${process.env.MIRAI_API_KEY}` };
+
+    const res = await fetch(`${API}/v2/agents`, {
+      method: "POST",
+      headers: { ...auth, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: "Screening interviewer",
+        system_prompt: await readFile("interviewer_prompt.txt", "utf8"),
+        first_message:
+          "Hi {{candidate_name}}, thanks for joining. This screening takes about ten minutes. Shall we start?",
+        voice: { voice_id: "neha" },
+        language: "en-IN",
+        max_duration_secs: 600,
+        end_call: {
+          enabled: true,
+          message: "Thank you for your time today. The hiring team will be in touch. Goodbye!",
+          confirm: true,
+        },
+        analysis: {
+          enabled: true,
+          prompt: await readFile("scoring_rubric.txt", "utf8"),
+          success_criteria: "The candidate answered at least three of the four interview areas.",
+          output_schema: {
+            type: "object",
+            properties: {
+              communication: { type: "integer", minimum: 1, maximum: 5 },
+              role_fit: { type: "integer", minimum: 1, maximum: 5 },
+              strengths: { type: "array", items: { type: "string" }, maxItems: 3 },
+              concerns: { type: "array", items: { type: "string" }, maxItems: 3 },
+              recommendation: { type: "string", enum: ["advance", "human_review"] },
+            },
+            required: ["communication", "role_fit", "recommendation"],
+          },
+        },
+      }),
+    });
+    const agent = await res.json();
+    if (!res.ok) throw new Error(`${agent.error.code}: ${agent.error.message}`);
+    console.log(agent.id); // save as MIRAI_AGENT_ID
+    ```
+  </Tab>
+</Tabs>
+
+<Warning>
+**Keep a person in the loop.** The score is a summary to help your team review
+interviews faster, not a hiring decision. The schema above deliberately offers
+`advance` or `human_review`, never `reject`. Automated decisions about people
+are regulated in many places, including under the GDPR and India's DPDP Act.
+</Warning>
+
+---
+
+## Step 2: Start an interview from your backend
+
+When a candidate opens the interview page, your backend creates the call with
+everything specific to this candidate, stores the call ID beside its own
+interview record, and gives the page two links.
+
+| Field | Value in this recipe | Why |
+| :--- | :--- | :--- |
+| `channel` | `"web"` | A [browser call](/v2/web-calls): no phone number. |
+| `variables` | `candidate_name`, `role_title`, `company_name`, `focus_areas` | Fill the prompt's placeholders for this candidate. |
+| `first_message` | Written by your backend | A personalised opening line for this interview only. It replaces the agent's `first_message` for this call. |
+| `metadata` | `interview_id`, `candidate_id` | Your own IDs. Returned unchanged on the call and in every webhook. Never shown to the interviewer. |
+| `max_duration_secs` | `600` | The hard stop. |
+| `timing` | wrap up at 8:00, goodbye at 9:30, close after 60 s of silence | [Timing policy](/v2/web-calls#timing-policy). |
+| `recording_enabled` | `false` | Store no audio. Captions and the transcript still work. |
+| `final_results` | `true` | One `call.processed` webhook with the transcript and the score. |
+| `webhook_url` | Your webhook route | Where this interview's events go. |
+
+Send an `Idempotency-Key` built from your interview ID. If the request is
+retried, you get the same call back instead of a second one.
+
+<Tabs>
+  <Tab title="Python">
+    ```python title="server.py"
+    # pip install fastapi uvicorn httpx
+    import os
+    import uuid
+
+    import httpx
+    from fastapi import FastAPI, HTTPException, Request
+
+    API = "https://sandbox.voice.miraiminds.co"
+    AGENT_ID = os.environ["MIRAI_AGENT_ID"]
+    WEBHOOK_URL = os.environ["PUBLIC_WEBHOOK_URL"]  # https://your-app.example/mirai/webhook
+
+    app = FastAPI()
+    mirai = httpx.AsyncClient(
+        base_url=API,
+        headers={"Authorization": f"Bearer {os.environ['MIRAI_API_KEY']}"},
+        timeout=30,
+    )
+
+    # Stand-ins for your own code: sign-in and storage.
+    from myapp import current_candidate, db
+
+
+    @app.post("/api/interviews")
+    async def start_interview(request: Request):
+        candidate = await current_candidate(request)
+        interview = await db.interviews.create(candidate_id=candidate.id, role=candidate.role)
+
+        r = await mirai.post(
+            "/v2/calls",
+            headers={"Idempotency-Key": f"interview-{interview.id}"},
+            json={
+                "agent_id": AGENT_ID,
+                "channel": "web",
+                "variables": {
+                    "candidate_name": candidate.first_name,
+                    "role_title": candidate.role,
+                    "company_name": "Acme",
+                    "focus_areas": "Their experience with customer escalations "
+                                   "and how they prioritise a busy queue.",
+                },
+                "first_message": (
+                    f"Hi {candidate.first_name}, thanks for making time for your "
+                    f"{candidate.role} screening. It takes about ten minutes. "
+                    "Shall we begin?"
+                ),
+                "metadata": {"interview_id": interview.id, "candidate_id": candidate.id},
+                "max_duration_secs": 600,
+                "timing": {
+                    "wrap_up_secs_before_end": 120,
+                    "wrap_up_instruction": "Time is nearly up. Do not start a new area. "
+                                           "Let the candidate finish, then close.",
+                    "close_secs_before_end": 30,
+                    "close_message": "That's all the time we have. Thank you, and the "
+                                     "hiring team will be in touch. Goodbye!",
+                    "user_silence_close_secs": 60,
+                    "user_silence_message": "It seems you've stepped away, so I'll end "
+                                            "the interview here. Goodbye!",
+                },
+                "recording_enabled": False,
+                "final_results": True,
+                "webhook_url": WEBHOOK_URL,
+            },
+        )
+        call = r.json()
+        if r.status_code != 202:
+            raise HTTPException(502, call["error"]["code"])
+
+        await db.interviews.update(interview.id, mirai_call_id=call["id"], status="started")
+        # The page gets its two links and your own ID. Never the API key.
+        return {
+            "interview_id": interview.id,
+            "ws_url": call["ws_url"],
+            "events_url": call["events_url"],
+        }
+    ```
+  </Tab>
+  <Tab title="Node.js">
+    ```javascript title="server.js"
+    // npm install express
+    import express from "express";
+    // Stand-ins for your own code: sign-in and storage.
+    import { requireCandidate, db } from "./myapp.js";
+
+    const API = "https://sandbox.voice.miraiminds.co";
+    const auth = { Authorization: `Bearer ${process.env.MIRAI_API_KEY}` };
+    const app = express();
+
+    app.post("/api/interviews", requireCandidate, express.json(), async (req, res) => {
+      const candidate = req.candidate;
+      const interview = await db.interviews.create({ candidateId: candidate.id, role: candidate.role });
+
+      const r = await fetch(`${API}/v2/calls`, {
+        method: "POST",
+        headers: {
+          ...auth,
+          "Content-Type": "application/json",
+          "Idempotency-Key": `interview-${interview.id}`,
+        },
+        body: JSON.stringify({
+          agent_id: process.env.MIRAI_AGENT_ID,
+          channel: "web",
+          variables: {
+            candidate_name: candidate.firstName,
+            role_title: candidate.role,
+            company_name: "Acme",
+            focus_areas: "Their experience with customer escalations and how they prioritise a busy queue.",
+          },
+          first_message:
+            `Hi ${candidate.firstName}, thanks for making time for your ${candidate.role} screening. ` +
+            "It takes about ten minutes. Shall we begin?",
+          metadata: { interview_id: interview.id, candidate_id: candidate.id },
+          max_duration_secs: 600,
+          timing: {
+            wrap_up_secs_before_end: 120,
+            wrap_up_instruction: "Time is nearly up. Do not start a new area. Let the candidate finish, then close.",
+            close_secs_before_end: 30,
+            close_message: "That's all the time we have. Thank you, and the hiring team will be in touch. Goodbye!",
+            user_silence_close_secs: 60,
+            user_silence_message: "It seems you've stepped away, so I'll end the interview here. Goodbye!",
+          },
+          recording_enabled: false,
+          final_results: true,
+          webhook_url: process.env.PUBLIC_WEBHOOK_URL,
+        }),
+      });
+      const call = await r.json();
+      if (r.status !== 202) return res.status(502).json({ error: call.error.code });
+
+      await db.interviews.update(interview.id, { miraiCallId: call.id, status: "started" });
+      // The page gets its two links and your own ID. Never the API key.
+      res.json({ interview_id: interview.id, ws_url: call.ws_url, events_url: call.events_url });
+    });
+    ```
+  </Tab>
+</Tabs>
+
+What to know about the two links:
+
+- `ws_url` is the audio socket. It works **once** and must be opened within 5
+  minutes. If the candidate refreshes the page, create a new interview.
+- `events_url` is the live caption stream. It can be reopened for the whole
+  interview and for one hour after it ends.
+- If the page never connects, the call ends as `failed` with
+  `ended_reason: "no-media"` and is not billed.
+
+---
+
+## Step 3: Build the interview page
+
+The page asks for the microphone, starts the interview, plays the interviewer,
+and shows captions, the interviewer's state and a countdown. The audio format is
+described in [Browser calls → Audio socket](/v2/web-calls#audio-socket).
+
+```html title="interview.html"
+<!doctype html>
+<meta charset="utf-8" />
+<title>Interview</title>
+<button id="start">Start interview</button>
+<button id="leave" disabled>Leave</button>
+<span id="clock">10:00</span>
+<span id="state"></span>
+<ol id="captions"></ol>
+<p id="done" hidden></p>
+
+<script type="module">
+  const RATE = 48000; // PCM16 mono, both directions
+  const FRAME = 960;  // 20 ms per message
+  const LIMIT_SECS = 600;
+
+  const WORKLETS = `
+    class Mic extends AudioWorkletProcessor {
+      constructor() { super(); this.buf = new Int16Array(${FRAME}); this.n = 0; }
+      process([input]) {
+        const ch = input[0];
+        if (!ch) return true;
+        for (let i = 0; i < ch.length; i++) {
+          const s = Math.max(-1, Math.min(1, ch[i]));
+          this.buf[this.n++] = s < 0 ? s * 0x8000 : s * 0x7fff;
+          if (this.n === ${FRAME}) { this.port.postMessage(this.buf.slice().buffer); this.n = 0; }
+        }
+        return true;
+      }
+    }
+    class Speaker extends AudioWorkletProcessor {
+      constructor() {
+        super();
+        this.queue = [];
+        this.port.onmessage = ({ data }) => {
+          if (data === "clear") { this.queue = []; return; }
+          const pcm = new Int16Array(data, 0, data.byteLength >> 1);
+          if (pcm.length) this.queue.push({ pcm, pos: 0 });
+        };
+      }
+      process(_inputs, [output]) {
+        const out = output[0];
+        for (let i = 0; i < out.length; i++) {
+          const head = this.queue[0];
+          if (!head) { out[i] = 0; continue; }
+          out[i] = head.pcm[head.pos++] / 0x8000;
+          if (head.pos === head.pcm.length) this.queue.shift();
+        }
+        return true;
+      }
+    }
+    registerProcessor("mic", Mic);
+    registerProcessor("speaker", Speaker);
+  `;
+
+  // What the candidate sees when the interview ends, by ended reason.
+  const ENDINGS = {
+    "time-limit-close": "Time's up. Thank you for your answers!",
+    "assistant-ended-call": "The interview is complete. Thank you!",
+    "user-silence-close": "The interview ended because we couldn't hear you.",
+    "api-ended-call": "The interview was ended by the hiring team.",
+    "customer-ended-call": "You left the interview.",
+    "exceeded-max-duration": "The time limit was reached.",
+  };
+  const STATES = { listening: "Listening…", processing: "Thinking…", speaking: "Speaking…" };
+
+  const $ = (id) => document.getElementById(id);
+  let ctx, mic, ws, events, ticker, finished = false;
+
+  $("start").onclick = async () => {
+    $("start").disabled = true;
+    // Ask for the microphone before creating the interview, so a denied prompt costs nothing.
+    ctx = new AudioContext({ sampleRate: RATE });
+    await ctx.audioWorklet.addModule(
+      URL.createObjectURL(new Blob([WORKLETS], { type: "text/javascript" })));
+    mic = await navigator.mediaDevices.getUserMedia({
+      audio: { channelCount: 1, echoCancellation: true },
+    });
+    const capture = new AudioWorkletNode(ctx, "mic", { numberOfOutputs: 0 });
+    const speaker = new AudioWorkletNode(ctx, "speaker", {
+      numberOfInputs: 0, outputChannelCount: [1],
+    });
+    ctx.createMediaStreamSource(mic).connect(capture);
+    speaker.connect(ctx.destination);
+
+    const session = await fetch("/api/interviews", { method: "POST" }).then((r) => r.json());
+
+    // Captions and interviewer state.
+    events = new EventSource(session.events_url);
+    events.addEventListener("agent.state", (e) => {
+      $("state").textContent = STATES[JSON.parse(e.data).data.state] ?? "";
+    });
+    events.addEventListener("transcript.turn", (e) => {
+      const { role, text, turn, interrupted } = JSON.parse(e.data).data;
+      const id = `turn-${role}-${turn}`;
+      const li = document.getElementById(id) ?? $("captions").appendChild(
+        Object.assign(document.createElement("li"), { id }));
+      // textContent, never innerHTML: captions are what people said.
+      li.textContent = `${role === "user" ? "You" : "Interviewer"}: ${text}${interrupted ? " …" : ""}`;
+    });
+    events.addEventListener("call.ended", (e) => {
+      finish(JSON.parse(e.data).data.reason);
+    });
+
+    // Audio.
+    ws = new WebSocket(session.ws_url);
+    ws.binaryType = "arraybuffer";
+    ws.onopen = () => {
+      // The interview clock starts when audio goes live, like the server's.
+      const started = Date.now();
+      ticker = setInterval(() => {
+        const left = Math.max(0, LIMIT_SECS - Math.floor((Date.now() - started) / 1000));
+        $("clock").textContent = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`;
+      }, 500);
+      $("leave").disabled = false;
+    };
+    capture.port.onmessage = ({ data }) => {
+      if (ws.readyState === WebSocket.OPEN) ws.send(data);
+    };
+    ws.onmessage = ({ data }) => {
+      if (typeof data === "string") {
+        if (JSON.parse(data).event === "clear") speaker.port.postMessage("clear");
+        return;
+      }
+      speaker.port.postMessage(data, [data]);
+    };
+    ws.onclose = () => finish();
+  };
+
+  // Leaving closes the audio socket; the interview ends as customer-ended-call.
+  $("leave").onclick = () => ws?.close();
+  window.addEventListener("pagehide", () => ws?.close());
+
+  function finish(reason) {
+    if (reason) {
+      $("done").textContent = ENDINGS[reason] ?? "The interview has ended.";
+      $("done").hidden = false;
+      events?.close(); // the last event; stop EventSource from reconnecting
+    }
+    if (finished) return;
+    finished = true;
+    clearInterval(ticker);
+    ws?.close();
+    mic?.getTracks().forEach((t) => t.stop());
+    ctx?.close();
+    $("leave").disabled = true;
+    $("state").textContent = "";
+  }
+</script>
+```
+
+Choices you can change:
+
+- **Barge-in.** The candidate can talk over the interviewer, which feels
+  natural. For a stricter format, send silence while the interviewer speaks:
+  track `agent.state` and fill the microphone frame with zeros while it is
+  `speaking`.
+- **Captions.** Each caption appears when its turn is complete. An interrupted
+  interviewer turn shows only the words the candidate actually heard.
+- **Leaving.** Closing the audio socket ends the interview immediately. To end
+  with a spoken goodbye instead, call your backend's end route from
+  [step 4](#step-4-let-a-moderator-steer-the-interview).
+
+---
+
+## Step 4: Let a moderator steer the interview
+
+A moderator, such as a recruiter watching the captions, can change the
+interviewer's direction or end the interview gracefully while it runs. Both go
+through [live control](/v2/web-calls#live-control) from your backend.
+
+- An **instruction** is added to the interviewer's context from its next reply
+  and stays for the rest of the interview. It is never read aloud and does not
+  appear in the transcript.
+- A **close** speaks a goodbye line and ends the interview as `completed`, with
+  `ended_reason: "api-ended-call"`.
+
+Useful instructions for interviews:
+
+| Situation | Instruction |
+| :--- | :--- |
+| The candidate is nervous | "The candidate seems nervous. Slow down and be encouraging." |
+| An area is going long | "Move on to the next area now." |
+| Something needs probing | "Ask one follow-up about how they measured the result of that project." |
+| Time is short for a known reason | "Skip the remaining areas and move to closing." |
+
+<Tabs>
+  <Tab title="Python">
+    ```python title="server.py (continued)"
+    from myapp import current_moderator  # stand-in: only your staff may steer
+
+
+    async def control(interview_id: str, body: dict, action_key: str) -> dict:
+        interview = await db.interviews.get(interview_id)
+        r = await mirai.post(
+            f"/v2/calls/{interview.mirai_call_id}/control",
+            headers={"Idempotency-Key": f"{interview_id}-{action_key}"},
+            json=body,
+        )
+        out = r.json()
+        if r.status_code == 409:  # call_not_active: not connected yet, or already over
+            return {"status": "not_active"}
+        if r.status_code not in (200, 202):
+            raise HTTPException(502, out["error"]["code"])
+        return {"status": out["status"]}  # applied | pending | rejected
+
+
+    @app.post("/api/interviews/{interview_id}/steer")
+    async def steer(interview_id: str, request: Request):
+        await current_moderator(request)
+        text = (await request.json())["text"][:1000]
+        return await control(interview_id, {"type": "instruction", "text": text},
+                             action_key=f"steer-{uuid.uuid4().hex}")
+
+
+    @app.post("/api/interviews/{interview_id}/end")
+    async def end(interview_id: str, request: Request):
+        await current_moderator(request)
+        return await control(
+            interview_id,
+            {"type": "close", "message": "Thank you for your time today. Goodbye!"},
+            action_key="close",  # the same key every time: a double click closes once
+        )
+    ```
+  </Tab>
+  <Tab title="Node.js">
+    ```javascript title="server.js (continued)"
+    import { randomUUID } from "node:crypto";
+    import { requireModerator } from "./myapp.js"; // stand-in: only your staff may steer
+
+    async function control(interviewId, body, actionKey) {
+      const interview = await db.interviews.get(interviewId);
+      const r = await fetch(`${API}/v2/calls/${interview.miraiCallId}/control`, {
+        method: "POST",
+        headers: {
+          ...auth,
+          "Content-Type": "application/json",
+          "Idempotency-Key": `${interviewId}-${actionKey}`,
+        },
+        body: JSON.stringify(body),
+      });
+      const out = await r.json();
+      if (r.status === 409) return { status: "not_active" }; // not connected yet, or already over
+      if (r.status !== 200 && r.status !== 202) throw new Error(out.error.code);
+      return { status: out.status }; // applied | pending | rejected
+    }
+
+    app.post("/api/interviews/:id/steer", requireModerator, express.json(), async (req, res) => {
+      const text = String(req.body.text).slice(0, 1000);
+      res.json(await control(req.params.id, { type: "instruction", text }, `steer-${randomUUID()}`));
+    });
+
+    app.post("/api/interviews/:id/end", requireModerator, async (req, res) => {
+      // The same key every time: a double click closes once.
+      res.json(await control(req.params.id,
+        { type: "close", message: "Thank you for your time today. Goodbye!" }, "close"));
+    });
+    ```
+  </Tab>
+</Tabs>
+
+A moderator view can show the same captions as the candidate. Give your backend
+the call's `events_url`, or read the stream server-side with your API key; see
+[live events](/v2/web-calls#live-events).
+
+---
+
+## Step 5: Receive the transcript and the score
+
+Your webhook receives two kinds of events for each interview:
+
+1. **A terminal event** as soon as the interview ends: `call.completed`,
+   `call.failed` or `call.aborted`. Mark the interview as over.
+2. **`call.processed`**, after the transcript has settled (within about two
+   minutes) and the score is ready. It carries the transcript in
+   `data.transcript` and the score in `data.call.analysis`.
+
+Both carry your `metadata`, so you find the interview without a lookup table.
+Verify the signature on every delivery and ignore repeats by event `id`: see
+[Webhooks → Signature verification](/v2/webhooks#signature-verification).
+
+<Tabs>
+  <Tab title="Python">
+    ```python title="server.py (continued)"
+    import json
+
+    from fastapi import Response
+
+    from myapp import queue, verify_signature  # verify_signature: see the Webhooks page
+
+    WEBHOOK_SECRET = os.environ["MIRAI_WEBHOOK_SECRET"]  # whsec_…
+
+
+    @app.post("/mirai/webhook")
+    async def mirai_webhook(request: Request):
+        raw = await request.body()
+        if not verify_signature(raw, request.headers.get("X-Mirai-Signature", ""), WEBHOOK_SECRET):
+            return Response(status_code=401)
+        event = json.loads(raw)
+        if not await db.events.first_time(event["id"]):  # retries keep the same id
+            return Response(status_code=200)
+
+        call = event["data"]["call"]
+        interview_id = (call.get("metadata") or {}).get("interview_id")
+
+        if event["type"] in ("call.completed", "call.failed", "call.aborted"):
+            await db.interviews.update(interview_id, status="ended",
+                                       ended_reason=call["ended_reason"])
+        elif event["type"] == "call.processed":
+            # Answer fast; do the work in the background.
+            await queue.enqueue("store_interview_result", interview_id=interview_id,
+                                call_id=call["id"], event=event)
+        return Response(status_code=200)
+
+
+    async def store_interview_result(interview_id: str, call_id: str, event: dict):
+        transcript = event["data"].get("transcript") or {}
+        status = transcript.get("status")
+        if status == "fetch_required":  # longer than the inline limit
+            r = await mirai.get(f"/v2/calls/{call_id}/transcript")
+            turns, status = r.json()["turns"], "ready"
+        else:
+            turns = transcript.get("turns") or []
+
+        analysis = event["data"]["call"].get("analysis") or {}
+        await db.interviews.update(
+            interview_id,
+            transcript_status=status,  # ready | empty | failed
+            transcript=turns,          # [{role, text, start_ms, end_ms}]
+            summary=analysis.get("summary"),
+            usable=analysis.get("success"),
+            scores=analysis.get("data"),  # the shape of your output_schema
+        )
+    ```
+  </Tab>
+  <Tab title="Node.js">
+    ```javascript title="server.js (continued)"
+    import { verifySignature } from "./verify.js"; // see the Webhooks page
+    import { queue } from "./myapp.js";
+
+    // express.raw, not express.json: the signature covers the exact bytes.
+    app.post("/mirai/webhook", express.raw({ type: "application/json" }), async (req, res) => {
+      const signature = req.get("X-Mirai-Signature") ?? "";
+      if (!verifySignature(req.body, signature, process.env.MIRAI_WEBHOOK_SECRET)) {
+        return res.sendStatus(401);
+      }
+      const event = JSON.parse(req.body.toString("utf8"));
+      if (!(await db.events.firstTime(event.id))) return res.sendStatus(200); // retries keep the id
+
+      const { call } = event.data;
+      const interviewId = call.metadata?.interview_id;
+
+      if (["call.completed", "call.failed", "call.aborted"].includes(event.type)) {
+        await db.interviews.update(interviewId, { status: "ended", endedReason: call.ended_reason });
+      } else if (event.type === "call.processed") {
+        // Answer fast; do the work in the background.
+        await queue.add("store-interview-result", { interviewId, callId: call.id, event });
+      }
+      res.sendStatus(200);
+    });
+
+    export async function storeInterviewResult({ interviewId, callId, event }) {
+      let { status, turns = [] } = event.data.transcript ?? {};
+      if (status === "fetch_required") { // longer than the inline limit
+        const r = await fetch(`${API}/v2/calls/${callId}/transcript`, { headers: auth });
+        ({ turns } = await r.json());
+        status = "ready";
+      }
+      const analysis = event.data.call.analysis ?? {};
+      await db.interviews.update(interviewId, {
+        transcriptStatus: status, // ready | empty | failed
+        transcript: turns,        // [{role, text, start_ms, end_ms}]
+        summary: analysis.summary,
+        usable: analysis.success,
+        scores: analysis.data,    // the shape of your output_schema
+      });
+    }
+    ```
+  </Tab>
+</Tabs>
+
+What the parts of `call.processed` mean for an interview:
+
+| Field | Values | What to do |
+| :--- | :--- | :--- |
+| `data.transcript.status` | `ready`, `empty`, `failed`, `fetch_required` | `ready`: store the turns. `empty`: the candidate never spoke. `failed`: record it and do not wait. `fetch_required`: fetch the turns with [`GET /v2/calls/{id}/transcript`](/v2/calls#get-the-transcript). |
+| `data.call.analysis.data` | Your `output_schema` | The scores for review. |
+| `data.call.analysis.success` | `true`, `false` or `null` | Whether the interview met your `success_criteria`, for example whether enough areas were covered to review it. |
+| `data.call.ended_reason` | `time-limit-close`, `assistant-ended-call`, `user-silence-close`, `api-ended-call`, `customer-ended-call`, … | How it ended. See [ended reasons](/v2/calls#ended-reasons). |
+| `data.processing.analysis` | `done`, `failed`, `skipped` | Whether the score was produced. |
+
+If your webhook was down, nothing is lost: deliveries are
+[retried](/v2/webhooks#retries), and you can always read
+`GET /v2/calls/{id}` (it reports `transcript_status`) and
+`GET /v2/calls/{id}/transcript`.
+
+---
+
+## Test it
+
+Short timers show every behaviour in about two minutes. Use them while you
+build, then switch back to the 10-minute values.
+
+```json title="Test values for POST /v2/calls"
+{
+  "max_duration_secs": 120,
+  "timing": {
+    "wrap_up_secs_before_end": 60,
+    "wrap_up_instruction": "Time is nearly up. Do not start a new area. Let the candidate finish, then close.",
+    "close_secs_before_end": 20,
+    "close_message": "That's all the time we have. Goodbye!",
+    "user_silence_close_secs": 30,
+    "user_silence_message": "It seems you've stepped away. Goodbye!"
+  }
+}
+```
+
+Run three interviews:
+
+1. **Talk for the full two minutes.** At 1:00 the interviewer stops starting new
+   topics. At 1:40 it says the close message and the page shows "Time's up".
+   Your webhook receives `call.completed`, then `call.processed` with
+   `ended_reason: "time-limit-close"`, the transcript and a score.
+2. **Say one sentence, then stay silent.** About 30 seconds later the
+   interviewer says the silence message and the interview ends as
+   `user-silence-close`.
+3. **Steer and end from the moderator routes.** An instruction returns
+   `applied` and the next reply follows it. The end route makes the interviewer
+   say goodbye; the interview ends as `api-ended-call`.
+
+| Symptom | Likely cause | Fix |
+| :--- | :--- | :--- |
+| The audio socket closes as soon as it opens | `ws_url` was already used, or is older than 5 minutes | Create a new interview for each page load. |
+| No sound, but captions appear | The `AudioContext` was created outside a click | Create it inside the start button's handler, as in step 3. |
+| The interviewer hears itself | Echo cancellation is off, or the candidate uses speakers without it | Keep `echoCancellation: true`; suggest headphones. |
+| A control returns `409 call_not_active` | The page has not connected yet, or the interview already ended | Treat it as "nothing to steer". |
+| The interviewer ignores the wrap-up | The prompt does not say what "time is nearly up" means | Keep the **Timekeeping** section from step 1. |
+| No `call.processed` arrives | `final_results` or `webhook_url` missing on the call | Set both on every interview. |
+| `call.processed` has no score | `analysis.enabled` is off on the agent | Enable it (step 1). New interviews pick it up. |
+
+---
+
+## Privacy and compliance
+
+- **Tell candidates up front** that they are talking to an AI interviewer, that
+  the conversation is transcribed, and how the transcript and score will be
+  used. Get their consent before the interview starts.
+- **No audio is kept** with `recording_enabled: false`: no recording is stored
+  and `GET /v2/calls/{id}/recording` returns `404`. The transcript is kept; see
+  [data retention](/v2/limits#data-retention). Ask
+  [help@miraiminds.co](mailto:help@miraiminds.co) to turn recording off for your
+  whole workspace.
+- **Keep metadata opaque.** Put IDs in `metadata`, never names, contact details
+  or interview answers.
+- **Keep a person in the loop** for hiring decisions. Use the score to sort and
+  review, not to reject automatically.
+- **Protect the two links.** `ws_url` and `events_url` grant access to one
+  interview. Send them only to that candidate's page over HTTPS, and keep them
+  out of logs and analytics. Your API key never leaves your server.
+- **Treat captions as untrusted text.** Render them with `textContent`, never as
+  HTML.
+
+## Production checklist
+
+- [ ] One agent per interview type, with a **Timekeeping** section and an
+  `analysis` rubric.
+- [ ] `metadata` carries your interview and candidate IDs; your database stores
+  the returned call `id`.
+- [ ] Every create uses an `Idempotency-Key` built from your interview ID.
+- [ ] `max_duration_secs`, `timing`, `recording_enabled: false`,
+  `final_results: true` and `webhook_url` are set on every interview.
+- [ ] Moderator routes check that the caller is your staff and use idempotency
+  keys.
+- [ ] The webhook verifies signatures, ignores repeated event IDs, answers
+  quickly and processes `call.processed` in the background.
+- [ ] Your interview status is driven by the terminal event, and your
+  transcript processing by `call.processed`.
+- [ ] Candidates see an AI disclosure and give consent before the interview
+  starts.
+- [ ] You ran the three test interviews above on the tier you will use in
+  production.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Browser calls" icon="browser" href="/v2/web-calls">
+    Audio format, live events, live control and timing reference.
+  </Card>
+  <Card title="Webhooks" icon="bell" href="/v2/webhooks">
+    Event types, signature verification, retries and final results.
+  </Card>
+  <Card title="Agents" icon="robot" href="/v2/agents">
+    Every agent field, voices and ending a call.
+  </Card>
+  <Card title="Limits" icon="gauge" href="/v2/limits">
+    Prompt, metadata, timing and data-retention limits.
+  </Card>
+</CardGroup>

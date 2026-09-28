@@ -32,3 +32,57 @@ For more details on local development, see our [development guide](development.m
 - **Lead with the goal**: Start instructions with what the user wants to accomplish
 - **Use consistent terminology**: Don't alternate between synonyms for the same concept
 - **Include examples**: Show, don't just tell
+
+## Write a cookbook
+
+Cookbooks are end-to-end recipes for one use case. They live in `cookbooks/`
+and in the **Cookbooks** tab of `docs.json`, grouped by the kind of product
+(for example **Browser voice apps**). Add a new group when a recipe does not fit
+an existing one, and add a card for the recipe to `cookbooks/overview.mdx`.
+
+Rules:
+
+- **Describe a use case, never a customer.** Do not name the company that asked
+  for the recipe, its product or its people.
+- **Use only shipped, documented features.** Link to the reference page for
+  every field and error code instead of repeating the reference.
+- **Make the code complete.** A reader should be able to copy each block and run
+  it after replacing clearly marked stand-ins (`db`, `queue`, sign-in helpers).
+  Give cURL, Python and Node.js where the step is an API call.
+- **Keep secrets on the server.** No example may put an API key in a browser.
+- **Include a short test configuration** that shows every behaviour in a few
+  minutes, and a troubleshooting table.
+- **Cover privacy and compliance** for the use case: what is stored, what users
+  must be told, and where a person must stay in the loop.
+
+Every cookbook uses this outline:
+
+```mdx
+---
+title: <What you build, in plain words>
+description: <One sentence: the outcome and the main parts.>
+---
+
+<One paragraph: what this recipe builds and which other use cases it fits.>
+
+## What you'll build
+<Bullets of the finished behaviour. "You need:" line.>
+
+## How it works
+<Sequence diagram and, when time matters, a timeline table.>
+
+## Step 1: <Verb the first thing>
+## Step 2: <…>
+<One step per moving part. Code tabs: cURL, Python, Node.js.>
+
+## Test it
+<Short test values, what to try, and a symptom / cause / fix table.>
+
+## Privacy and compliance
+## Production checklist
+## Related
+<CardGroup linking the reference pages used.>
+```
+
+Before opening a pull request, run `mint broken-links --check-anchors` and
+check that every example request matches the current API reference.
