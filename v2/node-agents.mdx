@@ -1,6 +1,6 @@
 ---
 title: Node-based agents
-description: Build an agent as a graph of steps, each with its own instructions, and let the model move between them. The graph schema, a worked example, editing, versions, limits and errors.
+description: Build an agent as a graph of steps, each with its own instructions, and let the model move between them. Generate a draft from a brief, the graph schema, a worked example, editing, versions, limits and errors.
 ---
 
 
@@ -68,6 +68,339 @@ Interruptions and silence follow the same rules as every agent:
   and the call ends with `ended_reason: "idle-timed-out"`. A call created with
   [`timing.user_silence_close_secs`](/v2/web-calls#timing-policy) uses that
   timer instead.
+
+---
+
+## Generate a flow from a brief
+
+Describe the agent in plain language and the API drafts the graph for you.
+Start here, then read and adjust the draft with the [schema](#the-graph) below.
+
+```http
+POST /v2/agents/flow/generate
+```
+
+| Field | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `brief` | string | yes | 1–6,000 characters. What the agent does: who it talks to, what it says and asks, how each answer is handled, what to record, and the language. |
+| `language` | string | no | Up to 32 characters. A language code or name for the spoken lines, such as `hi`, `en` or `Hinglish`. Without it, the brief decides. |
+| `flow` | object | no | A graph to revise, as `GET /v2/agents/{id}/flow` returns it. It must itself be valid. See [revise a flow](#revise-a-flow). |
+
+**Nothing is saved.** The response is a draft for you to review, test and save.
+
+```json title="200 OK"
+{
+  "object": "flow_draft",
+  "flow": { "nodes": [ … ], "edges": [ … ] },
+  "variables": [
+    { "name": "customer_name", "type": "string", "description": "The customer's name, used to confirm who answered." },
+    { "name": "order_id", "type": "string", "description": "The order number." },
+    { "name": "delivery_date", "type": "string", "description": "The scheduled delivery date." },
+    { "name": "delivery_window", "type": "string", "description": "The delivery time window, such as 10 AM and 1 PM." }
+  ],
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "customer_name": { "type": "string", "description": "The customer's name, used to confirm who answered." },
+      "order_id": { "type": "string", "description": "The order number." },
+      "delivery_date": { "type": "string", "description": "The scheduled delivery date." },
+      "delivery_window": { "type": "string", "description": "The delivery time window, such as 10 AM and 1 PM." }
+    },
+    "required": ["customer_name", "order_id", "delivery_date", "delivery_window"]
+  },
+  "flow_revision": "5b1e0c9a7d2f4e8b3a6c",
+  "rounds": 1
+}
+```
+
+| Field | Description |
+| :--- | :--- |
+| `flow` | The draft graph, with every default filled in. It passes every rule `PUT /v2/agents/{id}/flow` applies. |
+| `variables` | The call variables the draft reads as `{{name}}`: facts you know before the call, such as a name or an order number. What the caller says is captured by the nodes' [extraction variables](#extraction) instead. |
+| `input_schema` | The same variables as the agent's `input_schema`, every one required. Save it together with the flow. |
+| `flow_revision` | The draft's [fingerprint](#step-2-validate-it). Saved unchanged, the graph keeps it. |
+| `rounds` | How many attempts the draft took, from 1 to 3. Each attempt is checked against the graph rules, and any problems are sent back for another attempt. |
+
+A generation usually takes 15 to 40 seconds. Set your client's timeout to a few
+minutes; the examples below use 5.
+
+<Warning>
+**Review and test every draft before it takes a real call.** Read each node's
+prompt and each transition's condition, and check that the draft asks, records
+and refuses what you intended. Then run a [browser test with live
+events](#step-4-test-it-in-the-browser) and take every branch at least once.
+</Warning>
+
+### Generate a draft
+
+<Tabs>
+  <Tab title="cURL">
+    ```bash
+    jq -n --arg brief "Call customers of Acme Retail to confirm the delivery slot for their order. Speak everyday Hindi and say you are an AI assistant. First confirm you are speaking to the customer by name; if it is someone else, apologise and end the call without mentioning the order. Then give the order number, delivery date and time window, and ask whether someone will be at home. If yes, thank them and end. If not, ask which day in the next seven days suits them, read it back, and end once they confirm. Record whether they confirmed who they are, whether they accepted the slot, and the new day if they chose one." \
+      '{brief: $brief, language: "hi"}' |
+    curl -X POST https://sandbox.voice.miraiminds.co/v2/agents/flow/generate \
+      -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+      -H "Content-Type: application/json" \
+      --max-time 300 \
+      --data-binary @- > draft.json
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    import os, httpx
+
+    API = "https://sandbox.voice.miraiminds.co"
+    auth = {"Authorization": f"Bearer {os.environ['MIRAI_API_KEY']}"}
+
+    BRIEF = (
+        "Call customers of Acme Retail to confirm the delivery slot for their order. "
+        "Speak everyday Hindi and say you are an AI assistant. "
+        "First confirm you are speaking to the customer by name; if it is someone else, "
+        "apologise and end the call without mentioning the order. "
+        "Then give the order number, delivery date and time window, and ask whether "
+        "someone will be at home. If yes, thank them and end. If not, ask which day in "
+        "the next seven days suits them, read it back, and end once they confirm. "
+        "Record whether they confirmed who they are, whether they accepted the slot, "
+        "and the new day if they chose one."
+    )
+
+    r = httpx.post(
+        f"{API}/v2/agents/flow/generate",
+        headers=auth,
+        json={"brief": BRIEF, "language": "hi"},
+        timeout=300,  # a generation usually takes 15-40 s
+    )
+    if r.status_code in (429, 503):
+        raise RuntimeError(f"retry in {r.headers.get('Retry-After')} s")
+    if r.status_code == 422:
+        for problem in r.json()["details"]:
+            print(problem["path"], "-", problem["message"])
+    draft = r.raise_for_status().json()
+    print([v["name"] for v in draft["variables"]])
+    ```
+  </Tab>
+  <Tab title="Node.js">
+    ```javascript
+    const API = "https://sandbox.voice.miraiminds.co";
+    const auth = { Authorization: `Bearer ${process.env.MIRAI_API_KEY}` };
+
+    const BRIEF = [
+      "Call customers of Acme Retail to confirm the delivery slot for their order.",
+      "Speak everyday Hindi and say you are an AI assistant.",
+      "First confirm you are speaking to the customer by name; if it is someone else,",
+      "apologise and end the call without mentioning the order.",
+      "Then give the order number, delivery date and time window, and ask whether",
+      "someone will be at home. If yes, thank them and end. If not, ask which day in",
+      "the next seven days suits them, read it back, and end once they confirm.",
+      "Record whether they confirmed who they are, whether they accepted the slot,",
+      "and the new day if they chose one.",
+    ].join(" ");
+
+    const res = await fetch(`${API}/v2/agents/flow/generate`, {
+      method: "POST",
+      headers: { ...auth, "Content-Type": "application/json" },
+      body: JSON.stringify({ brief: BRIEF, language: "hi" }),
+      signal: AbortSignal.timeout(300_000), // a generation usually takes 15-40 s
+    });
+    const draft = await res.json();
+    if (!res.ok) {
+      if (res.status === 429 || res.status === 503) {
+        throw new Error(`retry in ${res.headers.get("Retry-After")} s`);
+      }
+      for (const { path, message } of draft.details ?? []) console.error(path, "-", message);
+      throw new Error(draft.error?.code ?? draft.error);
+    }
+    console.log(draft.variables.map((v) => v.name));
+    ```
+  </Tab>
+</Tabs>
+
+### Save it on an agent
+
+Create the agent with the draft's `flow` and its `input_schema`. Save them
+together: when an agent has an `input_schema`, every variable a node reads
+must be declared in it.
+
+<Tabs>
+  <Tab title="cURL">
+    ```bash
+    jq '{
+      name: "Delivery slot confirmation",
+      voice: { voice_id: "neha", language: "hi-IN" },
+      language: "hi-IN",
+      max_duration_secs: 240,
+      flow: .flow,
+      input_schema: .input_schema
+    }' draft.json |
+    curl -X POST https://sandbox.voice.miraiminds.co/v2/agents \
+      -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+      -H "Content-Type: application/json" \
+      --data-binary @-
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    agent = httpx.post(
+        f"{API}/v2/agents",
+        headers=auth,
+        json={
+            "name": "Delivery slot confirmation",
+            "voice": {"voice_id": "neha", "language": "hi-IN"},
+            "language": "hi-IN",
+            "max_duration_secs": 240,
+            "flow": draft["flow"],
+            "input_schema": draft["input_schema"],
+        },
+        timeout=30,
+    ).raise_for_status().json()
+    print(agent["id"], agent["revision"])
+    ```
+  </Tab>
+  <Tab title="Node.js">
+    ```javascript
+    const created = await fetch(`${API}/v2/agents`, {
+      method: "POST",
+      headers: { ...auth, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: "Delivery slot confirmation",
+        voice: { voice_id: "neha", language: "hi-IN" },
+        language: "hi-IN",
+        max_duration_secs: 240,
+        flow: draft.flow,
+        input_schema: draft.input_schema,
+      }),
+    });
+    const agent = await created.json();
+    if (!created.ok) throw new Error(JSON.stringify(agent));
+    console.log(agent.id, agent.revision);
+    ```
+  </Tab>
+</Tabs>
+
+With an `input_schema`, each call must send every declared variable in
+`variables`, and nothing else: a missing or undeclared variable is refused with
+`400 invalid_request`. Send `number` and `boolean` variables as JSON numbers
+and booleans. Then [test the agent in the browser](#step-4-test-it-in-the-browser)
+before you dial anyone.
+
+### Revise a flow
+
+To change a flow, send the current graph as `flow` and describe only the
+change in `brief`. The draft keeps what the brief does not ask to change,
+including node IDs, transition labels and the editor layout. Save the result
+with `PATCH`, together with its `input_schema` (the change may read a new
+variable), and `if_revision` so you never overwrite someone else's edit.
+
+<Tabs>
+  <Tab title="cURL">
+    ```bash
+    AGENT=agt_01K8C4D6F8H0J2K4M6N8P0Q2RS
+
+    curl -s "https://sandbox.voice.miraiminds.co/v2/agents/$AGENT/flow" \
+      -H "Authorization: Bearer sk_live_YOUR_API_KEY" > current.json
+
+    jq --arg brief "If the customer is busy right now, offer to call back later and end politely." \
+      '{brief: $brief, language: "hi", flow: .flow}' current.json |
+    curl -X POST https://sandbox.voice.miraiminds.co/v2/agents/flow/generate \
+      -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+      -H "Content-Type: application/json" \
+      --max-time 300 \
+      --data-binary @- > revised.json
+
+    jq --argjson rev "$(jq .agent_revision current.json)" \
+      '{if_revision: $rev, flow: .flow, input_schema: .input_schema}' revised.json |
+    curl -X PATCH "https://sandbox.voice.miraiminds.co/v2/agents/$AGENT" \
+      -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+      -H "Content-Type: application/json" \
+      --data-binary @-
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    agent_id = "agt_01K8C4D6F8H0J2K4M6N8P0Q2RS"
+    current = httpx.get(
+        f"{API}/v2/agents/{agent_id}/flow", headers=auth, timeout=30
+    ).raise_for_status().json()
+
+    revised = httpx.post(
+        f"{API}/v2/agents/flow/generate",
+        headers=auth,
+        json={
+            "brief": "If the customer is busy right now, offer to call back later and end politely.",
+            "language": "hi",
+            "flow": current["flow"],
+        },
+        timeout=300,
+    ).raise_for_status().json()
+
+    r = httpx.patch(
+        f"{API}/v2/agents/{agent_id}",
+        headers=auth,
+        json={
+            "if_revision": current["agent_revision"],
+            "flow": revised["flow"],
+            "input_schema": revised["input_schema"],
+        },
+        timeout=30,
+    )
+    if r.status_code == 409:
+        raise RuntimeError("the agent changed since it was read; read the flow again")
+    print(r.raise_for_status().json()["revision"])
+    ```
+  </Tab>
+  <Tab title="Node.js">
+    ```javascript
+    const agentId = "agt_01K8C4D6F8H0J2K4M6N8P0Q2RS";
+    const current = await fetch(`${API}/v2/agents/${agentId}/flow`, { headers: auth })
+      .then((r) => r.json());
+
+    const gen = await fetch(`${API}/v2/agents/flow/generate`, {
+      method: "POST",
+      headers: { ...auth, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        brief: "If the customer is busy right now, offer to call back later and end politely.",
+        language: "hi",
+        flow: current.flow,
+      }),
+      signal: AbortSignal.timeout(300_000),
+    });
+    const revised = await gen.json();
+    if (!gen.ok) throw new Error(JSON.stringify(revised));
+
+    const res = await fetch(`${API}/v2/agents/${agentId}`, {
+      method: "PATCH",
+      headers: { ...auth, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        if_revision: current.agent_revision,
+        flow: revised.flow,
+        input_schema: revised.input_schema,
+      }),
+    });
+    if (res.status === 409) throw new Error("the agent changed since it was read; read the flow again");
+    const agent = await res.json();
+    if (!res.ok) throw new Error(JSON.stringify(agent));
+    console.log(agent.revision);
+    ```
+  </Tab>
+</Tabs>
+
+Test the revised agent again before it takes real calls. A revision is a new
+agent revision like any other save, so you can [roll it back](#versions).
+
+### Generation errors
+
+| Status | `error` | When | What to do |
+| :--- | :--- | :--- | :--- |
+| `400` | `invalid_request` | `brief` is missing, blank or over 6,000 characters, `language` is over 32 characters, or the body has an unknown field. | Fix the request. |
+| `400` | `invalid_flow` | The `flow` you sent to revise breaks a rule, or your tier's model cannot run flows. Same shape as [flow errors](#errors). | Fix the listed paths. |
+| `422` | `flow_generation_failed` | No valid graph after three attempts. `details` lists what was still wrong, as `{"path","message"}` pairs, like `invalid_flow`. Nothing was saved. | Rephrase the brief: name each step and each branch explicitly, or shorten it. Or fix the graph by hand. |
+| `429` | `rate_limited` | Your workspace has used its 30 generations for the hour, or the generator is busy with other requests. | Wait for `Retry-After` seconds, then retry. |
+| `503` | `upstream_unavailable` | The generator is unavailable. | Wait for `Retry-After` seconds, then retry. |
+
+`422` uses the same shape as `invalid_flow`: `error` is a string and `details`
+a list. The other errors use the [standard envelope](/v2/errors). A `503`, and
+a `429` sent because the generator is busy, do not count against the hourly
+limit.
 
 ---
 
