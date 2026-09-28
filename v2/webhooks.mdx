@@ -71,6 +71,14 @@ later; read their receipts separately. See [Tools: call.processed](/v2/tools#rec
 For the finished transcript in the same event, create the call with
 `final_results: true` — see [final results](#final-results).
 
+{/* FLOW-OUTCOME */}
+
+A call run by a [node-based agent](/v2/node-agents) always sends
+`call.processed` when it has a `webhook_url`, with the flow's outcome at
+`data.call.flow`. See [final results](#final-results).
+
+{/* /FLOW-OUTCOME */}
+
 [Campaigns](/v2/campaigns) add five more. They are delivered to the campaign's
 own `webhook_url`, signed with the same workspace secret, in the same envelope —
 with `data.campaign` where `data.call` would be.
@@ -263,6 +271,36 @@ processing a conversation on.
 `analysis` is `done`, `failed`, `skipped` or `not_enabled`. `post_call_tools` is
 `done`, `partial` or `failed` when the agent has post-call tools. See
 [Tools: call.processed](/v2/tools#receive-call-processed).
+
+{/* FLOW-OUTCOME */}
+
+**Node-based agents.** For a call run by a [node-based agent](/v2/node-agents),
+`data.call.flow` holds the flow's outcome, in the ordinary `call.processed` and
+in final results alike:
+
+```json title="data.call.flow"
+{
+  "final_node": "goodbye",
+  "nodes_visited": ["Confirm the customer", "Offer the delivery slot", "Find a new day", "Close"],
+  "variables": { "identity_confirmed": true, "slot_accepted": false, "preferred_day": "Saturday" },
+  "status": "end_call",
+  "tags": ["end_call"]
+}
+```
+
+The fields are described in [flow outcome](/v2/calls#flow-outcome).
+`nodes_visited` and `variables` are always present; `final_node`, `status` and
+`tags` are omitted when unknown.
+
+- **Always sent.** A node-based agent's call sends `call.processed` whenever
+  the call has a `webhook_url`, even without analysis, post-call tools or
+  `final_results`.
+- **Waits for the outcome.** The outcome is usually recorded within seconds of
+  the call ending. `call.processed` waits up to 2 minutes for it, then is sent
+  without `flow`. In that case, read
+  [`GET /v2/calls/{id}`](/v2/calls#get-a-call) later.
+
+{/* /FLOW-OUTCOME */}
 
 **When it arrives.** After the terminal event, once the transcript has settled —
 within about 2 minutes of the call ending — and once any analysis and post-call

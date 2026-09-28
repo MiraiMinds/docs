@@ -8,6 +8,9 @@ An **agent** is the reusable configuration a call runs: what it says first, how
 it behaves, which voice, which language, and when it must stop. Calls reference
 an agent by ID; per-call differences go in [`variables`](/v2/calls#variables).
 
+An agent runs either one prompt (`system_prompt`) or a graph of steps (`flow`).
+See [Node-based agents](/v2/node-agents) for the graph.
+
 Base URL `https://sandbox.voice.miraiminds.co`. All endpoints require
 `Authorization: Bearer sk_live_…`.
 
@@ -17,6 +20,14 @@ Add `tools` to connect your APIs before, during, or after a call. On-call HTTP
 tools can run synchronously or in the background, with the result returned to
 the voice agent when ready. See [Tools](/v2/tools) for setup, conditions, secrets,
 callbacks, and examples.
+
+## Node-based agents
+
+Add `flow` to run the conversation as a graph: nodes with their own
+instructions, and transitions the model takes when their conditions are met.
+With a flow, `system_prompt` and `first_message` are optional and unused, and
+only `pre_call` and `post_call` tools are allowed. See
+[Node-based agents](/v2/node-agents) for the schema and a worked example.
 
 ## The agent object
 
@@ -47,8 +58,8 @@ callbacks, and examples.
 | Field | Type | Required | Description |
 | :--- | :--- | :--- | :--- |
 | `name` | string | yes | Human label. Shown in logs and the console. |
-| `system_prompt` | string | yes | The agent's instructions. Supports `{{variable}}` placeholders. |
-| `first_message` | string | yes | Spoken the moment the callee answers, before the model runs. Keep it short — it is your first-audio latency. |
+| `system_prompt` | string | yes, unless `flow` is set | The agent's instructions. Supports `{{variable}}` placeholders. Unused on a node-based agent. |
+| `first_message` | string | yes, unless `flow` is set | Spoken the moment the callee answers, before the model runs. Keep it short — it is your first-audio latency. Unused on a node-based agent: its start node's `greeting` opens the call. |
 | `voice` | object | yes | See [Voice](#voice). |
 | `language` | string | yes | BCP-47 conversation language, e.g. `hi-IN`, `en-IN`. Drives ASR and the model's default output language. |
 | `max_duration_secs` | integer | no | Hard cap. The call is ended with `ended_reason: exceeded-max-duration`. Minimum `30`, maximum `1800`, default `300`. |
@@ -57,6 +68,7 @@ callbacks, and examples.
 | `end_call` | object | no | See [Ending a call](#ending-a-call). |
 | `voicemail` | object | no | See [Voicemail](#voicemail). |
 | `background_sound` | string \| object | no | Room ambience under the agent's voice. See [Background sound](#background-sound). Default `off`. |
+| `flow` | object \| null | no | A node graph. Makes this a [node-based agent](/v2/node-agents). Present on the agent object only when set. PATCH replaces the whole graph; `null` removes it. |
 
 Server-set and read-only: `id`, `object`, `created_at`, `updated_at`.
 
@@ -234,6 +246,7 @@ POST /v2/agents
 | Error | `error.code` | Cause |
 | :--- | :--- | :--- |
 | `400` | `invalid_request` | Missing required field, unknown `voice_id`, `max_duration_secs` out of range |
+| `400` | `invalid_flow` | A problem in `flow`, or an `on_call` tool on a node-based agent. The body lists every problem with its path; see [errors](/v2/node-agents#errors). |
 | `401` | `unauthorized` | Bad or missing key |
 
 ---
@@ -331,7 +344,10 @@ PATCH /v2/agents/{id}
 ```
 
 Send only the fields you are changing. Nested objects are replaced wholesale —
-to change `end_call.message`, send the whole `end_call` object.
+to change `end_call.message`, send the whole `end_call` object. The same goes
+for `flow`: send the whole graph, or use
+[`PUT /v2/agents/{id}/flow`](/v2/node-agents#edit-the-graph). `"flow": null`
+turns a node-based agent back into a single-prompt agent.
 
 <Tabs>
   <Tab title="cURL">
@@ -399,9 +415,9 @@ longer be used for new calls, but historical calls keep resolving their
 
 ## Writing a good prompt
 
-A v2 call is a **single-prompt** call — one job, start to finish, usually in
-under two or three minutes. The [prompting guide](/v2/prompting-guide) is the
-long version; the short one:
+A single-prompt agent does one job, start to finish, usually in under two or
+three minutes. The [prompting guide](/v2/prompting-guide) is the long version;
+the short one:
 
 - **Name the job in the first line.** "Confirm order `{{order_id}}`. Nothing else."
 - **Cap reply length explicitly.** "One or two short sentences." Long turns are
@@ -414,8 +430,7 @@ long version; the short one:
   prompt code-switches badly. Write the Hindi lines in Devanagari.
 
 Prompts that cause trouble: multi-branch scripts ("if they say X, then go
-through the following seven questions"), instructions that assume the model
-remembers a previous call, and anything that needs a database lookup mid-call —
-that needs a node-based agent. Node-based agents are available on every tier
-and run as browser calls for now — see
-[tiers](/general/tiers#one-stack-on-every-tier).
+through the following seven questions"), which belong in a
+[node-based agent](/v2/node-agents); instructions that assume the model
+remembers a previous call; and data the agent must fetch mid-call, which is a
+job for an on-call [tool](/v2/tools).

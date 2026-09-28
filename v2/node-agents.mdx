@@ -773,10 +773,11 @@ agent over a list, create a [campaign](/v2/campaigns) with its `agent_id`.
 
 ### Step 6: Read the outcome
 
-When a node-based agent's call ends, the call carries a `flow` block: where the
-call finished, the steps it went through, and every extracted value. Read it on
-[`GET /v2/calls/{id}`](/v2/calls#flow-outcome), or in
-[`call.processed`](/v2/webhooks#final-results) at `data.call.flow`.
+A node-based agent's call carries a `flow` block: where the call finished, the
+steps it went through, and every extracted value. It is on
+[`GET /v2/calls/{id}`](/v2/calls#flow-outcome), on each call in
+`GET /v2/calls`, and at `data.call.flow` in
+[`call.processed`](/v2/webhooks#final-results).
 
 ```json
 {
@@ -788,18 +789,19 @@ call finished, the steps it went through, and every extracted value. Read it on
       "slot_accepted": false,
       "preferred_day": "Saturday"
     },
-    "status": "end_call"
+    "status": "end_call",
+    "tags": ["end_call"]
   }
 }
 ```
 
 | Field | Type | Description |
 | :--- | :--- | :--- |
-| `final_node` | string | The `id` of the node the call ended on. |
-| `nodes_visited` | array | The `name` of each node the call entered, in the order it first entered them. A node entered twice is listed once. |
-| `variables` | object | Every extracted value, by variable name. When two nodes extract the same name, the later value is kept. |
-| `status` | string | How the flow ended. See below. |
-| `tags` | array | Labels recorded for the call. Present when there are any. |
+| `final_node` | string | The `id` of the node the call ended on. Omitted when unknown. |
+| `nodes_visited` | array | The `name` of each node the call entered, in the order it first entered them. A node entered twice is listed once. Always present; `[]` when no node was entered. |
+| `variables` | object | Every extracted value, by variable name. When two nodes extract the same name, the later value is kept. Always present; `{}` when nothing was extracted. |
+| `status` | string | How the flow ended. See below. Omitted when unknown. |
+| `tags` | array | Labels recorded for the call, such as how it ended. Omitted when unknown. |
 
 | `status` | Meaning |
 | :--- | :--- |
@@ -814,6 +816,13 @@ call finished, the steps it went through, and every extracted value. Read it on
 Match on `status` for your own logic, and keep a default branch: new values can
 be added. Values extracted as the call ends are included, so the block is the
 complete record of the flow.
+
+**When it arrives.** The block is absent until the call's outcome is recorded,
+usually within seconds of the call ending, so it can be missing from the
+terminal event. A node-based agent's call always sends `call.processed` when
+the call has a `webhook_url`. That event waits up to 2 minutes for the outcome,
+and is sent without `flow` if it has not arrived by then; read
+`GET /v2/calls/{id}` later in that case.
 
 {/* /FLOW-OUTCOME */}
 

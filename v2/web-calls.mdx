@@ -80,7 +80,7 @@ is in [Calls](/v2/calls#request).
 | :--- | :--- |
 | `channel` | `"web"`. |
 | `metadata` | Your own identifiers, such as `session_id` and `user_id`. Returned unchanged on the call object and in every webhook for this call. Never shown to the agent. See [metadata](/v2/calls#metadata). |
-| `first_message` | The opening line for this call only, up to 500 characters. Replaces the agent's stored `first_message`; `{{variable}}` placeholders work the same way. |
+| `first_message` | The opening line for this call only, up to 500 characters. Replaces the agent's stored `first_message`; `{{variable}}` placeholders work the same way. Not accepted for a [node-based agent](/v2/node-agents): its start node opens the call. |
 | `max_duration_secs` | Hard cap for this call. `600` is a 10-minute call. |
 | `timing` | Wrap up, close and silence timers. See [timing policy](#timing-policy). |
 | `recording_enabled` | `false` stores no audio for this call. The transcript and live text still work. |
@@ -303,7 +303,7 @@ data: {"v":1,"seq":7,"type":"transcript.turn","call_id":"call_01K8B2M4Q6S8T0V2X4
 | :--- | :--- |
 | `v` | Schema version. `1`. |
 | `seq` | Sequence number of the event within this call, increasing. |
-| `type` | `agent.state`, `transcript.turn` or `call.ended`. The same value as the SSE `event` line. |
+| `type` | `agent.state`, `transcript.turn` or `call.ended`, plus `flow.node.entered` and `flow.variables.extracted` for a [node-based agent](/v2/node-agents). The same value as the SSE `event` line. |
 | `call_id` | The call this event belongs to. |
 | `at` | When it happened. RFC 3339, UTC. |
 | `data` | The type-specific payload below. |
@@ -360,6 +360,47 @@ One event per completed turn, for both speakers.
 Text arrives once per **completed** turn: the user's after they finish
 speaking, the agent's after its turn ends. There are no word-by-word captions
 yet.
+
+### `flow.node.entered`
+
+Sent only for a [node-based agent](/v2/node-agents): the call entered a node.
+The start node sends one too, with `previous_id: null`. It arrives before the
+reply that node produces, so a page can show the current step as it changes.
+
+```json
+{
+  "v": 1, "seq": 5, "type": "flow.node.entered",
+  "call_id": "call_01K8B2M4Q6S8T0V2X4Z6A8C0EG",
+  "at": "2026-09-27T10:00:08.910Z",
+  "data": { "node_id": "slot", "name": "Offer the delivery slot", "previous_id": "identity" }
+}
+```
+
+| Field | Description |
+| :--- | :--- |
+| `node_id` | The `id` of the node the call entered. |
+| `name` | That node's `name`. |
+| `previous_id` | The `id` of the node the call left. `null` for the start node. |
+
+### `flow.variables.extracted`
+
+Sent only for a node-based agent: a node's extraction saved values. It arrives
+shortly after the call leaves a node with `extraction_enabled`, and only when
+something was extracted.
+
+```json
+{
+  "v": 1, "seq": 7, "type": "flow.variables.extracted",
+  "call_id": "call_01K8B2M4Q6S8T0V2X4Z6A8C0EG",
+  "at": "2026-09-27T10:00:09.640Z",
+  "data": { "node_id": "identity", "variables": { "identity_confirmed": true } }
+}
+```
+
+| Field | Description |
+| :--- | :--- |
+| `node_id` | The node whose extraction ran. |
+| `variables` | The names that node asked for, with the values extracted: strings, numbers or booleans. |
 
 ### `call.ended`
 
@@ -905,6 +946,16 @@ processing on `call.processed`.
 | `empty` | Nobody spoke. There is nothing to process. |
 | `failed` | The transcript could not be produced. Record it; do not wait for another event. |
 | `fetch_required` | The transcript is larger than 512 KB, so it is not inline. Fetch it with [`GET /v2/calls/{id}/transcript`](/v2/calls#get-the-transcript). It is never truncated. |
+
+{/* FLOW-OUTCOME */}
+
+For a [node-based agent](/v2/node-agents), `call.processed` is always sent when
+the call has a `webhook_url`, and it carries the flow's outcome at
+`data.call.flow`: the node the call ended on, the nodes it visited and every
+extracted value. It waits up to 2 minutes for that outcome. See
+[flow outcome](/v2/calls#flow-outcome).
+
+{/* /FLOW-OUTCOME */}
 
 Deliveries are at least once, and order is not guaranteed. Deduplicate on the
 event `id` — retries keep it — and order your own state by `data.call.status`,

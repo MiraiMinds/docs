@@ -4,9 +4,12 @@ description: Error envelopes, status codes, tool validation errors, and how to h
 ---
 
 
-Most v2 errors use the envelope below. [Tool-definition validation](/v2/tools#validation-and-runtime-errors)
-is an exception: it returns `{"error":"invalid_tools","details":[...]}` with
-all offending field paths. Handle that shape when saving agent tools.
+Most v2 errors use the envelope below. Two validation errors are exceptions:
+[tool definitions](/v2/tools#validation-and-runtime-errors) return
+`{"error":"invalid_tools","details":[...]}` and
+[node graphs](/v2/node-agents#errors) return
+`{"error":"invalid_flow","details":[...]}`, each with every offending field
+path. Handle those shapes when saving agent tools or a flow.
 
 ```json
 {
@@ -31,7 +34,7 @@ all offending field paths. Handle that shape when saving agent tools.
 | `402` | Wallet cannot cover the call. | After topping up. |
 | `403` | The key is valid but **revoked**, the call is not covered by your company's plan, or it asks for recording on a workspace with recording turned off. | No. |
 | `404` | No such resource in your workspace — including one that exists in someone else's. | No. |
-| `409` | State conflict — a request with the same `Idempotency-Key` still in flight, or an operation the current state forbids (such as controlling a call that is not in progress). | No. |
+| `409` | State conflict — a request with the same `Idempotency-Key` still in flight, or an operation the current state forbids (such as controlling a call that is not in progress, or a call option a node-based agent does not take). | No. |
 | `429` | Request-rate limit. Concurrency does not `429`. | Yes, with backoff. |
 | `500` | Our fault. | Yes, with backoff. |
 | `501` | The feature exists in the contract but is not live yet. | No. |
@@ -42,6 +45,7 @@ all offending field paths. Handle that shape when saving agent tools.
 | `error.code` | Status | When | Fix |
 | :--- | :--- | :--- | :--- |
 | `invalid_request` | `400` | Missing required field, wrong type, `to` not E.164, `max_duration_secs` out of range, unknown `voice_id`, malformed JSON. | Read `message`; it names the field. |
+| `invalid_flow` | `400` | A [node graph](/v2/node-agents) breaks a rule, a node-based agent has an `on_call` tool, or your tier's model cannot run flows. Sent as `{"error":"invalid_flow","details":[{"path","message"}]}`, not in the envelope. | Fix every listed path. See [node-based agent errors](/v2/node-agents#errors). |
 | `unauthorized` | `401` | No `Authorization` header, not `Bearer `-prefixed, or the key is unknown. | Check the header. A trailing newline from `cat`-ing a key file is the usual culprit. |
 | `invalid_token` | `401` | The `token` on a [browser call](/v2/web-calls)'s media or events link is unknown, expired, already used (the media link is single use), or belongs to another call. | Use the links exactly as returned. For audio, create a new call — the media link cannot be reused. |
 | `forbidden` | `403` | The key was revoked. | Get a new key. |
@@ -55,7 +59,8 @@ all offending field paths. Handle that shape when saving agent tools.
 | `at_capacity` | `429` | No capacity for this request: on calls, every line on the deployment is busy — a fleet-wide ceiling, not your workspace's. On [text to speech](/v2/tts-quickstart#limits) it also means your workspace already has its 10 requests in flight. Nothing was charged either way. | Honour `Retry-After` and retry. |
 | `call_not_active` | `409` | A [live control](/v2/web-calls#live-control) was sent to a call that is not in progress: still `queued` (the page has not connected its audio) or already ended. | Wait for `call.started`; after a terminal event there is nothing left to control. |
 | `unsupported_channel` | `400` | A [live control](/v2/web-calls#live-control) was sent to a call that is not a browser call. | Live control is for `channel: "web"` calls. To stop a phone call, use [`POST /abort`](/v2/calls#abort-a-call). |
-| `flow_agent_web_only` | `409` | A phone call or campaign named a node-based agent. Node-based agents run as browser calls for now. | Use a single-prompt agent for phone calls and campaigns. See [tiers](/general/tiers#one-stack-on-every-tier). |
+| `flow_agent_voice_only` | `409` | A text chat (`channel: "text"`) named a [node-based agent](/v2/node-agents). Nothing was created. | Use `phone` or `web`, or a single-prompt agent for text. |
+| `flow_first_message_unsupported` | `409` | A call sent `first_message` for a node-based agent. Nothing was created. | Leave `first_message` out. The start node's `greeting` opens the call; personalise it with `variables`. |
 | `tier_unavailable` | `501` | `tier` names a tier that is not enabled on this deployment. | Leave `tier` out — calls default to your plan's tier. See [tiers](/general/tiers#setting-the-tier). |
 | `campaigns_unavailable` | `503` | Campaigns are not enabled for your workspace. Every `/v2/campaigns` and `/v2/dnc` route answers this; everything else keeps working. | Not a mistake in your request, and retrying will not clear it — ask your Mirai contact to enable them. |
 | `fleet_offline` | `503` | Speech capacity is offline, so a [campaign start](/v2/campaigns#start-a-campaign) was refused. Nothing was charged and the campaign stayed where it was. | Honour `Retry-After` (300s) and start it again. |

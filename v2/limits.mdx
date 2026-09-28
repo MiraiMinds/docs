@@ -163,6 +163,23 @@ Invalid values return `400 invalid_request`.
 | Control acknowledgement | `200` within 3 seconds, otherwise `202 pending` |
 | Final results inline transcript | 512 KB. Larger transcripts arrive as `fetch_required`. |
 
+### Node-based agents
+
+A [node-based agent](/v2/node-agents)'s `flow` is checked on every save. Over a
+limit returns `400 invalid_flow` with the path of each problem.
+
+| Thing | Limit |
+| :--- | :--- |
+| Nodes | 2–20: exactly one `startCall`, at least one `endCall`, at most one `globalNode` |
+| Transitions | 1–40 |
+| Graph size | 100 KB as JSON, with each non-ASCII character counted as its 6-byte escape |
+| Node `name` | 80 characters |
+| Node `prompt` | 12,000 characters |
+| `greeting` | 1,500 characters |
+| Extraction variables | 12 per node; `prompt` 2,000 characters |
+| Transition `condition` | 2,000 characters |
+| Node IDs, labels, variable names | 64 characters: a letter or underscore, then letters, digits or underscores |
+
 ## Campaign ceilings
 
 [Campaigns](/v2/campaigns) carry their own bounds, all enforced at the API edge
