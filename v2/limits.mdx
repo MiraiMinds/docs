@@ -16,6 +16,7 @@ Limits are per **secret key**.
 | Concurrent live calls | 5 | calls in `dialing` or `in_progress` | the call **queues** |
 | Queue depth | 500 | calls accepted and not yet ended | `429 rate_limited` |
 | TTS requests in flight | 10 **per workspace** | `/v1/audio/speech` and `/v2/tts` | `429 at_capacity` |
+| Flow generations | 30 per hour **per workspace** | [`POST /v2/agents/flow/generate`](/v2/node-agents#generate-a-flow-from-a-brief) | `429 rate_limited` with `Retry-After` |
 
 <Warning>
 **Pilot keys are provisioned individually**
@@ -163,6 +164,33 @@ Invalid values return `400 invalid_request`.
 | Control acknowledgement | `200` within 3 seconds, otherwise `202 pending` |
 | Final results inline transcript | 512 KB. Larger transcripts arrive as `fetch_required`. |
 
+### Node-based agents
+
+A [node-based agent](/v2/node-agents)'s `flow` is checked on every save. Over a
+graph limit returns `400 invalid_flow` with the path of each problem; an
+over-long generation `brief` or `language` returns `400 invalid_request`.
+
+| Thing | Limit |
+| :--- | :--- |
+| Nodes | 2–20: exactly one `startCall`, at least one `endCall`, at most one `globalNode` |
+| Transitions | 1–40 |
+| Graph size | 100 KB as JSON, with each non-ASCII character counted as its 6-byte escape |
+| Node `name` | 80 characters |
+| Node `prompt` | 12,000 characters |
+| `greeting` | 1,500 characters |
+| Extraction variables | 12 per node; `prompt` 2,000 characters |
+| Transition `condition` | 2,000 characters |
+| Node IDs, labels, variable names | 64 characters: a letter or underscore, then letters, digits or underscores |
+| Generation `brief` | 1–6,000 characters |
+| Generation `language` | 32 characters |
+| Generation `model` | `gemini-3.8-flash` (default), `gpt-6-sol` or `claude-opus-5.5` |
+
+A flow generation typically takes 15 to 60 seconds, depending on the model; set
+a client timeout of a few minutes. When the generator is busy with other
+requests, it answers `429 rate_limited` with `Retry-After`, and that refusal
+does not count against the hourly limit. Each generation is charged to your
+wallet by the tokens it used; see [AI flow drafts](/general/tiers#ai-flow-drafts).
+
 ## Campaign ceilings
 
 [Campaigns](/v2/campaigns) carry their own bounds, all enforced at the API edge
@@ -194,6 +222,7 @@ stack is tuned for prompts in the hundreds of tokens, not thousands.
 | Ring / answer | ~60 seconds. No media by then → `no_answer`. |
 | Call duration | Ends at `max_duration_secs` with `status: timeout`. |
 | Browser connect | 5 minutes after the call is created. If no audio connects, the call ends `failed` with `ended_reason: "no-media"` and is not billed. |
+| Flow generation | Typically 15–20 s on Gemini 3.8 Flash, 20–60 s on GPT-6 Sol and 25–35 s on Claude Opus 5.5. Set a client timeout of a few minutes. |
 | Final results | `call.processed` follows the terminal event once the transcript settles (within about 2 minutes of the call ending) and any analysis and post-call tools finish. |
 | Webhook delivery | Your endpoint should answer well under a second. Slow responses are treated as failures and [retried](/v2/webhooks#retries). |
 

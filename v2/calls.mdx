@@ -57,6 +57,42 @@ Base URL `https://sandbox.voice.miraiminds.co`.
 | `metadata` | object | Your [`metadata`](#metadata) from create, unchanged. Absent when the call has none. |
 | `analysis` | object \| null | Post-call summary, when the agent was created with `analysis.enabled`. `null` otherwise. |
 
+{/* FLOW-OUTCOME */}
+
+### Flow outcome
+
+A call run by a [node-based agent](/v2/node-agents) also carries `flow`: where
+the flow finished, the steps it went through and the values it extracted. It
+appears here, on each call in [`GET /v2/calls`](#list-calls), and at
+`data.call.flow` in [`call.processed`](/v2/webhooks#final-results). A call run by
+a single-prompt agent has no `flow` field.
+
+```json
+{
+  "flow": {
+    "final_node": "goodbye",
+    "nodes_visited": ["Confirm the customer", "Offer the delivery slot", "Close"],
+    "variables": { "identity_confirmed": true, "slot_accepted": true },
+    "status": "end_call",
+    "tags": ["end_call"]
+  }
+}
+```
+
+| Field | Description |
+| :--- | :--- |
+| `final_node` | The `id` of the node the call ended on. Omitted when unknown. |
+| `nodes_visited` | The `name` of each node the call entered, in the order it first entered them. Always present; `[]` when none. |
+| `variables` | Every extracted value, by variable name. Always present; `{}` when none. |
+| `status` | How the flow ended: `end_call`, `user_hangup`, `user_idle_max_duration_exceeded`, `call_duration_exceeded`, `voicemail_detected`, `pipeline_error` or `system_cancelled`. Omitted when unknown. See [reading the outcome](/v2/node-agents#step-6-read-the-outcome). |
+| `tags` | Labels recorded for the call, such as how it ended. Omitted when unknown. |
+
+`flow` is absent until the outcome is recorded, usually within seconds of the
+call ending, so it can be missing from the terminal event. `call.processed`
+waits up to 2 minutes for it.
+
+{/* /FLOW-OUTCOME */}
+
 ## Statuses
 
 | Status | Terminal | Meaning |
@@ -167,7 +203,7 @@ POST /v2/calls
 | `to` | string | phone only | E.164, e.g. `+919876543210`. Required for phone calls. Refused with `400 invalid_request` on `channel: "web"`. |
 | `variables` | object | no | Flat string map substituted into the agent's prompt. See [variables](#variables). |
 | `metadata` | object | no | Your own identifiers, up to 16 string keys and values. Returned unchanged on the call and in every webhook. Never shown to the agent. See [metadata](#metadata). |
-| `first_message` | string | no | The opening line for this call only, up to 500 characters. Replaces the agent's `first_message`; `{{variable}}` placeholders work the same way. |
+| `first_message` | string | no | The opening line for this call only, up to 500 characters. Replaces the agent's `first_message`; `{{variable}}` placeholders work the same way. Refused for a [node-based agent](/v2/node-agents), whose start node opens the call. |
 | `webhook_url` | string | no | HTTPS URL for [lifecycle events](/v2/webhooks). Applies to this call only. |
 | `max_duration_secs` | integer | no | Overrides the agent's cap for this call only. |
 | `timing` | object | no | Wrap-up, timed-close and user-silence timers for this call. Phone and browser calls. See [timing policy](/v2/web-calls#timing-policy). |
@@ -281,7 +317,9 @@ A browser call's `202` also carries the links the page needs:
 | `403` | `contract_unavailable` | The call is not covered by an active production contract: `tier` is not your company's plan, or the company has not finished going live. See [setting the tier](/general/tiers#setting-the-tier). |
 | `404` | `not_found` | `agent_id` does not exist in your workspace — including one that exists in someone else's |
 | `409` | `duplicate_call` | A request with this `Idempotency-Key` is still being processed. See [idempotency](#idempotency). |
-| `409` | `flow_agent_web_only` | `agent_id` is a node-based agent. Node-based agents run as browser calls for now; phone calls for flows are coming. Use a single-prompt agent. |
+| `400` | `invalid_flow` | `agent_id` is a [node-based agent](/v2/node-agents) and your tier's model cannot run flows. The body lists the problem with its path. Nothing was dialled. |
+| `409` | `flow_agent_voice_only` | A text chat (`channel: "text"`) with a node-based agent. Node-based agents run on `phone` and `web`. |
+| `409` | `flow_first_message_unsupported` | `first_message` sent for a node-based agent. Its start node's `greeting` opens the call; personalise it with `variables`. |
 | `429` | `rate_limited` | Request rate exceeded, **or** your queue is full (500 calls accepted and not yet ended). Concurrency does **not** 429 — over-cap calls queue. `error.message` says which. Honour `Retry-After`. See [Limits](/v2/limits). |
 | `429` | `at_capacity` | Every line on the deployment is busy. `Retry-After: 30`. Nothing was charged. |
 | `501` | `tier_unavailable` | `tier` names a tier that is not enabled on this deployment |
@@ -308,6 +346,9 @@ matching `{{key}}` placeholder in the agent's `system_prompt` and
 - Variables are **static per call**. There is no way to change them mid-call.
   On a browser call, an [`instruction`](/v2/web-calls#live-control) can direct
   the agent mid-call instead.
+- On a [node-based agent](/v2/node-agents#variables-in-node-text), variables
+  fill the node prompts, the start node's greeting and extraction prompts.
+  Transition conditions are not filled in.
 
 ### Metadata
 
@@ -559,7 +600,7 @@ them in full.
 | :--- | :--- |
 | `POST /v2/calls/{id}/control` | Send an `instruction` the agent follows from its next reply, or `close` the call with a spoken goodbye. Browser calls in progress only. See [live control](/v2/web-calls#live-control). |
 | `GET /v2/calls/{id}/control/{control_id}` | Read a control's current status: `pending`, `applied`, `rejected` or `failed`. |
-| `GET /v2/calls/{id}/events` | The live event stream (Server-Sent Events): agent state and each completed turn. Opened with the `events_url` from create, or with your API key. See [live events](/v2/web-calls#live-events). |
+| `GET /v2/calls/{id}/events` | The live event stream (Server-Sent Events): agent state, each completed turn and, for a [node-based agent](/v2/node-agents), each step. Opened with the `events_url` from create, or with your API key. See [live events](/v2/web-calls#live-events). |
 
 | Status | `error.code` | Cause |
 | :--- | :--- | :--- |

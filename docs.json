@@ -40,6 +40,7 @@
             "group": "Build",
             "pages": [
               "v2/agents",
+              "v2/node-agents",
               "v2/tools",
               "v2/calls",
               "v2/web-calls",
@@ -181,7 +182,7 @@
     },
     {
       "source": "/v2/node-graphs",
-      "destination": "/general/roadmap"
+      "destination": "/v2/node-agents"
     }
   ],
   "topbar": {

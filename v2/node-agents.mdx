@@ -1,0 +1,1511 @@
+---
+title: Node-based agents
+description: Build an agent as a graph of steps, each with its own instructions, and let the model move between them. Generate a draft from a brief, the graph schema, a worked example, editing, versions, limits and errors.
+---
+
+
+A **node-based agent** (a *flow*) runs a conversation as a graph. Each node is
+one step of the call with its own instructions. Each transition between nodes
+is a condition, written in plain language, that the model checks as the caller
+speaks. When a condition is met, the call moves to the next step and that
+step's instructions take over.
+
+Node-based agents are available on every [tier](/general/tiers). They take
+phone calls, browser calls and campaigns, and they are billed like any other
+call. A flow is one field on the [agent](/v2/agents), `flow`, so it is created,
+edited, versioned and called with the same API key and the same routes.
+
+Base URL `https://sandbox.voice.miraiminds.co`. All endpoints require
+`Authorization: Bearer sk_live_…`.
+
+## When to use a flow
+
+| Use a single prompt when | Use a flow when |
+| :--- | :--- |
+| The call does one job, start to finish. | The call has distinct phases, each with its own rules: confirm who you are speaking to, then explain, then agree a next step. |
+| The script is linear. | The call branches: wrong person, reschedule, refusal, a question you must hand off. |
+| The instructions fit in 8,000 characters. | Each step needs long instructions. Every node takes up to 12,000 characters, and only the current node's are in play. |
+| You need to fetch or send data mid-call with [on-call tools](/v2/tools). | You want to know which step each call reached, and what the caller said at each step. |
+
+A flow's transitions are the only functions its model is offered, so a flow
+cannot run on-call tools. It can run [pre-call and post-call tools](/v2/tools).
+If a step needs a mid-call lookup, keep that job in a single-prompt agent.
+
+## How a flow runs
+
+1. **The call opens on the start node.** Its `greeting` is spoken exactly as
+   written, with `{{variables}}` filled in. With no greeting, the model opens
+   the call from the start node's prompt.
+2. **The model follows the current node.** Its instructions are the global
+   node's prompt (when the node's `add_global_prompt` is `true`), then the
+   current node's prompt.
+3. **Transitions are functions.** Each transition out of the current node is
+   offered to the model as a function with no arguments: `label` is its name
+   and `condition` is its description. When the model decides the condition is
+   met, it calls the function and the call moves to the target node.
+4. **The conversation carries across nodes.** Moving to a node replaces the
+   instructions, not the history: the model still knows everything said so far.
+   It then replies as the new node.
+5. **Speech first, then the move.** If the model speaks and calls a transition
+   in the same reply, the move happens after that speech has played.
+6. **An end node ends the call.** The agent speaks its reply to the end node's
+   prompt, then hangs up. The call ends `completed` with
+   `ended_reason: "assistant-ended-call"`.
+7. **Extraction runs as the call leaves a node.** A node with
+   `extraction_enabled` has its `extraction_variables` extracted from the
+   conversation in the background when the call moves on. The node the call
+   ends on is extracted as the call ends.
+
+Interruptions and silence follow the same rules as every agent:
+
+- **Barge-in.** While the agent speaks, meaningful speech from the caller cuts
+  it off. Backchannels such as "हाँ", "जी" or "ok" do not. On a node with
+  `allow_interrupt: false` the agent finishes its line, then answers what the
+  caller said. Once a goodbye is playing, nothing the caller says reopens the
+  call.
+- **Silence.** After about 10 seconds without the caller speaking, the agent
+  checks in once. If the caller stays silent, the agent says a short goodbye
+  and the call ends with `ended_reason: "idle-timed-out"`. A call created with
+  [`timing.user_silence_close_secs`](/v2/web-calls#timing-policy) uses that
+  timer instead.
+
+---
+
+## Generate a flow from a brief
+
+Describe the agent in plain language and the API drafts the graph for you.
+Start here, then read and adjust the draft with the [schema](#the-graph) below.
+
+```http
+POST /v2/agents/flow/generate
+```
+
+| Field | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `brief` | string | yes | 1–6,000 characters. What the agent does: who it talks to, what it says and asks, how each answer is handled, what to record, and the language. |
+| `language` | string | no | Up to 32 characters. A language code or name for the spoken lines, such as `hi`, `en` or `Hinglish`. Without it, the brief decides. |
+| `model` | string | no | The model that writes the draft: `gemini-3.8-flash` (default), `gpt-6-sol` or `claude-opus-5.5`. See [choose a model](#choose-a-model). Any other value is refused with `400 invalid_request`. |
+| `flow` | object | no | A graph to revise, as `GET /v2/agents/{id}/flow` returns it. It must itself be valid. See [revise a flow](#revise-a-flow). |
+
+**Nothing is saved.** The response is a draft for you to review, test and save.
+Each generation is [charged to your wallet](#what-a-draft-costs) for the tokens
+the model used.
+
+```json title="200 OK"
+{
+  "id": "fgen_01K8D3G5J7L9N1Q3S5U7W9Y1A3",
+  "object": "flow_draft",
+  "model": "gemini-3.8-flash",
+  "flow": { "nodes": [ … ], "edges": [ … ] },
+  "variables": [
+    { "name": "customer_name", "type": "string", "description": "The customer's name, used to confirm who answered." },
+    { "name": "order_id", "type": "string", "description": "The order number." },
+    { "name": "delivery_date", "type": "string", "description": "The scheduled delivery date." },
+    { "name": "delivery_window", "type": "string", "description": "The delivery time window, such as 10 AM and 1 PM." }
+  ],
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "customer_name": { "type": "string", "description": "The customer's name, used to confirm who answered." },
+      "order_id": { "type": "string", "description": "The order number." },
+      "delivery_date": { "type": "string", "description": "The scheduled delivery date." },
+      "delivery_window": { "type": "string", "description": "The delivery time window, such as 10 AM and 1 PM." }
+    },
+    "required": ["customer_name", "order_id", "delivery_date", "delivery_window"]
+  },
+  "flow_revision": "5b1e0c9a7d2f4e8b3a6c",
+  "rounds": 1,
+  "usage": { "prompt_tokens": 1840, "completion_tokens": 2610 },
+  "cost": { "amount_inr": 1.18 }
+}
+```
+
+| Field | Description |
+| :--- | :--- |
+| `id` | The generation's ID, `fgen_…`. The wallet row for its charge carries the same ID. |
+| `model` | The model that wrote the draft. |
+| `flow` | The draft graph, with every default filled in. It passes every rule `PUT /v2/agents/{id}/flow` applies. |
+| `variables` | The call variables the draft reads as `{{name}}`: facts you know before the call, such as a name or an order number. What the caller says is captured by the nodes' [extraction variables](#extraction) instead. |
+| `input_schema` | The same variables as the agent's `input_schema`, every one required. Save it together with the flow. |
+| `flow_revision` | The draft's [fingerprint](#step-2-validate-it). Saved unchanged, the graph keeps it. |
+| `rounds` | How many attempts the draft took, from 1 to 3. Each attempt is checked against the graph rules, and any problems are sent back for another attempt. |
+| `usage` | Tokens the model used, summed over every attempt: `prompt_tokens` in, `completion_tokens` out. |
+| `cost` | What was charged to your wallet, `amount_inr`. |
+
+<Warning>
+**Review and test every draft before it takes a real call.** Read each node's
+prompt and each transition's condition, and check that the draft asks, records
+and refuses what you intended. Then run a [browser test with live
+events](#step-4-test-it-in-the-browser) and take every branch at least once.
+</Warning>
+
+### Choose a model
+
+| Model | `model` | Typical draft | Typical time |
+| :--- | :--- | :--- | :--- |
+| Gemini 3.8 Flash (default) | `gemini-3.8-flash` | about ₹1.20 | 15–20 s |
+| GPT-6 Sol | `gpt-6-sol` | about ₹3 | 20–60 s |
+| Claude Opus 5.5 | `claude-opus-5.5` | about ₹7 | 25–35 s |
+
+Start with the default. Try another model when a draft misses branches or rules
+your brief asked for. Whatever the model, set your client's timeout to a few
+minutes; the examples below use 5.
+
+### What a draft costs
+
+Each generation is charged to your [wallet](/v2/wallet) for the tokens the model
+used, at the chosen model's rate per million input and output tokens. The rates
+are on [Billing & tiers](/general/tiers#ai-flow-drafts).
+
+- **Every attempt counts.** Tokens from every attempt are added up, and the
+  total is rounded up to the paisa once.
+- **Failures are charged too.** A `422 flow_generation_failed`, and a `503`
+  after the model had already answered, are charged for the tokens used. Both
+  responses carry `id`, `model`, `usage` and `cost`. Nothing is charged when
+  the model never answered.
+- **The wallet must hold a positive balance.** An empty wallet is refused with
+  `402 insufficient_balance` before the model runs. A charge never takes the
+  wallet below zero.
+- **Where it shows.** Each charge is one wallet transaction of kind
+  [`flow_generation`](/v2/wallet#a-flow-generation-row), and the billing
+  statement lists the charges as **AI flow drafts**.
+
+### Generate a draft
+
+<Tabs>
+  <Tab title="cURL">
+    ```bash
+    jq -n --arg brief "Call customers of Acme Retail to confirm the delivery slot for their order. Speak everyday Hindi and say you are an AI assistant. First confirm you are speaking to the customer by name; if it is someone else, apologise and end the call without mentioning the order. Then give the order number, delivery date and time window, and ask whether someone will be at home. If yes, thank them and end. If not, ask which day in the next seven days suits them, read it back, and end once they confirm. Record whether they confirmed who they are, whether they accepted the slot, and the new day if they chose one." \
+      '{brief: $brief, language: "hi", model: "gemini-3.8-flash"}' |
+    curl -X POST https://sandbox.voice.miraiminds.co/v2/agents/flow/generate \
+      -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+      -H "Content-Type: application/json" \
+      --max-time 300 \
+      --data-binary @- > draft.json
+
+    jq '{id, model, cost}' draft.json
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    import os, httpx
+
+    API = "https://sandbox.voice.miraiminds.co"
+    auth = {"Authorization": f"Bearer {os.environ['MIRAI_API_KEY']}"}
+
+    BRIEF = (
+        "Call customers of Acme Retail to confirm the delivery slot for their order. "
+        "Speak everyday Hindi and say you are an AI assistant. "
+        "First confirm you are speaking to the customer by name; if it is someone else, "
+        "apologise and end the call without mentioning the order. "
+        "Then give the order number, delivery date and time window, and ask whether "
+        "someone will be at home. If yes, thank them and end. If not, ask which day in "
+        "the next seven days suits them, read it back, and end once they confirm. "
+        "Record whether they confirmed who they are, whether they accepted the slot, "
+        "and the new day if they chose one."
+    )
+
+    r = httpx.post(
+        f"{API}/v2/agents/flow/generate",
+        headers=auth,
+        json={"brief": BRIEF, "language": "hi", "model": "gemini-3.8-flash"},
+        timeout=300,  # allow a few minutes
+    )
+    if r.status_code in (429, 503):
+        raise RuntimeError(f"retry in {r.headers.get('Retry-After')} s")
+    if r.status_code == 422:  # charged: the body carries id, usage and cost
+        for problem in r.json()["details"]:
+            print(problem["path"], "-", problem["message"])
+    draft = r.raise_for_status().json()
+    print(draft["id"], draft["model"], draft["cost"]["amount_inr"])
+    print([v["name"] for v in draft["variables"]])
+    ```
+  </Tab>
+  <Tab title="Node.js">
+    ```javascript
+    const API = "https://sandbox.voice.miraiminds.co";
+    const auth = { Authorization: `Bearer ${process.env.MIRAI_API_KEY}` };
+
+    const BRIEF = [
+      "Call customers of Acme Retail to confirm the delivery slot for their order.",
+      "Speak everyday Hindi and say you are an AI assistant.",
+      "First confirm you are speaking to the customer by name; if it is someone else,",
+      "apologise and end the call without mentioning the order.",
+      "Then give the order number, delivery date and time window, and ask whether",
+      "someone will be at home. If yes, thank them and end. If not, ask which day in",
+      "the next seven days suits them, read it back, and end once they confirm.",
+      "Record whether they confirmed who they are, whether they accepted the slot,",
+      "and the new day if they chose one.",
+    ].join(" ");
+
+    const res = await fetch(`${API}/v2/agents/flow/generate`, {
+      method: "POST",
+      headers: { ...auth, "Content-Type": "application/json" },
+      body: JSON.stringify({ brief: BRIEF, language: "hi", model: "gemini-3.8-flash" }),
+      signal: AbortSignal.timeout(300_000), // allow a few minutes
+    });
+    const draft = await res.json();
+    if (!res.ok) {
+      if (res.status === 429 || res.status === 503) {
+        throw new Error(`retry in ${res.headers.get("Retry-After")} s`);
+      }
+      for (const { path, message } of draft.details ?? []) console.error(path, "-", message);
+      throw new Error(draft.error?.code ?? draft.error);
+    }
+    console.log(draft.id, draft.model, draft.cost.amount_inr);
+    console.log(draft.variables.map((v) => v.name));
+    ```
+  </Tab>
+</Tabs>
+
+### Save it on an agent
+
+Create the agent with the draft's `flow` and its `input_schema`. Save them
+together: when an agent has an `input_schema`, every variable a node reads
+must be declared in it.
+
+<Tabs>
+  <Tab title="cURL">
+    ```bash
+    jq '{
+      name: "Delivery slot confirmation",
+      voice: { voice_id: "neha", language: "hi-IN" },
+      language: "hi-IN",
+      max_duration_secs: 240,
+      flow: .flow,
+      input_schema: .input_schema
+    }' draft.json |
+    curl -X POST https://sandbox.voice.miraiminds.co/v2/agents \
+      -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+      -H "Content-Type: application/json" \
+      --data-binary @-
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    agent = httpx.post(
+        f"{API}/v2/agents",
+        headers=auth,
+        json={
+            "name": "Delivery slot confirmation",
+            "voice": {"voice_id": "neha", "language": "hi-IN"},
+            "language": "hi-IN",
+            "max_duration_secs": 240,
+            "flow": draft["flow"],
+            "input_schema": draft["input_schema"],
+        },
+        timeout=30,
+    ).raise_for_status().json()
+    print(agent["id"], agent["revision"])
+    ```
+  </Tab>
+  <Tab title="Node.js">
+    ```javascript
+    const created = await fetch(`${API}/v2/agents`, {
+      method: "POST",
+      headers: { ...auth, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: "Delivery slot confirmation",
+        voice: { voice_id: "neha", language: "hi-IN" },
+        language: "hi-IN",
+        max_duration_secs: 240,
+        flow: draft.flow,
+        input_schema: draft.input_schema,
+      }),
+    });
+    const agent = await created.json();
+    if (!created.ok) throw new Error(JSON.stringify(agent));
+    console.log(agent.id, agent.revision);
+    ```
+  </Tab>
+</Tabs>
+
+With an `input_schema`, each call must send every declared variable in
+`variables`, and nothing else: a missing or undeclared variable is refused with
+`400 invalid_request`. Send `number` and `boolean` variables as JSON numbers
+and booleans. Then [test the agent in the browser](#step-4-test-it-in-the-browser)
+before you dial anyone.
+
+### Revise a flow
+
+To change a flow, send the current graph as `flow` and describe only the
+change in `brief`. The draft keeps what the brief does not ask to change,
+including node IDs, transition labels and the editor layout. Save the result
+with `PATCH`, together with its `input_schema` (the change may read a new
+variable), and `if_revision` so you never overwrite someone else's edit.
+
+<Tabs>
+  <Tab title="cURL">
+    ```bash
+    AGENT=agt_01K8C4D6F8H0J2K4M6N8P0Q2RS
+
+    curl -s "https://sandbox.voice.miraiminds.co/v2/agents/$AGENT/flow" \
+      -H "Authorization: Bearer sk_live_YOUR_API_KEY" > current.json
+
+    jq --arg brief "If the customer is busy right now, offer to call back later and end politely." \
+      '{brief: $brief, language: "hi", flow: .flow}' current.json |
+    curl -X POST https://sandbox.voice.miraiminds.co/v2/agents/flow/generate \
+      -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+      -H "Content-Type: application/json" \
+      --max-time 300 \
+      --data-binary @- > revised.json
+
+    jq --argjson rev "$(jq .agent_revision current.json)" \
+      '{if_revision: $rev, flow: .flow, input_schema: .input_schema}' revised.json |
+    curl -X PATCH "https://sandbox.voice.miraiminds.co/v2/agents/$AGENT" \
+      -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+      -H "Content-Type: application/json" \
+      --data-binary @-
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    agent_id = "agt_01K8C4D6F8H0J2K4M6N8P0Q2RS"
+    current = httpx.get(
+        f"{API}/v2/agents/{agent_id}/flow", headers=auth, timeout=30
+    ).raise_for_status().json()
+
+    revised = httpx.post(
+        f"{API}/v2/agents/flow/generate",
+        headers=auth,
+        json={
+            "brief": "If the customer is busy right now, offer to call back later and end politely.",
+            "language": "hi",
+            "flow": current["flow"],
+        },
+        timeout=300,
+    ).raise_for_status().json()
+
+    r = httpx.patch(
+        f"{API}/v2/agents/{agent_id}",
+        headers=auth,
+        json={
+            "if_revision": current["agent_revision"],
+            "flow": revised["flow"],
+            "input_schema": revised["input_schema"],
+        },
+        timeout=30,
+    )
+    if r.status_code == 409:
+        raise RuntimeError("the agent changed since it was read; read the flow again")
+    print(r.raise_for_status().json()["revision"])
+    ```
+  </Tab>
+  <Tab title="Node.js">
+    ```javascript
+    const agentId = "agt_01K8C4D6F8H0J2K4M6N8P0Q2RS";
+    const current = await fetch(`${API}/v2/agents/${agentId}/flow`, { headers: auth })
+      .then((r) => r.json());
+
+    const gen = await fetch(`${API}/v2/agents/flow/generate`, {
+      method: "POST",
+      headers: { ...auth, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        brief: "If the customer is busy right now, offer to call back later and end politely.",
+        language: "hi",
+        flow: current.flow,
+      }),
+      signal: AbortSignal.timeout(300_000),
+    });
+    const revised = await gen.json();
+    if (!gen.ok) throw new Error(JSON.stringify(revised));
+
+    const res = await fetch(`${API}/v2/agents/${agentId}`, {
+      method: "PATCH",
+      headers: { ...auth, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        if_revision: current.agent_revision,
+        flow: revised.flow,
+        input_schema: revised.input_schema,
+      }),
+    });
+    if (res.status === 409) throw new Error("the agent changed since it was read; read the flow again");
+    const agent = await res.json();
+    if (!res.ok) throw new Error(JSON.stringify(agent));
+    console.log(agent.revision);
+    ```
+  </Tab>
+</Tabs>
+
+Test the revised agent again before it takes real calls. A revision is a new
+agent revision like any other save, so you can [roll it back](#versions).
+
+### Generation errors
+
+| Status | `error` | When | Charged | What to do |
+| :--- | :--- | :--- | :--- | :--- |
+| `400` | `invalid_request` | `brief` is missing, blank or over 6,000 characters, `language` is over 32 characters, `model` is not one of the three, or the body has an unknown field. | No | Fix the request. |
+| `400` | `invalid_flow` | The `flow` you sent to revise breaks a rule, or your tier's call model cannot run flows. Same shape as [flow errors](#errors). | No | Fix the listed paths. |
+| `402` | `insufficient_balance` | Your wallet is empty. | No | [Top up](/v2/wallet#top-up), then retry. |
+| `422` | `flow_generation_failed` | No valid graph after three attempts. `details` lists what was still wrong. Nothing was saved. | Yes, for the tokens used | Rephrase the brief: name each step and each branch explicitly, or shorten it. Try another model, or fix the graph by hand. |
+| `429` | `rate_limited` | Your workspace has used its 30 generations for the hour, or the generator is busy with other requests. | No | Wait for `Retry-After` seconds, then retry. |
+| `503` | `upstream_unavailable` | The model is unavailable, or stopped answering part way. | Only if the model had already answered | Wait for `Retry-After` seconds, then retry. |
+
+`422` uses the same shape as `invalid_flow`, plus the charge:
+
+```json title="422 Unprocessable Entity"
+{
+  "error": "flow_generation_failed",
+  "details": [
+    { "path": "flow.nodes[4]", "message": "node \"reschedule\" has no path to an endCall node" }
+  ],
+  "id": "fgen_01K8D4H6K8M0P2R4T6V8X0Z2B4",
+  "model": "gemini-3.8-flash",
+  "usage": { "prompt_tokens": 6120, "completion_tokens": 7480 },
+  "cost": { "amount_inr": 3.45 }
+}
+```
+
+The other errors use the [standard envelope](/v2/errors). A charged `503` also
+carries `id`, `model`, `usage` and `cost` beside `error`. A `503`, a `402`, and
+a `429` sent because the generator is busy do not count against the hourly
+limit.
+
+---
+
+## The graph
+
+A flow is a JSON object with `nodes`, `edges` and, optionally, `viewport`.
+Nothing else is accepted.
+
+```json
+{
+  "nodes": [ { "id": "…", "type": "startCall", "data": { … } } ],
+  "edges": [ { "id": "…", "source": "…", "target": "…", "data": { "label": "…", "condition": "…" } } ],
+  "viewport": { "x": 0, "y": 0, "zoom": 1 }
+}
+```
+
+`viewport`, a node's `position`, and an edge's `type` and `animated` are for
+visual editors. They accept any JSON value and are returned exactly as sent.
+The call ignores them.
+
+### Nodes
+
+| Field | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | string | yes | Unique in the graph. A letter or underscore, then letters, digits or underscores, at most 64 characters. |
+| `type` | string | yes | `startCall`, `agentNode`, `endCall` or `globalNode`. See below. |
+| `data` | object | yes | What the node does. See [node data](#node-data). |
+| `position` | any | no | Editor layout. Returned as sent. |
+
+| `type` | How many | What it is |
+| :--- | :--- | :--- |
+| `startCall` | Exactly one | The first step. Its `greeting` opens the call. |
+| `agentNode` | Any number | A step of the conversation. |
+| `endCall` | At least one | The last step. The agent speaks one reply, then hangs up. No transitions leave it. |
+| `globalNode` | At most one | Shared instructions, such as persona, language and rules. Added before the prompt of every node whose `add_global_prompt` is `true`. It is never the current node, and no transition enters or leaves it. |
+
+### Node data
+
+| Field | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `name` | string | required | 1–80 characters. A human label, sent in [live events](#step-4-test-it-in-the-browser). |
+| `prompt` | string | required | 1–12,000 characters. The node's instructions: what to do here, and when to call each outgoing transition. `{{variables}}` are [filled in per call](#variables-in-node-text). |
+| `greeting` | string \| null | `null` | Up to 1,500 characters. On the start node, the exact opening line. Only the start node's greeting is spoken; put what another node should say in its `prompt`. |
+| `allow_interrupt` | boolean | `true` | `false` stops the caller from cutting the agent off while it speaks on this node. What the caller says is answered after the line finishes. |
+| `add_global_prompt` | boolean | `true` | Whether the global node's prompt comes before this node's. |
+| `extraction_enabled` | boolean | `false` | `true` extracts this node's `extraction_variables`. |
+| `extraction_variables` | array | `[]` | Up to 12 values to extract. See [extraction](#extraction). |
+| `is_start` | boolean | from `type` | Set from `type` when you save. Any value you send is replaced. |
+
+Every default is filled in when you save, so a graph you read back states
+exactly how each node behaves.
+
+### Transitions
+
+Each entry in `edges` is one transition.
+
+| Field | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | string | yes | Unique in the graph. Any non-empty string. |
+| `source` | string | yes | The `id` of the node the transition leaves. Not an `endCall` or the `globalNode`. |
+| `target` | string | yes | The `id` of the node it enters. Not the `globalNode`. |
+| `data.label` | string | yes | The function name the model calls to take this transition. A letter or underscore, then letters, digits or underscores, at most 64 characters. Unique among the transitions leaving the same node. |
+| `data.condition` | string | yes | 1–2,000 characters, not blank. When to take the transition. The model receives it word for word as the function's description; `{{variables}}` are **not** filled in here. |
+| `type`, `animated` | any | no | Editor fields. Returned as sent. |
+
+<Tip>
+Write labels in lowercase `snake_case`, such as `confirmed_identity`. The model
+sees each label in lowercase, and a readable name helps it choose.
+</Tip>
+
+### Extraction
+
+An extraction variable is a value the model reads out of the conversation.
+
+| Field | Type | Description |
+| :--- | :--- | :--- |
+| `name` | string | A letter or underscore, then letters, digits or underscores, at most 64 characters. Unique within the node. |
+| `type` | string | `string`, `number` or `boolean`. |
+| `prompt` | string | 1–2,000 characters. What to extract and how to decide. `{{variables}}` are filled in. |
+
+Extraction reads the whole conversation up to that point. It runs in the
+background when the call leaves the node, so it never delays the agent's
+reply. The node the call ends on is extracted as the call ends. If two nodes
+extract the same `name`, the later value wins: a correction step can overwrite
+what an earlier step heard.
+
+### Variables in node text
+
+Node prompts (the global node's too), greetings and extraction prompts are
+filled in from the call's [`variables`](/v2/calls#variables).
+
+| Placeholder | Becomes |
+| :--- | :--- |
+| `{{customer_name}}` | The call's `customer_name`. Names match loosely, as on every agent: `{{Customer Name}}` reads the same variable. A variable the call does not send becomes empty text. |
+| `{{customer_name \| there}}` | The variable, or `there` when it is missing or empty. The default cannot contain `:`. |
+| `{{account.due_date}}` | A field inside an object value. |
+| `{{current_time_Asia/Kolkata}}` | The current time in that IANA zone as the node starts, such as `2026-09-28 14:30:05 IST`. |
+| `{{current_weekday_Asia/Kolkata}}` | The current weekday in that zone, such as `Monday`. Always include the zone: without one, the time is UTC. |
+
+Transition conditions and labels are never filled in. Write them without
+placeholders.
+
+If your agent declares an `input_schema`, every variable a node reads must be
+declared in it. For a dotted path, its first part must be declared. The time
+placeholders need no declaration. An undeclared variable is refused when you
+save, with the path of the text that reads it.
+
+### Rules
+
+A graph is refused unless all of these hold:
+
+- There is exactly one `startCall` node, at least one `endCall` node, and at
+  most one `globalNode`.
+- Node IDs are unique. Transition IDs are unique. Labels are unique among the
+  transitions leaving one node. Extraction variable names are unique within a
+  node.
+- No transition leaves an `endCall` node or the `globalNode`, and none enters
+  the `globalNode`.
+- Every node except the global node can be reached from the start node, and has
+  a path to an `endCall` node.
+- The graph stays within the [limits](#limits).
+- The agent has no enabled `on_call` tools. See [Tools](/v2/tools).
+- Your tier's model makes native tool calls, because every transition is a tool
+  call. The standard model on every tier does.
+
+Problems are reported with the path of each. See [errors](#errors).
+
+---
+
+## Build one: a delivery confirmation
+
+This example confirms a delivery slot with a customer, in Hindi. It checks who
+answered before it mentions the order, offers the slot, finds a new day if
+needed, and closes with a line the caller cannot cut off.
+
+```mermaid
+flowchart LR
+    persona[/"Persona and rules (global)"/]
+    identity(["Confirm the customer"]) -->|confirmed_identity| slot["Offer the delivery slot"]
+    identity -->|wrong_person| not_customer(["Wrong person"])
+    slot -->|slot_confirmed| goodbye(["Close"])
+    slot -->|ask_new_day| reschedule["Find a new day"]
+    reschedule -->|new_day_agreed| goodbye
+```
+
+**You need:** your `sk_live_` key, a phone number you are allowed to call, a
+public HTTPS URL for [webhooks](/v2/webhooks), and `jq` for the cURL examples.
+
+### Step 1: Write the graph
+
+Save this as `delivery-flow.json`.
+
+```json title="delivery-flow.json"
+{
+  "nodes": [
+    {
+      "id": "persona",
+      "type": "globalNode",
+      "data": {
+        "name": "Persona and rules",
+        "prompt": "You are Priya, a polite voice agent calling from Acme Retail about order {{order_id}}.\nSpeak everyday Hindi: Hindi words in Devanagari, common English words such as order, delivery and slot in Roman script.\nSay one or two short sentences, then listen.\nNever promise a refund, a discount or a delivery time that this call has not offered.\nWhen the condition of one of your functions is met, call it at once without saying anything first. The next step does the talking."
+      }
+    },
+    {
+      "id": "identity",
+      "type": "startCall",
+      "data": {
+        "name": "Confirm the customer",
+        "greeting": "नमस्ते, मैं Acme Retail से Priya बोल रही हूँ, एक AI assistant. क्या मेरी बात {{customer_name}} जी से हो रही है?",
+        "prompt": "You have just asked whether you are speaking with {{customer_name}}. Wait for the answer.\nIf they confirm, call confirmed_identity.\nIf it is someone else or a wrong number, or they ask not to be called, call wrong_person.\nIf the answer is unclear, ask once more. Do not mention the order before they confirm who they are.",
+        "extraction_enabled": true,
+        "extraction_variables": [
+          {
+            "name": "identity_confirmed",
+            "type": "boolean",
+            "prompt": "True only if the caller clearly confirmed they are {{customer_name}}."
+          }
+        ]
+      }
+    },
+    {
+      "id": "slot",
+      "type": "agentNode",
+      "data": {
+        "name": "Offer the delivery slot",
+        "prompt": "Tell the customer that order {{order_id}} will be delivered on {{delivery_date}}, between {{delivery_window}}. Ask whether someone will be at home to receive it.\nIf they say yes, call slot_confirmed.\nIf they cannot receive it then, or ask for another day, call ask_new_day.",
+        "extraction_enabled": true,
+        "extraction_variables": [
+          {
+            "name": "slot_accepted",
+            "type": "boolean",
+            "prompt": "True if the customer accepted the offered delivery slot."
+          }
+        ]
+      }
+    },
+    {
+      "id": "reschedule",
+      "type": "agentNode",
+      "data": {
+        "name": "Find a new day",
+        "prompt": "Ask which day in the next seven days suits the customer. Do not offer a time.\nWhen they name a day, read it back once and ask them to confirm.\nWhen they confirm, call new_day_agreed.",
+        "extraction_enabled": true,
+        "extraction_variables": [
+          {
+            "name": "preferred_day",
+            "type": "string",
+            "prompt": "The delivery day the customer confirmed, in their words, for example Saturday or 14 October."
+          }
+        ]
+      }
+    },
+    {
+      "id": "goodbye",
+      "type": "endCall",
+      "data": {
+        "name": "Close",
+        "prompt": "In one sentence, repeat what was agreed: the offered slot, or the new day the customer chose. Thank them and say goodbye. Do not ask anything else.",
+        "allow_interrupt": false
+      }
+    },
+    {
+      "id": "not_customer",
+      "type": "endCall",
+      "data": {
+        "name": "Wrong person",
+        "prompt": "Apologise for the trouble and say goodbye. Do not mention the order or anything about it."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "source": "identity",
+      "target": "slot",
+      "data": {
+        "label": "confirmed_identity",
+        "condition": "The caller confirmed they are the customer you asked for."
+      }
+    },
+    {
+      "id": "e2",
+      "source": "identity",
+      "target": "not_customer",
+      "data": {
+        "label": "wrong_person",
+        "condition": "The caller is someone else, says it is a wrong number, or asks not to be called."
+      }
+    },
+    {
+      "id": "e3",
+      "source": "slot",
+      "target": "goodbye",
+      "data": {
+        "label": "slot_confirmed",
+        "condition": "The customer said someone will be at home to receive the delivery in the offered slot."
+      }
+    },
+    {
+      "id": "e4",
+      "source": "slot",
+      "target": "reschedule",
+      "data": {
+        "label": "ask_new_day",
+        "condition": "The customer cannot receive the delivery in the offered slot, or asks for another day."
+      }
+    },
+    {
+      "id": "e5",
+      "source": "reschedule",
+      "target": "goodbye",
+      "data": {
+        "label": "new_day_agreed",
+        "condition": "The customer confirmed a new delivery day after you read it back."
+      }
+    }
+  ]
+}
+```
+
+What each part does:
+
+- **`persona`** holds what every step shares: who the agent is, the language,
+  reply length, and the rule to move on silently. Each step's own prompt stays
+  short.
+- **`identity`** discloses that the caller is speaking with an AI, and says
+  nothing about the order until the right person has confirmed.
+- **`slot`** and **`reschedule`** each name the transitions they may call, and
+  when. Conditions repeat that decision in plain words.
+- **`goodbye`** sets `allow_interrupt: false`, so the summary of what was
+  agreed is always heard in full.
+
+### Step 2: Validate it
+
+```http
+POST /v2/agents/flow/validate
+```
+
+The body is the graph. The dry run applies every graph rule and checks that
+your tier's model can run flows. It saves nothing and calls no one.
+Undeclared `input_schema` variables are reported when you save the graph on an
+agent, because a bare graph has no schema.
+
+<Tabs>
+  <Tab title="cURL">
+    ```bash
+    curl -X POST https://sandbox.voice.miraiminds.co/v2/agents/flow/validate \
+      -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+      -H "Content-Type: application/json" \
+      --data-binary @delivery-flow.json
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    import json, os, httpx
+
+    API = "https://sandbox.voice.miraiminds.co"
+    auth = {"Authorization": f"Bearer {os.environ['MIRAI_API_KEY']}"}
+
+    with open("delivery-flow.json", encoding="utf-8") as f:
+        flow = json.load(f)
+
+    r = httpx.post(f"{API}/v2/agents/flow/validate", headers=auth, json=flow, timeout=30)
+    if r.status_code == 400 and r.json().get("error") == "invalid_flow":
+        for problem in r.json()["details"]:
+            print(problem["path"], "-", problem["message"])
+    r.raise_for_status()
+    print(r.json())  # {'ok': True, 'flow_revision': 'ffe29d96cc606b2c53ba', 'nodes': 6, 'edges': 5}
+    ```
+  </Tab>
+  <Tab title="Node.js">
+    ```javascript
+    import { readFile } from "node:fs/promises";
+
+    const API = "https://sandbox.voice.miraiminds.co";
+    const auth = { Authorization: `Bearer ${process.env.MIRAI_API_KEY}` };
+    const flow = JSON.parse(await readFile("delivery-flow.json", "utf8"));
+
+    const res = await fetch(`${API}/v2/agents/flow/validate`, {
+      method: "POST",
+      headers: { ...auth, "Content-Type": "application/json" },
+      body: JSON.stringify(flow),
+    });
+    const out = await res.json();
+    if (!res.ok) {
+      for (const { path, message } of out.details ?? []) console.error(path, "-", message);
+      throw new Error(out.error?.code ?? out.error);
+    }
+    console.log(out); // { ok: true, flow_revision: "ffe29d96cc606b2c53ba", nodes: 6, edges: 5 }
+    ```
+  </Tab>
+</Tabs>
+
+```json title="200 OK"
+{ "ok": true, "flow_revision": "ffe29d96cc606b2c53ba", "nodes": 6, "edges": 5 }
+```
+
+`flow_revision` is a fingerprint of the graph: the same graph always has the
+same value, and any change produces a new one.
+
+A graph with problems returns every one of them, each with its path:
+
+```json title="400 Bad Request"
+{
+  "error": "invalid_flow",
+  "details": [
+    {
+      "path": "flow.edges[3].data.label",
+      "message": "must be a function name: a letter or underscore, then letters, digits or underscores (at most 64)"
+    },
+    {
+      "path": "flow.edges[4].data.condition",
+      "message": "is required: describe when the model should take this transition"
+    }
+  ]
+}
+```
+
+Paths start at `flow` on every route, so the same paths work whether you send
+the graph to this dry run, to `PUT /v2/agents/{id}/flow`, or inside an agent.
+Reachability (a node that cannot be reached, or has no path to an end) is
+checked once the rest of the graph is valid.
+
+### Step 3: Create the agent
+
+Send the graph as the agent's `flow`. With a flow, `system_prompt` and
+`first_message` are optional and unused: node prompts give the instructions and
+the start node's greeting opens the call.
+
+<Tabs>
+  <Tab title="cURL">
+    ```bash
+    jq '{
+      name: "Delivery slot confirmation",
+      voice: { voice_id: "neha", language: "hi-IN" },
+      language: "hi-IN",
+      max_duration_secs: 240,
+      voicemail: { action: "hangup" },
+      flow: .
+    }' delivery-flow.json |
+    curl -X POST https://sandbox.voice.miraiminds.co/v2/agents \
+      -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+      -H "Content-Type: application/json" \
+      --data-binary @-
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    agent = httpx.post(
+        f"{API}/v2/agents",
+        headers=auth,
+        json={
+            "name": "Delivery slot confirmation",
+            "voice": {"voice_id": "neha", "language": "hi-IN"},
+            "language": "hi-IN",
+            "max_duration_secs": 240,
+            "voicemail": {"action": "hangup"},
+            "flow": flow,
+        },
+        timeout=30,
+    ).raise_for_status().json()
+
+    print(agent["id"], agent["revision"])
+    ```
+  </Tab>
+  <Tab title="Node.js">
+    ```javascript
+    const created = await fetch(`${API}/v2/agents`, {
+      method: "POST",
+      headers: { ...auth, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: "Delivery slot confirmation",
+        voice: { voice_id: "neha", language: "hi-IN" },
+        language: "hi-IN",
+        max_duration_secs: 240,
+        voicemail: { action: "hangup" },
+        flow,
+      }),
+    });
+    const agent = await created.json();
+    if (!created.ok) throw new Error(JSON.stringify(agent));
+    console.log(agent.id, agent.revision);
+    ```
+  </Tab>
+</Tabs>
+
+**`201 Created`**: the [agent object](/v2/agents#the-agent-object), with
+`revision` and the stored `flow`. Every node comes back with its defaults filled
+in:
+
+```json title="201 Created (excerpt)"
+{
+  "id": "agt_01K8C4D6F8H0J2K4M6N8P0Q2RS",
+  "object": "agent",
+  "name": "Delivery slot confirmation",
+  "revision": 1,
+  "flow": {
+    "nodes": [
+      {
+        "id": "persona",
+        "type": "globalNode",
+        "data": {
+          "name": "Persona and rules",
+          "prompt": "You are Priya, a polite voice agent calling from Acme Retail about order {{order_id}}.\n…",
+          "is_start": false,
+          "allow_interrupt": true,
+          "add_global_prompt": true,
+          "extraction_enabled": false,
+          "extraction_variables": []
+        }
+      }
+    ]
+  }
+}
+```
+
+The other agent fields work as they do on any agent, with two differences:
+
+| Field | On a node-based agent |
+| :--- | :--- |
+| `system_prompt`, `first_message` | Optional and unused. |
+| `voice`, `language`, `max_duration_secs`, `voicemail`, `background_sound` | Unchanged. State the spoken language in your global node as well: the node prompts are the model's only instructions. |
+| `end_call` | The model is not offered an `end_call` tool. A flow ends when it reaches an end node. |
+| `tools` | `pre_call` and `post_call` tools only. An enabled `on_call` tool is refused with `invalid_flow` at `tools[i]`. |
+
+### Step 4: Test it in the browser
+
+A [browser call](/v2/web-calls) is the quickest way to test: you speak to the
+agent from a web page and watch it move through the graph. Create the call from
+your backend with `channel: "web"` and the variables the nodes read.
+
+<Tabs>
+  <Tab title="cURL">
+    ```bash
+    curl -X POST https://sandbox.voice.miraiminds.co/v2/calls \
+      -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+      -H "Content-Type: application/json" \
+      -H "Idempotency-Key: delivery-flow-test-1" \
+      -d '{
+        "agent_id": "agt_01K8C4D6F8H0J2K4M6N8P0Q2RS",
+        "channel": "web",
+        "variables": {
+          "customer_name": "Rahul",
+          "order_id": "AC-88213",
+          "delivery_date": "Friday, 3 October",
+          "delivery_window": "10 AM and 1 PM"
+        },
+        "final_results": true,
+        "webhook_url": "https://example.com/mirai/webhook"
+      }'
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    test_vars = {
+        "customer_name": "Rahul",
+        "order_id": "AC-88213",
+        "delivery_date": "Friday, 3 October",
+        "delivery_window": "10 AM and 1 PM",
+    }
+    call = httpx.post(
+        f"{API}/v2/calls",
+        headers={**auth, "Idempotency-Key": "delivery-flow-test-1"},
+        json={
+            "agent_id": agent["id"],
+            "channel": "web",
+            "variables": test_vars,
+            "final_results": True,
+            "webhook_url": "https://example.com/mirai/webhook",
+        },
+        timeout=30,
+    ).raise_for_status().json()
+    # Hand only these two links to the page.
+    links = {"ws_url": call["ws_url"], "events_url": call["events_url"]}
+    ```
+  </Tab>
+  <Tab title="Node.js">
+    ```javascript
+    const testVars = {
+      customer_name: "Rahul",
+      order_id: "AC-88213",
+      delivery_date: "Friday, 3 October",
+      delivery_window: "10 AM and 1 PM",
+    };
+    const res = await fetch(`${API}/v2/calls`, {
+      method: "POST",
+      headers: {
+        ...auth,
+        "Content-Type": "application/json",
+        "Idempotency-Key": "delivery-flow-test-1",
+      },
+      body: JSON.stringify({
+        agent_id: agent.id,
+        channel: "web",
+        variables: testVars,
+        final_results: true,
+        webhook_url: "https://example.com/mirai/webhook",
+      }),
+    });
+    const call = await res.json();
+    if (!res.ok) throw new Error(`${call.error.code}: ${call.error.message}`);
+    // Hand only these two links to the page.
+    const links = { ws_url: call.ws_url, events_url: call.events_url };
+    ```
+  </Tab>
+</Tabs>
+
+Open the two links from a page. The [browser example](/v2/web-calls#browser-example)
+is a complete page; add two listeners to show the current step and what each
+step heard:
+
+```javascript
+events.addEventListener("flow.node.entered", (e) => {
+  const { node_id, name, previous_id } = JSON.parse(e.data).data;
+  $("state").textContent = `Step: ${name}`;
+  console.log(`${previous_id ?? "(start)"} → ${node_id}`);
+});
+events.addEventListener("flow.variables.extracted", (e) => {
+  const { node_id, variables } = JSON.parse(e.data).data;
+  console.log(`extracted at ${node_id}`, variables);
+});
+```
+
+Your backend can read the same stream with the API key. An abridged test where
+the customer asks for another day:
+
+```bash
+curl -N https://sandbox.voice.miraiminds.co/v2/calls/call_01K8C5F7H9K1M3P5R7T9V1X3Z5/events \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY"
+```
+
+```text
+event: flow.node.entered
+data: {"v":1,"seq":1,"type":"flow.node.entered","call_id":"call_01K8C5F7H9K1M3P5R7T9V1X3Z5","at":"2026-09-28T10:00:02.104Z","data":{"node_id":"identity","name":"Confirm the customer","previous_id":null}}
+
+event: transcript.turn
+data: {"v":1,"seq":3,"type":"transcript.turn","call_id":"call_01K8C5F7H9K1M3P5R7T9V1X3Z5","at":"2026-09-28T10:00:07.880Z","data":{"role":"user","text":"हाँ, बोल रहा हूँ","turn":2,"interrupted":false}}
+
+event: flow.node.entered
+data: {"v":1,"seq":5,"type":"flow.node.entered","call_id":"call_01K8C5F7H9K1M3P5R7T9V1X3Z5","at":"2026-09-28T10:00:08.910Z","data":{"node_id":"slot","name":"Offer the delivery slot","previous_id":"identity"}}
+
+event: flow.variables.extracted
+data: {"v":1,"seq":7,"type":"flow.variables.extracted","call_id":"call_01K8C5F7H9K1M3P5R7T9V1X3Z5","at":"2026-09-28T10:00:09.640Z","data":{"node_id":"identity","variables":{"identity_confirmed":true}}}
+
+event: flow.node.entered
+data: {"v":1,"seq":12,"type":"flow.node.entered","call_id":"call_01K8C5F7H9K1M3P5R7T9V1X3Z5","at":"2026-09-28T10:00:21.300Z","data":{"node_id":"reschedule","name":"Find a new day","previous_id":"slot"}}
+```
+
+(The `id:` line of each event is left out above.)
+
+| Event | Data | When |
+| :--- | :--- | :--- |
+| `flow.node.entered` | `node_id`, `name`, `previous_id` | The call entered a node. The start node sends one too, with `previous_id: null`. It arrives before the reply that node produces. |
+| `flow.variables.extracted` | `node_id`, `variables` | A node's extraction saved values: the names that node asked for, with what was extracted. Sent only when something was extracted, shortly after the call leaves the node. |
+
+The full event reference is in [Browser calls](/v2/web-calls#live-events).
+Phone calls have no live event stream.
+
+Try each branch before you dial anyone:
+
+| Say | Expect |
+| :--- | :--- |
+| "हाँ" to the greeting, then "हाँ, घर पर कोई होगा" | `identity` → `slot` → `goodbye`. The close repeats the offered slot. |
+| "उस दिन नहीं हो पाएगा", then a day, then "हाँ" to the read-back | `slot` → `reschedule` → `goodbye`, with `preferred_day` extracted. |
+| "Wrong number" | `identity` → `not_customer`. The order is never mentioned. |
+| Nothing at all | One check-in after about 10 seconds, then a goodbye, and the call ends `idle-timed-out`. |
+| Talk over the closing line | The line finishes. The call still ends. |
+
+### Step 5: Call a phone
+
+The same agent takes phone calls. Send `to` instead of `channel: "web"`.
+
+<Tabs>
+  <Tab title="cURL">
+    ```bash
+    curl -X POST https://sandbox.voice.miraiminds.co/v2/calls \
+      -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+      -H "Content-Type: application/json" \
+      -H "Idempotency-Key: order-AC-88213-slot-1" \
+      -d '{
+        "agent_id": "agt_01K8C4D6F8H0J2K4M6N8P0Q2RS",
+        "to": "+919876543210",
+        "variables": {
+          "customer_name": "Rahul",
+          "order_id": "AC-88213",
+          "delivery_date": "Friday, 3 October",
+          "delivery_window": "10 AM and 1 PM"
+        },
+        "metadata": { "order_id": "AC-88213" },
+        "final_results": true,
+        "webhook_url": "https://example.com/mirai/webhook"
+      }'
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    call = httpx.post(
+        f"{API}/v2/calls",
+        headers={**auth, "Idempotency-Key": "order-AC-88213-slot-1"},
+        json={
+            "agent_id": agent["id"],
+            "to": "+919876543210",
+            "variables": test_vars,
+            "metadata": {"order_id": "AC-88213"},
+            "final_results": True,
+            "webhook_url": "https://example.com/mirai/webhook",
+        },
+        timeout=30,
+    ).raise_for_status().json()
+    print(call["id"], call["status"])  # call_… queued
+    ```
+  </Tab>
+  <Tab title="Node.js">
+    ```javascript
+    const dial = await fetch(`${API}/v2/calls`, {
+      method: "POST",
+      headers: {
+        ...auth,
+        "Content-Type": "application/json",
+        "Idempotency-Key": "order-AC-88213-slot-1",
+      },
+      body: JSON.stringify({
+        agent_id: agent.id,
+        to: "+919876543210",
+        variables: testVars,
+        metadata: { order_id: "AC-88213" },
+        final_results: true,
+        webhook_url: "https://example.com/mirai/webhook",
+      }),
+    });
+    const placed = await dial.json();
+    if (!dial.ok) throw new Error(`${placed.error.code}: ${placed.error.message}`);
+    console.log(placed.id, placed.status); // call_… queued
+    ```
+  </Tab>
+</Tabs>
+
+**`202 Accepted`**, and the call follows the usual
+[lifecycle](/v2/calls#statuses) and [webhooks](/v2/webhooks). To run the same
+agent over a list, create a [campaign](/v2/campaigns) with its `agent_id`.
+
+{/* FLOW-OUTCOME */}
+
+### Step 6: Read the outcome
+
+A node-based agent's call carries a `flow` block: where the call finished, the
+steps it went through, and every extracted value. It is on
+[`GET /v2/calls/{id}`](/v2/calls#flow-outcome), on each call in
+`GET /v2/calls`, and at `data.call.flow` in
+[`call.processed`](/v2/webhooks#final-results).
+
+```json
+{
+  "flow": {
+    "final_node": "goodbye",
+    "nodes_visited": ["Confirm the customer", "Offer the delivery slot", "Find a new day", "Close"],
+    "variables": {
+      "identity_confirmed": true,
+      "slot_accepted": false,
+      "preferred_day": "Saturday"
+    },
+    "status": "end_call",
+    "tags": ["end_call"]
+  }
+}
+```
+
+| Field | Type | Description |
+| :--- | :--- | :--- |
+| `final_node` | string | The `id` of the node the call ended on. Omitted when unknown. |
+| `nodes_visited` | array | The `name` of each node the call entered, in the order it first entered them. A node entered twice is listed once. Always present; `[]` when no node was entered. |
+| `variables` | object | Every extracted value, by variable name. When two nodes extract the same name, the later value is kept. Always present; `{}` when nothing was extracted. |
+| `status` | string | How the flow ended. See below. Omitted when unknown. |
+| `tags` | array | Labels recorded for the call, such as how it ended. Omitted when unknown. |
+
+| `status` | Meaning |
+| :--- | :--- |
+| `end_call` | The call reached an end node. |
+| `user_hangup` | The caller hung up. |
+| `user_idle_max_duration_exceeded` | The caller stayed silent until the agent said goodbye, or a silence timer closed the call. |
+| `call_duration_exceeded` | The call reached its time limit, or a timed close ended it. |
+| `voicemail_detected` | An answering machine picked up. |
+| `pipeline_error` | The call failed on our side. |
+| `system_cancelled` | The call was ended from outside the flow, for example by a [`close` control](/v2/web-calls#live-control). |
+
+Match on `status` for your own logic, and keep a default branch: new values can
+be added. Values extracted as the call ends are included, so the block is the
+complete record of the flow.
+
+**When it arrives.** The block is absent until the call's outcome is recorded,
+usually within seconds of the call ending, so it can be missing from the
+terminal event. A node-based agent's call always sends `call.processed` when
+the call has a `webhook_url` (unless the agent sets
+`emit_processed_webhook: false`). That event waits up to 2 minutes for the outcome,
+and is sent without `flow` if it has not arrived by then; read
+`GET /v2/calls/{id}` later in that case.
+
+{/* /FLOW-OUTCOME */}
+
+---
+
+## Edit the graph
+
+Three ways to change a saved graph:
+
+| Route | Use it to |
+| :--- | :--- |
+| `GET /v2/agents/{id}/flow` | Read the graph with the revision numbers you need to save it back. |
+| `PUT /v2/agents/{id}/flow?if_revision=N` | Replace the graph without resending the rest of the agent. It also turns a single-prompt agent into a node-based one. |
+| `PATCH /v2/agents/{id}` with `flow` | Change the graph together with other fields. `flow` is replaced whole, like every nested object. |
+
+`GET` returns the graph and its identities:
+
+```json title="200 OK"
+{
+  "object": "flow",
+  "agent_id": "agt_01K8C4D6F8H0J2K4M6N8P0Q2RS",
+  "agent_revision": 1,
+  "flow_revision": "ffe29d96cc606b2c53ba",
+  "flow": { "nodes": [ … ], "edges": [ … ] }
+}
+```
+
+A single-prompt agent has no graph: `GET` answers `404 not_found`.
+
+To edit safely, read the graph, change it, and save it with
+`if_revision` set to the `agent_revision` you read. If someone saved the agent
+in between, the save is refused with `409 conflict` and nothing changes. Read
+again and reapply your edit.
+
+<Tabs>
+  <Tab title="cURL">
+    ```bash
+    AGENT=agt_01K8C4D6F8H0J2K4M6N8P0Q2RS
+
+    curl -s "https://sandbox.voice.miraiminds.co/v2/agents/$AGENT/flow" \
+      -H "Authorization: Bearer sk_live_YOUR_API_KEY" > current.json
+
+    # Let the caller interrupt the closing line after all.
+    jq '.flow | (.nodes[] | select(.id == "goodbye") | .data.allow_interrupt) = true' \
+      current.json > delivery-flow.json
+
+    curl -X PUT "https://sandbox.voice.miraiminds.co/v2/agents/$AGENT/flow?if_revision=$(jq .agent_revision current.json)" \
+      -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+      -H "Content-Type: application/json" \
+      --data-binary @delivery-flow.json
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    agent_id = "agt_01K8C4D6F8H0J2K4M6N8P0Q2RS"
+    current = httpx.get(
+        f"{API}/v2/agents/{agent_id}/flow", headers=auth, timeout=30
+    ).raise_for_status().json()
+
+    flow = current["flow"]
+    for node in flow["nodes"]:
+        if node["id"] == "goodbye":
+            node["data"]["allow_interrupt"] = True  # let the caller interrupt the close
+
+    r = httpx.put(
+        f"{API}/v2/agents/{agent_id}/flow",
+        params={"if_revision": current["agent_revision"]},
+        headers=auth,
+        json=flow,
+        timeout=30,
+    )
+    if r.status_code == 409:
+        raise RuntimeError("the agent changed since it was read; read the flow again")
+    agent = r.raise_for_status().json()
+    print(agent["revision"])  # 2
+    ```
+  </Tab>
+  <Tab title="Node.js">
+    ```javascript
+    const agentId = "agt_01K8C4D6F8H0J2K4M6N8P0Q2RS";
+    const current = await fetch(`${API}/v2/agents/${agentId}/flow`, { headers: auth })
+      .then((r) => r.json());
+
+    const flow = current.flow;
+    const close = flow.nodes.find((n) => n.id === "goodbye");
+    close.data.allow_interrupt = true; // let the caller interrupt the close
+
+    const res = await fetch(
+      `${API}/v2/agents/${agentId}/flow?if_revision=${current.agent_revision}`,
+      {
+        method: "PUT",
+        headers: { ...auth, "Content-Type": "application/json" },
+        body: JSON.stringify(flow),
+      }
+    );
+    if (res.status === 409) throw new Error("the agent changed since it was read; read the flow again");
+    const agent = await res.json();
+    if (!res.ok) throw new Error(JSON.stringify(agent));
+    console.log(agent.revision); // 2
+    ```
+  </Tab>
+</Tabs>
+
+**`200 OK`**: the updated agent object. `PUT` applies the same checks as
+creating an agent, and reports problems as [`invalid_flow`](#errors). On
+`PATCH`, send `if_revision` in the body instead.
+
+To turn a node-based agent back into a single-prompt agent, send
+`"flow": null`. A single-prompt agent needs a prompt and an opening line, so
+send `system_prompt` and `first_message` in the same `PATCH` if the agent has
+none:
+
+```bash
+curl -X PATCH https://sandbox.voice.miraiminds.co/v2/agents/agt_01K8C4D6F8H0J2K4M6N8P0Q2RS \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "flow": null,
+    "system_prompt": "You are Priya from Acme Retail. Confirm the delivery slot for order {{order_id}} with {{customer_name}}.",
+    "first_message": "नमस्ते, मैं Acme Retail से Priya बोल रही हूँ। क्या मेरी बात {{customer_name}} जी से हो रही है?"
+  }'
+```
+
+An edit takes effect on the next call. Calls already queued or running keep the
+graph they started with.
+
+## Versions
+
+The graph is part of the agent, so it is versioned with the agent. There is no
+separate history for graphs.
+
+- **Every save creates a revision.** Creating the agent, a `PATCH`, and a
+  `PUT /flow` each save a new, immutable agent revision. `revision` on the
+  agent is the current one.
+- **Read the history.** `GET /v2/agents/{id}/revisions` lists revisions newest
+  first; `GET /v2/agents/{id}/revisions/{revision}` returns one, graph
+  included.
+- **Pin a call.** `agent_revision` on `POST /v2/calls` runs that saved
+  revision, graph and all, instead of the current one.
+- **Campaigns stay put.** A campaign keeps the agent revision it was created
+  with. Editing the graph does not change a campaign that is already running.
+- **Roll back.** `POST /v2/agents/{id}/rollback` with
+  `{"if_revision": <current>, "revision": <old>}` copies an old revision into a
+  new **draft**. A draft takes no ordinary calls. Publish it with
+  `POST /v2/agents/{id}/publish` and `{"if_revision": <current>}` to take calls
+  again.
+
+Publishing and rolling back check the graph again, including your tier's
+model.
+
+## Calls with a node-based agent
+
+| | With a node-based agent |
+| :--- | :--- |
+| Phone calls | `POST /v2/calls` with `to`, as for any agent. |
+| Browser calls | `POST /v2/calls` with `channel: "web"`. The event stream adds the [flow events](#step-4-test-it-in-the-browser). |
+| Campaigns | Use the agent's ID as the campaign's `agent_id`. |
+| Text chat | Not supported. A call with `channel: "text"` is refused with `409 flow_agent_voice_only`. |
+| `variables` | Fill the node prompts, greetings and extraction prompts. See [variables in node text](#variables-in-node-text). |
+| `first_message` | Refused with `409 flow_first_message_unsupported`. The start node's greeting opens the call; personalise it with `variables`. |
+| `agent_revision` | Runs that saved revision's graph. |
+| `timing`, live control | Work as on any call. See [Browser calls](/v2/web-calls#timing-policy). |
+
+Placing a call, and creating, starting or resuming a campaign, check again
+that your tier's model can run flows. If it cannot, the request is refused
+with `400 invalid_flow` and nothing is dialled.
+
+## Limits
+
+| Thing | Limit |
+| :--- | :--- |
+| Nodes | 2–20: exactly one `startCall`, at least one `endCall`, at most one `globalNode` |
+| Transitions | 1–40 |
+| Graph size | 100 KB, measured as JSON with every non-ASCII character escaped. A Devanagari character counts as 6 bytes, so a graph written in Hindi reaches the limit sooner. |
+| Node `name` | 1–80 characters |
+| Node `prompt` | 1–12,000 characters |
+| `greeting` | 1,500 characters |
+| Extraction variables | 12 per node |
+| Extraction `prompt` | 1–2,000 characters |
+| Transition `condition` | 1–2,000 characters, not blank |
+| Node IDs, labels, variable names | A letter or underscore, then letters, digits or underscores; at most 64 characters |
+| Request body | 1 MB |
+
+Character limits count characters, not bytes. The size limit is checked on the
+graph you send.
+
+## Errors
+
+Graph problems use their own shape, like [tool validation](/v2/tools#validation-and-runtime-errors):
+`error` is the string `invalid_flow` and `details` lists every problem.
+
+```json title="400 Bad Request"
+{
+  "error": "invalid_flow",
+  "details": [
+    {
+      "path": "tools[1]",
+      "message": "on_call tool \"end_call\" cannot run on a flow agent: the graph's transitions are the only tools a flow offers the model; use pre_call or post_call tools, or remove the flow"
+    },
+    {
+      "path": "flow.nodes[2].data.prompt",
+      "message": "variable \"delivery_slot\" is not declared in input_schema"
+    }
+  ]
+}
+```
+
+Problems are found in stages: first the graph's own rules, then the agent's
+(declared variables and on-call tools), then your tier's model. Each stage
+reports all of its problems at once. Fix them and save again to see the next
+stage.
+
+| Path | Means |
+| :--- | :--- |
+| `flow…` | A problem in the graph. The path points at the field, such as `flow.edges[2].data.label`. `flow` alone means the whole graph, including a tier model that cannot run flows. |
+| `tools[i]` | An enabled `on_call` tool on a node-based agent. Remove it, set `enabled: false`, or move the work to a `pre_call` or `post_call` tool. |
+
+Everything else uses the [standard error envelope](/v2/errors):
+
+| Status | `error.code` | When |
+| :--- | :--- | :--- |
+| `404` | `not_found` | `GET /v2/agents/{id}/flow` on a single-prompt agent, or an unknown agent. |
+| `409` | `conflict` | `if_revision` is not the agent's current revision. Read the agent again. |
+| `409` | `flow_agent_voice_only` | A text chat call with a node-based agent. Flows run on phone and browser calls. |
+| `409` | `flow_first_message_unsupported` | A per-call `first_message` for a node-based agent. Change the start node's `greeting` instead. |
+
+## Design tips
+
+- **One job per node.** A node that confirms identity should not also explain
+  the account. Short, single-purpose nodes move more reliably.
+- **Name the transitions in the node prompt.** Say which function to call, and
+  when: "If they confirm, call `confirmed_identity`." Then write the
+  `condition` to match.
+- **Move silently.** Tell the model to call a transition without speaking
+  first. The next node's prompt owns what is said next, so nothing is said
+  twice.
+- **Make conditions exclusive.** Two transitions from one node that could both
+  be true make the model guess. Say what distinguishes them.
+- **Put shared rules in the global node.** Persona, language, reply length and
+  what never to promise belong there once, not in every node.
+- **Keep end nodes to one line.** An end node gets one reply before the call
+  ends. Ask no question there.
+- **Extract only what you use.** Every extraction variable is stored with the
+  call. Do not extract personal data you do not need.
+
+## Privacy and compliance
+
+- **Say it is an AI.** Put the disclosure in the start node's `greeting`, as the
+  example does. See [Limits & compliance](/v2/limits#disclosure-that-it-is-an-ai).
+- **Confirm the person first.** Give nothing away until the right person has
+  confirmed, and give a wrong-person branch its own end node.
+- **Mind what you extract.** Extracted values are stored with the call and
+  delivered to your webhook. Treat them like the transcript.
+- **Calling rules still apply.** Calling windows, consent and do-not-call rules
+  are the same for every agent. See [India calling rules](/v2/limits#india-calling-rules).
+
+## Troubleshooting
+
+| Symptom | Cause | Fix |
+| :--- | :--- | :--- |
+| The agent never moves on | The condition is vague, or the node prompt does not say when to call the transition | Name the function in the node prompt and make the condition concrete: "The caller confirmed a new day after you read it back." |
+| The agent moves on too early | The condition is loose | Require explicit confirmation in the condition, and say what does not count ("hmm", "okay" alone). |
+| The agent says the next step's line, then the next step says it again | The node spoke before calling the transition | Tell the model to call transitions without saying anything first. |
+| The agent reads a function name aloud, or describes moving on | The node prompt invites it to narrate | Add "Never say function names" to the global node, and "call it at once without saying anything". |
+| A variable is spoken as nothing | The call did not send it, or sent it under another name | Send it in `variables`, or give a default: `{{customer_name \| there}}`. |
+| A placeholder in a condition is not filled in | Conditions are passed to the model word for word | Remove placeholders from conditions. Put per-call values in the node prompt. |
+| A non-start node's greeting is never spoken | Only the start node's greeting is spoken | Write the line into that node's prompt. |
+| The caller cannot cut off a line | The node has `allow_interrupt: false` | Set it to `true` on that node. The caller is still answered after the line ends. |
+| The call ends after a short silence | The silence policy: one check-in after about 10 seconds, then a goodbye | Expected. Use [`timing`](/v2/web-calls#timing-policy) for a different silence rule on a call. |
+| `invalid_flow` at `tools[i]` naming `end_call` | Agents created in Agent Studio include an on-call **End call** tool | Remove it or set `enabled: false`. A flow ends at its end nodes. |
+| `invalid_flow`: `has no path to an endCall node` | A node leads only to nodes that never end | Add a transition from it, or from a node after it, to an end node. |
+| `invalid_flow`: `cannot be reached from the start node` | No transition enters the node | Add a transition into it, or remove it. |
+| `invalid_flow` at `flow`, naming the model | Your tier's model writes tool calls as text | Contact support. Flows need a model with native tool calls. |
+| `409 flow_first_message_unsupported` | The call sent `first_message` | Remove it. Personalise the start node's `greeting` with `variables`. |
+| `409 conflict` on `PUT /flow` | The agent was saved since you read it | `GET /v2/agents/{id}/flow` again, reapply your edit, and save with the new `agent_revision`. |
+| `404 not_found` on `GET /flow` | The agent is a single-prompt agent | `PUT /v2/agents/{id}/flow` to add a graph. |
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Agents" icon="robot" href="/v2/agents">
+    Every agent field, including `flow`.
+  </Card>
+  <Card title="Browser calls" icon="browser" href="/v2/web-calls">
+    Audio, live events and control for browser calls.
+  </Card>
+  <Card title="Calls" icon="phone" href="/v2/calls">
+    Place calls, read status, transcripts and recordings.
+  </Card>
+  <Card title="Tools" icon="plug" href="/v2/tools">
+    Pre-call and post-call tools for node-based agents.
+  </Card>
+</CardGroup>

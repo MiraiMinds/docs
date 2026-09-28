@@ -365,7 +365,6 @@ change, not a code change — ask before the campaign, not during it.
 | `at_capacity` | `429` | Every line is busy. Retry in 30 seconds. |
 | `fleet_offline` | `503` | Speech capacity is down. Retry in a few minutes; nothing was charged. |
 | `contract_unavailable` | `403` | The call's `tier` is not your plan's, or the company has not finished going live. Leave `tier` out. |
-| `flow_agent_web_only` | `409` | Node-based agents run as browser calls for now. Use a single-prompt agent for phone calls and campaigns. |
 | `campaigns_unavailable` | `503` | Campaigns are not enabled on your workspace. Ask us — retrying will not clear it. |
 
 Branch on status first, then on `error.code`. Full table and a retry wrapper in

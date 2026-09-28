@@ -32,14 +32,10 @@ Your workspace's agreed contract determines your charges. Advertised rates do no
 Every tier runs on the same Mira stack. **The price is the only difference.**
 Choose a tier for what you want to commit to, not for what the calls can do.
 
-**Single-prompt and node-based agents are available on every tier.** Two
-limits apply today:
-
-- **Node-based agents run as browser (web) calls.** Phone calls for flows are
-  coming. Until then, a phone call or campaign with a node-based agent is
-  refused with `409 flow_agent_web_only` — nothing is dialled and nothing is
-  charged.
-- **Creating node-based agents in Agent Studio is rolling out.**
+**Single-prompt and node-based agents are available on every tier.** A
+[node-based agent](/v2/node-agents) takes phone calls, browser calls and
+campaigns like any other agent, and is billed the same way. Creating
+node-based agents in Agent Studio is rolling out.
 
 ## Your plan
 
@@ -273,3 +269,26 @@ Rate limits apply per workspace across all API keys. Shared endpoint. No contrac
 Contact us to activate your LLM plan. Your workspace's agreed contract determines your charges and limits.
 
 {/* pricing:llm:end */}
+
+{/* Hand-written section: kept outside the generated pricing blocks above. Update it by hand when flow generation rates change. */}
+
+### AI flow drafts
+
+[Generating a flow from a brief](/v2/node-agents#generate-a-flow-from-a-brief)
+is charged to your wallet by the tokens the model used, at the rate of the
+model you choose. The same rates apply on every tier.
+
+| Model | `model` | Input, per 1,000,000 tokens | Output, per 1,000,000 tokens | Typical draft |
+| --- | --- | --- | --- | --- |
+| Gemini 3.8 Flash (default) | `gemini-3.8-flash` | ₹79.20 | ₹396 | about ₹1.20 |
+| GPT-6 Sol | `gpt-6-sol` | ₹211.20 | ₹1,056 | about ₹3 |
+| Claude Opus 5.5 | `claude-opus-5.5` | ₹422.40 | ₹2,112 | about ₹7 |
+
+- Tokens from every attempt in a generation are added up and rounded up to the
+  paisa once.
+- A generation that fails (`422`), or stops after the model had answered
+  (`503`), is charged for the tokens it used. Nothing is charged when the model
+  never answered.
+- Charges appear on the billing statement as **AI flow drafts**, and in
+  [wallet transactions](/v2/wallet#a-flow-generation-row) with kind
+  `flow_generation`.
