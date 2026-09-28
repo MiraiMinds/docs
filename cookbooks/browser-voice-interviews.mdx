@@ -129,6 +129,26 @@ screening") rather than one agent per candidate. Changing a prompt is then a
 single edit, and every interview of that type stays comparable.
 </Tip>
 
+### If your interview guide is longer than 8,000 characters
+
+The 8,000-character limit on `system_prompt` is the same for every workspace,
+and there is no per-call system prompt. What a call can add is its `variables`,
+its `first_message` and, while it runs, [instructions](#step-4-let-a-moderator-steer-the-interview).
+Long interview guides usually carry material the interviewer does not need while
+it talks. Move each part to where it is used:
+
+| Part of your guide | Where it goes |
+| :--- | :--- |
+| Scoring rubric, score bands, red flags, what "good" looks like | `analysis.prompt` (2,000 characters) and `analysis.output_schema`. They run after the call and never slow the conversation. |
+| Everything specific to one candidate or role: name, role, focus areas, short background | `variables`: up to 32, 512 characters each, filled into `{{placeholders}}`. |
+| The personalised greeting | The call's `first_message`, written in full by your backend. |
+| Rules for time: pacing, wrapping up, closing | The call's `timing` and, if needed, [time checks](#optional-give-the-interviewer-time-checks). |
+| Several interview formats in one guide | One agent per format. |
+| Worked example answers and long explanations | Remove them. Keep one-line rules the interviewer can act on during the call. |
+
+Shorter prompts also respond faster, because the model reads the prompt on every
+turn.
+
 ### Score the interview automatically
 
 Turn on `analysis` and the agent scores each finished interview against your
@@ -468,6 +488,7 @@ described in [Browser calls → Audio socket](/v2/web-calls#audio-socket).
 <title>Interview</title>
 <button id="start">Start interview</button>
 <button id="leave" disabled>Leave</button>
+<label><input type="checkbox" id="mute-while-speaking" checked /> Mute my mic while the interviewer speaks</label>
 <span id="clock">10:00</span>
 <span id="state"></span>
 <ol id="captions"></ol>
@@ -530,6 +551,7 @@ described in [Browser calls → Audio socket](/v2/web-calls#audio-socket).
 
   const $ = (id) => document.getElementById(id);
   let ctx, mic, ws, events, ticker, finished = false;
+  let agentState = "listening";
 
   $("start").onclick = async () => {
     $("start").disabled = true;
@@ -552,7 +574,8 @@ described in [Browser calls → Audio socket](/v2/web-calls#audio-socket).
     // Captions and interviewer state.
     events = new EventSource(session.events_url);
     events.addEventListener("agent.state", (e) => {
-      $("state").textContent = STATES[JSON.parse(e.data).data.state] ?? "";
+      agentState = JSON.parse(e.data).data.state;
+      $("state").textContent = STATES[agentState] ?? "";
     });
     events.addEventListener("transcript.turn", (e) => {
       const { role, text, turn, interrupted } = JSON.parse(e.data).data;
@@ -579,7 +602,13 @@ described in [Browser calls → Audio socket](/v2/web-calls#audio-socket).
       $("leave").disabled = false;
     };
     capture.port.onmessage = ({ data }) => {
-      if (ws.readyState === WebSocket.OPEN) ws.send(data);
+      if (ws.readyState !== WebSocket.OPEN) return;
+      // While the interviewer speaks, send silence instead of the room: noise
+      // cannot be taken for an answer, and the line stays open.
+      if ($("mute-while-speaking").checked && agentState === "speaking") {
+        new Int16Array(data).fill(0);
+      }
+      ws.send(data);
     };
     ws.onmessage = ({ data }) => {
       if (typeof data === "string") {
@@ -615,10 +644,12 @@ described in [Browser calls → Audio socket](/v2/web-calls#audio-socket).
 
 Choices you can change:
 
-- **Barge-in.** The candidate can talk over the interviewer, which feels
-  natural. For a stricter format, send silence while the interviewer speaks:
-  track `agent.state` and fill the microphone frame with zeros while it is
-  `speaking`.
+- **Muting while the interviewer speaks.** With the box ticked, the page sends
+  silence while `agent.state` is `speaking`, so room noise is never taken for an
+  answer and the candidate cannot interrupt. `speaking` follows the actual audio,
+  not the text. Untick it to let candidates talk over the interviewer, which
+  feels more natural in a quiet room. Keep sending frames either way: silence
+  keeps the line open, and the silence timer counts only real speech.
 - **Captions.** Each caption appears when its turn is complete. An interrupted
   interviewer turn shows only the words the candidate actually heard.
 - **Leaving.** Closing the audio socket ends the interview immediately. To end
@@ -727,15 +758,88 @@ A moderator view can show the same captions as the candidate. Give your backend
 the call's `events_url`, or read the stream server-side with your API key; see
 [live events](/v2/web-calls#live-events).
 
+### End at once
+
+`close` lets the interviewer say goodbye first. When the interview must stop
+immediately, for example because the candidate reports a problem, abort it
+instead. The audio stops at once and the page receives `call.ended`. The call
+ends `aborted` and is not billed.
+
+```bash
+curl -X POST https://sandbox.voice.miraiminds.co/v2/calls/call_01K8B2M4Q6S8T0V2X4Z6A8C0EG/abort \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY"
+```
+
+### Optional: give the interviewer time checks
+
+The timing policy already handles the wrap-up at 8:00 and the goodbye at 9:30.
+If you also want the interviewer to pace itself earlier, send it the remaining
+time as instructions. Start the clock on the `call.started` webhook: it fires
+when audio goes live, which is the moment the timing policy counts from.
+
+<Tabs>
+  <Tab title="Python">
+    ```python title="server.py (continued)"
+    from datetime import datetime, timedelta
+
+    TIME_CHECKS = {  # seconds after audio starts -> what the interviewer is told
+        300: "About five minutes remain. Keep each area short so all four are covered.",
+    }
+
+
+    async def on_call_started(event: dict):  # call from the webhook for "call.started"
+        call = event["data"]["call"]
+        started = datetime.fromisoformat(call["started_at"].replace("Z", "+00:00"))
+        interview_id = call["metadata"]["interview_id"]
+        for after, text in TIME_CHECKS.items():
+            await queue.enqueue_at(started + timedelta(seconds=after), "time_check",
+                                   interview_id=interview_id, after=after, text=text)
+
+
+    async def time_check(interview_id: str, after: int, text: str):
+        # 409 call_not_active (already over) comes back as "not_active": nothing to do.
+        await control(interview_id, {"type": "instruction", "text": text},
+                      action_key=f"time-check-{after}")
+    ```
+  </Tab>
+  <Tab title="Node.js">
+    ```javascript title="server.js (continued)"
+    const TIME_CHECKS = { // seconds after audio starts -> what the interviewer is told
+      300: "About five minutes remain. Keep each area short so all four are covered.",
+    };
+
+    export async function onCallStarted(event) { // call from the webhook for "call.started"
+      const { call } = event.data;
+      const started = Date.parse(call.started_at);
+      for (const [after, text] of Object.entries(TIME_CHECKS)) {
+        await queue.add("time-check",
+          { interviewId: call.metadata.interview_id, after, text },
+          { delay: Math.max(0, started + Number(after) * 1000 - Date.now()) });
+      }
+    }
+
+    export async function timeCheck({ interviewId, after, text }) {
+      // 409 call_not_active (already over) comes back as "not_active": nothing to do.
+      await control(interviewId, { type: "instruction", text }, `time-check-${after}`);
+    }
+    ```
+  </Tab>
+</Tabs>
+
+Instructions add up: each one stays in the interviewer's context for the rest
+of the interview, so send a few short ones rather than many.
+
 ---
 
 ## Step 5: Receive the transcript and the score
 
-Your webhook receives two kinds of events for each interview:
+Your webhook receives these events for each interview, in order:
 
-1. **A terminal event** as soon as the interview ends: `call.completed`,
+1. **`call.started`** when the candidate's audio connects. Use it to start any
+   time checks from step 4.
+2. **A terminal event** as soon as the interview ends: `call.completed`,
    `call.failed` or `call.aborted`. Mark the interview as over.
-2. **`call.processed`**, after the transcript has settled (within about two
+3. **`call.processed`**, after the transcript has settled (within about two
    minutes) and the score is ready. It carries the transcript in
    `data.transcript` and the score in `data.call.analysis`.
 
@@ -767,7 +871,10 @@ Verify the signature on every delivery and ignore repeats by event `id`: see
         call = event["data"]["call"]
         interview_id = (call.get("metadata") or {}).get("interview_id")
 
-        if event["type"] in ("call.completed", "call.failed", "call.aborted"):
+        if event["type"] == "call.started":
+            await db.interviews.update(interview_id, status="in_progress")
+            await on_call_started(event)  # optional time checks, step 4
+        elif event["type"] in ("call.completed", "call.failed", "call.aborted"):
             await db.interviews.update(interview_id, status="ended",
                                        ended_reason=call["ended_reason"])
         elif event["type"] == "call.processed":
@@ -814,7 +921,10 @@ Verify the signature on every delivery and ignore repeats by event `id`: see
       const { call } = event.data;
       const interviewId = call.metadata?.interview_id;
 
-      if (["call.completed", "call.failed", "call.aborted"].includes(event.type)) {
+      if (event.type === "call.started") {
+        await db.interviews.update(interviewId, { status: "in_progress" });
+        await onCallStarted(event); // optional time checks, step 4
+      } else if (["call.completed", "call.failed", "call.aborted"].includes(event.type)) {
         await db.interviews.update(interviewId, { status: "ended", endedReason: call.ended_reason });
       } else if (event.type === "call.processed") {
         // Answer fast; do the work in the background.
@@ -943,6 +1053,84 @@ Run three interviews:
   starts.
 - [ ] You ran the three test interviews above on the tier you will use in
   production.
+
+## Common questions
+
+<AccordionGroup>
+  <Accordion title="Can we send an instruction to the agent while the call is live?">
+  Yes, from your backend: `POST /v2/calls/{id}/control` with
+  `{"type": "instruction", "text": "…"}`. The agent follows it from its next
+  reply. If the action starts in the browser, the page asks your backend, which
+  holds the key. See [step 4](#step-4-let-a-moderator-steer-the-interview).
+  </Accordion>
+  <Accordion title="Is there a built-in way to wrap up before the time limit?">
+  Yes. `timing` on the call gives the agent a wrap-up instruction a set number
+  of seconds before the cap, then a spoken goodbye before the cap, and a polite
+  close after a stretch of user silence. The clock starts when audio goes live.
+  To make the agent pace itself earlier, send
+  [time checks](#optional-give-the-interviewer-time-checks).
+  </Accordion>
+  <Accordion title="Can we end a live browser call from our side?">
+  Yes. The create response returns the call `id`. Use a `close` control for a
+  spoken goodbye, or `POST /v2/calls/{id}/abort` to stop at once. See
+  [step 4](#end-at-once).
+  </Accordion>
+  <Accordion title="Does the page receive each turn as text while the call runs?">
+  Yes. Open `events_url` with `EventSource`: every completed turn arrives as a
+  `transcript.turn` event for both speakers, in real time. Text arrives per
+  completed turn, not word by word. Audio travels over a WebSocket (`ws_url`)
+  and events over Server-Sent Events; no other client library is needed. See
+  [step 3](#step-3-build-the-interview-page).
+  </Accordion>
+  <Accordion title="Can the page tell when the agent is speaking, listening or thinking?">
+  Yes. `agent.state` events report `speaking`, `listening`, `processing` and
+  `ended`. `speaking` follows the actual audio, so it is safe for muting the
+  microphone while the agent talks, as the page in step 3 does.
+  </Accordion>
+  <Accordion title="Can the system prompt be longer than 8,000 characters?">
+  No. It is a platform limit, the same for every workspace, and there is no
+  per-call system prompt. See
+  [If your interview guide is longer than 8,000 characters](#if-your-interview-guide-is-longer-than-8000-characters)
+  for where each part of a long guide belongs.
+  </Accordion>
+  <Accordion title="Can the opening line be set per call?">
+  Yes. `first_message` on the call replaces the agent's opening line for that
+  call only. Your backend can write it in full, with no placeholders. Where you do
+  use a `{{placeholder}}`, a missing value is replaced with nothing; it is never
+  read out as braces.
+  </Accordion>
+  <Accordion title="Is our metadata sent back in webhooks for browser calls?">
+  Yes, unchanged, in `data.call.metadata` of every webhook for the call and on
+  `GET /v2/calls/{id}`. The create response also returns the call `id` to store.
+  </Accordion>
+  <Accordion title="Which webhook means the session is over, and which means process it now?">
+  The terminal event (`call.completed`, `call.failed` or `call.aborted`) means
+  the conversation is over. `call.processed`, sent when you create the call with
+  `final_results: true`, means "everything is ready": it carries the transcript
+  and the score. Process the session on `call.processed`. See
+  [step 5](#step-5-receive-the-transcript-and-the-score).
+  </Accordion>
+  <Accordion title="Can the webhook URL be set per call?">
+  Yes. `webhook_url` on the call applies to that call only.
+  </Accordion>
+  <Accordion title="How do we get the transcript, and when is it ready?">
+  It arrives inline in `call.processed` (`data.transcript.turns`), and you can
+  fetch it any time with `GET /v2/calls/{id}/transcript`. It is normally ready
+  by the time the terminal webhook arrives; `transcript_status` on the call
+  says `ready`. `call.processed` follows within about two minutes of the call
+  ending, plus the time scoring takes.
+  </Accordion>
+  <Accordion title="Can we keep text only, with no audio?">
+  Yes. Create the call with `recording_enabled: false`: no audio is stored, and
+  captions, the transcript and scoring still work. To turn audio off for your
+  whole workspace, ask [help@miraiminds.co](mailto:help@miraiminds.co). See
+  [data retention](/v2/limits#data-retention) for how long transcripts are kept.
+  </Accordion>
+  <Accordion title="We use the older POST /v2/call/web endpoint. Does it support this?">
+  Everything in this cookbook uses [`POST /v2/calls`](/v2/web-calls#create-the-call)
+  with `channel: "web"`. Build new browser sessions on it.
+  </Accordion>
+</AccordionGroup>
 
 ## Related
 
