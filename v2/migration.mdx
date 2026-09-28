@@ -64,7 +64,7 @@ way to accidentally address the wrong workspace with the right credentials.
 | — | [`GET /v2/calls`](/v2/calls#list-calls) | **New.** |
 | `POST /v2/call/abort` with `{callId}` in body | [`POST /v2/calls/{id}/abort`](/v2/calls#abort-a-call) | ID moves into the path. |
 | `PUT /v2/call/{callId}` (update payload) | — | No equivalent. Set everything at create time. |
-| `POST /v2/call/web` | — | Web calls are v1-only. |
+| `POST /v2/call/web` | [`POST /v2/calls`](/v2/web-calls#create-the-call) with `channel: "web"` | Your backend creates the call and gives the page an audio link and a live event link. See [Browser calls](/v2/web-calls). |
 | `GET /v1/number-pool/*` | — | [v1 Telephony](/v1/telephony). |
 | `/v1/admin/tool/api` (all methods) | [`/v2/agents/{id}/tools/{name}`](/v2/tools#api-routes) | Tools belong to an agent; recreate the definition instead of copying a v1 ID. |
 | `/v1/knowledge-base/*` | — | [v1 Knowledge Base](/v1/knowledge-base). |

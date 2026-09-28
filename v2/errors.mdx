@@ -27,11 +27,11 @@ all offending field paths. Handle that shape when saving agent tools.
 | Status | Meaning | Retry? |
 | :--- | :--- | :--- |
 | `400` | The request is malformed or a field is invalid. | No — fix the request. |
-| `401` | Missing, malformed or unknown key. | No. |
+| `401` | Missing, malformed or unknown key — or an invalid token on a browser call's media or events link. | No. |
 | `402` | Wallet cannot cover the call. | After topping up. |
-| `403` | The key is valid but **revoked**, or the call is not covered by your company's plan. | No. |
+| `403` | The key is valid but **revoked**, the call is not covered by your company's plan, or it asks for recording on a workspace with recording turned off. | No. |
 | `404` | No such resource in your workspace — including one that exists in someone else's. | No. |
-| `409` | State conflict — a request with the same `Idempotency-Key` still in flight, or an operation the current state forbids. | No. |
+| `409` | State conflict — a request with the same `Idempotency-Key` still in flight, or an operation the current state forbids (such as controlling a call that is not in progress). | No. |
 | `429` | Request-rate limit. Concurrency does not `429`. | Yes, with backoff. |
 | `500` | Our fault. | Yes, with backoff. |
 | `501` | The feature exists in the contract but is not live yet. | No. |
@@ -43,7 +43,9 @@ all offending field paths. Handle that shape when saving agent tools.
 | :--- | :--- | :--- | :--- |
 | `invalid_request` | `400` | Missing required field, wrong type, `to` not E.164, `max_duration_secs` out of range, unknown `voice_id`, malformed JSON. | Read `message`; it names the field. |
 | `unauthorized` | `401` | No `Authorization` header, not `Bearer `-prefixed, or the key is unknown. | Check the header. A trailing newline from `cat`-ing a key file is the usual culprit. |
+| `invalid_token` | `401` | The `token` on a [browser call](/v2/web-calls)'s media or events link is unknown, expired, already used (the media link is single use), or belongs to another call. | Use the links exactly as returned. For audio, create a new call — the media link cannot be reused. |
 | `forbidden` | `403` | The key was revoked. | Get a new key. |
+| `recording_disabled` | `403` | `recording_enabled: true` on a workspace whose recording is turned off. Nothing was created. | Leave `recording_enabled` out, or send `false`. |
 | `contract_unavailable` | `403` | The call is not covered by an active production contract: `tier` is not your company's plan, or the company has not finished going live. Nothing was dialled. | Leave `tier` out — calls default to your plan's tier. See [setting the tier](/general/tiers#setting-the-tier). |
 | `insufficient_balance` | `402` | Pre-dial wallet gate. No call was placed and nothing was charged. The same condition inside a running [campaign](/v2/campaigns) is not an error — the campaign pauses with `pause_reason: "insufficient_balance"`. | [Top up](/v2/wallet#top-up) and retry with the same `Idempotency-Key`. |
 | `not_found` | `404` | Unknown `agt_`/`call_`/`cmp_` ID, a soft-deleted agent, a number not on the [do-not-call list](/v2/dnc), a transcript or recording that does not exist, or an ID that belongs to another workspace. | Check the ID. For artifacts, check `transcript_available` / `recording_available` on the call. |
@@ -51,6 +53,8 @@ all offending field paths. Handle that shape when saving agent tools.
 | `conflict` | `409` | The operation is illegal in the current state: aborting a call that has already ended, editing or starting a campaign that is `play`, adding contacts to one that is `stopped`/`completed`, or resuming one with no running dialler. | Read the resource's `status` first. A paused campaign with no dialler is resumed with [`POST /start`](/v2/campaigns#start-a-campaign). |
 | `rate_limited` | `429` | Request rate exceeded, **or** your queue is full (500 calls accepted and not yet ended). Being at your *concurrency* ceiling does **not** produce this: those calls queue. `error.message` says which limit you hit. | Honour `Retry-After` and back off. See [Limits](/v2/limits). |
 | `at_capacity` | `429` | No capacity for this request: on calls, every line on the deployment is busy — a fleet-wide ceiling, not your workspace's. On [text to speech](/v2/tts-quickstart#limits) it also means your workspace already has its 10 requests in flight. Nothing was charged either way. | Honour `Retry-After` and retry. |
+| `call_not_active` | `409` | A [live control](/v2/web-calls#live-control) was sent to a call that is not in progress: still `queued` (the page has not connected its audio) or already ended. | Wait for `call.started`; after a terminal event there is nothing left to control. |
+| `unsupported_channel` | `400` | A [live control](/v2/web-calls#live-control) was sent to a call that is not a browser call. | Live control is for `channel: "web"` calls. To stop a phone call, use [`POST /abort`](/v2/calls#abort-a-call). |
 | `flow_agent_web_only` | `409` | A phone call or campaign named a node-based agent. Node-based agents run as browser calls for now. | Use a single-prompt agent for phone calls and campaigns. See [tiers](/general/tiers#one-stack-on-every-tier). |
 | `tier_unavailable` | `501` | `tier` names a tier that is not enabled on this deployment. | Leave `tier` out — calls default to your plan's tier. See [tiers](/general/tiers#setting-the-tier). |
 | `campaigns_unavailable` | `503` | Campaigns are not enabled for your workspace. Every `/v2/campaigns` and `/v2/dnc` route answers this; everything else keeps working. | Not a mistake in your request, and retrying will not clear it — ask your Mirai contact to enable them. |
@@ -68,8 +72,9 @@ Always have a default branch keyed on the HTTP status.
 An `agt_`, `call_` or `cmp_` ID that exists in another workspace is answered exactly as
 an ID that never existed: `404 not_found`. Anything else would be an enumeration
 oracle — a way to probe which IDs are real on the platform by watching the
-status code change. `403` is reserved for one situation only: your own key has
-been revoked.
+status code change. `403` never means "someone else's ID": it means your own key
+has been revoked, or your workspace is not allowed what the request asks for
+(`contract_unavailable`, `recording_disabled`).
 </Warning>
 
 ## Handling errors

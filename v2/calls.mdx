@@ -1,6 +1,6 @@
 ---
 title: Calls
-description: Place outbound calls, inspect their status, abort them, and list history.
+description: Place outbound and browser calls, inspect their status, steer or abort them, and list history.
 ---
 
 
@@ -8,6 +8,9 @@ A **call** is one outbound dial attempt driven by an [agent](/v2/agents).
 Creating a call is asynchronous: you get `202 Accepted` immediately and the
 outcome arrives by [webhook](/v2/webhooks) (or by polling
 [`GET /v2/calls/{id}`](#get-a-call)).
+
+A call can also run in your user's browser instead of on a phone: create it
+with `channel: "web"`. See [Browser calls](/v2/web-calls) for the whole flow.
 
 Base URL `https://sandbox.voice.miraiminds.co`.
 
@@ -29,6 +32,8 @@ Base URL `https://sandbox.voice.miraiminds.co`.
   "cost_inr": 5,
   "recording_available": true,
   "transcript_available": true,
+  "transcript_status": "ready",
+  "metadata": { "order_id": "8842" },
   "analysis": null
 }
 ```
@@ -48,14 +53,16 @@ Base URL `https://sandbox.voice.miraiminds.co`.
 | `cost_inr` | number \| null | Rupees charged. `null` until the call ends, and `null` for an ending that is not billable. |
 | `recording_available` | boolean | Whether [`GET /recording`](#get-the-recording) will return audio. |
 | `transcript_available` | boolean | Whether [`GET /transcript`](#get-the-transcript) will return turns. |
+| `transcript_status` | enum | `pending` while the call runs and until its transcript is stored; `ready` when [`GET /transcript`](#get-the-transcript) returns turns; `empty` when nobody spoke; `failed` when the transcript could not be stored. |
+| `metadata` | object | Your [`metadata`](#metadata) from create, unchanged. Absent when the call has none. |
 | `analysis` | object \| null | Post-call summary, when the agent was created with `analysis.enabled`. `null` otherwise. |
 
 ## Statuses
 
 | Status | Terminal | Meaning |
 | :--- | :---: | :--- |
-| `queued` | | Accepted, waiting on fleet capacity. |
-| `dialing` | | SIP invite sent, phone is ringing. |
+| `queued` | | Accepted, waiting on fleet capacity. A [browser call](/v2/web-calls) stays here until the page connects its audio. |
+| `dialing` | | SIP invite sent, phone is ringing. Phone calls only. |
 | `in_progress` | | Media live, conversation running. |
 | `completed` | ✅ | Connected and finished normally. **Billable.** |
 | `voicemail` | ✅ | An answering machine picked up. See [voicemail](/v2/agents#voicemail). **Billable.** |
@@ -109,6 +116,9 @@ for control flow; use `ended_reason` for analytics and support.
 | `idle-timed-out` | `completed` | The agent re-prompted its configured number of times and the caller never came back. Billable. |
 | `no-media` | `failed` | The call was placed but audio never flowed. See the note below. Not billed. |
 | `aborted-by-api` | `aborted` | You called [`POST /abort`](#abort-a-call). The only reason an abort produces. |
+| `api-ended-call` | `completed` | You sent a [`close` control](/v2/web-calls#live-control): the agent said goodbye and the call ended. Billable. |
+| `time-limit-close` | `completed` | The [timing policy](/v2/web-calls#timing-policy) closed the call before its hard cap. Billable. |
+| `user-silence-close` | `completed` | The [timing policy](/v2/web-calls#timing-policy) closed the call after the user stayed silent for `user_silence_close_secs`. Billable. |
 | `assistant-error` | `failed` | Pipeline failure on our side. Not billed. |
 | `transferred` | `completed` | The call ended in a completed warm transfer to a human. Handoff is [part of every tier](/general/tiers#one-stack-on-every-tier); the rollout is completing — **no call emits this yet**, see the [roadmap](/general/roadmap). |
 | `balance-exhausted` | `completed` | Reserved for a call ended when the wallet emptied mid-call. **Not wired — no call emits this yet.** |
@@ -153,10 +163,16 @@ POST /v2/calls
 | Field | Type | Required | Description |
 | :--- | :--- | :--- | :--- |
 | `agent_id` | string | yes | The agent to run. |
-| `to` | string | yes | E.164, e.g. `+919876543210`. |
+| `channel` | string | no | `phone` (default) or `web`. `web` runs the call in a browser — see [Browser calls](/v2/web-calls). |
+| `to` | string | phone only | E.164, e.g. `+919876543210`. Required for phone calls. Refused with `400 invalid_request` on `channel: "web"`. |
 | `variables` | object | no | Flat string map substituted into the agent's prompt. See [variables](#variables). |
-| `webhook_url` | string | no | HTTPS URL for [lifecycle events](/v2/webhooks). |
+| `metadata` | object | no | Your own identifiers, up to 16 string keys and values. Returned unchanged on the call and in every webhook. Never shown to the agent. See [metadata](#metadata). |
+| `first_message` | string | no | The opening line for this call only, up to 500 characters. Replaces the agent's `first_message`; `{{variable}}` placeholders work the same way. |
+| `webhook_url` | string | no | HTTPS URL for [lifecycle events](/v2/webhooks). Applies to this call only. |
 | `max_duration_secs` | integer | no | Overrides the agent's cap for this call only. |
+| `timing` | object | no | Wrap-up, timed-close and user-silence timers for this call. Phone and browser calls. See [timing policy](/v2/web-calls#timing-policy). |
+| `recording_enabled` | boolean | no | Default `true`. `false` stores no audio for this call: no recording, `recording_available: false`. If your workspace has recording turned off, the default is `false` and `true` is refused with `403 recording_disabled`. |
+| `final_results` | boolean | no | Default `false`. `true` sends one [`call.processed`](/v2/webhooks#final-results) with the finished transcript after the call ends. |
 | `tier` | string | no | `t1` \| `t3` \| `t5`. Defaults to your key's tier, which is your company's plan — leave it out. Any other tier is refused with `403 contract_unavailable`. See [tiers](/general/tiers#setting-the-tier). |
 
 <Tabs>
@@ -234,13 +250,34 @@ POST /v2/calls
 `202` means the call is admitted to the queue — **the phone has not rung yet**.
 The full call object is available from [`GET /v2/calls/{id}`](#get-a-call).
 
+A browser call's `202` also carries the links the page needs:
+
+```json title="202 Accepted (channel web)"
+{
+  "id": "call_01K8B2M4Q6S8T0V2X4Z6A8C0EG",
+  "status": "queued",
+  "transport": "web",
+  "ws_url": "wss://sandbox.voice.miraiminds.co/v2/calls/call_01K8B2M4Q6S8T0V2X4Z6A8C0EG/media?token=…",
+  "ws_url_expires_at": "2026-09-27T10:05:00Z",
+  "events_url": "https://sandbox.voice.miraiminds.co/v2/calls/call_01K8B2M4Q6S8T0V2X4Z6A8C0EG/events?token=…"
+}
+```
+
+| Field | Description |
+| :--- | :--- |
+| `transport` | `web`. |
+| `ws_url` | The [audio socket](/v2/web-calls#audio-socket). Single use; connect within 5 minutes. |
+| `ws_url_expires_at` | When an unused `ws_url` stops working. |
+| `events_url` | The [live event stream](/v2/web-calls#live-events). Reusable for the call and for one hour after it ends. |
+
 ### Errors
 
 | Status | `error.code` | Cause |
 | :--- | :--- | :--- |
-| `400` | `invalid_request` | Missing `agent_id`/`to`, `to` not E.164, `max_duration_secs` out of range |
+| `400` | `invalid_request` | Missing `agent_id`/`to`, `to` not E.164, `to` sent with `channel: "web"`, `max_duration_secs` out of range, invalid `metadata`, `first_message` or `timing`. `error.message` names the field. |
 | `401` | `unauthorized` | Bad or missing key |
 | `402` | `insufficient_balance` | Wallet cannot cover the first minute at your tier. **Checked before we dial** — no partial charge. See [Wallet](/v2/wallet#402-insufficient-balance). |
+| `403` | `recording_disabled` | `recording_enabled: true` on a workspace whose recording is turned off |
 | `403` | `contract_unavailable` | The call is not covered by an active production contract: `tier` is not your company's plan, or the company has not finished going live. See [setting the tier](/general/tiers#setting-the-tier). |
 | `404` | `not_found` | `agent_id` does not exist in your workspace — including one that exists in someone else's |
 | `409` | `duplicate_call` | A request with this `Idempotency-Key` is still being processed. See [idempotency](#idempotency). |
@@ -269,6 +306,31 @@ matching `{{key}}` placeholder in the agent's `system_prompt` and
 - Keep values short. They are part of the prompt, and the prompt is on the
   latency path.
 - Variables are **static per call**. There is no way to change them mid-call.
+  On a browser call, an [`instruction`](/v2/web-calls#live-control) can direct
+  the agent mid-call instead.
+
+### Metadata
+
+`metadata` holds your own identifiers, so every webhook can be matched to your
+records without a lookup table:
+
+```json
+{ "metadata": { "session_id": "sess_8f2c41", "user_id": "usr_1042" } }
+```
+
+- Up to 16 keys. A key is 1–40 characters: ASCII letters, digits and `_`, `.`,
+  `:`, `-`, starting with a letter, digit or `_`.
+- Values are strings of up to 256 characters. The whole object, serialized, is
+  at most 4 KB.
+- It is fixed when the call is created and returned unchanged on the
+  [call object](#the-call-object) and in `data.call` of every
+  [webhook](/v2/webhooks) for the call.
+- The agent never sees it. Anything the agent should use goes in
+  [`variables`](#variables).
+- A call without metadata has no `metadata` field at all.
+- Put IDs in it, not secrets or personal data: it travels on every webhook.
+
+Invalid or oversized metadata returns `400 invalid_request`.
 
 ### Idempotency
 
@@ -399,9 +461,10 @@ curl https://sandbox.voice.miraiminds.co/v2/calls/call_01K7Q9B4M8N3P6R2S5T7V9W1Y
 | `start_ms`, `end_ms` | Milliseconds from the start of the **recording**, so a turn lines up with the audio. `end_ms` can be `null` on the last turn of a call that was cut off. |
 
 `404 not_found` while the call is still running, and for a call that produced no
-speech at all. Check `transcript_available` on the
-[call object](#the-call-object) if you want to tell those apart from a mistyped
-id.
+speech at all. Check `transcript_status` on the
+[call object](#the-call-object) to tell them apart: `pending`, `empty` or
+`failed`. For browser calls, [final results](/v2/webhooks#final-results) deliver
+the same turns by webhook as soon as they are ready.
 
 ```json title="404 Not Found"
 {
@@ -442,8 +505,9 @@ audio until it expires, so treat it exactly as you would treat the recording.
 </Warning>
 
 `404 not_found` while the call is running, for a call that produced no audio, and
-for one whose audio was never stored. `recording_available` on the call object
-tells you which requests are worth making.
+for one whose audio was never stored — including every call created with
+`recording_enabled: false`. `recording_available` on the call object tells you
+which requests are worth making.
 
 Transcripts and recordings are kept for **90 days**, the same as the call
 record. Pull anything you need to keep longer into your own system.
@@ -458,8 +522,12 @@ POST /v2/calls/{id}/abort
 
 Cancels a call that has not ended yet. Accepted while the call is `queued`,
 `dialing` **or `in_progress`** — a live call is hung up on the SIP server
-mid-conversation, not merely flagged. Only a call that has already reached a
+mid-conversation, not merely flagged. On a [browser call](/v2/web-calls), abort
+closes the browser's audio socket too. Only a call that has already reached a
 terminal status is refused: there is nothing left to stop.
+
+Abort is immediate and silent. To end a browser call with a spoken goodbye,
+send a [`close` control](/v2/web-calls#live-control) instead.
 
 ```bash
 curl -X POST https://sandbox.voice.miraiminds.co/v2/calls/call_01JZQ9B4M8N3P6R2S5T7V9W1YA/abort \
@@ -472,13 +540,33 @@ curl -X POST https://sandbox.voice.miraiminds.co/v2/calls/call_01JZQ9B4M8N3P6R2S
 
 `202` means the cancel was signalled. The call reaches `aborted` shortly after
 with `ended_reason: "aborted-by-api"`, and a
-[`call.aborted`](/v2/webhooks#callaborted) event fires. An aborted call is never
+[`call.aborted`](/v2/webhooks#call-aborted) event fires. An aborted call is never
 billed — including one aborted after media went live.
 
 | Status | `error.code` | Cause |
 | :--- | :--- | :--- |
 | `404` | `not_found` | Unknown call ID, or a call in another workspace |
 | `409` | `conflict` | The call has already ended — its status is terminal, so there is nothing to abort |
+
+---
+
+## Live control and events
+
+Browser calls have three more endpoints. [Browser calls](/v2/web-calls) covers
+them in full.
+
+| Endpoint | What it does |
+| :--- | :--- |
+| `POST /v2/calls/{id}/control` | Send an `instruction` the agent follows from its next reply, or `close` the call with a spoken goodbye. Browser calls in progress only. See [live control](/v2/web-calls#live-control). |
+| `GET /v2/calls/{id}/control/{control_id}` | Read a control's current status: `pending`, `applied`, `rejected` or `failed`. |
+| `GET /v2/calls/{id}/events` | The live event stream (Server-Sent Events): agent state and each completed turn. Opened with the `events_url` from create, or with your API key. See [live events](/v2/web-calls#live-events). |
+
+| Status | `error.code` | Cause |
+| :--- | :--- | :--- |
+| `400` | `unsupported_channel` | Control sent to a call that is not a browser call |
+| `401` | `invalid_token` | The `token` in a media or events link is unknown, expired, already used, or for another call |
+| `404` | `not_found` | Unknown call or control ID, or one in another workspace |
+| `409` | `call_not_active` | Control sent to a call that is still `queued` or has already ended |
 
 ---
 

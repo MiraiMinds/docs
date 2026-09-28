@@ -127,13 +127,41 @@ slot and is never charged.
 | Thing | Limit |
 | :--- | :--- |
 | Request body | 1 MB |
-| `system_prompt` | 8,000 characters |
-| `first_message` | 500 characters |
+| `system_prompt` | 8,000 characters, on the agent. There is no per-call system prompt. |
+| `first_message` | 500 characters, on the agent or per call |
 | `variables` | 32 keys, 512 characters per value |
+| `metadata` | 16 keys; key 1–40 characters (ASCII letters, digits, `_` `.` `:` `-`; starts with a letter, digit or `_`); value 256 characters; 4 KB serialized |
 | `max_duration_secs` | 30–1800, default 300 |
 | `webhook_url` | HTTPS only, 2,048 characters |
 | Idempotency key | 255 characters, 24-hour window |
 | TTS `input` | 2,000 characters per request |
+
+Invalid values return `400 invalid_request`.
+
+### Call timing
+
+`max` below is the call's effective `max_duration_secs`. See
+[timing policy](/v2/web-calls#timing-policy).
+
+| `timing` field | Limit |
+| :--- | :--- |
+| `wrap_up_secs_before_end` | 10 to `max` − 10 |
+| `close_secs_before_end` | 5 to `max` − 10, and smaller than `wrap_up_secs_before_end` when both are set |
+| `user_silence_close_secs` | 15–600 |
+| `wrap_up_instruction` | 1,000 characters |
+| `close_message`, `user_silence_message` | 500 characters each |
+
+### Browser calls
+
+| Thing | Limit |
+| :--- | :--- |
+| Audio link (`ws_url`) | Single use. Connect within 5 minutes of creating the call. |
+| Events link (`events_url`) | Reusable for the whole call and one hour after it ends. |
+| Live event replay | Kept for one hour after the call ends. |
+| Control `instruction` text | 1–1,000 characters |
+| Control `close` message | 500 characters |
+| Control acknowledgement | `200` within 3 seconds, otherwise `202 pending` |
+| Final results inline transcript | 512 KB. Larger transcripts arrive as `fetch_required`. |
 
 ## Campaign ceilings
 
@@ -165,6 +193,8 @@ stack is tuned for prompts in the hundreds of tokens, not thousands.
 | API request | Respond within 30 seconds or treat as failed and retry with the same `Idempotency-Key`. |
 | Ring / answer | ~60 seconds. No media by then → `no_answer`. |
 | Call duration | Ends at `max_duration_secs` with `status: timeout`. |
+| Browser connect | 5 minutes after the call is created. If no audio connects, the call ends `failed` with `ended_reason: "no-media"` and is not billed. |
+| Final results | `call.processed` follows the terminal event once the transcript settles (within about 2 minutes of the call ending) and any analysis and post-call tools finish. |
 | Webhook delivery | Your endpoint should answer well under a second. Slow responses are treated as failures and [retried](/v2/webhooks#retries). |
 
 ## Data retention
@@ -179,8 +209,9 @@ stack is tuned for prompts in the hundreds of tokens, not thousands.
 Recordings and transcripts are available through the API —
 [`GET /v2/calls/{id}/recording`](/v2/calls#get-the-recording) and
 [`/transcript`](/v2/calls#get-the-transcript). Pull anything you need to keep
-beyond 90 days into your own system, and tell us up front if your use case
-requires that we **not** record at all.
+beyond 90 days into your own system. To store no audio, create calls with
+`recording_enabled: false`, or ask us to turn recording off for your whole
+workspace.
 
 ---
 
@@ -265,7 +296,10 @@ hang up harder than callers who were told.
 ### Recording
 
 If you record calls, say so in the opening turn and keep the recordings under
-the same retention and access controls as the rest of your customer data.
+the same retention and access controls as the rest of your customer data. If
+you do not need the audio, do not store it: `recording_enabled: false` keeps no
+recording for that call, and a workspace with recording turned off refuses
+`recording_enabled: true` with `403 recording_disabled`.
 
 ### What we do enforce
 
@@ -278,6 +312,7 @@ the same retention and access controls as the rest of your customer data.
 | TTS requests in flight | ✅ `429 at_capacity` past 10 per workspace |
 | Queue depth | ✅ `429 rate_limited` past 500 outstanding |
 | Maximum call duration | ✅ `status: timeout` |
+| Recording off — per call or per workspace | ✅ `recording_enabled: false`; `403 recording_disabled` on a workspace with recording off |
 | Campaign budget cap | ✅ campaign pauses, `pause_reason: budget_exhausted` |
 | Calling window — **campaigns** | ✅ `slots` + `timezone`, evaluated in local time every tick |
 | Calling window — single `POST /v2/calls` | ❌ your scheduler |
