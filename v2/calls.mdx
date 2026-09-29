@@ -29,7 +29,12 @@ Base URL `https://sandbox.voice.miraiminds.co`.
   "started_at": "2026-08-10T09:15:02Z",
   "ended_at": "2026-08-10T09:16:38Z",
   "duration_secs": 96,
-  "cost_inr": 5,
+  "cost": {
+    "amount_inr": 5,
+    "per_min_inr": 3,
+    "billing_block_secs": 10,
+    "voice_per_min_inr": 3
+  },
   "recording_available": true,
   "transcript_available": true,
   "transcript_status": "ready",
@@ -50,7 +55,12 @@ Base URL `https://sandbox.voice.miraiminds.co`.
 | `started_at` | string \| null | RFC 3339, UTC. Set when **media goes live**, not when we dialled. `null` if the call never connected. |
 | `ended_at` | string \| null | RFC 3339, UTC. |
 | `duration_secs` | integer \| null | Billable seconds of live media. `0` for calls that never connected, `null` while running. |
-| `cost_inr` | number \| null | Rupees charged. `null` until the call ends, and `null` for an ending that is not billable. |
+| `cost.amount_inr` | number | Total rupees charged. `0` until the call is billed and for outcomes that are free. |
+| `cost.voice_per_min_inr` | number | Voice AI rate quoted for this call, when a pricing snapshot is available. |
+| `cost.insights_per_min_inr` | number | T1 insights rate when enabled; absent when no insights charge applies. |
+| `cost.telco_per_min_inr` | number | Managed provider rate; absent for BYO telco, WhatsApp and browser calls. |
+| `cost.telco_provider` | string | The managed provider, when a provider charge applies. |
+| `cost.telco_billing_block_secs` | integer | The provider's billing block, which can differ from the voice AI block. |
 | `recording_available` | boolean | Whether [`GET /recording`](#get-the-recording) will return audio. |
 | `transcript_available` | boolean | Whether [`GET /transcript`](#get-the-transcript) will return turns. |
 | `transcript_status` | enum | `pending` while the call runs and until its transcript is stored; `ready` when [`GET /transcript`](#get-the-transcript) returns turns; `empty` when nobody spoke; `failed` when the transcript could not be stored. |

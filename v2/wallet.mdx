@@ -137,6 +137,18 @@ The ledger. One row per credit or debit, newest first.
       "call_id": "call_01JZQ9B4M8N3P6R2S5T7V9W1YA",
       "kind": "call",
       "description": "call 96s @ t3",
+      "billed_seconds": 100,
+      "per_min_inr": 3,
+      "billing_block_secs": 10,
+      "pricing": {
+        "voice_rate_paise": 300,
+        "insights_rate_paise": 0,
+        "telco_rate_paise": 0,
+        "telco_block_seconds": 0,
+        "rate_paise": 300,
+        "block_seconds": 10,
+        "insights_enabled": false
+      },
       "created_at": "2026-07-26T09:16:39Z"
     },
     {
@@ -165,6 +177,12 @@ The ledger. One row per credit or debit, newest first.
 | `reference` | string | The id of the thing billed: the `tts_…` request id on a `tts` row; the `fgen_…` generation id, or the `ftr_…` transcription id, on a `flow_generation` row. |
 | `quantity` | number | How much was billed: characters on a `tts` row, tokens (input plus output) on a `flow_generation` row. |
 | `description` | string | Human-readable. Do not parse it. |
+| `pricing` | object | The rates snapshotted when the call was admitted: voice AI, optional T1 insights, and any managed provider rate and billing block. Absent on historical rows. |
+
+The call amount combines voice and insights at the voice billing block, rounds
+that charge up to a paisa, then adds the separately rounded provider charge.
+BYO telco,
+WhatsApp and browser calls have no Mirai telco component.
 
 <Note>
 **`kind`, `reference` and `quantity` are additive.** Rows written before they

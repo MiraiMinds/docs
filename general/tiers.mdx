@@ -4,26 +4,29 @@ description: Start on T5 pay as you go, or commit monthly for a lower rate — t
 ---
 
 
-Every company starts on **T5: ₹5 / minute, pay as you go** — no monthly
-commitment, telephony included. Commit to a monthly amount and the rate drops:
+Every company starts on **T5: ₹5 / minute for voice AI, pay as you go** — no monthly
+commitment. Commit to a monthly amount and the voice rate drops:
 
-- **₹50,000 a month → T3 at ₹3 / minute**, telephony included.
-- **₹1,00,000 a month → T1 at ₹1 / minute**, plus telco ₹0.30 and insights
-  ₹0.20 — **₹1.50 / minute end to end**.
+- **₹50,000 a month → T3 at ₹3 / minute**.
+- **₹1,00,000 a month → T1 at ₹1 / minute**. Call insights are on by default
+  at ₹0.20 / minute and can be turned off in Billing.
+
+Managed phone calling adds the configured provider cost on all new contracts.
+BYO telco, WhatsApp and browser calls have no Mirai telco charge.
 
 {/* pricing:agents:start */}
 
 | Tier | Rate | Monthly commitment | Details |
 | --- | --- | --- | --- |
-| T5 | ₹5 / minute | None — pay as you go | Single-prompt and node-based agents; Telephony included; Top up anytime at the same rate: ₹5 / minute |
-| T3 | ₹3 / minute | ₹50,000 | Single-prompt and node-based agents; Telephony included; Top up anytime at the same rate: ₹3 / minute |
-| T1 | ₹1 / minute | ₹1,00,000 | ₹1.50 / minute end to end, including telco and insights; Single-prompt and node-based agents; Telco: +₹0.30 / minute; Insights: +₹0.20 / minute; Top up anytime at the same rate: ₹1 / minute |
+| T5 | ₹5 / minute | None — pay as you go | Single-prompt and node-based agents; Call insights included; Use your own telco, WhatsApp or browser calling; Managed phone calling: provider cost passed through separately; Top up anytime at the same rate: ₹5 / minute |
+| T3 | ₹3 / minute | ₹50,000 | Single-prompt and node-based agents; Call insights included; Use your own telco, WhatsApp or browser calling; Managed phone calling: provider cost passed through separately; Top up anytime at the same rate: ₹3 / minute |
+| T1 | ₹1 / minute | ₹1,00,000 | Single-prompt and node-based agents; Call insights on by default; turn them off in Billing; Use your own telco, WhatsApp or browser calling; Managed phone calling: provider cost passed through separately; Top up anytime at the same rate: ₹1 / minute |
 
 Monthly commitments are credited to your wallet. Unused credit never expires. All prices exclude GST.
 
 **Enterprise:** Custom voices, Dedicated deployment, SLA, A dedicated point of contact. Contact us for a custom plan. Top up anytime at the same rate.
 
-Your workspace's agreed contract determines your charges. Advertised rates do not replace an existing contract.
+Your workspace's agreed contract determines your charges. Advertised rates do not replace an existing contract. Managed phone calls add the configured provider cost; BYO telco, WhatsApp and browser calls have no Mirai telco charge. T1 call insights are on by default at ₹0.20 / minute and can be turned off in Billing.
 
 {/* pricing:agents:end */}
 
@@ -63,27 +66,28 @@ part-block is a whole block, and nothing smaller than 10 seconds is billed.
 
 {/* pricing:blocks:start */}
 
-| Call duration | Billed blocks | T5 cost | T3 cost | T1 cost (end to end) |
+| Call duration | Billed blocks | T5 voice cost | T3 voice cost | T1 voice cost |
 | --- | --- | --- | --- | --- |
-| 8 seconds | 1 (10 s) | ₹0.84 | ₹0.50 | ₹0.25 |
-| 35 seconds | 4 (40 s) | ₹3.34 | ₹2.00 | ₹1.00 |
-| 59 seconds | 6 (60 s) | ₹5.00 | ₹3.00 | ₹1.50 |
-| 61 seconds | 7 (70 s) | ₹5.84 | ₹3.50 | ₹1.75 |
-| 96 seconds | 10 (100 s) | ₹8.34 | ₹5.00 | ₹2.50 |
-| 181 seconds | 19 (190 s) | ₹15.84 | ₹9.50 | ₹4.75 |
+| 8 seconds | 1 (10 s) | ₹0.84 | ₹0.50 | ₹0.17 |
+| 35 seconds | 4 (40 s) | ₹3.34 | ₹2.00 | ₹0.67 |
+| 59 seconds | 6 (60 s) | ₹5.00 | ₹3.00 | ₹1.00 |
+| 61 seconds | 7 (70 s) | ₹5.84 | ₹3.50 | ₹1.17 |
+| 96 seconds | 10 (100 s) | ₹8.34 | ₹5.00 | ₹1.67 |
+| 181 seconds | 19 (190 s) | ₹15.84 | ₹9.50 | ₹3.17 |
 
-Every tier: Single-prompt and node-based agents. T5: Telephony included. T3: Telephony included. T1: Telco: +₹0.30 / minute. Insights: +₹0.20 / minute. All prices exclude GST.
+Every tier: Single-prompt and node-based agents. Use your own telco, WhatsApp or browser calling. Managed phone calling: provider cost passed through separately. T5: Call insights included. T3: Call insights included. T1: Call insights on by default; turn them off in Billing. All prices exclude GST. Managed phone calls add the configured provider cost. T1 insights add ₹0.20 / minute while enabled.
 
 {/* pricing:blocks:end */}
 
 ### Metering
 
 `duration_secs` on the [call object](/v2/calls#the-call-object) is the true
-media duration in seconds. The charge is that duration rounded **up** to the
-next 10 seconds — never less than one block — times your plan's per-minute
-rate, divided by 60 and rounded **up** to the paisa. On T1 the per-minute rate
-is the ₹1.50 end-to-end rate, because telco and insights are charged with the
-call. A call that never connected is not billed at all — see the table below.
+media duration in seconds. Voice AI and T1 insights use the duration rounded
+**up** to the next 10 seconds — never less than one block. Managed provider
+calling uses the provider's configured billing block. Voice AI and enabled
+insights are combined before rounding to the paisa; the provider charge is
+rounded separately and added to the call total. A call that never connected is
+not billed at all — see the table below.
 
 ```python
 def cost_paise(duration_secs: int, rate_paise_per_min: int) -> int:
@@ -133,10 +137,10 @@ A campaign of 50,000 dials at a 35% answer rate and 80 seconds mean talk time:
 80 seconds -> 8 billed blocks each
 T5 agent usage: ₹1,16,725
 T3 agent usage: ₹70,000
-T1 agent usage: ₹35,000
+T1 agent usage: ₹23,450
 ```
 
-These are usage charges. T3 and T1 monthly commitments still apply. T5 has no monthly commitment. Unused wallet credit carries forward.
+These are base voice usage charges, before managed provider costs and optional T1 insights. T3 and T1 monthly commitments still apply. T5 has no monthly commitment. Unused wallet credit carries forward.
 
 {/* pricing:forecast:end */}
 
