@@ -6,8 +6,9 @@ description: Check your prepaid balance and read the transaction ledger.
 
 Mirai Voice is **prepaid**. Every workspace has one INR wallet. Calls debit it
 when they end, [text-to-speech](/v2/tts-quickstart) requests debit it when they
-complete, [AI flow drafts](/v2/node-agents#what-a-draft-costs) debit it when
-they finish, and top-ups credit it. If the wallet cannot cover a
+complete, [AI flow drafts](/v2/node-agents#what-a-draft-costs) and
+[recording transcriptions](/v2/node-agents#what-transcription-costs) debit it
+when they finish, and top-ups credit it. If the wallet cannot cover a
 minute, `POST /v2/calls` returns [`402`](#402-insufficient-balance) and no call
 is placed.
 
@@ -161,7 +162,7 @@ The ledger. One row per credit or debit, newest first.
 | `balance_after_inr` | number | Balance immediately after this row. |
 | `call_id` | string \| null | Set on call debits, `null` on top-ups and adjustments. |
 | `kind` | string | What the row paid for: `call`, `tts` or `flow_generation`. **Branch on this**, never on `description`. |
-| `reference` | string | The id of the thing billed: the `tts_…` request id on a `tts` row, the `fgen_…` generation id on a `flow_generation` row. |
+| `reference` | string | The id of the thing billed: the `tts_…` request id on a `tts` row; the `fgen_…` generation id, or the `ftr_…` transcription id, on a `flow_generation` row. |
 | `quantity` | number | How much was billed: characters on a `tts` row, tokens (input plus output) on a `flow_generation` row. |
 | `description` | string | Human-readable. Do not parse it. |
 
@@ -201,7 +202,8 @@ way a call row reconciles against `call_id`.
 ### A flow generation row
 
 Each [AI flow draft](/v2/node-agents#what-a-draft-costs) is one debit, at the
-chosen model's [token rates](/general/tiers#ai-flow-drafts):
+provider's reported cost plus 20% (the chosen model's
+[token rates](/general/tiers#ai-flow-drafts) when the provider reports none):
 
 ```json
 {
@@ -223,6 +225,34 @@ chosen model's [token rates](/general/tiers#ai-flow-drafts):
 and output tokens together. A generation that failed or was interrupted is
 charged the same way, and its description says so, for example
 `Flow generation · gpt-6-sol · failed · 1,200 in / 2,400 out tokens`.
+
+### A recording transcription row
+
+Each [recording transcription](/v2/node-agents#what-transcription-costs) is one
+debit of the same kind, at the provider's reported cost plus 20%:
+
+```json
+{
+  "id": "txn_01K8E2G6J8L0N2Q4S6U8W0Y2A4",
+  "object": "wallet_transaction",
+  "type": "debit",
+  "amount_inr": 1.95,
+  "balance_after_inr": 485.91,
+  "call_id": null,
+  "kind": "flow_generation",
+  "reference": "ftr_01K8E2F4H6K8M0P2R4T6V8X0Z2",
+  "quantity": 4634,
+  "description": "Recording transcription · gemini-3.8-flash · 1m41s · 2,717 in / 1,917 out tokens",
+  "created_at": "2026-09-29T11:04:52Z"
+}
+```
+
+`reference` is the `id` the transcription returned, and `quantity` is its input
+and output tokens together; the description gives the recording's length. A
+recording in which no conversation was heard is charged the same way, and its
+description says so, for example
+`Recording transcription · gemini-3.8-flash · failed · 12s · 410 in / 96 out tokens`.
+Tell a transcription from a draft by its `reference` prefix, `ftr_` or `fgen_`.
 
 ## Top up
 

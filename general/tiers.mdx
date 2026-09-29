@@ -34,8 +34,9 @@ Choose a tier for what you want to commit to, not for what the calls can do.
 
 **Single-prompt and node-based agents are available on every tier.** A
 [node-based agent](/v2/node-agents) takes phone calls, browser calls and
-campaigns like any other agent, and is billed the same way. Creating
-node-based agents in Agent Studio is rolling out.
+campaigns like any other agent, and is billed the same way. Create one in
+Agent Studio (**Create agent → Node-based**) from a description, call
+recordings, or both.
 
 ## Your plan
 
@@ -275,20 +276,29 @@ Contact us to activate your LLM plan. Your workspace's agreed contract determine
 ### AI flow drafts
 
 [Generating a flow from a brief](/v2/node-agents#generate-a-flow-from-a-brief)
-is charged to your wallet by the tokens the model used, at the rate of the
-model you choose. The same rates apply on every tier.
+or [from call recordings](/v2/node-agents#draft-a-flow-from-call-recordings)
+is charged to your wallet at what the model's provider reports it cost, plus
+20%. Each response's `cost` says what was charged. The token rates below are
+the published guide, and what an attempt is charged when the provider reports
+no cost for it. The same rates apply on every tier.
 
-| Model | `model` | Input, per 1,000,000 tokens | Output, per 1,000,000 tokens | Typical draft |
+| Model | `model` | Input, per 1,000,000 tokens | Output, per 1,000,000 tokens | Typical charge |
 | --- | --- | --- | --- | --- |
-| Gemini 3.8 Flash (default) | `gemini-3.8-flash` | ₹79.20 | ₹396 | about ₹1.20 |
-| GPT-6 Sol | `gpt-6-sol` | ₹211.20 | ₹1,056 | about ₹3 |
-| Claude Opus 5.5 | `claude-opus-5.5` | ₹422.40 | ₹2,112 | about ₹7 |
+| Gemini 3.8 Flash (default) | `gemini-3.8-flash` | ₹158.40 | ₹792 | ₹2–3 a draft from a brief |
+| GPT-6 Sol | `gpt-6-sol` | ₹211.20 | ₹1,056 | ₹3–4 a draft from a brief |
+| Claude Opus 5.5 | `claude-opus-5.5` | ₹422.40 | ₹2,112 | ₹6–8 a draft from a brief |
+| Recording transcription (Gemini 3.8 Flash) | — | Provider's cost plus 20% | Provider's cost plus 20% | about ₹1 per minute of audio |
 
-- Tokens from every attempt in a generation are added up and rounded up to the
+- A draft from two example calls is larger: typically ₹8–12.
+- A recording is priced as audio, which costs more than text, so a
+  transcription is charged the provider's reported cost plus 20% rather than a
+  token rate. The audio is not stored.
+- The cost of every attempt in a generation is added up and rounded up to the
   paisa once.
 - A generation that fails (`422`), or stops after the model had answered
-  (`503`), is charged for the tokens it used. Nothing is charged when the model
-  never answered.
+  (`503`), is charged for what the model did. So is a recording in which no
+  conversation was heard (`422`). Nothing is charged when the model never
+  answered.
 - Charges appear on the billing statement as **AI flow drafts**, and in
   [wallet transactions](/v2/wallet#a-flow-generation-row) with kind
   `flow_generation`.

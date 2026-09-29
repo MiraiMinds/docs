@@ -1,6 +1,6 @@
 ---
 title: Node-based agents
-description: Build an agent as a graph of steps, each with its own instructions, and let the model move between them. Generate a draft from a brief, the graph schema, a worked example, editing, versions, limits and errors.
+description: Build an agent as a graph of steps, each with its own instructions, and let the model move between them. Generate a draft from a brief or from call recordings, the graph schema, a worked example, editing, versions, limits and errors.
 ---
 
 
@@ -75,6 +75,8 @@ Interruptions and silence follow the same rules as every agent:
 
 Describe the agent in plain language and the API drafts the graph for you.
 Start here, then read and adjust the draft with the [schema](#the-graph) below.
+If you already have recordings of good calls, you can also [draft the flow from
+them](#draft-a-flow-from-call-recordings).
 
 ```http
 POST /v2/agents/flow/generate
@@ -82,14 +84,15 @@ POST /v2/agents/flow/generate
 
 | Field | Type | Required | Description |
 | :--- | :--- | :--- | :--- |
-| `brief` | string | yes | 1–6,000 characters. What the agent does: who it talks to, what it says and asks, how each answer is handled, what to record, and the language. |
+| `brief` | string | yes, unless you send `examples` | 1–20,000 characters. What the agent does: who it talks to, what it says and asks, how each answer is handled, what to record, and the language. A structured specification written with another assistant fits. |
+| `examples` | array | no | 2–10 example calls to learn the flow from, each `{"transcript": "…"}`. See [draft a flow from call recordings](#draft-a-flow-from-call-recordings). |
 | `language` | string | no | Up to 32 characters. A language code or name for the spoken lines, such as `hi`, `en` or `Hinglish`. Without it, the brief decides. |
 | `model` | string | no | The model that writes the draft: `gemini-3.8-flash` (default), `gpt-6-sol` or `claude-opus-5.5`. See [choose a model](#choose-a-model). Any other value is refused with `400 invalid_request`. |
 | `flow` | object | no | A graph to revise, as `GET /v2/agents/{id}/flow` returns it. It must itself be valid. See [revise a flow](#revise-a-flow). |
 
 **Nothing is saved.** The response is a draft for you to review, test and save.
-Each generation is [charged to your wallet](#what-a-draft-costs) for the tokens
-the model used.
+Each generation is [charged to your wallet](#what-a-draft-costs) at what the
+model's provider reports it cost, plus 20%.
 
 ```json title="200 OK"
 {
@@ -116,7 +119,7 @@ the model used.
   "flow_revision": "5b1e0c9a7d2f4e8b3a6c",
   "rounds": 1,
   "usage": { "prompt_tokens": 1840, "completion_tokens": 2610 },
-  "cost": { "amount_inr": 1.18 }
+  "cost": { "amount_inr": 2.36 }
 }
 ```
 
@@ -130,7 +133,7 @@ the model used.
 | `flow_revision` | The draft's [fingerprint](#step-2-validate-it). Saved unchanged, the graph keeps it. |
 | `rounds` | How many attempts the draft took, from 1 to 3. Each attempt is checked against the graph rules, and any problems are sent back for another attempt. |
 | `usage` | Tokens the model used, summed over every attempt: `prompt_tokens` in, `completion_tokens` out. |
-| `cost` | What was charged to your wallet, `amount_inr`. |
+| `cost` | What was charged to your wallet, `amount_inr`: the provider's reported cost plus 20%. |
 
 <Warning>
 **Review and test every draft before it takes a real call.** Read each node's
@@ -141,28 +144,31 @@ events](#step-4-test-it-in-the-browser) and take every branch at least once.
 
 ### Choose a model
 
-| Model | `model` | Typical draft | Typical time |
+| Model | `model` | Typical draft from a brief | Typical time |
 | :--- | :--- | :--- | :--- |
-| Gemini 3.8 Flash (default) | `gemini-3.8-flash` | about ₹1.20 | 15–20 s |
-| GPT-6 Sol | `gpt-6-sol` | about ₹3 | 20–60 s |
-| Claude Opus 5.5 | `claude-opus-5.5` | about ₹7 | 25–35 s |
+| Gemini 3.8 Flash (default) | `gemini-3.8-flash` | ₹2–3 | 15–20 s |
+| GPT-6 Sol | `gpt-6-sol` | ₹3–4 | 20–60 s |
+| Claude Opus 5.5 | `claude-opus-5.5` | ₹6–8 | 25–35 s |
 
 Start with the default. Try another model when a draft misses branches or rules
-your brief asked for. Whatever the model, set your client's timeout to a few
-minutes; the examples below use 5.
+your brief asked for. A draft from two example calls is larger: about ₹8–12,
+and up to a minute on Claude Opus 5.5. Whatever the model, set your client's
+timeout to a few minutes; the examples below use 5.
 
 ### What a draft costs
 
-Each generation is charged to your [wallet](/v2/wallet) for the tokens the model
-used, at the chosen model's rate per million input and output tokens. The rates
-are on [Billing & tiers](/general/tiers#ai-flow-drafts).
+Each generation is charged to your [wallet](/v2/wallet) at what the model's
+provider reports it cost, plus 20%. The response's `cost` says what was
+charged. If the provider reports no cost for an attempt, that attempt is
+charged its tokens at the chosen model's published rates per million input and
+output tokens, which are on [Billing & tiers](/general/tiers#ai-flow-drafts).
 
-- **Every attempt counts.** Tokens from every attempt are added up, and the
+- **Every attempt counts.** The cost of every attempt is added up, and the
   total is rounded up to the paisa once.
 - **Failures are charged too.** A `422 flow_generation_failed`, and a `503`
-  after the model had already answered, are charged for the tokens used. Both
-  responses carry `id`, `model`, `usage` and `cost`. Nothing is charged when
-  the model never answered.
+  after the model had already answered, are charged for what the model did.
+  Both responses carry `id`, `model`, `usage` and `cost`. Nothing is charged
+  when the model never answered.
 - **The wallet must hold a positive balance.** An empty wallet is refused with
   `402 insufficient_balance` before the model runs. A charge never takes the
   wallet below zero.
@@ -434,10 +440,10 @@ agent revision like any other save, so you can [roll it back](#versions).
 
 | Status | `error` | When | Charged | What to do |
 | :--- | :--- | :--- | :--- | :--- |
-| `400` | `invalid_request` | `brief` is missing, blank or over 6,000 characters, `language` is over 32 characters, `model` is not one of the three, or the body has an unknown field. | No | Fix the request. |
+| `400` | `invalid_request` | Neither `brief` nor `examples` was sent, `brief` is blank or over 20,000 characters, `examples` has fewer than 2 or more than 10 calls, a transcript is blank or over 40,000 characters, the transcripts are over 200,000 characters together, `language` is over 32 characters, `model` is not one of the three, or the body has an unknown field. | No | Fix the request. |
 | `400` | `invalid_flow` | The `flow` you sent to revise breaks a rule, or your tier's call model cannot run flows. Same shape as [flow errors](#errors). | No | Fix the listed paths. |
 | `402` | `insufficient_balance` | Your wallet is empty. | No | [Top up](/v2/wallet#top-up), then retry. |
-| `422` | `flow_generation_failed` | No valid graph after three attempts. `details` lists what was still wrong. Nothing was saved. | Yes, for the tokens used | Rephrase the brief: name each step and each branch explicitly, or shorten it. Try another model, or fix the graph by hand. |
+| `422` | `flow_generation_failed` | No valid graph after three attempts. `details` lists what was still wrong. Nothing was saved. | Yes | Rephrase the brief: name each step and each branch explicitly, or shorten it. Try another model, or fix the graph by hand. |
 | `429` | `rate_limited` | Your workspace has used its 30 generations for the hour, or the generator is busy with other requests. | No | Wait for `Retry-After` seconds, then retry. |
 | `503` | `upstream_unavailable` | The model is unavailable, or stopped answering part way. | Only if the model had already answered | Wait for `Retry-After` seconds, then retry. |
 
@@ -452,7 +458,7 @@ agent revision like any other save, so you can [roll it back](#versions).
   "id": "fgen_01K8D4H6K8M0P2R4T6V8X0Z2B4",
   "model": "gemini-3.8-flash",
   "usage": { "prompt_tokens": 6120, "completion_tokens": 7480 },
-  "cost": { "amount_inr": 3.45 }
+  "cost": { "amount_inr": 6.89 }
 }
 ```
 
@@ -460,6 +466,260 @@ The other errors use the [standard envelope](/v2/errors). A charged `503` also
 carries `id`, `model`, `usage` and `cost` beside `error`. A `503`, a `402`, and
 a `429` sent because the generator is busy do not count against the hourly
 limit.
+
+---
+
+## Draft a flow from call recordings
+
+If you already have calls that go the way you want, from your current agent or
+your team, the API can learn the flow from them. Transcribe 2 to 10 recordings,
+then send the transcripts to
+[`POST /v2/agents/flow/generate`](#generate-a-flow-from-a-brief) as `examples`.
+The model learns the goal of the call, the steps and their order, the branches,
+the objections and how each is handled, the language mix and tone, what is
+collected, and how calls end. It then designs the flow for what happened in the
+calls and their obvious variants.
+
+<Tip>
+**In Agent Studio**, choose **Create agent → Node-based**. Describe the calls,
+add 2 to 10 recordings, or both, then choose **Draft flow**. To write the
+description with ChatGPT or Claude, choose **Copy prompt**, paste the prompt
+there, and paste the answer back as the description. Agent Studio drafts with
+Claude Opus 5.5 and creates the agent, ready to test and edit in the builder.
+</Tip>
+
+### Transcribe a recording
+
+```http
+POST /v2/agents/flow/transcribe
+```
+
+Send one recording per request, as `multipart/form-data`:
+
+| Field | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `file` | file | yes | The call recording: at most 25 MB and 15 minutes, in a common audio format (mp3, wav, m4a, ogg/opus, webm, flac, aac or amr). |
+| `language` | string | no | Up to 32 characters. A hint of the call's language, such as `hi`, `en` or `Hinglish`. |
+
+Any other field, or a second file, is refused with `400 invalid_request`.
+
+```json title="200 OK"
+{
+  "object": "flow_transcript",
+  "id": "ftr_01K8E2F4H6K8M0P2R4T6V8X0Z2",
+  "transcript": "AGENT: नमस्ते, मैं [NAME] बोल रही हूँ, Acme Retail से।\nCALLER: जी, बोलिए।\nAGENT: आपका order कल deliver होना है। क्या कल घर पर कोई होगा?\nCALLER: कल नहीं, परसों ठीक रहेगा।\n…",
+  "duration_secs": 100.8,
+  "model": "gemini-3.8-flash",
+  "usage": { "prompt_tokens": 2717, "completion_tokens": 1917 },
+  "cost": { "amount_inr": 1.95 }
+}
+```
+
+| Field | Description |
+| :--- | :--- |
+| `id` | The transcription's ID, `ftr_…`. The wallet row for its charge carries the same ID. |
+| `transcript` | One turn per line. Each line starts with `AGENT:` (your side of the call) or `CALLER:`. |
+| `duration_secs` | The recording's length, to a tenth of a second. |
+| `model` | The model that transcribed it, `gemini-3.8-flash`. |
+| `usage` | Tokens the model used. The audio counts as `prompt_tokens`. |
+| `cost` | What was charged to your wallet, `amount_inr`. See [what transcription costs](#what-transcription-costs). |
+
+The transcript keeps the language and script as spoken: Hindi in Devanagari,
+English words in Latin script, and numbers written as they were said. Personal
+data is replaced with placeholders: `[NAME]`, `[PHONE]`, `[ADDRESS]` and
+`[NUMBER]`. When you draft from the transcripts, a placeholder for something you
+know before the call, such as the customer's name, becomes a call variable.
+
+<Note>
+**The audio is transcribed and not stored.** It is deleted when the request
+ends, and it is never logged. The transcript is not stored either: it exists
+only in the response, so keep it if you want to draft again.
+</Note>
+
+A two-minute call takes about 5–10 seconds to transcribe. Set a client timeout
+of a few minutes to allow for the upload. Transcribe one or two recordings at a
+time: while the transcriber is busy with other requests, it answers
+`429 rate_limited` with `Retry-After`.
+
+### Generate from the transcripts
+
+Send the transcripts as `examples` to `POST /v2/agents/flow/generate`, with the
+same `language` and `model` fields as a brief:
+
+| Field | Limit |
+| :--- | :--- |
+| `examples` | 2–10 calls, each `{"transcript": "…"}` |
+| Each `transcript` | 1–40,000 characters, one `AGENT:` or `CALLER:` turn per line |
+| All transcripts together | 200,000 characters |
+| `brief` | Optional with `examples`. Up to 20,000 characters. |
+
+One example is refused: the model would copy it rather than learn from it. A
+`brief` sent with the examples steers the draft, and wins where it disagrees
+with them. You can also write the transcripts yourself, in the same format. The
+model never copies a caller's personal data or one-off facts into the flow. A
+draft from example calls can have up to 20 nodes, and takes longer than a draft
+from a short brief. The examples below use Claude Opus 5.5, as Agent Studio does.
+
+<Tabs>
+  <Tab title="cURL">
+    ```bash
+    # 1. Transcribe each recording, one per request
+    for call in delivered rescheduled; do
+      curl -X POST https://sandbox.voice.miraiminds.co/v2/agents/flow/transcribe \
+        -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+        -F "file=@calls/$call.mp3" \
+        -F "language=hi" \
+        --max-time 300 > "$call.json"
+    done
+    jq '{id, duration_secs, cost}' delivered.json rescheduled.json
+
+    # 2. Draft the flow from the transcripts
+    jq -s '{examples: map({transcript}), language: "hi", model: "claude-opus-5.5"}' \
+      delivered.json rescheduled.json |
+    curl -X POST https://sandbox.voice.miraiminds.co/v2/agents/flow/generate \
+      -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+      -H "Content-Type: application/json" \
+      --max-time 300 \
+      --data-binary @- > draft.json
+
+    jq '{id, model, cost, nodes: (.flow.nodes | length)}' draft.json
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    import os, httpx
+
+    API = "https://sandbox.voice.miraiminds.co"
+    auth = {"Authorization": f"Bearer {os.environ['MIRAI_API_KEY']}"}
+
+    def transcribe(path, language="hi"):
+        with open(path, "rb") as audio:
+            r = httpx.post(
+                f"{API}/v2/agents/flow/transcribe",
+                headers=auth,
+                files={"file": (os.path.basename(path), audio)},
+                data={"language": language},
+                timeout=300,  # allow for the upload
+            )
+        if r.status_code == 422:  # charged: no conversation was heard
+            raise RuntimeError(f"{path}: {r.json()['error']['message']}")
+        return r.raise_for_status().json()
+
+    transcripts = [transcribe(p) for p in ["calls/delivered.mp3", "calls/rescheduled.mp3"]]
+    for t in transcripts:
+        print(t["id"], t["duration_secs"], t["cost"]["amount_inr"])
+
+    r = httpx.post(
+        f"{API}/v2/agents/flow/generate",
+        headers=auth,
+        json={
+            "examples": [{"transcript": t["transcript"]} for t in transcripts],
+            "language": "hi",
+            "model": "claude-opus-5.5",
+        },
+        timeout=300,
+    )
+    draft = r.raise_for_status().json()
+    print(draft["id"], len(draft["flow"]["nodes"]), "nodes", draft["cost"]["amount_inr"])
+    print([v["name"] for v in draft["variables"]])
+    ```
+  </Tab>
+  <Tab title="Node.js">
+    ```javascript
+    import { readFile } from "node:fs/promises";
+    import { basename } from "node:path";
+
+    const API = "https://sandbox.voice.miraiminds.co";
+    const auth = { Authorization: `Bearer ${process.env.MIRAI_API_KEY}` };
+
+    async function transcribe(path, language = "hi") {
+      const form = new FormData();
+      form.append("file", new Blob([await readFile(path)]), basename(path));
+      form.append("language", language);
+      const res = await fetch(`${API}/v2/agents/flow/transcribe`, {
+        method: "POST",
+        headers: auth, // fetch sets the multipart Content-Type
+        body: form,
+        signal: AbortSignal.timeout(300_000),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(`${path}: ${body.error.code} ${body.error.message}`);
+      return body;
+    }
+
+    const transcripts = [];
+    for (const path of ["calls/delivered.mp3", "calls/rescheduled.mp3"]) {
+      transcripts.push(await transcribe(path));
+    }
+
+    const res = await fetch(`${API}/v2/agents/flow/generate`, {
+      method: "POST",
+      headers: { ...auth, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        examples: transcripts.map((t) => ({ transcript: t.transcript })),
+        language: "hi",
+        model: "claude-opus-5.5",
+      }),
+      signal: AbortSignal.timeout(300_000),
+    });
+    const draft = await res.json();
+    if (!res.ok) throw new Error(JSON.stringify(draft));
+    console.log(draft.id, draft.flow.nodes.length, "nodes", draft.cost.amount_inr);
+    ```
+  </Tab>
+</Tabs>
+
+The response is the same [draft](#generate-a-flow-from-a-brief) a brief returns.
+[Save it on an agent](#save-it-on-an-agent) with its `input_schema`, then
+[test it in the browser](#step-4-test-it-in-the-browser) and take every branch
+the calls took before it calls anyone.
+
+### What transcription costs
+
+Each transcription is charged to your [wallet](/v2/wallet) at what the
+provider reports it cost, plus 20%, like a draft. The provider prices audio
+above text, so this is not a token rate: it comes to about ₹1 per minute of
+audio. The response's `cost` says what was charged.
+
+- **A transcript is charged, and so is a recording with no conversation in it**
+  (`422 transcription_failed`): the model listened to the audio either way.
+- **Nothing else is charged.** A request refused before the model runs (`400`,
+  `402`, `429`) and a model that is unavailable (`503`) cost nothing.
+- **The wallet must hold a positive balance.** An empty wallet is refused with
+  `402 insufficient_balance` before the recording is decoded.
+- **Where it shows.** Each charge is one wallet transaction of kind
+  [`flow_generation`](/v2/wallet#a-recording-transcription-row), and the
+  billing statement lists it with the **AI flow drafts**.
+
+### Transcription errors
+
+| Status | `error.code` | When | Charged | What to do |
+| :--- | :--- | :--- | :--- | :--- |
+| `400` | `invalid_request` | The body is not `multipart/form-data`; `file` is missing or empty; there is a second file or another field; the recording is over 15 minutes; the file is not audio that can be decoded; or `language` is over 32 characters. | No | Fix the request. Split a long recording, or convert it to mp3 or wav. |
+| `400` or `413` | `invalid_request` or `request_too_large` | The file is over 25 MB. | No | Compress it: a mono mp3 at 32 kbps holds 15 minutes in under 4 MB. |
+| `402` | `insufficient_balance` | Your wallet is empty. | No | [Top up](/v2/wallet#top-up), then retry. |
+| `422` | `transcription_failed` | No conversation was heard in the recording. | Yes | Check that it is a phone call with speech. |
+| `429` | `rate_limited` | Your workspace has used its 60 transcriptions for the hour, or the transcriber is busy with other requests. | No | Wait for `Retry-After` seconds, then retry. |
+| `503` | `upstream_unavailable` | The transcription model is unavailable. | No | Wait for `Retry-After` seconds, then retry. |
+
+`422` uses the [standard envelope](/v2/errors), plus the charge:
+
+```json title="422 Unprocessable Entity"
+{
+  "error": {
+    "code": "transcription_failed",
+    "message": "no conversation could be transcribed from this recording; check that it is a phone call with speech"
+  },
+  "id": "ftr_01K8E3G5J7L9N1Q3S5U7W9Y1A3",
+  "model": "gemini-3.8-flash",
+  "duration_secs": 12.4,
+  "usage": { "prompt_tokens": 410, "completion_tokens": 96 },
+  "cost": { "amount_inr": 0.21 }
+}
+```
+
+A recording that cannot be decoded, a `402`, a `503` and a `429` sent because
+the transcriber is busy do not count against the hourly limit.
 
 ---
 
@@ -1469,6 +1729,10 @@ Everything else uses the [standard error envelope](/v2/errors):
   confirmed, and give a wrong-person branch its own end node.
 - **Mind what you extract.** Extracted values are stored with the call and
   delivered to your webhook. Treat them like the transcript.
+- **Use recordings you may use.** Transcribe only calls you have the right to
+  process, with the notice or consent your calling rules require. The audio is
+  not stored and personal data is replaced with placeholders, but a transcript
+  is still your customers' conversation: keep it like a call transcript.
 - **Calling rules still apply.** Calling windows, consent and do-not-call rules
   are the same for every agent. See [India calling rules](/v2/limits#india-calling-rules).
 
