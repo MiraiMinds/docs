@@ -17,6 +17,7 @@ Limits are per **secret key**.
 | Queue depth | 500 | calls accepted and not yet ended | `429 rate_limited` |
 | TTS requests in flight | 10 **per workspace** | `/v1/audio/speech` and `/v2/tts` | `429 at_capacity` |
 | Flow generations | 30 per hour **per workspace** | [`POST /v2/agents/flow/generate`](/v2/node-agents#generate-a-flow-from-a-brief) | `429 rate_limited` with `Retry-After` |
+| Recording transcriptions | 60 per hour **per workspace** | [`POST /v2/agents/flow/transcribe`](/v2/node-agents#transcribe-a-recording) | `429 rate_limited` with `Retry-After` |
 
 <Warning>
 **Pilot keys are provisioned individually**
@@ -167,8 +168,9 @@ Invalid values return `400 invalid_request`.
 ### Node-based agents
 
 A [node-based agent](/v2/node-agents)'s `flow` is checked on every save. Over a
-graph limit returns `400 invalid_flow` with the path of each problem; an
-over-long generation `brief` or `language` returns `400 invalid_request`.
+graph limit returns `400 invalid_flow` with the path of each problem; a
+generation or transcription request over its limits returns
+`400 invalid_request`.
 
 | Thing | Limit |
 | :--- | :--- |
@@ -181,15 +183,21 @@ over-long generation `brief` or `language` returns `400 invalid_request`.
 | Extraction variables | 12 per node; `prompt` 2,000 characters |
 | Transition `condition` | 2,000 characters |
 | Node IDs, labels, variable names | 64 characters: a letter or underscore, then letters, digits or underscores |
-| Generation `brief` | 1–6,000 characters |
+| Generation `brief` | 1–20,000 characters; optional when `examples` are sent |
+| Generation `examples` | 2–10 call transcripts, each 1–40,000 characters, 200,000 characters together |
 | Generation `language` | 32 characters |
 | Generation `model` | `gemini-3.8-flash` (default), `gpt-6-sol` or `claude-opus-5.5` |
+| Transcription `file` | One recording per request: 25 MB and 15 minutes; mp3, wav, m4a, ogg/opus, webm, flac, aac or amr |
+| Transcription `language` | 32 characters |
 
 A flow generation typically takes 15 to 60 seconds, depending on the model; set
 a client timeout of a few minutes. When the generator is busy with other
 requests, it answers `429 rate_limited` with `Retry-After`, and that refusal
-does not count against the hourly limit. Each generation is charged to your
-wallet by the tokens it used; see [AI flow drafts](/general/tiers#ai-flow-drafts).
+does not count against the hourly limit. A transcription typically takes 5–10
+seconds for a two-minute call, and the transcriber answers `429` the same way
+when it is busy. Each generation and transcription is charged to your wallet at
+the provider's reported cost plus 20%; see
+[AI flow drafts](/general/tiers#ai-flow-drafts).
 
 ## Campaign ceilings
 
@@ -222,7 +230,8 @@ stack is tuned for prompts in the hundreds of tokens, not thousands.
 | Ring / answer | ~60 seconds. No media by then → `no_answer`. |
 | Call duration | Ends at `max_duration_secs` with `status: timeout`. |
 | Browser connect | 5 minutes after the call is created. If no audio connects, the call ends `failed` with `ended_reason: "no-media"` and is not billed. |
-| Flow generation | Typically 15–20 s on Gemini 3.8 Flash, 20–60 s on GPT-6 Sol and 25–35 s on Claude Opus 5.5. Set a client timeout of a few minutes. |
+| Flow generation | Typically 15–20 s on Gemini 3.8 Flash, 20–60 s on GPT-6 Sol and 25–35 s on Claude Opus 5.5; up to a minute from example calls. Set a client timeout of a few minutes. |
+| Recording transcription | Typically 5–10 s for a two-minute call, plus the upload. Set a client timeout of a few minutes. |
 | Final results | `call.processed` follows the terminal event once the transcript settles (within about 2 minutes of the call ending) and any analysis and post-call tools finish. |
 | Webhook delivery | Your endpoint should answer well under a second. Slow responses are treated as failures and [retried](/v2/webhooks#retries). |
 
