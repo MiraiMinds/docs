@@ -96,6 +96,12 @@
             "pages": [
               "cookbooks/browser-voice-interviews"
             ]
+          },
+          {
+            "group": "WhatsApp voice apps",
+            "pages": [
+              "cookbooks/whatsapp-calling-for-partners"
+            ]
           }
         ]
       },
