@@ -173,10 +173,11 @@ The ledger. One row per credit or debit, newest first.
 | `amount_inr` | number | Always positive; read `type` for direction. |
 | `balance_after_inr` | number | Balance immediately after this row. |
 | `call_id` | string \| null | Set on call debits, `null` on top-ups and adjustments. |
-| `kind` | string | What the row paid for: `call`, `tts` or `flow_generation`. **Branch on this**, never on `description`. |
+| `kind` | string | The transaction category: `call`, `tts`, `flow_generation`, `number_rental`, `promotion` or `monthly_minimum`. **Branch on this**, never on `description`, and tolerate new categories. |
 | `reference` | string | The id of the thing billed: the `tts_…` request id on a `tts` row; the `fgen_…` generation id, or the `ftr_…` transcription id, on a `flow_generation` row. |
 | `quantity` | number | How much was billed: characters on a `tts` row, tokens (input plus output) on a `flow_generation` row. |
 | `description` | string | Human-readable. Do not parse it. |
+| `promotional_inr` | number | Promotional credit granted on a `promotion` row, or the portion of a debit paid with promotional credit. Omitted when zero. Promotional credit does not count towards a monthly minimum. |
 | `pricing` | object | The rates snapshotted when the call was admitted: voice AI, optional T1 insights, and any managed provider rate and billing block. Absent on historical rows. |
 
 The call amount combines voice and insights at the voice billing block, rounds
@@ -276,9 +277,17 @@ Tell a transcription from a draft by its `reference` prefix, `ftr_` or `fgen_`.
 
 Once your company has gone live, add credit yourself from the **Billing** page
 of the [console](https://sandbox.voice.miraiminds.co), whenever you need it.
-Credit is spent at your plan's rate and never expires. On T3 and T1, each
-monthly commitment is credited to the same wallet. Before you go live, your
-Mirai contact credits the workspace.
+Credit is spent at your workspace's agreed rates. New T3 and T1 agreements
+fund their monthly minimum upfront into this wallet. Paid usage counts towards
+the minimum; any unused minimum is debited at the end of the billing month as a
+`monthly_minimum` transaction. The minimum is not an extra fee on top of usage.
+Top-ups above it remain available. Existing agreements retain their recorded
+funding terms. Before you go live, your Mirai contact credits the workspace.
+
+Promotional offers appear as `promotion` credits and are used before paid
+credit. They do not replace upfront monthly funding or satisfy the minimum.
+The **Billing** page shows your promotional balance, billing period and
+minimum-spend progress.
 
 A credit appears as a `credit` row and takes effect immediately. Your live
 balance is always `GET /v2/wallet`, and on the **Developers** page of the
