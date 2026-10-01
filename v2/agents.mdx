@@ -48,6 +48,7 @@ only `pre_call` and `post_call` tools are allowed. See
   },
   "voicemail": { "action": "hangup" },
   "background_sound": { "sound": "off" },
+  "behavior": { "interruptions": "normal", "adaptive_interruptions": true },
   "created_at": "2026-07-26T09:14:02Z",
   "updated_at": "2026-07-26T09:14:02Z"
 }
@@ -68,6 +69,7 @@ only `pre_call` and `post_call` tools are allowed. See
 | `end_call` | object | no | See [Ending a call](#ending-a-call). |
 | `voicemail` | object | no | See [Voicemail](#voicemail). |
 | `background_sound` | string \| object | no | Room ambience under the agent's voice. See [Background sound](#background-sound). Default `off`. |
+| `behavior` | object | no | How the agent takes turns with the caller. See [Behavior](#behavior). Default `{"interruptions": "normal", "adaptive_interruptions": true}`. |
 | `flow` | object \| null | no | A node graph. Makes this a [node-based agent](/v2/node-agents). Present on the agent object only when set. PATCH replaces the whole graph; `null` removes it. |
 
 Server-set and read-only: `id`, `object`, `created_at`, `updated_at`.
@@ -163,6 +165,43 @@ Two things worth knowing before you turn it on:
   heard. If you run your own transcription over recordings, test it first.
 - It does not touch what the agent hears. Ambience is mixed into the outbound
   audio only, so your callers' speech recognition is unchanged.
+
+### Behavior
+
+`behavior` decides how easily the caller can cut the agent off while it is
+speaking. You can also set it in the console: **Agent Studio → Behavior**.
+
+```json
+{ "behavior": { "interruptions": "firm", "adaptive_interruptions": true } }
+```
+
+| Field | Type | Description |
+| :--- | :--- | :--- |
+| `interruptions` | `easy` \| `normal` \| `firm` \| `never` | How much the caller has to say before the agent stops talking. Default `normal`. |
+| `adaptive_interruptions` | boolean | Default `true`. The agent learns how loud the caller is from their own turns. While the agent is speaking, a voice much quieter than theirs, such as someone else in the room, cannot interrupt it, and its words are not passed to the agent. If an interruption turns out to be nothing, the agent repeats the line it was cut off on. |
+
+| `interruptions` | The agent stops when the caller says |
+| :--- | :--- |
+| `easy` | One word, or about half a second of speech. |
+| `normal` | Two words, or about 0.7 seconds of speech. |
+| `firm` | Three words, or about 1.2 seconds of speech. |
+| `never` | Nothing. The agent always finishes its line, then answers what the caller said. |
+
+Acknowledgements such as "haan", "ji" and "ok" never interrupt. A clear stop
+word such as "stop" or "ruko" interrupts at every setting except `never`.
+
+On a [node-based agent](/v2/node-agents), a node with `allow_interrupt: false`
+is never interrupted whatever this setting is, and `never` applies to every node.
+
+`PATCH` updates the fields you send and keeps the others. Send
+`"behavior": null` to go back to the defaults. The setting takes effect on the
+next call and is saved with each agent revision.
+
+<Tip>
+Callers on a laptop's built-in microphone in a busy room? Keep
+`adaptive_interruptions` on, and let the browser reduce noise. See
+[Microphone capture](/v2/web-calls#microphone-capture).
+</Tip>
 
 ---
 

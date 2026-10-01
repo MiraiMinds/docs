@@ -796,11 +796,29 @@ Notes on the sample:
   sends `clear` and the speaker worklet drops what it had queued. Uncomment the
   `muted` line to turn barge-in off. The microphone then sends silence while the
   agent speaks, so the user cannot interrupt.
+- **Microphone processing.** The sample leaves the browser's noise suppression
+  and auto gain on (the defaults). See [Microphone capture](#microphone-capture).
 - **Sample rate.** Most browsers convert the microphone into a 48 kHz
   `AudioContext` for you. If one does not, capture at the device's rate and
   resample to 48,000 Hz before sending.
 - **Playback smoothing.** The speaker worklet plays audio as soon as it arrives.
   On unreliable networks, buffer 100–200 ms before starting each reply.
+
+### Microphone capture
+
+How you ask the browser for the microphone changes what the agent hears.
+
+| Setup | `getUserMedia` audio constraints | Why |
+| :--- | :--- | :--- |
+| Laptop or built-in mic, other people nearby | `echoCancellation: true`, `noiseSuppression: true`, `autoGainControl: true` | The browser lowers background noise and distant voices before they reach the agent. Recommended for most web calls. |
+| Headset or a mic close to the mouth | `echoCancellation: true`, `noiseSuppression: false`, `autoGainControl: false`, plus about +6 dB of gain | Noise suppression can clip the start of soft speech, and auto gain can dip the level right after the agent speaks. |
+
+Keep `echoCancellation` on in both cases, so the agent does not hear its own
+voice from the user's speakers.
+
+If the agent stops talking when someone nearby speaks, check the constraints
+above first. Then adjust the agent's [Behavior](/v2/agents#behavior): raise
+`interruptions` to `firm`, and keep `adaptive_interruptions` on.
 
 ---
 
