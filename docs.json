@@ -146,7 +146,7 @@
           },
           {
             "group": "Endpoints",
-            "openapi": "https://api.voice-agents.miraiminds.co/swagger.yaml"
+            "openapi": "api-reference/legacy-openapi.yaml"
           },
           {
             "group": "Guides",
