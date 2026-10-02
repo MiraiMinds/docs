@@ -1,19 +1,20 @@
 ---
 title: FAQ
-description: Short answers to the questions developers actually ask about the Mirai Voice API.
+description: Short answers to common developer questions about the Mirai Voice API.
 ---
 
 ## Getting started
 
 **How do I get a key?**
-In the [console](https://sandbox.voice.miraiminds.co), under **Developers →
-Create key**. You get a secret key, a webhook secret and a starting wallet
-balance immediately, and you can rotate or revoke from the same page. If you do
-not have console access yet, [talk to us](https://cal.com/srikrishna-pothel-y5vpeq).
+Create one in the [console](https://sandbox.voice.miraiminds.co) under
+**Developers → Create key**. You get a secret key, a webhook secret and a
+starting wallet balance immediately, and you can rotate or revoke the key on
+the same page. If you do not have console access yet,
+[talk to us](https://cal.com/srikrishna-pothel-y5vpeq).
 
 **Is there a sandbox or test key?**
-Not yet. There is no `sk_test_` and no simulated call — every call is a real
-call and costs real money. Test against your own phone with a small wallet
+Not yet. There is no `sk_test_` and no simulated call. Every call is a real
+call and costs real money, so test against your own phone with a small wallet
 balance. The [webhook test vector](/v2/webhooks#test-vector) lets you build and
 verify your handler without placing a call at all.
 
@@ -24,12 +25,12 @@ Yes, for Python:
 pip install --extra-index-url https://sandbox.voice.miraiminds.co/pypi/simple mirai-voice
 ```
 
-It carries the rules you would otherwise have to re-derive: an
+The SDK builds in the rules you would otherwise have to work out yourself: an
 `Idempotency-Key` on every call create so a retry never dials twice,
 `Retry-After`-aware backoff, cursor iterators, and
-`mirai.webhooks.verify()` over the raw body. Sync and async, both credential
-generations. The copy-pasteable cURL, Python and Node on every page here work
-just as well — the API is small on purpose.
+`mirai.webhooks.verify()` over the raw body. It supports sync and async use and
+both credential generations. The cURL, Python and Node examples on every page
+are ready to copy and work just as well, because the API is deliberately small.
 
 ## Calls
 
@@ -38,18 +39,18 @@ Because the phone has not rung yet. `202` means queued. The outcome arrives by
 [webhook](/v2/webhooks), or from [`GET /v2/calls/{id}`](/v2/calls#get-a-call).
 
 **How long until the phone rings?**
-Normally a couple of seconds from `202`. If you are at your concurrency ceiling
-the call sits in `queued` until a slot frees — it is queued, not rejected, so
-being over the ceiling never returns `429`.
+Normally a couple of seconds after the `202`. If you are at your concurrency
+ceiling, the call waits in `queued` until a slot frees up. We queue it instead
+of rejecting it, so going over the ceiling never returns `429`.
 
 **Can I do inbound calls?**
-Not yet — outbound only.
+Not yet. The API places outbound calls only.
 
 **Can I transfer a call to a human?**
-Yes — warm transfer to a human is part of every tier, see
-[tiers](/general/tiers#one-stack-on-every-tier). The transfer rollout is
-completing now; see the [roadmap](/general/roadmap) for status and ask your
-account contact to enable it on your workspace.
+Yes. Warm transfer to a human is part of every tier (see
+[tiers](/general/tiers#one-stack-on-every-tier)). The transfer rollout is
+completing now. Check the [roadmap](/general/roadmap) for its status, and ask
+your account contact to enable it on your workspace.
 
 **Can I change the prompt or variables mid-call?**
 The prompt and `variables` are fixed for a call. On a
@@ -66,31 +67,32 @@ store no audio, create calls with `recording_enabled: false`. Retention is on
 the [limits page](/v2/limits#data-retention).
 
 **What happens if the customer does not answer?**
-`status: no_answer`, a `call.failed` webhook, and no charge. v2 does not retry
-for you — retry from your own dialler if you want to.
+The call ends with `status: no_answer`, you get a `call.failed` webhook, and
+there is no charge. v2 does not retry for you, so retry from your own dialler if
+you want to.
 
-One caveat: when the carrier gives us no verdict at all, an unanswered call is
-reported as `failed` with `ended_reason: "no-media"` instead. Both are free, and
-both mean "did not connect" — so treat `no_answer`, `busy` and `failed` +
-`no-media` as one bucket in retry logic. See
+When the carrier gives us no verdict at all, we report an unanswered call as
+`failed` with `ended_reason: "no-media"` instead. Both outcomes are free and
+both mean the call did not connect, so treat `no_answer`, `busy`, and `failed`
+with `no-media` as one bucket in your retry logic. See
 [ended reasons](/v2/calls#ended-reasons).
 
 **How do I stop a call I just started?**
-[`POST /v2/calls/{id}/abort`](/v2/calls#abort-a-call). It works while the call is
-queued, while it is ringing, and while it is live — a live call is hung up
-mid-conversation. Only a call that has already ended returns `409`. Aborted calls
-are never billed.
+Use [`POST /v2/calls/{id}/abort`](/v2/calls#abort-a-call). It works while the
+call is queued, while it is ringing and while it is live. A live call is hung up
+mid-conversation. Only a call that has already ended returns `409`. Aborted
+calls are never billed.
 
 **Which languages work?**
-Hindi and Indian English are what the stack is tuned for, including
-Hindi-English code-switching, which is how most real calls actually sound. Write
-the prompt in the language you want spoken — Devanagari for Hindi. Other
-languages: ask before you build on them.
+The stack is tuned for Hindi and Indian English, including Hindi-English
+code-switching, which is how most real calls sound. Write the prompt in the
+language you want spoken, using Devanagari for Hindi. For other languages, ask
+us before you build on them.
 
 **Does the agent sound like a human?**
-It sounds like a good phone voice. Callers usually work out it is a machine
-within a turn or two, which is why [telling them up front](/v2/limits#disclosure-that-it-is-an-ai)
-costs you nothing and drops early hang-ups.
+It sounds like a good phone voice. Callers usually work out that it is a machine
+within a turn or two, so [telling them up front](/v2/limits#disclosure-that-it-is-an-ai)
+costs you nothing, and it reduces early hang-ups.
 
 ## Billing
 
@@ -100,17 +102,17 @@ you go. A ₹50,000 monthly commitment brings T3 at ₹3 a minute, and ₹1,00,0
 brings T1 at ₹1 a minute for voice AI. On T1, call insights are on by default
 at ₹0.20 a minute and can be turned off in Billing. Managed phone calling adds
 your provider's configured cost; BYO telco, WhatsApp and browser calls have no
-Mirai telco charge. Voice is billed in 10-second blocks, rounded up, minimum
-one block: on T3 a 96-second call costs ₹5.00 for voice and an 8-second call
-₹0.50 for voice. See [Billing & tiers](/general/tiers).
+Mirai telco charge. Voice is billed in 10-second blocks, rounded up, with a
+minimum of one block. On T3, a 96-second call costs ₹5.00 for voice and an
+8-second call costs ₹0.50 for voice. See [Billing & tiers](/general/tiers).
 
 **Am I charged for calls that do not connect?**
 No. `no_answer`, `busy`, `failed` and `aborted` are free. `completed`,
 `voicemail` and `timeout` are billed.
 
 **Am I charged for a voicemail?**
-Yes — media went live and audio was generated. An 18-second voicemail is two
-billed blocks: ₹1.00 on T3.
+Yes, because media went live and audio was generated. An 18-second voicemail is
+two billed blocks, which is ₹1.00 on T3.
 
 **What happens when I run out of credit?**
 `POST /v2/calls` returns [`402 insufficient_balance`](/v2/wallet#402-insufficient-balance)
@@ -124,22 +126,24 @@ contact. Credits land as a `credit` row in
 immediately.
 
 **Which tier am I on?**
-Your company's plan. Every company starts on T5, pay as you go — complete
-**Go live** in the console and you can call today. Commit ₹50,000 a month to
-move to T3, or ₹1,00,000 a month to move to T1. Every tier runs on the same
-Mira stack; the price is the only difference. See
+Your company's plan sets the tier. Every company starts on T5, pay as you go.
+Complete **Go live** in the console and you can call today. Commit ₹50,000 a
+month to move to T3, or ₹1,00,000 a month to move to T1. Every tier runs on the
+same Mira stack, and the price is the only difference. See
 [Billing & tiers](/general/tiers).
 
 ## Webhooks
 
 **My signature never verifies. Why?**
-Almost always because you signed a re-serialised body. Sign the **raw bytes**.
-See [raw body](/v2/webhooks#raw-body). Second most common: the signed string is
-`"<t>.<raw_body>"` — the timestamp and the dot are part of it, not just the body.
+Almost always because you signed a re-serialised body. Sign the **raw bytes**;
+see [raw body](/v2/webhooks#raw-body). The second most common cause is signing
+only the body. The signed string is `"<t>.<raw_body>"`, so it includes the
+timestamp and the dot.
 
 **Do you retry failed deliveries?**
-Yes — six attempts with exponential backoff over roughly 36 minutes, then
-dead-letter. Any `2xx` stops it. See [retries](/v2/webhooks#retries).
+Yes. We make six attempts with exponential backoff over roughly 36 minutes, then
+move the event to the dead-letter queue. Any `2xx` stops the retries. See
+[retries](/v2/webhooks#retries).
 
 **Can events arrive out of order or twice?**
 Yes to both. Dedupe on `event.id` and order your state machine by
@@ -149,39 +153,39 @@ Yes to both. Dedupe on `event.id` and order your state machine by
 One per call, set as `webhook_url` at create time. Fan out on your side.
 
 **What if my endpoint is down for an hour?**
-The event lands in the dead-letter queue after ~36 minutes of retries. Ops can
-replay it. You can also reconcile from
-[`GET /v2/calls`](/v2/calls#list-calls) — that is what the list endpoint is
+After about 36 minutes of retries, the event goes to the dead-letter queue, and
+our ops team can replay it. You can also reconcile from
+[`GET /v2/calls`](/v2/calls#list-calls), which is what the list endpoint is
 for.
 
 ## Limits and compliance
 
 **How many concurrent calls can I run?**
-Pilot default is 5. It is a provisioning setting, not a code change — ask for
-more. See [Limits](/v2/limits).
+The pilot default is 5. It is a provisioning setting, so raising it needs no
+code change. Ask us for more. See [Limits](/v2/limits).
 
-**Do you enforce the 9am–9pm calling window?**
-No. Your scheduler does. We dial when you tell us to dial. See
+**Do you enforce the 9am to 9pm calling window?**
+No. Your scheduler enforces it, and we dial when you tell us to. See
 [India calling rules](/v2/limits#india-calling-rules).
 
 **Do you scrub DND numbers?**
-No. That is your list and your obligation.
+No. The list you call is yours, and so is the obligation to scrub it.
 
 **Do I have to tell people it is an AI?**
-We strongly recommend it, and it belongs in `first_message`. Your legal
-obligations are your own to confirm.
+We strongly recommend it, and the disclosure belongs in `first_message`. You
+need to confirm your own legal obligations.
 
 ## Operations
 
 **What is your uptime target?**
-The API and the call path are operated as a pilot service. Ask your account
+We operate the API and the call path as a pilot service. Ask your account
 contact for the current SLA before you put a revenue-critical flow behind it.
 
 **Where does my data go?**
-Media (audio, ASR, TTS, the model) runs in India. The control plane — workflow
-orchestration and the API — runs in Europe, off the audio path, so it adds no
-latency to what the caller hears.
+Media (audio, ASR, TTS and the model) runs in India. The control plane, which is
+workflow orchestration and the API, runs in Europe. It is off the audio path,
+so it adds no latency to what the caller hears.
 
 **Something is broken. What do you need from me?**
-The `call_id` (or `evt_id`), the UTC timestamp, and what you expected. That is
-enough to pull the whole workflow history.
+Send the `call_id` (or `evt_id`), the UTC timestamp and what you expected to
+happen. With those we can pull the whole workflow history.

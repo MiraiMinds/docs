@@ -1,12 +1,12 @@
 ---
 title: Roadmap
-description: What is shipping next — tiers, node graphs, the orchestration platform, model APIs, voices and integrations — with target dates.
+description: What we are shipping next, with target dates, across tiers, node graphs, the orchestration platform, model APIs, voices and integrations.
 ---
 
-What is coming, in the order we expect to ship it. Dates are **targets, not
-contracts** — they move when call quality demands it, and quality wins every
-time. Before you plan a launch around a row on this page, confirm it with your
-account contact.
+This page lists what is coming, in the order we expect to ship it. The dates
+are **targets, not contracts**. A date moves when call quality demands it, and
+we choose quality over the date every time. Before you plan a launch around a
+row on this page, confirm it with your account contact.
 
 | What | Target | Status |
 | :--- | :--- | :--- |
@@ -27,59 +27,62 @@ account contact.
 
 ## Post-call analytics everywhere
 
-Every call on every tier gets opened: an AI summary and a QA score, on 100% of
+Every call on every tier gets an AI summary and a QA score. That covers 100% of
 calls, not a sample. The capability is part of
-[every tier](/general/tiers#one-stack-on-every-tier) today; what lands in August is
-the **v2 API surface** — an analysis object on the call and a webhook event when
-it is ready. Until then the summaries exist but are not queryable over v2.
+[every tier](/general/tiers#one-stack-on-every-tier) today. What lands in August
+is the v2 API surface: an analysis object on the call and a webhook event when
+the analysis is ready. Until then, the summaries exist but you cannot query
+them over v2.
 
 ## Warm transfer everywhere
 
-Human handoff is part of every tier — a caller who asks for a person gets one.
-The August rollout wires the last mile:
-[`ended_reason: transferred`](/v2/calls#ended-reasons) starts emitting, and
+Human handoff is part of every tier, so a caller who asks for a person gets one.
+The August rollout adds the last pieces:
+[`ended_reason: transferred`](/v2/calls#ended-reasons) starts being emitted, and
 transfer targets become configurable per agent. Ask your account contact to
 enable it on your workspace as the rollout reaches you.
 
 ## Model APIs
 
-The ASR, TTS and LLM that power the call path, exposed as standalone
-endpoints — for teams that want the models without the telephony. Streaming
-ASR tuned for Indian telephone audio, the TTS voice catalogue, and the
-call-tuned LLM, each behind the same `sk_live_` auth as the rest of v2.
+Model APIs will expose the ASR, TTS and LLM that power the call path as
+standalone endpoints, for teams that want the models without the telephony.
+They will cover streaming ASR tuned for Indian telephone audio, the TTS voice
+catalogue and the call-tuned LLM, each behind the same `sk_live_` auth as the
+rest of v2.
 
 ## New TTS languages
 
-Six languages join the voice engine over the next two months: **Telugu, Tamil,
-Marathi, Kannada, Gujarati and Bengali** — together the mother tongue of 429
-million people, most of whom cannot be reached in Hindi at all. Per-language
-dates are announced as each clears evaluation. The full story, with the data,
-is on the [language roadmap](/v2/tts-languages).
+Six languages join the voice engine over the next two months: Telugu, Tamil,
+Marathi, Kannada, Gujarati and Bengali. Together they are the mother tongue of
+429 million people, most of whom cannot be reached in Hindi at all. We announce
+the date for each language as it clears evaluation. The
+[language roadmap](/v2/tts-languages) has the full story and the data.
 
 ## Next-generation TTS
 
-The next revision of the voice engine: lower first-audio latency and a step up
-in naturalness on Hindi and code-switched speech. It replaces the engine under
-every tier when it clears our quality bar — no API change, your calls just
-start sounding better.
+The next revision of the voice engine has lower first-audio latency and sounds
+more natural on Hindi and code-switched speech. It replaces the engine under
+every tier once it clears our quality bar. The API does not change, so your
+calls simply start sounding better.
 
 ## Orchestration platform
 
-Node graphs get a canvas. Build, test and version call flows visually — the
-same graphs node-based agents run on every tier, authored by your ops team
-instead of your engineers. Validation runs as you draw, and every published version is
+The orchestration platform puts node graphs on a canvas, so you can build, test
+and version call flows visually. These are the same graphs that node-based
+agents run on every tier, but your ops team can author them instead of your
+engineers. Validation runs as you draw, and every published version is
 immutable, so a live campaign never runs an unreviewed edit.
 
 ## New voices
 
-The catalogue grows monthly from August 2026. New voices appear in the
-[voice gallery](/v2/voices) as they clear evaluation — listen to
-`sampleAudio` before you switch; voice choice moves answer-through rates more
+The catalogue grows every month from August 2026. New voices appear in the
+[voice gallery](/v2/voices) as they clear evaluation. Listen to `sampleAudio`
+before you switch, because the choice of voice moves answer-through rates more
 than prompt wording does.
 
 ## Channels
 
-Calls stop being an island: email follow-ups triggered by call outcomes first
-("summary of what we agreed", "payment link after a confirmed order"), other
-channels after. Designed so a call outcome, not a human, is what pulls the
-trigger.
+Calls will connect to other channels, starting with email follow-ups triggered
+by call outcomes ("summary of what we agreed", "payment link after a confirmed
+order"). Other channels come after that. The design has the call outcome
+trigger each follow-up, so nobody has to send it by hand.
