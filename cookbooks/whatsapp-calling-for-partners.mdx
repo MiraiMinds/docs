@@ -1,21 +1,21 @@
 ---
 title: WhatsApp calling for partners
-description: Add voice calling to the WhatsApp numbers your brands already use — one partner workspace, separate brand agents, permission-based callbacks, signed results and combined billing.
+description: Add voice calling to the WhatsApp numbers your brands already use, with one partner workspace, a separate agent for each brand, permission-based callbacks, signed results and combined billing.
 ---
 
 This cookbook is for platforms such as 11za that already manage WhatsApp for
 many businesses. You add voice calling to each brand's existing number through
-your backend. Each brand keeps using your application; it does not need a
+your backend. Each brand keeps using your application and does not need a
 separate Voice Infra login.
 
 <Warning>
 **Early access.** WhatsApp calling is a controlled pilot. The public
 number-management APIs in this recipe are not deployed yet. Confirm their
 availability with Voice Infra before running the registration steps.
-General production rollout is not open: reliable two-way
-audio, production workspace activation and measured call capacity are still
-launch requirements. The examples below describe the integration contract;
-publishing this cookbook does not activate your workspace or numbers.
+General production rollout is not open yet. It still depends on reliable
+two-way audio, production workspace activation and measured call capacity. The
+examples below describe the integration contract. Your workspace and numbers
+are not active just because this page is published.
 </Warning>
 
 ## What you'll build
@@ -25,20 +25,21 @@ publishing this cookbook does not activate your workspace or numbers.
 - Incoming WhatsApp calls answered by that brand's agent.
 - Customer-requested callbacks after Meta confirms calling permission.
 - A brand-specific history of calls, transcripts and available results.
-- One partner workspace and combined Voice Infra bill across your brands.
+- One partner workspace and one combined Voice Infra bill for all your brands.
 
 For a partner with 2,000 brands, keep a separate agent and number registration
-for each brand. **2,000 registered brands does not mean 2,000 simultaneous
-calls.** Agree and test concurrent-call capacity separately.
+for each brand. Registering 2,000 brands does not give you capacity for 2,000
+simultaneous calls, so agree on concurrent-call capacity and test it
+separately.
 
 ### Is this like BYO telco?
 
-Yes: you bring the brand's existing WhatsApp number. You configure its Meta
-calling settings and register it with Voice Infra. The number stays with the
-brand's Meta assets; no Plivo number purchase or number port is involved.
+Yes. You bring the brand's existing WhatsApp number, configure its Meta calling
+settings and register it with Voice Infra. The number stays with the brand's
+Meta assets, and you do not buy a Plivo number or port the number.
 
-Each number needs an integration, which your backend can create using our API.
-Voice Infra still approves each number's ownership. Once the partner workspace
+Your backend can create the integration each number needs through our API, but
+Voice Infra still approves ownership of each number. Once the partner workspace
 is enabled, adding another approved number does not require a deployment for
 that brand.
 
@@ -79,9 +80,9 @@ sequenceDiagram
 | Billing | Allocate usage and invoice your brands | Bill the partner workspace centrally |
 
 Keep your existing Meta messaging integration. Before changing SIP settings,
-check whether the number already uses another calling provider: changing the
-destination changes where its voice calls go. Meta charges remain under your
-existing Meta arrangement, separate from Voice Infra billing.
+check whether the number already uses another calling provider, because
+changing the destination changes where its voice calls go. Meta charges remain
+under your existing Meta arrangement, separate from Voice Infra billing.
 
 ## Step 1: Activate the partner workspace
 
@@ -118,10 +119,11 @@ curl --fail-with-body "$VOICE_BASE_URL/v2/voices" \
   -H "Authorization: Bearer $VOICE_API_KEY"
 ```
 
-The wallet response includes `balance_inr` and `currency`; the voice catalogue
-is under `data`. `403 production_workspace_required` means production activation
-is incomplete. Changing only the base URL does not upgrade a sandbox workspace.
-Confirm public number API availability before proceeding to number registration.
+The wallet response includes `balance_inr` and `currency`, and the voice
+catalogue is under `data`. `403 production_workspace_required` means production
+activation is incomplete. Changing only the base URL does not upgrade a sandbox
+workspace. Before you register numbers, confirm that the public number APIs are
+available.
 
 <Note>
 Keep the partner key on your backend. Brands must not receive this shared key
@@ -143,9 +145,9 @@ the creation examples. Run shell examples in Bash with `set -euo pipefail` so a
 missing value or failed request stops the sequence.
 
 Also retain secret-manager references for Meta access, your callback jobs, and
-historical agent/number assignments. Use your authenticated brand identity to
-select this mapping. A `brand_id` supplied in a request or in call metadata is
-a label, not authorization.
+historical agent/number assignments. Select this mapping using the brand
+identity you authenticated. A `brand_id` supplied in a request or in call
+metadata is only a label and must not be used to authorize access.
 
 ## Step 2: Create the brand's agent
 
@@ -156,9 +158,9 @@ future changes stay separate.
 ### A real pilot agent example
 
 The 11za pilot uses an agent named **11za WhatsApp Pilot**, with voice `neha`,
-language `en` and a 120-second limit. Its job is to confirm two-way audio. This
-is the same kind of acceptance agent you should use before enabling a brand's
-business workflow; it does not claim to access orders or customer records.
+language `en` and a 120-second limit. Its job is to confirm two-way audio, and
+it does not claim to access orders or customer records. Use the same kind of
+acceptance agent before you enable a brand's business workflow.
 
 Save this complete definition as `agent.json`:
 
@@ -173,16 +175,16 @@ Save this complete definition as `agent.json`:
 }
 ```
 
-This definition is adapted from the real test agent. Existing pilot identifiers
-are supplied privately to that partner. If you already have an agent in your
-workspace, read it with `GET /v2/agents/{agent_id}` and reuse its ID instead of
-creating a duplicate. IDs cannot be borrowed from another workspace.
+This definition is adapted from the real test agent. We share the existing
+pilot identifiers privately with that partner. If you already have an agent in
+your workspace, read it with `GET /v2/agents/{agent_id}` and reuse its ID
+instead of creating a duplicate. You cannot use an ID from another workspace.
 
 Check the selected voice in your workspace's [voice catalogue](/v2/voices).
 Set the top-level `language` as well as any voice language. Replace the test
 instructions with the brand's approved content before serving real customers.
 Order lookup or booking requires a real [tool integration](/v2/tools) or supplied
-context; an instruction in the prompt does not create that integration.
+context. Writing an instruction in the prompt does not create that integration.
 
 <Tabs>
   <Tab title="cURL">
@@ -243,15 +245,15 @@ context; an instruction in the prompt does not create that integration.
   </Tab>
 </Tabs>
 
-The response is the agent object, including its `id` (`agt_...`). Reuse the same
-creation key and body after an uncertain request. Use
-`PATCH /v2/agents/{agent_id}` for subsequent edits.
+The response is the agent object, including its `id` (`agt_...`). If you are not
+sure a request went through, retry it with the same creation key and body. Use
+`PATCH /v2/agents/{agent_id}` for later edits.
 
 ## Step 3: Configure the brand's WhatsApp number
 
-Your existing Meta integration performs this step. Check calling eligibility
-and the app's access to the selected number with Meta. An existing messaging
-integration alone does not establish calling eligibility.
+Your existing Meta integration does this step. With Meta, check that the
+selected number is eligible for calling and that your app can access it. A
+messaging integration on its own does not make a number eligible for calling.
 
 Load `META_GRAPH_VERSION`, `META_ACCESS_TOKEN` and `PHONE_NUMBER_ID` from the
 brand's authorized integration. `PHONE_NUMBER_ID` is Meta's phone-number ID,
@@ -289,8 +291,8 @@ integration. Check the response before continuing.
 
 ### Retrieve the SIP password
 
-Meta generates the number's SIP password. Your brand does not invent it.
-Retrieve it using your authorized Meta token:
+Meta generates the number's SIP password, so the brand does not choose one.
+Retrieve it with your authorized Meta token:
 
 ```bash
 umask 077
@@ -312,8 +314,8 @@ Coordinate any move to a different workspace with Voice Infra.
 ## Step 4: Register and activate the number
 
 Register the number with our API. The example below builds a private request
-file without printing the SIP password. Set `VOICE_WEBHOOK_URL` to your real
-public HTTPS call-result receiver, implemented in step 7.
+file without printing the SIP password. Set `VOICE_WEBHOOK_URL` to the public
+HTTPS URL of the call-result receiver you build in step 7.
 
 ```bash
 umask 077
@@ -343,10 +345,11 @@ NUMBER_ID=$(jq -er '.id' number.created.json)
 
 The required request fields are `business_number`, `phone_number_id`, `agent_id`,
 `sip_username` and `sip_password`. `webhook_url` and `resolver_url` are optional
-public HTTPS endpoints. Omit them until you implement them. The API determines
-workspace ownership from your key; do not submit a workspace ID in the body.
+public HTTPS endpoints. Leave them out until you have built them. The API works
+out workspace ownership from your key, so do not send a workspace ID in the
+body.
 
-The response includes these fields; values below illustrate the shape:
+The response includes these fields (the values are examples):
 
 ```json
 {
@@ -366,18 +369,19 @@ The response includes these fields; values below illustrate the shape:
 ```
 
 Store the returned `id` and `version` in the brand mapping. The full response
-also includes `meta_settings_example`; compare it with the settings you applied.
-Our API never returns the SIP password. Remove temporary password exports after
-they are securely stored and the integration is complete.
+also includes `meta_settings_example`. Compare it with the settings you applied.
+Our API never returns the SIP password. Once the password is in your secret
+manager and the integration is complete, delete the temporary files that hold
+it.
 
 ### Approval and status
 
-Send Voice Infra your brand identifier, business number, workspace ID and
-registration ID for ownership approval. A password is not needed in that
-handoff. Arrange a batch approval process when onboarding many brands; there is
-no customer self-approval API.
+To get ownership approved, send Voice Infra your brand identifier, business
+number, workspace ID and registration ID. You do not need to send the password.
+If you are onboarding many brands, arrange batch approval. There is no
+self-approval API for customers.
 
-Poll individual status with bounded backoff:
+Poll each number's status with bounded backoff:
 
 ```bash
 curl --fail-with-body "$VOICE_BASE_URL/v2/whatsapp/numbers/$NUMBER_ID" \
@@ -392,28 +396,29 @@ curl --fail-with-body "$VOICE_BASE_URL/v2/whatsapp/numbers/$NUMBER_ID" \
 | `disabling` | New calls are blocked; existing calls may be finishing |
 | `disabled` | Keep history; calling is off |
 
-`active` is configuration status, not proof of audible speech or correct Meta
-routing. There is no activation webhook in this version. For inventory, use
-`GET /v2/whatsapp/numbers?limit=100` and follow `next_cursor`; use individual GETs
-to reconcile activation. Avoid polling thousands of numbers every second.
+`active` means the configuration is in place. It does not prove that speech is
+audible or that Meta routes calls correctly. There is no activation webhook in
+this version. For inventory, use `GET /v2/whatsapp/numbers?limit=100` and follow
+`next_cursor`. To reconcile activation, use individual GETs. Do not poll
+thousands of numbers every second.
 
 ## Step 5: Receive incoming calls
 
-An incoming call needs no `POST /v2/calls` request from your application:
+Your application does not send a `POST /v2/calls` request for an incoming call:
 
 1. The customer taps the voice-call button in the brand's WhatsApp chat.
 2. Meta delivers the call to Voice Infra.
 3. The registered agent answers and conducts the conversation.
-4. Events go to the number registration's `webhook_url`, when configured.
+4. Events go to the number registration's `webhook_url`, if one is set.
 
 Read the caller's number from `identity.caller_number` in our call object. For
-incoming WhatsApp calls, `to` identifies the business; do not assume `from`
-contains the caller. `identity.wacid` correlates the call with Meta records.
+incoming WhatsApp calls, `to` identifies the business, so do not assume `from`
+contains the caller. `identity.wacid` links the call to Meta's records.
 
 ### Optional caller context
 
-Set `resolver_url` on the registration if your backend should supply context
-before the agent answers. We send a signed request with this shape:
+Set `resolver_url` on the registration if you want your backend to supply
+context before the agent answers. We send a signed request with this shape:
 
 ```json
 {
@@ -440,16 +445,17 @@ the brand from the registered business number and return HTTP 200:
 
 Reference the supplied variables in the agent's prompt, and share only context
 your backend is authorized to disclose. The resolver has a one-second budget.
-A valid `{"allow":false}` declines the call; a timeout or error falls back to
-the default agent. It is optional enrichment, not a fail-closed authorization
-or brand-spend gate. Sensitive actions need appropriate caller verification.
+A valid `{"allow":false}` declines the call, while a timeout or error falls back
+to the default agent. Treat the resolver as optional enrichment. Because it does
+not fail closed, it cannot act as an authorization check or a per-brand spend
+limit. Verify the caller before any sensitive action.
 
 ## Step 6: Request a permitted callback
 
-Your **Call me** button records the customer's callback request. Native Meta
-calling permission is a separate requirement. Use your existing Meta messaging
-integration to request permission and process the authenticated confirmation,
-following Meta's current messaging-window and template rules.
+Your **Call me** button records the customer's callback request. You also need
+native Meta calling permission, which is separate. Use your existing Meta
+messaging integration to request permission and process the authenticated
+confirmation, following Meta's current messaging-window and template rules.
 
 Do not dial merely because a generic button was clicked or a cached expiry says
 permission is valid. Check the current Meta verdict for the actual brand and
@@ -474,8 +480,8 @@ than hard-coded country lists or permission lifetimes.
 
 Your backend must keep a durable job with a unique `(brand_id, callback_id)` pair.
 Freeze the recipient, agent, business number, request body, original timestamp
-and idempotency key. Only create a job for an outstanding customer request;
-receiving permission alone does not authorize a fresh callback.
+and idempotency key. Create a job only for a customer request that is still
+outstanding. Permission on its own does not authorize a new callback.
 
 Save this call request as `callback.json`, substituting values from that job:
 
@@ -494,8 +500,8 @@ Save this call request as `callback.json`, substituting values from that job:
 
 Use a real receiver URL, the registered brand number and the approved recipient.
 `variables` and `metadata` are optional. `agent_id`, `to`, `route: "whatsapp"`
-and the registered `from` select this call. Include `webhook_url` for outbound
-results; the registration's webhook is used for inbound results.
+and the registered `from` select this call. Include `webhook_url` to receive
+outbound results. Inbound results go to the registration's webhook.
 
 <Tabs>
   <Tab title="cURL">
@@ -558,9 +564,9 @@ results; the registration's webhook is used for inbound results.
 </Tabs>
 
 The response is HTTP 202 with the call object, including `id` (`call_...`) and
-`status`. **Acceptance does not mean the customer answered.** Voice Infra handles
-the SIP signaling and audio; you do not send SDP to Meta's `/calls` endpoint for
-this integration.
+`status`. An accepted request does not mean the customer answered. Voice Infra
+handles the SIP signaling and audio, so you do not send SDP to Meta's `/calls`
+endpoint for this integration.
 
 ### Retry without calling twice
 
@@ -568,8 +574,9 @@ this integration.
   must select the same callback job.
 - Retry uncertain API outcomes with the same body and idempotency key. Do not
   mint a new callback ID to get around a timeout.
-- Retain completed jobs beyond our 24-hour call-idempotency window. Stop automatic
-  retries before that expires; an old webhook must not become a fresh dial.
+- Keep completed jobs for longer than our 24-hour call-idempotency window, and
+  stop automatic retries before the window expires so that an old webhook cannot
+  start a new call.
 - Persist the returned call ID and read its result. Do not automatically redial
   a completed or failed call, or move it to another channel.
 
@@ -597,9 +604,9 @@ envelope contains an event ID, type, creation time and `data.call`:
 }
 ```
 
-Verify **`X-Mirai-Signature`** using the workspace signing secret and the exact
-raw request bytes. It is different from Meta's webhook signature and from your
-API keys. This Python verifier also works on resolver request bytes:
+Verify `X-Mirai-Signature` using the workspace signing secret and the exact raw
+request bytes. This signature is separate from Meta's webhook signature and from
+your API keys. The same Python verifier works on resolver request bytes:
 
 ```python
 import hashlib
@@ -633,16 +640,16 @@ into a durable inbox with a unique `(workspace_id, event_id)` key, then return
 2xx. Process the inbox asynchronously. If storage fails, return a retryable
 failure instead of acknowledging an event you have lost.
 
-For outbound calls, the stored callback job establishes the brand's ownership.
+For outbound calls, the stored callback job tells you which brand owns the call.
 For inbound calls, match the business number and agent against your stored brand
-mapping. Keep historical mappings for late events. Do not assign a call to a
-brand solely from client-provided metadata.
+mapping. Keep historical mappings so that late events still match. Do not assign
+a call to a brand from client-provided metadata alone.
 
 Handle `call.started`, `call.completed`, `call.failed`, `call.aborted` and, where
-applicable, `call.voicemail`. Post-call processing may emit `call.processed` when
-configured. Use `data.call.status` and `ended_reason` to distinguish outcomes;
-there is no `call.no_answer` event. Do not let a late `call.started` overwrite a
-terminal result.
+applicable, `call.voicemail`. If post-call processing is configured, you may
+also receive `call.processed`. Use `data.call.status` and `ended_reason` to tell
+outcomes apart. There is no `call.no_answer` event. Do not let a late
+`call.started` overwrite a terminal result.
 
 | API | Purpose |
 | :--- | :--- |
@@ -653,8 +660,8 @@ terminal result.
 | `GET /v2/calls/{call_id}/analysis` | Read analysis if enabled on the agent |
 | `POST /v2/calls/{call_id}/abort` | Cancel an active or queued call |
 
-Check brand ownership before every read or control operation. Transcript,
-recording and analysis availability can lag behind the call ending.
+Check brand ownership before every read or control operation. The transcript,
+recording and analysis can become available some time after the call ends.
 
 ## Step 8: Operate one workspace across many brands
 
@@ -662,29 +669,29 @@ recording and analysis availability can lag behind the call ending.
 
 One funded partner wallet covers the brands' calls. Use
 `GET /v2/wallet` for balance and `GET /v2/wallet/transactions` for reconciliation.
-Associate settled call costs with your stored brand mapping and use those records
-for your own resale billing. Voice Infra does not create separate brand invoices
-or balances inside this shared workspace.
+Match settled call costs to brands through your stored brand mapping, and use
+those records for your own resale billing. Voice Infra does not create separate
+invoices or balances for brands inside this shared workspace.
 
 Confirm the workspace's current [pricing](/general/tiers) and [wallet](/v2/wallet)
-terms. Do not copy a pilot charge as a universal rate. Meta charges are separate.
-Coordinate changes to keys and the workspace's pinned inbound calling
+terms. Do not assume a pilot charge applies to everyone. Meta charges are
+separate. Coordinate changes to keys and the workspace's pinned inbound calling
 configuration with Voice Infra before changing production billing assumptions.
 
-An exhausted shared balance can affect every brand. Monitor it centrally.
-Per-brand dashboards and fair allocation are your application policies. Strict
-per-brand inbound spend limits are not provided by this shared-workspace recipe;
-the optional resolver is not a reliable hard budget gate.
+If the shared balance runs out, every brand can be affected, so monitor it
+centrally. Per-brand dashboards and fair allocation are up to your application.
+This shared-workspace recipe does not provide strict per-brand inbound spend
+limits, and the optional resolver cannot serve as a reliable hard budget limit.
 
 ### Onboard in batches
 
 Use a resumable queue and save IDs after each successful step. Back off on
 429/503 responses. Arrange ownership approval in batches, then test and enable
-brands gradually. A database test with 2,000 registrations does not establish
-the simultaneous-call capacity your customers can use.
+brands gradually. A database test with 2,000 registrations does not show how
+many simultaneous calls your customers can make.
 
 Measure expected calls per second, concurrent calls and average call duration
-with Voice Infra before agreeing traffic limits. Monitor connection success,
+with Voice Infra before you agree on traffic limits. Monitor connection success,
 time to greeting, missing or one-way audio, dropped calls, provider errors,
 callback backlog, webhook delivery and wallet settlement. Healthy HTTP endpoints
 and a `completed` status do not prove both parties heard the conversation.
@@ -693,37 +700,40 @@ and a `completed` status do not prove both parties heard the conversation.
 
 | Change | API and behavior |
 | :--- | :--- |
-| Agent instructions or voice | PATCH the agent with `if_revision` from the latest GET. New calls use the new revision; existing calls retain their snapshot. |
-| Webhook, resolver or assigned agent | PATCH `/v2/whatsapp/numbers/{number_id}` with the current `version` and changed fields. Re-read on conflict. |
+| Agent instructions or voice | PATCH the agent with `if_revision` from the latest GET. New calls use the new revision, and existing calls keep their snapshot. |
+| Webhook, resolver or assigned agent | PATCH `/v2/whatsapp/numbers/{number_id}` with the current `version` and the fields you are changing. On a conflict, read the number again. |
 | Assigned agent's Meta routing hint | Coordinate applying the returned `meta_settings_example` and test the cutover before resuming traffic. |
 | SIP password rotation | PATCH the new `sip_password` and current `version`, then wait for `active` again. |
 | Disconnect the number | Stop admitting callback jobs, DELETE the registration and poll until `disabled`. Coordinate its Meta calling destination afterward. |
 
-For example, update the result destination using the version from your latest
-number read:
+For example, to change where results go, send the version from your latest
+read of the number:
 
 ```json
 {"version": 1, "webhook_url": "https://your-backend.example/voice/events"}
 ```
 
-DELETE blocks new calls immediately while existing calls can finish. Retain call
-and billing history. It is not a temporary pause with a public re-enable API;
-coordinate restoration or workspace migration with Voice Infra.
+DELETE blocks new calls immediately and lets existing calls finish. Keep the call
+and billing history. DELETE is not a temporary pause, and there is no public API
+to re-enable the registration, so coordinate restoration or workspace migration
+with Voice Infra.
 
 ## Test it
 
 Use the 120-second test agent from step 2 on one approved number. Record a call
 ID for every test:
 
-1. Call the number in WhatsApp. Hear the greeting, say a short sentence, and
-   confirm the agent repeats its meaning. Repeat to catch intermittent failures.
+1. Call the number in WhatsApp. Listen for the greeting, say a short sentence,
+   and confirm the agent repeats its meaning. Do this more than once to catch
+   intermittent failures.
 2. Make a genuine callback request through your app, accept native Meta calling
    permission, and confirm your job worker starts one call with audible speech.
 3. Replay the permission webhook. Confirm it reuses the job and does not ring
    the customer again.
 4. Test missing or revoked permission, a failed call, and a duplicate result
    webhook. Confirm your app records the correct outcome.
-5. Check signed result delivery, available transcript/recording and settled usage.
+5. Check signed result delivery, any available transcript or recording, and
+   settled usage.
 6. Confirm another brand cannot read, change or cancel those calls through your
    application.
 
@@ -732,13 +742,13 @@ ID for every test:
 | Symptom | What to check |
 | :--- | :--- |
 | Production `403` | Confirm the key's workspace has completed production activation |
-| Number API collection returns `404` | Confirm public number-management availability on your assigned origin |
+| Number API collection returns `404` | Confirm that the public number-management APIs are available on your assigned origin |
 | Meta settings error `100 / 33` | Check the phone-number ID and token access; do not use the WABA ID |
 | Registration `409 integration_conflict` | Coordinate the workspace's pinned calling configuration with Voice Infra |
 | Number stays `pending` | Confirm ownership approval and configuration acknowledgement |
-| Active number but no working call | Check Meta settings and real call logs; active is configuration status |
+| Active number but no working call | Check Meta settings and real call logs. Active only means the configuration is in place |
 | Callback never rings | Read the call result and check the current permission, recipient and capacity |
-| Connected but silent or choppy | Pause rollout; provide the call ID, time/timezone, direction and Meta `wacid` |
+| Connected but silent or choppy | Pause the rollout and report the call ID, time and timezone, direction and Meta `wacid` |
 | Webhook signature mismatch | Check raw bytes, workspace signing secret and clock |
 | Duplicate callbacks | Inspect durable job identity and retry keys; do not rotate the key to retry |
 
@@ -747,13 +757,14 @@ ID for every test:
 Tell callers they are speaking with a voice agent and explain recording or
 transcript retention where applicable. Keep keys, SIP passwords and recording
 links out of browsers, application logs and public documents. Apply brand-level
-access checks to stored results and set retention rules appropriate to your use
-case. Meta calling permission is distinct from recording consent.
+access checks to stored results and set retention rules that suit your use
+case. Meta calling permission does not give you consent to record.
 
-Evaluate the privacy and calling requirements that apply to your operation,
-including GDPR, HIPAA or TCPA where relevant. This recipe does not establish
-compliance or authorize handling regulated data. Confirm the applicable platform
-terms and your organization's requirements before enabling those workflows.
+Work out which privacy and calling requirements apply to your operation,
+including GDPR, HIPAA or TCPA where relevant. Following this recipe does not
+make you compliant or authorize you to handle regulated data. Confirm the
+applicable platform terms and your organization's requirements before enabling
+those workflows.
 
 ## Production checklist
 
@@ -770,10 +781,10 @@ terms and your organization's requirements before enabling those workflows.
 - Brand isolation, retention, caller notices and settled usage are verified.
 
 <Note>
-Do not enable all brands because the first number registers successfully. Keep
-each brand in setup until real call acceptance passes, then expand in measured
-batches. Number approval, partner production activation and reliable audio remain
-required even when every API request succeeds.
+Do not enable every brand just because the first number registered. Keep each
+brand in setup until its real call acceptance tests pass, then expand in
+measured batches. Even when every API request succeeds, you still need number
+approval, partner production activation and reliable audio.
 </Note>
 
 ## References

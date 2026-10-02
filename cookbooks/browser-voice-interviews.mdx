@@ -1,6 +1,6 @@
 ---
 title: Timed voice interviews in the browser
-description: Run a 10-minute AI voice interview in your web app — a personalised opening, live captions, a graceful wrap-up and goodbye, moderator controls, an automatic score and a text-only record.
+description: Run a 10-minute AI voice interview in your web app, with a personalised opening, live captions, a timed wrap-up and goodbye, moderator controls, automatic scoring and a text-only record.
 ---
 
 In this cookbook you build a voice interview that runs in the candidate's
@@ -14,23 +14,23 @@ calls.
   interviewer that greets them by name.
 - The page shows live captions for both speakers and whether the interviewer is
   listening, thinking or speaking.
-- The interview keeps time on its own. At **8:00** the interviewer stops
-  starting new topics, at **9:30** it thanks the candidate and says goodbye, and
-  **10:00** is a hard stop. After **60 seconds** without an answer it closes
-  politely.
-- A moderator on your side can nudge the interviewer or end the interview
-  gracefully while it runs.
+- The interview keeps time on its own. At 8:00 the interviewer stops starting
+  new topics, at 9:30 it thanks the candidate and says goodbye, and 10:00 is a
+  hard stop. If the candidate gives no answer for 60 seconds, the interviewer
+  closes politely.
+- While the interview runs, a moderator on your side can nudge the interviewer
+  or end the interview with a spoken goodbye.
 - When it ends, your backend receives one webhook with the full transcript and a
   structured score, tagged with your own interview and candidate IDs.
-- No audio is stored. The transcript is the record.
+- No audio is stored, so the transcript is your record of the interview.
 
 **You need:** a workspace API key (`sk_live_…`) and webhook secret
 (`whsec_…`), a backend in Python 3.10+ or Node.js 18+, and an HTTPS URL that
 can receive webhooks (a tunnel to your laptop works while you build).
 
 <Note>
-Keep the API key on your server. The browser only ever receives two per-call
-links, which work for that one interview and nothing else.
+Keep the API key on your server. The browser only receives two per-call links,
+and they work only for that one interview.
 </Note>
 
 ## How it works
@@ -61,7 +61,7 @@ sequenceDiagram
 | 8:00 | The interviewer is told to stop starting new topics and wrap up. | `timing.wrap_up_secs_before_end: 120` |
 | 9:30 | The interviewer says goodbye and the call ends as `time-limit-close`. | `timing.close_secs_before_end: 30` |
 | 10:00 | Hard stop, reached only if the goodbye could not finish. | `max_duration_secs: 600` |
-| Any time | 60 seconds without the candidate speaking: a goodbye, then `user-silence-close`. | `timing.user_silence_close_secs: 60` |
+| Any time | If the candidate says nothing for 60 seconds, the interviewer says goodbye and the call ends as `user-silence-close`. | `timing.user_silence_close_secs: 60` |
 
 ---
 
@@ -74,11 +74,11 @@ candidate goes on the call in step 2.
 
 ### Write the instructions
 
-The agent's `system_prompt` holds up to **8,000 characters**. An interview guide
-fits comfortably if it contains only what the interviewer needs *during* the
-conversation. Move everything that is only needed afterwards, such as the
-scoring rubric, into [analysis](#score-the-interview-automatically), which has
-its own instructions.
+The agent's `system_prompt` holds up to 8,000 characters. An interview guide
+fits comfortably if it contains only what the interviewer needs during the
+conversation. Move anything that is only needed afterwards, such as the scoring
+rubric, into [analysis](#score-the-interview-automatically), which has its own
+instructions.
 
 This layout works well for voice interviews:
 
@@ -132,8 +132,8 @@ single edit, and every interview of that type stays comparable.
 ### If your interview guide is longer than 8,000 characters
 
 The 8,000-character limit on `system_prompt` is the same for every workspace,
-and there is no per-call system prompt. What a call can add is its `variables`,
-its `first_message` and, while it runs, [instructions](#step-4-let-a-moderator-steer-the-interview).
+and there is no per-call system prompt. A call can add its `variables`, its
+`first_message` and, while it runs, [instructions](#step-4-let-a-moderator-steer-the-interview).
 Long interview guides usually carry material the interviewer does not need while
 it talks. Move each part to where it is used:
 
@@ -146,8 +146,8 @@ it talks. Move each part to where it is used:
 | Several interview formats in one guide | One agent per format. |
 | Worked example answers and long explanations | Remove them. Keep one-line rules the interviewer can act on during the call. |
 
-Shorter prompts also respond faster, because the model reads the prompt on every
-turn.
+A shorter prompt also makes replies faster, because the model reads the prompt
+on every turn.
 
 ### Score the interview automatically
 
@@ -297,10 +297,11 @@ rubric. The result arrives with the transcript in step 5.
 </Tabs>
 
 <Warning>
-**Keep a person in the loop.** The score is a summary to help your team review
-interviews faster, not a hiring decision. The schema above deliberately offers
-`advance` or `human_review`, never `reject`. Automated decisions about people
-are regulated in many places, including under the GDPR and India's DPDP Act.
+**Keep a person in the loop.** The score is a summary that helps your team
+review interviews faster. A person should make the hiring decision, so the
+schema above offers `advance` or `human_review` and deliberately has no
+`reject` option. Automated decisions about people are regulated in many places,
+including under the GDPR and India's DPDP Act.
 </Warning>
 
 ---
@@ -313,10 +314,10 @@ interview record, and gives the page two links.
 
 | Field | Value in this recipe | Why |
 | :--- | :--- | :--- |
-| `channel` | `"web"` | A [browser call](/v2/web-calls): no phone number. |
+| `channel` | `"web"` | A [browser call](/v2/web-calls). It needs no phone number. |
 | `variables` | `candidate_name`, `role_title`, `company_name`, `focus_areas` | Fill the prompt's placeholders for this candidate. |
 | `first_message` | Written by your backend | A personalised opening line for this interview only. It replaces the agent's `first_message` for this call. |
-| `metadata` | `interview_id`, `candidate_id` | Your own IDs. Returned unchanged on the call and in every webhook. Never shown to the interviewer. |
+| `metadata` | `interview_id`, `candidate_id` | Your own IDs. They come back unchanged on the call and in every webhook, and the interviewer never sees them. |
 | `max_duration_secs` | `600` | The hard stop. |
 | `timing` | wrap up at 8:00, goodbye at 9:30, close after 60 s of silence | [Timing policy](/v2/web-calls#timing-policy). |
 | `recording_enabled` | `false` | Store no audio. Captions and the transcript still work. |
@@ -467,10 +468,10 @@ retried, you get the same call back instead of a second one.
 
 What to know about the two links:
 
-- `ws_url` is the audio socket. It works **once** and must be opened within 5
+- `ws_url` is the audio socket. It works only once and must be opened within 5
   minutes. If the candidate refreshes the page, create a new interview.
-- `events_url` is the live caption stream. It can be reopened for the whole
-  interview and for one hour after it ends.
+- `events_url` is the live caption stream. You can reopen it at any point during
+  the interview and for one hour after it ends.
 - If the page never connects, the call ends as `failed` with
   `ended_reason: "no-media"` and is not billed.
 
@@ -478,9 +479,10 @@ What to know about the two links:
 
 ## Step 3: Build the interview page
 
-The page asks for the microphone, starts the interview, plays the interviewer,
-and shows captions, the interviewer's state and a countdown. The audio format is
-described in [Browser calls → Audio socket](/v2/web-calls#audio-socket).
+The page asks for the microphone, starts the interview, plays the interviewer's
+voice, and shows captions, the interviewer's state and a countdown. The audio
+format is described under [Audio socket](/v2/web-calls#audio-socket) on the
+Browser calls page.
 
 ```html title="interview.html"
 <!doctype html>
@@ -660,9 +662,10 @@ Choices you can change:
 
 ## Step 4: Let a moderator steer the interview
 
-A moderator, such as a recruiter watching the captions, can change the
-interviewer's direction or end the interview gracefully while it runs. Both go
-through [live control](/v2/web-calls#live-control) from your backend.
+While the interview runs, a moderator, such as a recruiter watching the
+captions, can change the interviewer's direction or end the interview with a
+goodbye. Your backend does both through
+[live control](/v2/web-calls#live-control).
 
 - An **instruction** is added to the interviewer's context from its next reply
   and stays for the rest of the interview. It is never read aloud and does not
@@ -755,7 +758,7 @@ Useful instructions for interviews:
 </Tabs>
 
 A moderator view can show the same captions as the candidate. Give your backend
-the call's `events_url`, or read the stream server-side with your API key; see
+the call's `events_url`, or read the stream server-side with your API key. See
 [live events](/v2/web-calls#live-events).
 
 ### End at once
@@ -826,8 +829,8 @@ when audio goes live, which is the moment the timing policy counts from.
   </Tab>
 </Tabs>
 
-Instructions add up: each one stays in the interviewer's context for the rest
-of the interview, so send a few short ones rather than many.
+Instructions add up. Each one stays in the interviewer's context for the rest
+of the interview, so keep them few and short.
 
 ---
 
@@ -843,9 +846,10 @@ Your webhook receives these events for each interview, in order:
    minutes) and the score is ready. It carries the transcript in
    `data.transcript` and the score in `data.call.analysis`.
 
-Both carry your `metadata`, so you find the interview without a lookup table.
-Verify the signature on every delivery and ignore repeats by event `id`: see
-[Webhooks → Signature verification](/v2/webhooks#signature-verification).
+Every event carries your `metadata`, so you can find the interview without a
+lookup table. Verify the signature on every delivery, and ignore any event whose
+`id` you have already seen. The Webhooks page explains
+[signature verification](/v2/webhooks#signature-verification).
 
 <Tabs>
   <Tab title="Python">
@@ -963,10 +967,9 @@ What the parts of `call.processed` mean for an interview:
 | `data.call.ended_reason` | `time-limit-close`, `assistant-ended-call`, `user-silence-close`, `api-ended-call`, `customer-ended-call`, … | How it ended. See [ended reasons](/v2/calls#ended-reasons). |
 | `data.processing.analysis` | `done`, `failed`, `skipped` | Whether the score was produced. |
 
-If your webhook was down, nothing is lost: deliveries are
-[retried](/v2/webhooks#retries), and you can always read
-`GET /v2/calls/{id}` (it reports `transcript_status`) and
-`GET /v2/calls/{id}/transcript`.
+If your webhook was down, deliveries are [retried](/v2/webhooks#retries). You
+can also read `GET /v2/calls/{id}` (it reports `transcript_status`) and
+`GET /v2/calls/{id}/transcript` at any time.
 
 ---
 
@@ -1016,22 +1019,22 @@ Run three interviews:
 
 ## Privacy and compliance
 
-- **Tell candidates up front** that they are talking to an AI interviewer, that
-  the conversation is transcribed, and how the transcript and score will be
-  used. Get their consent before the interview starts.
-- **No audio is kept** with `recording_enabled: false`: no recording is stored
-  and `GET /v2/calls/{id}/recording` returns `404`. The transcript is kept; see
-  [data retention](/v2/limits#data-retention). Ask
-  [help@miraiminds.co](mailto:help@miraiminds.co) to turn recording off for your
-  whole workspace.
-- **Keep metadata opaque.** Put IDs in `metadata`, never names, contact details
-  or interview answers.
-- **Keep a person in the loop** for hiring decisions. Use the score to sort and
-  review, not to reject automatically.
-- **Protect the two links.** `ws_url` and `events_url` grant access to one
-  interview. Send them only to that candidate's page over HTTPS, and keep them
-  out of logs and analytics. Your API key never leaves your server.
-- **Treat captions as untrusted text.** Render them with `textContent`, never as
+- Tell candidates up front that they are talking to an AI interviewer, that the
+  conversation is transcribed, and how the transcript and score will be used.
+  Get their consent before the interview starts.
+- With `recording_enabled: false`, no recording is stored and
+  `GET /v2/calls/{id}/recording` returns `404`. The transcript is kept. See
+  [data retention](/v2/limits#data-retention) for how long. To turn recording
+  off for your whole workspace, ask
+  [help@miraiminds.co](mailto:help@miraiminds.co).
+- Put only IDs in `metadata`. Never put names, contact details or interview
+  answers there.
+- Keep a person in the loop for hiring decisions. Use the score to sort and
+  review interviews, and do not use it to reject candidates automatically.
+- `ws_url` and `events_url` give access to one interview. Send them only to that
+  candidate's page over HTTPS, and keep them out of logs and analytics. Your API
+  key stays on your server.
+- Treat captions as untrusted text and render them with `textContent`, never as
   HTML.
 
 ## Production checklist
@@ -1079,7 +1082,7 @@ Run three interviews:
   Yes. Open `events_url` with `EventSource`: every completed turn arrives as a
   `transcript.turn` event for both speakers, in real time. Text arrives per
   completed turn, not word by word. Audio travels over a WebSocket (`ws_url`)
-  and events over Server-Sent Events; no other client library is needed. See
+  and events over Server-Sent Events, so you need no other client library. See
   [step 3](#step-3-build-the-interview-page).
   </Accordion>
   <Accordion title="Can the page tell when the agent is speaking, listening or thinking?">
@@ -1095,9 +1098,9 @@ Run three interviews:
   </Accordion>
   <Accordion title="Can the opening line be set per call?">
   Yes. `first_message` on the call replaces the agent's opening line for that
-  call only. Your backend can write it in full, with no placeholders. Where you do
-  use a `{{placeholder}}`, a missing value is replaced with nothing; it is never
-  read out as braces.
+  call only. Your backend can write it in full, with no placeholders. If you do
+  use a `{{placeholder}}` and its value is missing, it is replaced with nothing,
+  so the agent never reads out the braces.
   </Accordion>
   <Accordion title="Is our metadata sent back in webhooks for browser calls?">
   Yes, unchanged, in `data.call.metadata` of every webhook for the call and on
