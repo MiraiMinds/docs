@@ -1,6 +1,6 @@
 ---
 title: How Discounts Work
-description: Understanding the intelligent discount system with applied and additional discounts, including how voice agents offer context-aware deals during calls.
+description: How applied and additional discounts work, and how a voice agent decides which discount to offer during a call.
 ---
 
 <Note>
@@ -11,7 +11,7 @@ on it. If you are building something new, start with the
 
 ## Overview
 
-The Voice Agent discount system intelligently manages two types of discounts during customer calls: **applied discounts** (already in the cart) and **additional discounts** (offered during the conversation). The agent adapts its approach based on customer interest, offering additional incentives when needed to close the sale.
+During a customer call, the voice agent works with two types of discounts: **applied discounts**, which are already in the cart, and **additional discounts**, which the agent offers during the conversation. The agent watches how interested the customer is and offers an additional incentive when it needs one to close the sale.
 
 ## Discount Types
 
@@ -22,32 +22,32 @@ An **applied discount** is one that's already active in the customer's cart when
 - A first-time user discount
 - A discount from a previous interaction
 
-The voice agent will mention this discount when the customer asks about available deals.
+The voice agent mentions this discount when the customer asks about available deals.
 
 ### Additional Discount
 
-An **additional discount** is offered by the voice agent during the call as a strategic incentive. The agent offers this when:
+An **additional discount** is one the voice agent offers during the call as an incentive. The agent offers it when:
 
 - The customer shows less interest in purchasing
 - The customer mentions the price is too high
 - The customer has concerns about the product
 - The customer explicitly asks for more discount
 
-This creates a personalized sales conversation where the agent can negotiate to close the deal.
+This lets the agent negotiate with each customer to close the sale.
 
 ## How It Works
 
-The discount system follows an intelligent flow during each call:
+During each call, discounts follow this flow:
 
-1. **Customer Asks About Discounts:** When a customer inquires about available discounts, the voice agent first mentions any **applied discount** already in their cart.
+1. **Customer Asks About Discounts:** When a customer asks about available discounts, the voice agent first mentions any applied discount already in their cart.
 
-2. **Customer Shows Hesitation:** If the customer indicates they're not ready to buy (due to price, product concerns, or wanting a better deal), the agent offers the **additional discount**.
+2. **Customer Shows Hesitation:** If the customer says they're not ready to buy (because of the price, concerns about the product, or wanting a better deal), the agent offers the additional discount.
 
 3. **Discount Application Logic:** The system applies the additional discount based on the `applyAs` setting:
    - **additional**: The new discount stacks on top of the existing one
    - **override**: The new discount replaces the existing one
 
-4. **Webhook Event:** After the call ends, the `create-order` webhook event includes only the **additional discount** details (code and reason), since the applied discount is already reflected in the cart.
+4. **Webhook Event:** After the call ends, the `create-order` webhook event includes only the additional discount's details (code and reason). The applied discount is already reflected in the cart.
 
 ## Discount Configuration
 
@@ -79,45 +79,45 @@ You configure discounts by including a `discount` object in your `initiate-call`
 
 ## The applyAs Logic
 
-Understanding the `applyAs` field is crucial for controlling how discounts combine.
+The `applyAs` field controls how the two discounts combine.
 
 ### Additional Mode (`applyAs: "additional"`)
 
-In **additional** mode, the new discount is applied **on top of** the existing applied discount. Both discounts work together.
+In **additional** mode, the new discount applies on top of the existing applied discount, so the customer gets both.
 
 **Example:**
 
 - Product price: ₹1,000
-- Applied discount: 10% (₹100 off) → Cart shows ₹900
+- Applied discount: 10% (₹100 off), so the cart shows ₹900
 - Additional discount offered: 25% (₹250 off the original price)
 - **Final price: ₹650** (both discounts apply: ₹1,000 - ₹100 - ₹250)
 
 <Tip>
 **When to Use**
 
-Use **additional** mode when you want to reward customers with cumulative savings. This works well for loyalty programs or special promotions where you want customers to feel they're getting an exceptional deal.
+Use **additional** mode when you want to reward customers with cumulative savings. It suits loyalty programs or special promotions where you want the customer to feel they are getting a very good deal.
 </Tip>
 
 ### Override Mode (`applyAs: "override"`)
 
-In **override** mode, the new discount **replaces** the existing applied discount. Only the additional discount applies.
+In **override** mode, the new discount replaces the existing applied discount. Only the additional discount applies.
 
 **Example:**
 
 - Product price: ₹1,000
-- Applied discount: 10% (₹100 off) → Cart shows ₹900
+- Applied discount: 10% (₹100 off), so the cart shows ₹900
 - Additional discount offered: 25% (₹250 off the original price)
 - **Final price: ₹750** (only the 25% discount applies: ₹1,000 - ₹250)
 
 <Tip>
 **When to Use**
 
-Use **override** mode when you want to offer a better deal than what's currently applied, but don't want discounts to stack excessively. This is ideal for protecting your margins while still giving customers an upgrade.
+Use **override** mode when you want to offer a better deal than the one already applied but don't want discounts to stack up too far. It protects your margins and still gives the customer a better offer.
 </Tip>
 
 ## Real-World Scenarios
 
-Let's walk through all possible discount scenarios to see how the voice agent handles each case.
+The voice agent handles each possible discount scenario as follows.
 
 ### Scenario 1: Both Discounts Available (Additional Mode)
 
@@ -177,11 +177,11 @@ Let's walk through all possible discount scenarios to see how the voice agent ha
 > **Customer:** "Can you give me any discount?"  
 > **Agent:** "Unfortunately, I don't have any discount codes to offer right now. But this product is worth the investment for its quality and features!"
 
-**Result:** No discounts available. Agent focuses on value proposition.
+**Result:** No discounts are available, so the agent talks about the product's value instead.
 
 ## Webhook Event Details
 
-After each call, when an order is created, the `create-order` webhook event is triggered. The discount information in this webhook follows a specific pattern:
+After a call, when an order is created, the `create-order` webhook event fires. Its discount information has this structure:
 
 ### Webhook Payload Structure
 
@@ -202,15 +202,13 @@ After each call, when an order is created, the `create-order` webhook event is t
 <Note>
 **Only Additional Discount Returned**
 
-The webhook payload includes **only the additional discount** that was offered by the voice agent during the call. The applied discount is **not included** because it's already reflected in the cart total.
+The webhook payload includes only the additional discount that the voice agent offered during the call. It leaves out the applied discount, which is already reflected in the cart total.
 </Note>
 
 - **`code`**: The discount code that was offered during the call (only if an additional discount was provided)
 - **`reason`**: An optional explanation of why the discount was offered (e.g., "Customer showed hesitation", "Customer requested better deal")
 
-**Why only additional discount?**
-
-The applied discount is already part of the cart state before the call begins, so it's already factored into the order total. The webhook only reports new information—what the voice agent actively did during the conversation.
+The applied discount is part of the cart before the call begins, so the order total already includes it. The webhook reports only what the voice agent did during the conversation.
 
 ## Best Practices
 
@@ -220,11 +218,11 @@ The applied discount is already part of the cart state before the call begins, s
 
   - Running promotional campaigns where stacking is expected
   - Rewarding loyal customers with extra benefits
-  - You want to create a "wow" moment with combined savings
+  - You want the combined savings to stand out to the customer
   - Your margins can support stacked discounts
 
 - **Use `override` when:**
-  - You want to control maximum discount limits
-  - Protecting profit margins is critical
+  - You want to cap the maximum discount
+  - Protecting profit margins is a priority
   - Offering a better single discount is more attractive than stacking
-  - Simplifying the customer's understanding (one clear discount)
+  - You want the customer to see one clear discount

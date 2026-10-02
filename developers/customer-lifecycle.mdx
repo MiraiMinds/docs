@@ -1,6 +1,6 @@
 ---
 title: Customer Lifecycle
-description: End-to-end guide for onboarding a brand, creating an AI agent, initiating calls, aborting them, and handling webhook events.
+description: How to onboard a brand, create an AI agent, start and abort calls, and handle webhook events.
 ---
 
 <Note>
@@ -9,7 +9,9 @@ on it. If you are building something new, start with the
 [Quickstart](/v2/quickstart).
 </Note>
 
-This guide walks through the complete lifecycle of a customer on the Voice Agents platform — from initial onboarding to receiving real-time call events via your callback URL.
+This guide follows a customer on the Voice Agents platform through the whole
+lifecycle, from onboarding to receiving real-time call events at your callback
+URL.
 
 ## Lifecycle Overview
 
@@ -28,7 +30,8 @@ flowchart LR
 
 ## Step 1 — Onboard a Brand
 
-Register your brand (Shopify store) to create a workspace with billing configuration. All subsequent API operations are scoped to this workspace.
+Register your brand (a Shopify store) to create a workspace with billing
+configuration. Every later API operation is scoped to this workspace.
 
 <div style={{backgroundColor: '#e6f4ea', color: '#1e7e34', padding: '10px', borderRadius: '4px', fontFamily: 'monospace', fontWeight: 'bold', display: 'inline-block', marginBottom: '20px'}}>
 POST /v2/workspace/onboard/shopify
@@ -183,14 +186,15 @@ print(workspace_id)  # save your workspace ID
 ```
 
 <Warning>
-  Save your `workspace` ID — it is required as a header in every subsequent API call.
+  Save your `workspace` ID. Every later API call needs it as a header.
 </Warning>
 
 ---
 
 ## Step 2 — Create an AI Agent
 
-Create a voice assistant configured with a persona, language, voice, call settings, and optionally a knowledge base.
+Create a voice assistant with a persona, language, voice and call settings, plus
+an optional knowledge base.
 
 <div style={{backgroundColor: '#e6f4ea', color: '#1e7e34', padding: '10px', borderRadius: '4px', fontFamily: 'monospace', fontWeight: 'bold', display: 'inline-block', marginBottom: '20px'}}>
 POST /v1/admin/assistant/create
@@ -217,7 +221,7 @@ POST /v1/admin/assistant/create
 | `icpContext.language` | string | **Yes** | Call language: `hinglish`, `english`, `hindi`, `tamil`, `telugu`, and more |
 | `icpContext.targetAgeGroups` | array | No | `gen_z`, `millennials`, `gen_x`, `boomers` |
 | `icpContext.locationTiers` | array | No | `metro_urban`, `tier1`, `tier2`, `tier3`, `rural` |
-| `callSettings.slots` | array | No | Time windows when calls can be made (e.g., `10:00`–`17:30`) |
+| `callSettings.slots` | array | No | Time windows when calls can be made (e.g., `10:00` to `17:30`) |
 | `callSettings.maxCallDuration` | number | No | Maximum call duration in seconds |
 | `callSettings.concurrentCallCount` | number | No | Max concurrent calls (up to 10) |
 | `callSettings.retryProtocol` | object | No | Retry behavior for no-pick-up and low-engagement calls |
@@ -392,10 +396,10 @@ print(assistant_id)  # save your assistant ID
 }
 ```
 
-Save the `assistantId` — it is required when initiating calls.
+Save the `assistantId`. You need it to initiate calls.
 
 <Note>
-  `variant.type` is immutable after creation. Choose `abandoned_cart` for cart recovery flows or `custom` for fully flexible prompts.
+  You can't change `variant.type` after creation. Choose `abandoned_cart` for cart recovery flows, or `custom` if you want full control of the prompt.
 </Note>
 
 ---
@@ -430,7 +434,8 @@ POST /v2/call/initiate
 
 #### `payload` Object
 
-The `payload` provides the AI with context about the customer and their cart. All fields are optional but recommended for `abandoned_cart` assistants.
+The `payload` gives the AI context about the customer and their cart. Every field
+is optional, but we recommend sending them for `abandoned_cart` assistants.
 
 | Field | Type | Description |
 | :--- | :--- | :--- |
@@ -438,7 +443,7 @@ The `payload` provides the AI with context about the customer and their cart. Al
 | `customer.lastName` | string | Customer's last name |
 | `customer.email` | string | Customer's email |
 | `customer.phone` | string | Customer's phone |
-| `lineItems` | array | Cart items — each with `title`, `quantity`, and `variant.id` + `variant.title` |
+| `lineItems` | array | Cart items, each with `title`, `quantity`, and `variant.id` + `variant.title` |
 | `subtotalPriceSet.shopMoney.amount` | string | Cart subtotal |
 | `totalPriceSet.shopMoney.amount` | string | Cart total |
 | `abandonedCheckoutUrl` | string | Direct URL to the abandoned checkout |
@@ -609,14 +614,15 @@ print(call_id)  # save for abort/tracking
 ```
 
 <Note>
-  The call is placed asynchronously. The `callId` is returned immediately — real-time status updates are delivered to your `callbackUrl`.
+  The call is placed asynchronously. The API returns the `callId` immediately and delivers real-time status updates to your `callbackUrl`.
 </Note>
 
 ---
 
 ## Step 4 — Abort a Call
 
-Cancel a queued or in-progress call using the `callId` returned during initiation.
+Cancel a queued or in-progress call with the `callId` you got when you initiated
+it.
 
 <div style={{backgroundColor: '#fef2f2', color: '#b91c1c', padding: '10px', borderRadius: '4px', fontFamily: 'monospace', fontWeight: 'bold', display: 'inline-block', marginBottom: '20px'}}>
 POST /v2/call/abort
@@ -692,7 +698,7 @@ print(response.json()['message'])
 }
 ```
 
-After a successful abort, your `callbackUrl` will receive a `call.aborted` event.
+After a successful abort, your `callbackUrl` receives a `call.aborted` event.
 
 <Warning>
   Calls that have already reached `call.completed` or `call.lifecycle-ended` state cannot be aborted.
@@ -702,7 +708,9 @@ After a successful abort, your `callbackUrl` will receive a `call.aborted` event
 
 ## Step 5 — Handle Callback URL & Lifecycle Events
 
-The `callbackUrl` you provided when initiating the call receives real-time webhook events as the call progresses. Your custom `metadata` is echoed back in every event so you can correlate events to your internal records.
+The `callbackUrl` you provided when initiating the call receives real-time
+webhook events as the call progresses. Every event echoes back your custom
+`metadata`, so you can match events to your internal records.
 
 ### Call Lifecycle
 
@@ -724,12 +732,12 @@ stateDiagram-v2
 | Event | Trigger |
 | :--- | :--- |
 | `call.initiate` | Call has been queued and is dialing |
-| `call.in-progress` | Customer answered — AI conversation started |
+| `call.in-progress` | Customer answered and the AI conversation started |
 | `call.ended` | Phone connection dropped |
 | `call.completed` | Recording, transcript, and duration are ready |
 | `call.timeout` | Call exceeded maximum allowed duration |
-| `end-of-call` | AI analysis complete — summary and structured data available |
-| `call.lifecycle-ended` | Final event — all processing finished |
+| `end-of-call` | AI analysis complete, with summary and structured data available |
+| `call.lifecycle-ended` | Final event, sent when all processing is finished |
 | `call.failed` | Call could not connect |
 | `call.busy` | Customer's line was busy |
 | `call.no-answer` | Customer did not pick up |
@@ -763,7 +771,7 @@ Every event uses the same envelope with your `metadata` echoed back:
 }
 ```
 
-The `end-of-call` event additionally includes AI analysis and credit usage:
+The `end-of-call` event also includes the AI analysis and credit usage:
 
 ```json
 {
@@ -837,10 +845,13 @@ app.post('/webhooks/voice-agent', (req, res) => {
 
 ### Callback URL Tips
 
-- **HTTPS required** — plain HTTP endpoints are rejected.
-- **Respond with `200 OK` immediately** — Voice Agents does not wait for your processing; slow responses may trigger retries.
-- **Use `metadata` for correlation** — pass your internal IDs (e.g., `customerId`, `orderId`) when initiating the call; they are echoed in every event.
-- **Verify signatures** — validate the webhook signature on every incoming request. See [Webhook Signature Verification](/developers/webhook-signature).
+- **HTTPS required.** Plain HTTP endpoints are rejected.
+- **Respond with `200 OK` immediately.** Voice Agents does not wait for your
+  processing, and slow responses may trigger retries.
+- **Use `metadata` for correlation.** Pass your internal IDs (e.g., `customerId`,
+  `orderId`) when initiating the call, and they come back in every event.
+- **Verify signatures.** Check the webhook signature on every incoming request.
+  See [Webhook Signature Verification](/developers/webhook-signature).
 
 ---
 

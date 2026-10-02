@@ -1,6 +1,6 @@
 ---
 title: Klaviyo Integration 
-description: Integrate Voice Agent with Klaviyo
+description: Trigger voice agent calls from your Klaviyo flows.
 ---
 
 <Note>
@@ -11,20 +11,20 @@ on it. If you are building something new, start with the
 
 ## Overview
 
-Integrating Voice Agent with Klaviyo enables your brand to add a powerful calling channel to your marketing campaigns. By connecting a Voice Agent webhook node in Klaviyo flows, you can reach customers with personalized voice calls, improving engagement and conversion rates. Voice Agents can deliver campaign messages, collect feedback, and assist customers directly, making your outreach more interactive and effective.
+The Klaviyo integration adds phone calls to your marketing campaigns. When you add a Voice Agent webhook node to a Klaviyo flow, you can reach customers in that flow with personalized voice calls, which improves engagement and conversion rates. On the call, the voice agent can deliver campaign messages, collect feedback and help customers directly.
 
 <CardGroup cols={2}>
     <Card title="Recover Abandoned Cart" icon="shopping-cart">
-        Boost recovery rates by up to 30% with automated voice calls, outperforming traditional email or WhatsApp campaigns.
+        Raise recovery rates by up to 30% with automated voice calls, which outperform traditional email or WhatsApp campaigns.
     </Card>
     <Card title="Replenishment Reminders" icon="repeat">
-        Send timely voice reminders for replenishable products, ensuring customers never run out of essentials.
+        Remind customers by phone when it's time to reorder a replenishable product, so they don't run out of essentials.
     </Card>
     <Card title="Actionable Feedback Collection" icon="comment">
-        Engage customers with calls to gather solid, actionable feedback, improving your products and services.
+        Call customers to collect actionable feedback that you can use to improve your products and services.
     </Card>
     <Card title="Personalized Outreach" icon="user">
-        Use customer data from Klaviyo to personalize voice interactions, increasing relevance and response rates.
+        Use customer data from Klaviyo to personalize each call, which makes calls more relevant and raises response rates.
     </Card>
 </CardGroup>
 
@@ -34,7 +34,7 @@ Integrating Voice Agent with Klaviyo enables your brand to add a powerful callin
 
 1. **Navigate to Your Klaviyo Flow**
 
-   Open your existing Klaviyo flow or create a new one where you want to add voice agent integration.
+   Open the Klaviyo flow where you want to add voice calls, or create a new one.
 
 2. **Add Webhook Node**
 
@@ -50,7 +50,7 @@ Integrating Voice Agent with Klaviyo enables your brand to add a powerful callin
 
 4. **Enable Webhook Integration**
 
-   When creating your campaign, make sure to enable webhook support. This allows Klaviyo to send contact data directly to your voice agent campaign.
+   When you create the campaign, enable webhook support. This lets Klaviyo send contact data directly to your voice agent campaign.
 
    ![Enable webhook integration](/images/klaviyo-integration/2-unable-webhook.png)
 
@@ -62,13 +62,13 @@ Integrating Voice Agent with Klaviyo enables your brand to add a powerful callin
 
 5. **Copy Webhook Endpoint**
 
-   After creating your campaign with webhook support enabled, click the **"Copy Webhook"** button to reveal the webhook configuration modal.
+   After you create the campaign with webhook support enabled, click the **"Copy Webhook"** button to open the webhook configuration modal.
 
    ![Copy webhook button](/images/klaviyo-integration/3-copy-webhook.png)
 
-   This will display:
-   - **Webhook URL** - The endpoint where Klaviyo will send data
-   - **Secret Key** - For secure authentication between platforms
+   The modal shows:
+   - **Webhook URL**: the endpoint where Klaviyo sends data
+   - **Secret Key**: used to authenticate requests between the two platforms
 
 ### Step 4: Configure Klaviyo Webhook
 
@@ -84,15 +84,15 @@ Integrating Voice Agent with Klaviyo enables your brand to add a powerful callin
 
 7. **Test and Activate**
 
-   Test your webhook connection to ensure data flows correctly between Klaviyo and Voice Agents, then activate your flow.
+   Test the webhook to check that data reaches Voice Agents from Klaviyo correctly, then activate your flow.
 
 ## What's Next?
 
 Once your integration is complete, your Klaviyo flows can automatically trigger voice agent calls for:
 
-- **Abandoned Cart Recovery** - Reach customers who left items in their cart
-- **Post-Purchase Follow-up** - Collect feedback and encourage repeat purchases
-- **Replenishment Reminders** - Notify customers when it's time to reorder
-- **Win-back Campaigns** - Re-engage inactive customers with personalized calls
+- Abandoned cart recovery, to reach customers who left items in their cart
+- Post-purchase follow-up, to collect feedback and encourage repeat purchases
+- Replenishment reminders, to tell customers when it's time to reorder
+- Win-back campaigns, to bring inactive customers back with personalized calls
 
-The voice agent will receive customer data from Klaviyo and can personalize conversations based on purchase history, preferences, and behavior patterns.
+The voice agent receives customer data from Klaviyo and can personalize the conversation using purchase history, preferences and behavior patterns.

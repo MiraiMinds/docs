@@ -1,6 +1,6 @@
 ---
 title: WhatsApp Integration
-description: Connect WhatsApp Business API with Voice Agents to enable seamless customer communication through voice and text messaging.
+description: Connect the WhatsApp Business API to Voice Agents so you can reach customers by voice call and by WhatsApp message.
 ---
 
 <Note>
@@ -11,41 +11,41 @@ on it. If you are building something new, start with the
 
 ## Overview
 
-Voice Agents integrates with WhatsApp Business API to provide a unified communication experience. Customers can seamlessly switch between voice calls and WhatsApp messaging, with conversation context maintained across both channels. This creates a more flexible and accessible customer service experience.
+Voice Agents integrates with the WhatsApp Business API, so customers can switch between voice calls and WhatsApp messages and the conversation context carries over between the two.
 
 <CardGroup cols={2}>
 	<Card title="Unified Communications" icon="comment">
-		Seamlessly transition conversations between voice and WhatsApp messaging while maintaining full context.
+		Move a conversation between voice and WhatsApp messaging and keep its full context.
 	</Card>
 	<Card title="Rich Media Support" icon="document">
-		Send images, documents, location data, and interactive buttons through WhatsApp integration.
+		Send images, documents, location data and interactive buttons over WhatsApp.
 	</Card>
 	<Card title="24/7 Availability" icon="rocket">
-		Provide instant responses via WhatsApp even when voice agents are busy with other customers.
+		Reply instantly on WhatsApp, even when voice agents are busy with other customers.
 	</Card>
 	<Card title="Global Reach" icon="arrow-up">
-		Connect with customers worldwide using their preferred messaging platform.
+		Reach customers worldwide on their preferred messaging app.
 	</Card>
 </CardGroup>
 
 ## Prerequisites
 
-Before setting up WhatsApp integration, ensure you have:
+Before you set up the WhatsApp integration, you need:
 
-- **WhatsApp Business Account** - Verified business account on WhatsApp
-- **Meta Business Manager** - Access to Meta Business Manager with admin permissions
-- **Phone Number** - Verified business phone number (cannot be used on regular WhatsApp)
-- **Voice Agents Account** - Active Voice Agents platform subscription
+- **WhatsApp Business Account**: a verified business account on WhatsApp
+- **Meta Business Manager**: access to Meta Business Manager with admin permissions
+- **Phone Number**: a verified business phone number (it can't also be used on regular WhatsApp)
+- **Voice Agents Account**: an active Voice Agents platform subscription
 
 ## Required Information
 
-You'll need to collect these details during setup:
+You'll collect these details during setup:
 
-- **App ID** - Your Meta app identifier
-- **Phone Number ID** - WhatsApp Business phone number identifier  
-- **WhatsApp Business Account ID** - Business account identifier
-- **Access Token** - Permanent access token with messaging permissions
-- **Webhook Verify Token** - Custom token for webhook verification
+- **App ID**: your Meta app identifier
+- **Phone Number ID**: the identifier of your WhatsApp Business phone number
+- **WhatsApp Business Account ID**: the business account identifier
+- **Access Token**: a permanent access token with messaging permissions
+- **Webhook Verify Token**: a custom token for webhook verification
 
 ## Setup Guide
 
@@ -68,14 +68,14 @@ If you already have a Meta app:
 
 1. Access your Meta for Developers dashboard
 2. Select your existing app from the **"My Apps"** section
-3. Ensure the app has appropriate permissions for WhatsApp Business
+3. Check that the app has the right permissions for WhatsApp Business
 
 ![Meta Developer Dashboard](/images/whatsapp-integration/image_1.png)
 
 ### Step 2: Configure WhatsApp Business API
 
 1. **Add WhatsApp Product**
-   - In your app dashboard, navigate to **"WhatsApp" → "API Setup"**
+   - In your app dashboard, go to **"WhatsApp"** and then **"API Setup"**
    - If WhatsApp isn't added, click **"Add to App"** next to WhatsApp
 
 2. **Configure Phone Number**
@@ -92,15 +92,15 @@ If you already have a Meta app:
 Once your phone number is configured:
 
 1. **Select your verified WhatsApp Business number** from the dropdown
-2. **Record these important values:**
-   - **Phone Number ID** - Found below the selected number
-   - **WhatsApp Business Account ID** - Located to the right of the Phone Number ID
-   - **App ID** - Displayed in the top-left corner of the dashboard
+2. **Record these values:**
+   - **Phone Number ID**: shown below the selected number
+   - **WhatsApp Business Account ID**: to the right of the Phone Number ID
+   - **App ID**: in the top-left corner of the dashboard
 
 ![WhatsApp Business IDs](/images/whatsapp-integration/image_3.png)
 
 <Warning>
-Keep these IDs secure and accessible - you'll need them to complete the Voice Agents integration.
+Keep these IDs secure and on hand. You'll need them to complete the Voice Agents integration.
 </Warning>
 
 ### Step 4: Generate Permanent Access Token
@@ -143,12 +143,12 @@ Keep these IDs secure and accessible - you'll need them to complete the Voice Ag
    ![Token Expiration](/images/whatsapp-integration/image_8.png)
    
    - **Required Permissions**:
-     - `whatsapp_business_messaging` - Send and receive messages
-     - `whatsapp_business_management` - Manage business settings
+     - `whatsapp_business_messaging`: send and receive messages
+     - `whatsapp_business_management`: manage business settings
 
 7. **Secure Your Token**
    
-   Copy and securely store the generated access token. This token provides full access to your WhatsApp Business messaging capabilities.
+   Copy the generated access token and store it securely. It gives full access to your WhatsApp Business messaging.
 
 <Warning>
 Never share your access token publicly or commit it to version control. Treat it like a password.
@@ -160,22 +160,22 @@ WhatsApp requires pre-approved templates for business-initiated conversations:
 
 1. **Access Template Manager**
    
-   Go to **WhatsApp Manager → Message Templates**.
+   In **WhatsApp Manager**, go to **Message Templates**.
 
 2. **Create New Template**
    
    Click **"Create Template"** and provide:
    - **Template Name**: Descriptive name (e.g., `order_confirmation`)
    - **Category**: 
-     - **Marketing** - Promotional content
-     - **Utility** - Account updates, order status
-     - **Authentication** - Verification codes, security alerts
+     - **Marketing**: promotional content
+     - **Utility**: account updates, order status
+     - **Authentication**: verification codes, security alerts
    - **Language**: Your target language (e.g., `en_US`)
    - **Message Content**: Include dynamic variables using `{{1}}`, `{{2}}` syntax
 
 3. **Submit for Review**
    
-   Templates typically get reviewed within 24 hours. Only approved templates can be used for business-initiated messages.
+   WhatsApp usually reviews templates within 24 hours. You can use only approved templates for business-initiated messages.
 
 4. **Template Best Practices**
    - Keep messages concise and relevant
@@ -202,29 +202,29 @@ WhatsApp requires pre-approved templates for business-initiated conversations:
 
 3. **Test Connection**
    
-   Send a test message to verify the integration is working correctly.
+   Send a test message to check that the integration works.
 
 ## Use Cases & Capabilities
 
-Once integrated, your Voice Agents can:
+With the integration in place, Voice Agents supports the following.
 
 ### Customer Support
-- **Seamless handoffs** between voice and WhatsApp
-- **Rich media sharing** like product images, receipts, and documents  
-- **Quick replies** with predefined response options
-- **Interactive buttons** for common actions
+- Handoffs between voice and WhatsApp
+- Rich media sharing, such as product images, receipts and documents
+- Quick replies with predefined response options
+- Interactive buttons for common actions
 
 ### Business Communications
-- **Order confirmations** with tracking links
-- **Appointment reminders** with rescheduling options
-- **Support ticket updates** with status changes
-- **Marketing messages** (with proper opt-in consent)
+- Order confirmations with tracking links
+- Appointment reminders with rescheduling options
+- Support ticket updates with status changes
+- Marketing messages (with proper opt-in consent)
 
 ### Advanced Features
-- **Location sharing** for store locations or delivery tracking
-- **Multi-language support** with localized templates
-- **Analytics integration** for message performance tracking
-- **CRM synchronization** for unified customer profiles
+- Location sharing for store locations or delivery tracking
+- Multi-language support with localized templates
+- Analytics integration for message performance tracking
+- CRM synchronization for unified customer profiles
 
 ## Best Practices
 
@@ -238,7 +238,7 @@ Once integrated, your Voice Agents can:
 - Use approved templates for business-initiated messages
 - Keep response times under 24 hours during business conversations
 - Provide clear next steps in every interaction
-- Use rich media strategically to enhance communication
+- Use rich media where it makes the message clearer
 
 ### Integration Management
 - Monitor webhook delivery and response times
