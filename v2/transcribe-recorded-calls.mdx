@@ -1,0 +1,263 @@
+---
+title: Transcribe recorded calls
+description: Turn a recorded call into a transcript with speakers and timestamps, in the console or through the API, at ₹18 per hour of audio.
+---
+
+Mira Transcribe turns a recording into text: what was said, who said it and
+when. You send a file or a link and get a job ID straight away. A draft is
+readable within seconds, and the finished transcript replaces it when it is
+ready. A two-minute call usually takes about 30 seconds.
+
+Base URL `https://sandbox.voice.miraiminds.co`. API requests use
+`Authorization: Bearer sk_live_…`, the same workspace key as the rest of the
+[v2 API](/v2/overview).
+
+## When to use it
+
+| You have | Use |
+| :--- | :--- |
+| A recording of a call that has already happened: your team's calls, calls from another dialler, a recorded interview | Offline transcription, on this page |
+| A call one of your Mirai voice agents made | That call's own transcript: [`GET /v2/calls/{id}/transcript`](/v2/calls#get-the-transcript). You don't need to send its recording here. |
+| Live audio that you need as text while people are still talking | Streaming recognition. It runs inside every voice agent; as a standalone API it is in private preview, so ask us for access. |
+
+Turning example calls into a node-based agent has its own transcription step,
+priced separately. See
+[Draft a flow from call recordings](/v2/node-agents#draft-a-flow-from-call-recordings).
+
+## How it works
+
+Two speech recognition passes listen to the whole recording. A language model
+then compares them and writes one transcript, using any context and vocabulary
+you sent to settle names and terms. Speaker separation listens to the voices
+themselves to work out who spoke when, and gives each voice its own ID.
+
+While the language model works, the job carries a draft: the stronger of the
+two passes, with timestamps and no speakers. In the draft, English is often
+written out in Devanagari. The finished transcript writes Hindi in Devanagari
+and English in Latin script, the way the speakers switched between them.
+Common English loanwords can stay in Devanagari. Nothing is translated.
+
+```text
+Draft     यस टेल मी आई वॉन्टेड टू आस्क अबाउट द बी बी ए कॉर्स फ़ीस
+Finished  yes tell me I wanted to ask about the BBA course fees
+```
+
+A job moves through `queued`, `decoding` and `merging` to `completed` or
+`failed`. The [reference](/v2/transcriptions#statuses) describes each status.
+
+## Try it in the console
+
+<Steps>
+  <Step title="Open the Playground">
+    Sign in to the [console](https://sandbox.voice.miraiminds.co), open
+    **Speech to text** and choose **Offline**.
+  </Step>
+  <Step title="Add recordings">
+    Choose one recording or several: WAV, MP3 or M4A, up to 45 MB each. Add a
+    line of context and any names or terms to spell right, then click
+    **Transcribe**.
+  </Step>
+  <Step title="Open the transcript">
+    Each recording gets a row with its length, a clock and its stage. Open it as
+    soon as the draft appears. The finished transcript takes its place in the
+    player on its own.
+  </Step>
+</Steps>
+
+The player shows the recording as a timeline with a lane for each speaker. The
+transcript scrolls with the audio, and clicking a line plays from there. You
+can rename, recolour and merge speakers, move a line to another speaker, fix
+words, and split or join lines, with undo. Exports are plain text, SRT and
+WebVTT subtitles, and JSON. Edits are kept in your browser, which also keeps a
+copy of your last few uploads for up to a week so you can play them back.
+
+**Logs** lists every recording your workspace sent in the last 30 days, from
+the console or the API, with what each one cost. **API** has the requests on
+this page ready to copy, and can create a key for you. Jobs from the console
+are charged to the workspace wallet in the same way as API jobs.
+
+## Use the API
+
+Send the recording as a multipart upload:
+
+```bash
+curl -X POST https://sandbox.voice.miraiminds.co/v2/transcriptions \
+  -H "Authorization: Bearer $MIRAI_API_KEY" \
+  -H "Idempotency-Key: call-2026-10-02-0412" \
+  -F file=@call.wav \
+  -F context="A call to a university admissions desk about a course and its fees" \
+  -F vocabulary="Mira University, BBA, Aadhaar"
+```
+
+The answer is `202 Accepted` with the job, whose `status` is `queued`. Read it
+every few seconds until `status` is `completed` or `failed`:
+
+```bash
+curl https://sandbox.voice.miraiminds.co/v2/transcriptions/trn_01M3XRSFXW77RHEQ85979AJXAF \
+  -H "Authorization: Bearer $MIRAI_API_KEY"
+```
+
+A recording over 45 MB goes by link instead: send JSON with an `https` `url`
+(up to 200 MB), such as a pre-signed link to your storage. The
+[Transcriptions reference](/v2/transcriptions) has every field, response and
+error, with Python and Node.js. To build a review screen on top of this, follow
+the [transcript player cookbook](/cookbooks/transcript-player).
+
+## Speakers and timestamps
+
+A finished job has one segment for each turn:
+
+```json
+{
+  "speaker": "Customer",
+  "speaker_id": "spk1",
+  "start": 7.21,
+  "end": 11.32,
+  "text": "yes tell me I wanted to ask about the BBA course fees"
+}
+```
+
+`start` and `end` are seconds from the start of the recording.
+
+`speaker_id` is the voice: `spk0`, `spk1` and so on, numbered in the order the
+voices first speak. Group lines by it.
+
+`speaker` is a role, `Agent`, `Customer` or `Other`, worked out from what each
+voice says. It is a best guess and can be wrong, so show it as a first label
+that a person can change. It is empty when the role could not be told.
+`diarization.speakers` lists each voice once, with its role and how many
+seconds it talked.
+
+Send `words: true` for the time of every word. Word timings are added when they
+line up with the audio, which today means Hindi recordings; Gujarati and
+English recordings come back without them. `diarization.words.applied` tells
+you whether they were added. They need speaker separation, which is on unless
+you send `diarize: false`.
+
+## Languages
+
+Mira Transcribe is built for phone calls in Hindi and Hinglish. `language`
+defaults to `auto`, which detects the main language of the call. You can set it
+to `hi`, `gu`, `en`, `mr`, `pa`, `bn` or `ur` when you know the main language
+and detection gets it wrong. Speech in another language inside the call is kept
+as it was spoken.
+
+## Getting names and terms right
+
+`vocabulary` takes names, brands, products, places and codes, spelled the way
+you want them back. Send up to 200 terms of up to 100 characters each, as one
+string separated by commas or new lines, or as a JSON array. A term can't
+contain a comma, and repeats are dropped.
+
+`context` is a sentence or two about the call: who is calling whom, and why.
+It can be up to 2,000 characters.
+
+Both affect spelling and script. We sent the same 23-second test call twice.
+With an unrelated context, "Mira University" and "Aadhaar" came back as
+"मीरा यूनिवर्सिटी" and "आधार". With the context and vocabulary in the example
+above, both came back as written. Use the same context and vocabulary for every
+call of one kind.
+
+## Pricing
+
+{/* Hand-written: keep in step with transcription.rate_inr_per_hour in mirai-voice console/static/pricing.json. */}
+
+Transcription costs **₹18 per hour of audio** on every plan. Prices exclude
+GST.
+
+- A job is charged by the length of the recording, to the millisecond, rounded
+  up to the paisa once. A 23-second call costs ₹0.12 and a five-minute call
+  ₹1.50.
+- The charge is taken from your [wallet](/v2/wallet) once, when the job
+  completes. It is taken whether or not you read the result.
+- A degraded job is free. So is a job that fails for any reason.
+- The rate is fixed on each job when it is accepted, and `cost` on the job
+  says what it was charged.
+- Starting a job needs a wallet balance above zero, and nothing is held while
+  it runs. With an empty wallet the request is refused with
+  `402 insufficient_balance`.
+
+Each charge is one wallet transaction with `kind: "transcription"`, the job ID
+as `reference` and the billed seconds as `quantity`. The billing statement in
+the console shows transcription under **Charges**, with the number of
+recordings and minutes of audio.
+
+### Degraded jobs
+
+When the language model step is unavailable, the job still completes with the
+stronger recognition pass and `degraded: true`. The words are there with their
+timestamps, but there are no roles and the text has had less clean-up. Speaker
+IDs can still be present. A degraded job is not charged. If you need the roles,
+send the recording again; the new job is charged when it completes in full.
+
+## Limits
+
+| Limit | Value |
+| :--- | :--- |
+| Uploaded file | 45 MB |
+| Recording sent by link | 200 MB |
+| Length of a recording | 2 hours |
+| Unfinished jobs per workspace | 20 |
+| New jobs per workspace | 120 an hour |
+
+Over a limit, the request is refused with `413` or `429` and nothing is
+charged. A recording longer than two hours is accepted, then fails with
+`audio_too_long`, free. See [limits and errors](/v2/transcriptions#limits) for
+every code.
+
+## Privacy and your data
+
+The API does not keep your audio. An upload passes through a temporary file
+that is deleted when the request ends, and the transcription service deletes
+the recording once it has decoded it. A recording link is fetched once and is
+not stored.
+
+The transcript stays with the transcription service, so that
+`GET /v2/transcriptions/{id}` can return it. There is no published retention
+period for transcripts yet, so copy each finished transcript into your own
+storage. If a transcript is no longer available, its job still reads
+`completed` with its cost, but without `text` and `segments`. The job record
+itself (status, file name, size, length and cost) stays with your workspace and
+appears in **Logs**. There is no endpoint to delete a transcript; if you need
+one removed, write to [help@miraiminds.co](mailto:help@miraiminds.co).
+
+Recordings and transcripts of calls are personal data under India's Digital
+Personal Data Protection Act, and under laws such as the GDPR when they cover
+people elsewhere. Tell the people on your calls that they are recorded and
+transcribed, and get consent where the law asks for it. Keep your API key on
+your server: send recordings from your backend, never from a browser or a
+mobile app.
+
+## Troubleshooting
+
+| Symptom | Likely cause | Fix |
+| :--- | :--- | :--- |
+| `402 insufficient_balance` | The wallet balance is zero or below. | Add credit in **Billing**, then send the request again. |
+| `413 request_too_large` | The file is over 45 MB, or the file at `url` is over 200 MB. | Send a large file by link, or compress it to a mono MP3. |
+| `400` with "the recording url answered HTTP 403" | The link has expired or is private. | Send a fresh pre-signed link. We fetch it as soon as the request arrives. |
+| `429 at_capacity` | Your workspace already has 20 unfinished jobs. | Wait for `Retry-After`, or queue uploads on your side. |
+| The job fails with `transcription_failed` | The file is not audio, is damaged, or has no speech. | Check that it plays. WAV and MP3 work everywhere. |
+| The job fails with `engine_restarted`, `job_lost`, `timed_out` or `submit_interrupted` | Something went wrong on our side. | Send the recording again. The failed job is free. |
+| Names and brands are misspelled | No `vocabulary` or `context` was sent. | Add the names to `vocabulary`, and a line of `context`. |
+| Roles are swapped, or two voices share a role | Roles are a best guess. | Group lines by `speaker_id` and let a person rename speakers. |
+| One person appears as two speaker IDs, or two people as one | Speaker separation can split or merge voices on poor audio, crosstalk or similar voices. | Merge or reassign speakers in your review screen. The console player can do both. |
+| No `words` on segments | `words` was not sent, `diarize` was `false`, or the recording is not in Hindi. | Send `words: true` with speaker separation on. |
+| `completed`, but no `text` | The transcript is no longer kept. | Save transcripts when they complete. |
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Transcriptions API" icon="file-lines" href="/v2/transcriptions">
+    Every field, status, response and error code.
+  </Card>
+  <Card title="Build a transcript player" icon="list-ol" href="/cookbooks/transcript-player">
+    Upload, draft, finished transcript, playback, edits and export in your own
+    web app.
+  </Card>
+  <Card title="Wallet" icon="wallet" href="/v2/wallet">
+    Balance, transactions and top-ups.
+  </Card>
+  <Card title="Call transcripts" icon="phone" href="/v2/calls#get-the-transcript">
+    Transcripts of calls your voice agents made.
+  </Card>
+</CardGroup>
