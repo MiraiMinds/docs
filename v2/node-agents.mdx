@@ -27,9 +27,10 @@ Base URL `https://sandbox.voice.miraiminds.co`. All endpoints require
 | The instructions fit in 8,000 characters. | Each step needs long instructions. Every node takes up to 12,000 characters, and only the current node's are in play. |
 | You need to fetch or send data mid-call with [on-call tools](/v2/tools). | You want to know which step each call reached, and what the caller said at each step. |
 
-A flow's transitions are the only functions its model is offered, so a flow
-cannot run on-call tools. It can run [pre-call and post-call tools](/v2/tools).
-If a step needs a mid-call lookup, keep that job in a single-prompt agent.
+A flow can run [tools](/v2/tools) before, during, and after a call. Each start
+or conversation node lists the on-call tools it offers in `data.tools`. The
+model sees those tools alongside the node's outgoing transitions. For a full
+editor example, follow the [Node.js cookbook](/cookbooks/node-flow-builder).
 
 ## How a flow runs
 
@@ -767,6 +768,7 @@ The call ignores them.
 | `add_global_prompt` | boolean | `true` | Whether the global node's prompt comes before this node's. |
 | `extraction_enabled` | boolean | `false` | `true` extracts this node's `extraction_variables`. |
 | `extraction_variables` | array | `[]` | Up to 12 values to extract. See [extraction](#extraction). |
+| `tools` | string array | `[]` | Up to 10 distinct names of this agent's `on_call` tools, offered on a `startCall` or `agentNode`. Disabled tools are not offered. Names must not collide with any transition label. End and global nodes cannot offer tools. |
 | `is_start` | boolean | from `type` | Set from `type` when you save. Any value you send is replaced. |
 
 Every default is filled in when you save, so a graph you read back states
@@ -841,7 +843,10 @@ A graph is refused unless all of these hold:
 - Every node except the global node can be reached from the start node, and has
   a path to an `endCall` node.
 - The graph stays within the [limits](#limits).
-- The agent has no enabled `on_call` tools. See [Tools](/v2/tools).
+- Each name in a node's `data.tools` refers to an `on_call` tool defined on the
+  agent. A node offers up to 10 distinct tool names; none may match a transition
+  label anywhere in the graph. End and global nodes cannot offer tools.
+- The `end_call` tool is disabled or absent. A flow ends at its end nodes.
 - Your tier's model makes native tool calls, because every transition is a tool
   call. The standard model on every tier does.
 
@@ -1020,8 +1025,9 @@ POST /v2/agents/flow/validate
 
 The body is the graph. The dry run applies every graph rule and checks that
 your tier's model can run flows. It saves nothing and calls no one.
-Undeclared `input_schema` variables are reported when you save the graph on an
-agent, because a bare graph has no schema.
+Undeclared `input_schema` variables and names that do not resolve to an agent's
+on-call tools are reported when you save the graph on that agent. A bare graph
+has neither the input schema nor the agent's tool definitions.
 
 <Tabs>
   <Tab title="cURL">
@@ -1203,7 +1209,7 @@ The other agent fields work as they do on any agent, with two differences:
 | `system_prompt`, `first_message` | Optional and unused. |
 | `voice`, `language`, `max_duration_secs`, `voicemail`, `background_sound` | Unchanged. State the spoken language in your global node as well: the node prompts are the model's only instructions. |
 | `end_call` | The model is not offered an `end_call` tool. A flow ends when it reaches an end node. |
-| `tools` | `pre_call` and `post_call` tools only. An enabled `on_call` tool is refused with `invalid_flow` at `tools[i]`. |
+| `tools` | Pre-call and post-call tools run normally. On-call tools are offered by the nodes that list their names in `data.tools`. The `end_call` tool must stay disabled or absent. |
 
 ### Step 4: Test it in the browser
 
@@ -1673,7 +1679,7 @@ Graph problems use their own shape, like [tool validation](/v2/tools#validation-
   "details": [
     {
       "path": "tools[1]",
-      "message": "on_call tool \"end_call\" cannot run on a flow agent: the graph's transitions are the only tools a flow offers the model; use pre_call or post_call tools, or remove the flow"
+      "message": "end_call cannot be enabled on a flow agent: a flow ends when it reaches an endCall node; disable or remove end_call, and add an endCall node where the call should end"
     },
     {
       "path": "flow.nodes[2].data.prompt",
@@ -1691,7 +1697,8 @@ stage.
 | Path | Means |
 | :--- | :--- |
 | `flow…` | A problem in the graph. The path points at the field, such as `flow.edges[2].data.label`. `flow` alone means the whole graph, including a tier model that cannot run flows. |
-| `tools[i]` | An enabled `on_call` tool on a node-based agent. Remove it, set `enabled: false`, or move the work to a `pre_call` or `post_call` tool. |
+| `tools[i]` | An enabled `end_call` tool. Disable or remove it and use an `endCall` node. |
+| `flow.nodes[i].data.tools` | An unknown tool name, a tool from the wrong phase, a duplicate, or a collision with a transition label. |
 
 Everything else uses the [standard error envelope](/v2/errors):
 
@@ -1770,6 +1777,6 @@ Everything else uses the [standard error envelope](/v2/errors):
     Place calls, read status, transcripts and recordings.
   </Card>
   <Card title="Tools" icon="plug" href="/v2/tools">
-    Pre-call and post-call tools for node-based agents.
+    Pre-call, per-node on-call, and post-call tools for node-based agents.
   </Card>
 </CardGroup>
