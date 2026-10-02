@@ -1,6 +1,6 @@
 ---
 title: v1 API (stable)
-description: The original Voice Agents API — workspaces, assistants, calls, telephony, tools and knowledge base.
+description: The original Voice Agents API, covering workspaces, assistants, calls, telephony, tools and the knowledge base.
 ---
 
 
@@ -11,7 +11,7 @@ on it. If you are building something new, start with the
 </Note>
 
 v1 is the API that runs today's production integrations. It is **stable and
-supported** — nothing here is being removed.
+supported**, and nothing here is being removed.
 
 ```bash
 https://api.voice-agents.miraiminds.co
@@ -25,11 +25,11 @@ https://api.voice-agents.miraiminds.co
 <Note>
 **v1 or v2?**
 
-v1 has the broad surface: inbound calls, phone-number purchase, knowledge
-base/RAG, API tools, campaigns, post-call analysis. [v2](/v2/overview) has the clean
-one: one auth header, `GET` on calls, a wallet API and idempotency — but only
-outbound calls and agents. They address the same workspace and can run side by
-side. See the [mapping table](/v2/migration).
+v1 covers more: inbound calls, phone-number purchase, knowledge base/RAG, API
+tools, campaigns and post-call analysis. [v2](/v2/overview) is simpler, with one
+auth header, `GET` on calls, a wallet API and idempotency, but it supports only
+outbound calls and agents. The two APIs address the same workspace and can run
+side by side. See the [mapping table](/v2/migration).
 </Note>
 
 ## Hosts, not prefixes
@@ -80,12 +80,12 @@ curl https://api.voice-agents.miraiminds.co/v1/admin/assistant/list \
   -H "workspace: 6690a1b2c3d4e5f600000002"
 ```
 
-A few admin endpoints (organization archive/unarchive) additionally require an
-`admin` or `organization_admin` role, carried as a JWT bearer token.
+A few admin endpoints (organization archive/unarchive) also require an `admin`
+or `organization_admin` role, carried as a JWT bearer token.
 
-v1 pairs are issued with your account. For a new v2 key you do not need to ask
-anyone — create it in the [console](https://sandbox.voice.miraiminds.co) under
-**Developers**, and see [Migrating from v1](/v2/migration).
+v1 pairs are issued with your account. You can create a new v2 key yourself,
+without asking anyone, in the [console](https://sandbox.voice.miraiminds.co)
+under **Developers**. See [Migrating from v1](/v2/migration).
 
 <Danger>
 The `x-private-key` is a secret **and** the webhook signing key. Never put it in
@@ -124,7 +124,7 @@ Errors use a flat shape where `code` is a **number**:
 ```
 
 <Note>
-**Known inconsistencies — these are contract, not bugs to work around**
+**Known inconsistencies (part of the contract, not bugs)**
 
 - `POST /v2/call/initiate` returns **`200`**, while `POST /v2/call/web`,
   `POST /v1/number-pool/purchase`, `POST /v1/admin/tool/api` and
@@ -135,8 +135,8 @@ Errors use a flat shape where `code` is a **number**:
 - Some error bodies use `code`, some use `status_code`. Read the HTTP status
   first and the body second.
 
-Handle these explicitly rather than assuming a uniform envelope. [v2](/v2/overview) is
-uniform.
+v1 has no uniform envelope, so handle each of these explicitly. The
+[v2](/v2/overview) envelope is uniform.
 </Note>
 
 ## Status codes

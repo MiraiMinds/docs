@@ -19,7 +19,7 @@ value for every workspace-scoped call afterwards.
 POST /v2/workspace/onboard/custom
 ```
 
-The recommended path for every non-Shopify integration.
+This is the recommended path for every non-Shopify integration.
 
 | Field | Type | Required | Description |
 | :--- | :--- | :--- | :--- |
@@ -55,7 +55,7 @@ curl -X POST https://api.voice-agents.miraiminds.co/v2/workspace/onboard/custom 
 }
 ```
 
-Keep `data._id` — it is your `workspace` header from now on.
+Keep `data._id`. It is your `workspace` header from now on.
 
 <Tip>
 **Auto-assigned number**
@@ -76,8 +76,9 @@ List it through the [Telephony](/v1/telephony) APIs before buying another.
 POST /v2/workspace/onboard/shopify
 ```
 
-Shopify merchants only — creates the workspace and configures billing in one
-step. Returns `201` with `workspace`, `status` and a `billing` block:
+This endpoint is for Shopify merchants only. It creates the workspace and
+configures billing in one step, and returns `201` with `workspace`, `status` and
+a `billing` block:
 
 ```json title="201 Created"
 {
