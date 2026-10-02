@@ -30,6 +30,16 @@ copy.
   </Card>
 </CardGroup>
 
+### Transcription apps
+
+<CardGroup cols={2}>
+  <Card title="Transcript player for recorded calls" icon="file-audio" href="/cookbooks/transcript-player">
+    Upload a recorded call, read a draft within seconds, then listen along to
+    the finished transcript with speakers, correct it and export it as text,
+    subtitles or JSON.
+  </Card>
+</CardGroup>
+
 ## How every cookbook is laid out
 
 Each cookbook follows the same order, so you can jump to the part you need.
@@ -51,12 +61,12 @@ reference page is correct — tell us at [help@miraiminds.co](mailto:help@miraim
 
 Every cookbook assumes:
 
-- A workspace API key (`sk_live_…`) and its webhook secret (`whsec_…`). See the
-  [Quickstart](/v2/quickstart).
+- A workspace API key (`sk_live_…`), and its webhook secret (`whsec_…`) when
+  the recipe receives webhooks. See the [Quickstart](/v2/quickstart).
 - A backend that can keep the key secret. The key never goes to a browser or a
   mobile app.
-- An HTTPS endpoint for [webhooks](/v2/webhooks). While you build, a tunnel to
-  your laptop works.
+- An HTTPS endpoint for [webhooks](/v2/webhooks), when the recipe uses them.
+  While you build, a tunnel to your laptop works.
 
 Base URL in the examples: `https://sandbox.voice.miraiminds.co`. Use the API
 host your key was issued for.

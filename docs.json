@@ -65,6 +65,13 @@
             ]
           },
           {
+            "group": "Speech to text",
+            "pages": [
+              "v2/transcribe-recorded-calls",
+              "v2/transcriptions"
+            ]
+          },
+          {
             "group": "Money",
             "pages": [
               "general/tiers",
@@ -101,6 +108,12 @@
             "group": "WhatsApp voice apps",
             "pages": [
               "cookbooks/whatsapp-calling-for-partners"
+            ]
+          },
+          {
+            "group": "Transcription apps",
+            "pages": [
+              "cookbooks/transcript-player"
             ]
           }
         ]
