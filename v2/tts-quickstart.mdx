@@ -1,20 +1,20 @@
 ---
 title: "TTS quickstart"
-description: Key → curl → Hindi audio in two minutes, then the same endpoint inside your own orchestrator.
+description: Create a key and get Hindi audio from one curl request in two minutes, then call the same endpoint from your own orchestrator.
 ---
 
-The voice from our agents, as a standalone API. It speaks OpenAI's
-`POST /v1/audio/speech` protocol, so every OpenAI SDK and every framework
-with an OpenAI TTS integration already knows how to call it — you change a
-base URL and a model name, not your code.
+This is the voice our agents use, offered as a standalone API. It speaks
+OpenAI's `POST /v1/audio/speech` protocol, so every OpenAI SDK and every
+framework with an OpenAI TTS integration can already call it. You change the
+base URL and the model name, and the rest of your code stays as it is.
 
 ## 1. Get a key
 
 Sign in to the [console](https://sandbox.voice.miraiminds.co) with your access
 code, open **Developers**, and create an API key. It is a `sk_live_` secret,
-shown **once** — only its hash is stored, so a lost key is rotated, never
-recovered. The same key works for TTS and the rest of the
-[v2 API](/v2/overview), and draws on the same [wallet](/v2/wallet).
+and the console shows it only once. We store only its hash, so we cannot
+recover a lost key; you rotate it instead. The same key works for TTS and the
+rest of the [v2 API](/v2/overview), and draws on the same [wallet](/v2/wallet).
 
 ## 2. First audio
 
@@ -31,30 +31,30 @@ curl https://sandbox.voice.miraiminds.co/v1/audio/speech \
   --output speech.wav
 ```
 
-The response body **is** the audio — `--output` matters, because a terminal
-handed 300 KB of binary is a terminal you have to reset. Play `speech.wav`
-and you have completed the integration; everything below is refinement.
+The response body is the audio itself. Keep `--output`: without it, curl
+prints 300 KB of binary into your terminal and you have to reset it. If
+`speech.wav` plays, the integration works, and the sections below refine it.
 
-Two formats exist, and only two:
+There are exactly two formats:
 
 | `response_format` | You get |
 | :--- | :--- |
-| `wav` | A playable file — 48 kHz mono PCM16 with a header. |
-| `pcm` | The same samples, raw and **streamed** — first bytes arrive while the rest is still rendering. Use this in anything live. |
+| `wav` | A playable file: 48 kHz mono PCM16 with a header. |
+| `pcm` | The same samples, raw and streamed. The first bytes arrive while the rest is still rendering. Use this for anything live. |
 
-Anything else (including OpenAI's default `mp3`) is a 400 naming these two.
-Always send `response_format` explicitly.
+Any other value, including OpenAI's default `mp3`, returns a 400 that names
+these two. Always send `response_format` explicitly.
 
 <Note>
-**One model name.** `model` is `mira-tts`. `mira-tts-v51` — the old
-build-numbered name — is still accepted as an alias, so existing callers keep
-working. Anything else is a `404`.
+**One model name.** `model` is `mira-tts`. The old build-numbered name,
+`mira-tts-v51`, is still accepted as an alias, so existing callers keep
+working. Any other value returns a `404`.
 </Note>
 
-The same endpoint is mounted at **`POST /v2/tts`** for callers who would rather
-keep every URL under `/v2`. It is the same handler, and it accepts `text` as an
-alias of `input`. Nothing else differs: auth, fields, headers and billing are
-identical, so moving between the two changes the URL and nothing more.
+The same endpoint is also mounted at `POST /v2/tts` if you would rather keep
+every URL under `/v2`. It runs the same handler and also accepts `text` as an
+alias of `input`. Auth, fields, headers and billing are identical, so switching
+between the two changes only the URL.
 
 ## 3. Pick a voice
 
@@ -63,11 +63,12 @@ curl https://sandbox.voice.miraiminds.co/v2/voices \
   -H "Authorization: Bearer $MIRA_API_KEY"
 ```
 
-Currently `ashu`, `neha`, `shruti` and `sameer` — Hindi voices that code-switch
-through the English of real Indian speech. `neha` is the default if you omit
-`voice`. Each entry carries a `sampleAudio` URL; listen before you choose. An
-unknown voice is a 400 naming the allowed set, not a silent substitution.
-Gujarati is accepted in beta. Five more languages are on the way — see the
+The voices today are `ashu`, `neha`, `shruti` and `sameer`. All four are Hindi
+voices that code-switch into English the way real Indian speech does. `neha` is
+the default if you omit `voice`. Each entry has a `sampleAudio` URL, so you can
+listen before you choose. An unknown voice returns a 400 that names the allowed
+set; we never swap in another voice silently. Gujarati is accepted in beta, and
+five more languages are on the way. See the
 [language roadmap](/v2/tts-languages).
 
 ## 4. Stream it with the OpenAI SDK
@@ -92,8 +93,8 @@ with client.audio.speech.with_streaming_response.create(
 
 ## 5. Drop it into your orchestrator
 
-Frameworks with an OpenAI TTS integration need no custom code. pipecat, for
-example — the stock `OpenAITTSService` is the whole integration:
+Frameworks with an OpenAI TTS integration need no custom code. In pipecat, for
+example, the stock `OpenAITTSService` is the whole integration:
 
 ```python
 from pipecat.services.openai.tts import VALID_VOICES, OpenAITTSService
@@ -113,9 +114,10 @@ tts = OpenAITTSService(
 
 <Note>
 `sample_rate=48000` makes pipecat log "OpenAI TTS only supports 24000Hz" at
-startup. Cosmetic — our audio is 48 kHz native and the frames are tagged
-correctly. A complete ~100-line agent (browser mic → ASR → LLM → Mirai TTS)
-built this way is available on request — ask on your onboarding thread.
+startup. You can ignore it: our audio is natively 48 kHz and the frames are
+tagged correctly. A complete agent of about 100 lines built this way, taking
+browser mic audio through ASR and an LLM to Mirai TTS, is available on request.
+Ask for it on your onboarding thread.
 </Note>
 
 ## What comes back
@@ -125,14 +127,15 @@ pin a build without a second request:
 
 | Header | Meaning |
 | :--- | :--- |
-| `X-Request-Id` | `tts_…` — this request's id. It is the row in your [request log](#your-request-log) and the `reference` on the [ledger row](#billing). |
+| `X-Request-Id` | This request's id (`tts_…`). It identifies the row in your [request log](#your-request-log) and is the `reference` on the [ledger row](#billing). |
 | `X-Chars-Billed` | Characters counted for billing. |
 | `X-Cost-Paise` | What this request costs, in paise, once it completes. |
-| `X-Sample-Rate` | `48000`. Always. |
-| `X-Mira-Model` | The build that actually spoke, e.g. `miraiminds/mira-tts-v53`. Pin it when you are comparing quality across releases. |
+| `X-Sample-Rate` | Always `48000`. |
+| `X-Mira-Model` | The build that produced the audio, for example `miraiminds/mira-tts-v53`. Pin it when you compare quality across releases. |
 
-Every error after authentication carries `X-Request-Id` too, so a failure is as
-traceable as a success — quote it when you ask us about one.
+Every error after authentication also carries `X-Request-Id`, so you can trace
+a failure the same way as a success. Quote the id when you ask us about a
+failed request.
 
 ## Limits
 
@@ -140,16 +143,16 @@ traceable as a success — quote it when you ask us about one.
 | :--- | :--- | :--- |
 | Requests in flight | **10 per workspace** | `429 at_capacity` with a `Retry-After` header. |
 | `input` length | **2,000 characters** | `400 invalid_request`. Split longer text. |
-| Request rate | Per key — see [Limits](/v2/limits) | `429 rate_limited` with a `Retry-After` header. |
+| Request rate | Per key (see [Limits](/v2/limits)) | `429 rate_limited` with a `Retry-After` header. |
 
-The eleventh concurrent request is **refused, not queued**: honour
-`Retry-After` and send it again. A refused request holds no slot and moves no
-money. `at_capacity` can also come from a deployment-wide ceiling when the
-speech node is saturated — same code, same handling.
+We refuse the eleventh concurrent request instead of queueing it. Honour
+`Retry-After` and send it again. A refused request does not hold a slot and
+costs nothing. `at_capacity` can also come from a deployment-wide ceiling when
+the speech node is saturated. Handle it the same way.
 
-A workspace is provisioned at 10 in flight unless its plan says otherwise —
-see the plans under [Billing](#billing). Need more? Ask your Mirai contact; it
-is a provisioning change, not a code change.
+A workspace is provisioned at 10 in flight unless its plan says otherwise; see
+the plans under [Billing](#billing). If you need more, ask your Mirai contact.
+Raising the limit is a provisioning change and needs no change to your code.
 
 ## Billing
 
@@ -168,10 +171,10 @@ Shared endpoint. No contractual SLA. Monthly commitments are credited to your wa
 
 {/* pricing:tts:end */}
 
-Each request is rounded up to the paisa and charged **only for completed
-audio**. If the engine fails, the stream stalls, or your client disconnects
-part-way, nothing is charged and no ledger row is written — the request still
-appears in your log, with the status that says why.
+Each request is rounded up to the paisa, and we charge only for completed
+audio. If the engine fails, the stream stalls or your client disconnects
+part-way, nothing is charged and no ledger row is written. The request still
+appears in your log, with a status that says why.
 
 The charge is one debit row on the same [wallet](/v2/wallet) your calls draw
 from, and it appears on the console billing statement under **Text to speech**:
@@ -194,17 +197,17 @@ from, and it appears on the console billing statement under **Text to speech**:
 
 | Field | Meaning |
 | :--- | :--- |
-| `kind` | `tts` here, `call` on call rows. **Classify on this**, never by reading `description`. |
+| `kind` | `tts` here, `call` on call rows. Classify rows by this field, never by reading `description`. |
 | `reference` | The `X-Request-Id` of the request that produced the audio. |
-| `quantity` | Characters billed — the same number as `X-Chars-Billed`. |
+| `quantity` | Characters billed. This is the same number as `X-Chars-Billed`. |
 
-A wallet that cannot cover the request is a `402` **before** anything is
+If your wallet cannot cover the request, you get a `402` before anything is
 synthesised. See [Wallet](/v2/wallet#list-transactions).
 
 ## Your request log
 
-Every request is logged — completed, failed or rejected — and the log is yours
-to read.
+We log every request, whether it completed, failed or was rejected, and you can
+read the log yourself.
 
 ```bash
 curl "https://sandbox.voice.miraiminds.co/v2/tts/requests?limit=50" \
@@ -231,7 +234,7 @@ curl "https://sandbox.voice.miraiminds.co/v2/tts/requests?limit=50" \
 }
 ```
 
-Rows come newest first, only ever your own workspace's:
+Rows come newest first, and only from your own workspace:
 
 | Query | Meaning |
 | :--- | :--- |
@@ -241,15 +244,15 @@ Rows come newest first, only ever your own workspace's:
 | `status` | `completed`, `failed`, `truncated` or `rejected`. |
 | `source` | `api` or `playground`. |
 
-`GET /v2/tts/requests/{id}` returns a single row — the id is the
+`GET /v2/tts/requests/{id}` returns a single row. The id is the
 `X-Request-Id` you got back from the request.
 
 | Field | Meaning |
 | :--- | :--- |
-| `status` | `completed` (audio relayed in full), `failed` (nothing usable), `truncated` (the stream stopped part-way), `rejected` (refused before synthesis — a bad field, no balance, no slot). |
-| `source` | `api` for a request made with your key. `playground` for a synth from the console's **Hear it** button — logged like any other, never charged, so `cost_inr` is `0`. |
+| `status` | `completed` (audio relayed in full), `failed` (nothing usable), `truncated` (the stream stopped part-way), `rejected` (refused before synthesis because of a bad field, no balance or no free slot). |
+| `source` | `api` for a request made with your key. `playground` for audio from the console's **Hear it** button. Playground requests are logged like any other but never charged, so `cost_inr` is `0`. |
 | `cost_inr` | What it cost. `0` unless `completed`. |
-| `first_byte_ms` | Time to the first audio byte — the number that matters in a live pipeline. |
+| `first_byte_ms` | Time to the first audio byte. In a live pipeline, this is the number to watch. |
 | `total_ms`, `bytes` | Wall time and audio size for the whole request. |
 | `error_code` | The `error.code` that was returned, or `null`. |
 
@@ -259,7 +262,7 @@ Rows come newest first, only ever your own workspace's:
 </Note>
 
 The same table is in the console under **TTS → Requests**, if you would rather
-look than poll.
+check it there than poll the API.
 
 ## When something fails
 
@@ -270,9 +273,9 @@ look than poll.
 | 402 | `insufficient_balance` | The wallet cannot cover this request. Nothing was synthesised and nothing was charged. |
 | 404 | `model_not_found` | `model` is neither `mira-tts` nor the `mira-tts-v51` alias. |
 | 429 | `at_capacity` | You already have 10 requests in flight, or the deployment is saturated. Honour `Retry-After`. |
-| 429 | `rate_limited` | Per-key request rate. Honour `Retry-After` — see [Limits](/v2/limits). |
+| 429 | `rate_limited` | Per-key request rate. Honour `Retry-After`, and see [Limits](/v2/limits). |
 | 502 | `upstream_error` | The engine refused, returned no audio, or the stream stalled past its timeout. Nothing was charged; the message says which. Retry. |
 
-Errors use the same envelope as the rest of the API — see
-[Errors](/v2/errors). Stuck on something this page does not cover? Reply on
-your onboarding thread — a human reads it.
+Errors use the same envelope as the rest of the API. See
+[Errors](/v2/errors). If you are stuck on something this page does not cover,
+reply on your onboarding thread, where a person reads it.

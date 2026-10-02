@@ -1,6 +1,6 @@
 ---
 title: The Zen of Voice Agents
-description: Nineteen lines on writing for the ear, in the tradition of the Zen of Python. Read them before you write a prompt.
+description: Nineteen short rules for writing prompts that are spoken aloud, modelled on the Zen of Python. Read them before you write a prompt.
 ---
 
 Every rule in the [prompting guide](/v2/prompting-guide) started as a phone
@@ -35,82 +35,85 @@ Hinglish is one honking great idea — let's do more of that.
 ## Each line, in one breath
 
 **Spoken is better than written.** The caller cannot scroll, skim or re-read.
-Whatever you write is heard once, at talking speed, on a phone. Write what a
-person would say, not what a page would show.
+They hear whatever you write once, at talking speed, on a phone, so write it the
+way a person would say it.
 
-**Short is better than complete.** A reply is the thing the caller waits
-through. One short sentence, two at most; the rest can wait for the next turn.
+**Short is better than complete.** The caller has to wait through every reply.
+Keep a reply to one short sentence, two at most, and leave the rest for the
+next turn.
 
 **One question is better than two.** Ask two things and the caller answers
-neither. One ask, then stop and listen.
+neither. Ask one thing, then stop and listen.
 
 **The first word matters more than the last paragraph.** The opening line is
-spoken before the model even runs — it is your first-audio latency and your
-first impression. Name, brand, person check, done. And a lead word at the top
-of every reply ("जी।", "अच्छा—", "ठीक है।") starts the voice sooner and sounds
-like someone who was listening.
+spoken before the model even runs, so it sets your first-audio latency and makes
+your first impression. Keep it to a name, the brand and a check that you have
+the right person. A lead word at the top of every reply ("जी।", "अच्छा—",
+"ठीक है।") also starts the voice sooner and sounds like someone who was
+listening.
 
-**Silence is a bug. So is a monologue.** Dead air makes people hang up; a
-lecture makes them stop listening. Both are fixed by the same thing: short
-turns that keep moving.
+**Silence is a bug. So is a monologue.** Dead air makes people hang up, and a
+lecture makes them stop listening. Short turns that keep moving fix both.
 
-**Numbers are words. Identifiers are digits, one at a time.** "five thousand
-two hundred rupees", never ₹5,200. A pincode is "three nine five zero zero
-seven", and it has six digits — if the agent heard three, the recogniser dropped
-some, and the agent should say so.
+**Numbers are words. Identifiers are digits, one at a time.** Write amounts as
+"five thousand two hundred rupees", never ₹5,200. A pincode is "three nine five
+zero zero seven", and it has six digits. If the agent heard only three, the
+recogniser dropped some, and the agent should say so.
 
-**Read back what changed, not what was already agreed.** Confirmation by
-exception. One consolidated read-back at the end, not a receipt after every
+**Read back what changed, not what was already agreed.** Confirm by exception:
+give one consolidated read-back at the end instead of a receipt after every
 turn.
 
-**When a digit is unclear, ask again. Never guess.** A wrong address is a failed
-delivery; a wrong phone number is a lost customer. "सिर्फ pincode दोबारा बोलिए"
-costs three seconds.
+**When a digit is unclear, ask again. Never guess.** A wrong address means a
+failed delivery, and a wrong phone number means a lost customer. Asking
+"सिर्फ pincode दोबारा बोलिए" costs three seconds.
 
 **Write in the language you will speak.** A Hindi call driven by an English
-prompt code-switches badly. Hindi words in Devanagari, everyday English words in
-Roman, and no romanized Hindi anywhere.
+prompt code-switches badly. Write Hindi words in Devanagari and everyday English
+words in Roman, and use no romanized Hindi anywhere.
 
-**Facts live in the prompt. The customer lives in the variables.** The prompt is
-what the agent may say about the business. Names, amounts, dates and order IDs
-arrive per call, already in spoken form. One agent, thousands of calls.
+**Facts live in the prompt. The customer lives in the variables.** The prompt
+holds what the agent may say about the business. Names, amounts, dates and order
+IDs arrive with each call, already in spoken form, so one agent can make
+thousands of calls.
 
-**What the prompt leaves out, the model will make up.** Unstated policy gets
-invented; an unlisted price gets quoted. Write the facts, and write what to say
-when the answer is not in them: "आपको team से call आएगा."
+**What the prompt leaves out, the model will make up.** The model invents any
+policy you did not state and quotes prices you did not list. Write the facts
+down, and also write what the agent should say when the answer is not in them:
+"आपको team से call आएगा."
 
 **The caller may interrupt. The agent may not.** The engine lets the caller cut
-in, and the agent stops. When they are dictating an address, the agent's whole
-job is "जी", "हम्म" — and one read-back when they are done.
+in, and the agent stops. While a caller dictates an address, the agent should
+only say "जी" or "हम्म", then give one read-back when they are done.
 
-**No is an answer. Nudge once, then accept it.** One light nudge is persuasion;
-a second is harassment. Capture the refusal as an outcome and close warmly. The
-engine enforces this ending — the prompt has to want it too.
+**No is an answer. Nudge once, then accept it.** One light nudge is persuasion,
+and a second is harassment. Capture the refusal as an outcome and close warmly.
+The engine enforces this ending, but the prompt should ask for it as well.
 
 **Never promise what the agent cannot do.** Today the agent can talk, and it can
 end the call. It cannot transfer, send a link, or book anything in your system.
-"The team will call you back" is the honest line.
+The honest line is "The team will call you back".
 
-**Thank them once.** In the goodbye, nowhere else. Models over-thank, and a
-धन्यवाद in every turn sounds like a machine.
+**Thank them once.** Thank the caller in the goodbye and nowhere else. Models
+over-thank, and a धन्यवाद in every turn sounds like a machine.
 
-**Every turn moves the call forward.** No turn is only an acknowledgement. "जी,
-order confirm हो गया — अब address एक बार check कर लेते हैं" is one utterance,
-and it advances the call.
+**Every turn moves the call forward.** No turn should only acknowledge. "जी,
+order confirm हो गया — अब address एक बार check कर लेते हैं" acknowledges and
+advances the call in one utterance.
 
 **The ending is part of the call.** Write the success ending explicitly:
-summarise in one line, say goodbye, end the call. Without it the model keeps
+summarise in one line, say goodbye, end the call. Without it, the model keeps
 talking until the timeout, and the caller sits through the awkwardness.
 
-**Three real calls beat thirty imagined ones.** Call yourself. Say no, correct a
-digit, ask something off-script, go quiet. Read the transcript, change one
-thing, call again. A phone line is a different acoustic world from a browser
-mic.
+**Three real calls beat thirty imagined ones.** Place test calls to your own
+phone. Say no, correct a digit, ask something off-script and go quiet. Then read
+the transcript, change one thing and call again. A phone line sounds very
+different from a browser mic.
 
-**Hinglish is one honking great idea — let's do more of that.** Real calls are
-not Hindi or English; they are "payment कब तक हो जाएगा", with the Hindi in
-Devanagari and the English in Roman. Write the way people already talk, and the
-agent sounds like one of them.
+**Hinglish is one honking great idea — let's do more of that.** Real calls mix
+the two languages, as in "payment कब तक हो जाएगा", with the Hindi in Devanagari
+and the English in Roman. If you write the way people already talk, the agent
+sounds like one of them.
 
 ---
 
@@ -118,6 +121,6 @@ The long version, with the structure, the number tables and the test loop, is
 the [prompting guide](/v2/prompting-guide).
 
 <Note>
-After Tim Peters, *The Zen of Python* (PEP 20). Python got nineteen lines and
-an unwritten twentieth; so did we.
+After Tim Peters, *The Zen of Python* (PEP 20). Like Python's list, this one
+has nineteen lines and leaves a twentieth unwritten.
 </Note>
