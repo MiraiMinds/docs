@@ -1,25 +1,26 @@
 ---
 title: Browser calls
-description: Run a voice conversation in your user's browser — create it on your server, stream audio and live text in the page, steer or close it, and receive the final transcript.
+description: Run a voice conversation in your user's browser. You create the call on your server, stream audio and live text in the page, steer or close the call, and receive the final transcript.
 ---
 
 
 A **browser call** runs an [agent](/v2/agents) with your user's microphone and
-speakers instead of a phone line. It is the same call as a phone call — same
-agent, same [tier](/general/tiers), same billing from the moment audio goes live,
-same [webhooks](/v2/webhooks) — created with `channel: "web"` and no `to`.
+speakers instead of a phone line. Otherwise it is the same as a phone call: it
+uses the same agent, [tier](/general/tiers) and [webhooks](/v2/webhooks), and it
+is billed the same way from the moment audio goes live. You create it with
+`channel: "web"` and no `to`.
 
 Your backend keeps the API key. It creates the call and hands the page two
-short-lived links: one for audio, one for live events. The page never sees a
-secret key.
+short-lived links, one for audio and one for live events. The page never sees
+a secret key.
 
 <Tip>
-Building a timed, spoken session such as an interview? The
+If you are building a timed, spoken session such as an interview, the
 [timed voice interviews cookbook](/cookbooks/browser-voice-interviews) puts
 this page together end to end, with a backend, a page and scoring.
 </Tip>
 
-Base URL `https://sandbox.voice.miraiminds.co`. API requests use
+The base URL is `https://sandbox.voice.miraiminds.co`. API requests use
 `Authorization: Bearer sk_live_…`.
 
 ## How it fits together
@@ -34,7 +35,7 @@ Base URL `https://sandbox.voice.miraiminds.co`. API requests use
 4. While the call runs, the page shows each turn and the agent's state. Your
    backend can [send an instruction or close the call](#live-control).
 5. The call ends. The page receives `call.ended` on the event stream. Your
-   webhook receives one terminal event, then — if you opted in —
+   webhook receives one terminal event and then, if you opted in,
    `call.processed` with the [final transcript](#ending-and-results).
 
 ```mermaid
@@ -70,8 +71,8 @@ POST /v2/calls
 
 Create the call from your backend, with the same request as a
 [phone call](/v2/calls#create-a-call), plus `channel: "web"` and without `to`.
-Sending `to` with `channel: "web"` returns `400 invalid_request`: no number is
-ever dialled.
+Sending `to` with `channel: "web"` returns `400 invalid_request`, because no
+number is ever dialled.
 
 The fields below matter most for browser calls. The full list, with limits,
 is in [Calls](/v2/calls#request).
@@ -214,8 +215,8 @@ never creates a second call.
 | `ws_url_expires_at` | When an unused `ws_url` stops working. RFC 3339, UTC. |
 | `events_url` | The [live event stream](#live-events). Reusable for the whole call and for one hour after it ends. |
 
-Both URLs are absolute and ready to use. Pass them to the page as they are —
-do not build them yourself.
+Both URLs are absolute and ready to use. Pass them to the page as they are,
+and do not build them yourself.
 
 <Warning>
 **The two links are credentials for this one call.** Anyone holding `ws_url`
@@ -224,7 +225,7 @@ Send them only to the page running this call, over HTTPS, and keep them out of
 logs and analytics. Never send your `sk_live_` key to a browser.
 </Warning>
 
-What happens around the links:
+How the links behave in these cases:
 
 - **The page never connects.** If no audio connects before `ws_url` expires,
   the call ends as `failed` with `ended_reason: "no-media"` and is not billed.
@@ -242,7 +243,7 @@ both directions; the server also sends one kind of text message.
 
 | Direction | Message | Content |
 | :--- | :--- | :--- |
-| Browser → Mirai | Binary | Microphone audio: raw PCM, 16-bit signed little-endian, mono, **48,000 Hz**. No header, no container. |
+| Browser → Mirai | Binary | Microphone audio: raw PCM, 16-bit signed little-endian, mono, **48,000 Hz**, with no header or container. |
 | Mirai → browser | Binary | The agent's audio, in the same format: PCM16, mono, 48,000 Hz. Play it in the order it arrives. |
 | Mirai → browser | Text `{"event":"clear"}` | The user interrupted the agent. Discard all agent audio you have queued but not yet played. |
 
@@ -463,7 +464,7 @@ asks your backend.
 | Field | Required | Description |
 | :--- | :--- | :--- |
 | `type` | yes | `instruction` or `close`. |
-| `text` | `instruction` only | 1–1,000 characters. The direction to give the agent. |
+| `text` | `instruction` only | 1 to 1,000 characters. The direction to give the agent. |
 | `message` | no | `close` only, up to 500 characters. The goodbye line to speak. |
 
 - **`instruction`** adds your text to the agent's context. The agent follows it
@@ -576,7 +577,7 @@ the agent say goodbye twice.
 
 ### Close or abort
 
-Both end a live browser call. They are different tools.
+Both end a live browser call, but they behave differently.
 
 | | `close` control | [`POST /v2/calls/{id}/abort`](/v2/calls#abort-a-call) |
 | :--- | :--- | :--- |
@@ -639,9 +640,10 @@ Invalid timing returns `400 invalid_request`.
 
 ## Browser example
 
-A complete page: microphone capture with an AudioWorklet, PCM16 over the audio
-socket, playback with interruption, and a live transcript for both speakers. It
-assumes the backend routes in the [next section](#backend-example).
+This is a complete page. It captures the microphone with an AudioWorklet, sends
+PCM16 over the audio socket, plays the agent's audio with support for
+interruption, and shows a live transcript for both speakers. It assumes the
+backend routes in the [next section](#backend-example).
 
 ```html title="index.html"
 <!doctype html>
@@ -802,7 +804,7 @@ Notes on the sample:
   `AudioContext` for you. If one does not, capture at the device's rate and
   resample to 48,000 Hz before sending.
 - **Playback smoothing.** The speaker worklet plays audio as soon as it arrives.
-  On unreliable networks, buffer 100–200 ms before starting each reply.
+  On unreliable networks, buffer 100 to 200 ms before starting each reply.
 
 ### Microphone capture
 
@@ -824,9 +826,10 @@ above first. Then adjust the agent's [Behavior](/v2/agents#behavior): raise
 
 ## Backend example
 
-Three routes in Node.js with Express: start a session, end it gracefully, and
-receive webhooks. `db`, `queue`, `requireUser`, `verifySignature` and
-`alreadyProcessed` stand in for your own code. The last two are on the
+This server has three routes, written in Node.js with Express. One starts a
+session, one ends it gracefully, and one receives webhooks. `db`, `queue`,
+`requireUser`, `verifySignature` and `alreadyProcessed` stand in for your own
+code. The last two are on the
 [webhooks page](/v2/webhooks#signature-verification).
 
 ```javascript title="server.js"
@@ -930,16 +933,16 @@ app.listen(3000);
 A browser call sends the same [webhooks](/v2/webhooks) as a phone call, in this
 order:
 
-1. `call.queued` — only if enabled for your workspace.
-2. `call.started` — the page connected its audio.
+1. `call.queued`, only if it is enabled for your workspace.
+2. `call.started`, when the page connects its audio.
 3. Exactly one terminal event:
-   - `call.completed` — the conversation finished: the user left, the agent
-     ended it, or a `close`, timed close or silence close ended it.
-   - `call.failed` — it never connected (`status: failed`,
+   - `call.completed`: the conversation finished because the user left, the
+     agent ended it, or a `close`, timed close or silence close ended it.
+   - `call.failed`: the call never connected (`status: failed`,
      `ended_reason: "no-media"`, not billed), it hit the hard cap
      (`status: timeout`, billed), or it failed on our side (not billed).
-   - `call.aborted` — you called [`POST /abort`](/v2/calls#abort-a-call).
-4. `call.processed` — when you set `final_results: true` (or the agent has
+   - `call.aborted`: you called [`POST /abort`](/v2/calls#abort-a-call).
+4. `call.processed`, when you set `final_results: true` (or the agent has
    analysis or post-call tools). With `final_results`, it carries the finished
    transcript.
 
@@ -950,8 +953,8 @@ Which event to act on:
 | Mark the session as over | Any terminal event: `call.completed`, `call.failed` or `call.aborted`. In the page, `call.ended` on the event stream. |
 | Process the transcript | `call.processed` with `final_results: true`. Read [`data.transcript`](/v2/webhooks#final-results). |
 
-`call.processed` is not the "session over" signal. It arrives after the
-terminal event: the transcript settles within about 2 minutes of the call
+Do not treat `call.processed` as the "session over" signal. It arrives after
+the terminal event: the transcript settles within about 2 minutes of the call
 ending, plus the time analysis and post-call tools take when the agent has them.
 Mark the session over on the terminal event, and start your transcript
 processing on `call.processed`.
@@ -976,7 +979,7 @@ extracted value. It waits up to 2 minutes for that outcome. See
 {/* /FLOW-OUTCOME */}
 
 Deliveries are at least once, and order is not guaranteed. Deduplicate on the
-event `id` — retries keep it — and order your own state by `data.call.status`,
+event `id`, which retries keep, and order your own state by `data.call.status`,
 not by arrival. `data.call.metadata` carries your `session_id` on every event,
 so you can match an event even before your own create request has finished
 writing the call ID.
