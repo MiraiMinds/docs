@@ -26,13 +26,20 @@ priced separately. See
 
 ## How it works
 
-Two speech recognition passes listen to the whole recording. A language model
-then compares them and writes one transcript, using any context and vocabulary
-you sent to settle names and terms. Speaker separation listens to the voices
-themselves to work out who spoke when, and gives each voice its own ID.
+Speaker separation, which is on unless you send `diarize: false`, listens to
+the voices first to work out who spoke when. It also finds the parts of the
+recording that aren't speech: ringing, ring-back and dial tones, a caller tune
+before the call is picked up, or hold music. Those parts are silenced before
+anything is transcribed, so they don't come back as stray words or as an extra
+speaker. Recorded announcements, such as an IVR menu, are speech, so they are
+still transcribed.
 
-While the language model works, the job carries a draft: the stronger of the
-two passes, with timestamps and no speakers. In the draft, English is often
+Several speech recognition passes then listen to the recording. A language
+model compares them and writes one transcript, using any context and vocabulary
+you sent to settle names and terms.
+
+While the language model works, the job carries a draft: the strongest single
+pass, with timestamps and no speakers. In the draft, English is often
 written out in Devanagari. The finished transcript writes Hindi in Devanagari
 and English in Latin script, the way the speakers switched between them.
 Common English loanwords can stay in Devanagari. Nothing is translated.
@@ -119,14 +126,25 @@ A finished job has one segment for each turn:
 
 `start` and `end` are seconds from the start of the recording.
 
-`speaker_id` is the voice: `spk0`, `spk1` and so on, numbered in the order the
-voices first speak. Group lines by it.
+`speaker_id` is the person: `spk0`, `spk1` and so on. On a phone call, each
+person gets one ID. When the roles are known, the agent is `spk0` and the
+customer `spk1`, and any other voice comes after them. Group lines by
+`speaker_id`.
 
-`speaker` is a role, `Agent`, `Customer` or `Other`, worked out from what each
-voice says. It is a best guess and can be wrong, so show it as a first label
-that a person can change. It is empty when the role could not be told.
-`diarization.speakers` lists each voice once, with its role and how many
-seconds it talked.
+`speaker` is that person's role: `Agent`, `Customer` or `Other`. Every segment
+with the same `speaker_id` has the same role. The role is worked out from what
+each person says and can be wrong, so show it as a first label that someone can
+change. It is empty when the role could not be told. `diarization.speakers`
+lists each speaker once, with its role and how many seconds it talked.
+
+A third voice, such as a second person in the room or a recorded announcement,
+keeps its own ID, and its role is usually `Other`. On phone recordings, that
+applies to a voice that talks for about ten seconds or more in all. A shorter
+extra voice is merged into the main speaker it sounds closest to.
+
+`diarization.non_speech` lists the parts that were left out because they
+weren't speech, each as a `start` and `end` in seconds. It is absent when
+nothing was left out, or when you sent `diarize: false`.
 
 Send `words: true` for the time of every word. Word timings are added when they
 line up with the audio, which today means Hindi recordings; Gujarati and
@@ -141,6 +159,11 @@ defaults to `auto`, which detects the main language of the call. You can set it
 to `hi`, `gu`, `en`, `mr`, `pa`, `bn` or `ur` when you know the main language
 and detection gets it wrong. Speech in another language inside the call is kept
 as it was spoken.
+
+When a call is mostly in English with some Hindi, or mostly Hindi with some
+English, the parts in the less-used language can come back less accurate than
+the rest. A Hindi greeting at the start of an English call is a common case.
+`context` and `vocabulary` help with the names and terms in those parts.
 
 ## Getting names and terms right
 
@@ -184,11 +207,18 @@ recordings and minutes of audio.
 
 ### Degraded jobs
 
-When the language model step is unavailable, the job still completes with the
-stronger recognition pass and `degraded: true`. The words are there with their
-timestamps, but there are no roles and the text has had less clean-up. Speaker
-IDs can still be present. A degraded job is not charged. If you need the roles,
-send the recording again; the new job is charged when it completes in full.
+When the language model step can't write the transcript, the job still
+completes with the strongest single recognition pass and `degraded: true`. The
+words are there with their timestamps, but the text has had less clean-up and
+reads like the draft, with English often in Devanagari. Speaker IDs are usually
+still there, while roles can be missing or less reliable. A degraded job is not
+charged. If you need the full transcript, send the recording again; the new job
+is charged when it completes in full.
+
+A recording longer than about three minutes is written in parts. If the
+language model step fails for some parts but not all, those parts fall back to
+the single pass and the rest is written as usual. That job is not marked
+`degraded`, and it is charged.
 
 ## Limits
 
@@ -239,8 +269,10 @@ mobile app.
 | The job fails with `transcription_failed` | The file is not audio, is damaged, or has no speech. | Check that it plays. WAV and MP3 work everywhere. |
 | The job fails with `engine_restarted`, `job_lost`, `timed_out` or `submit_interrupted` | Something went wrong on our side. | Send the recording again. The failed job is free. |
 | Names and brands are misspelled | No `vocabulary` or `context` was sent. | Add the names to `vocabulary`, and a line of `context`. |
-| Roles are swapped, or two voices share a role | Roles are a best guess. | Group lines by `speaker_id` and let a person rename speakers. |
+| Agent and Customer are the wrong way round | Roles are worked out from what each person says, and can be wrong. | Group lines by `speaker_id` and let a person rename speakers. |
 | One person appears as two speaker IDs, or two people as one | Speaker separation can split or merge voices on poor audio, crosstalk or similar voices. | Merge or reassign speakers in your review screen. The console player can do both. |
+| A brief third voice, such as a short announcement, is shown as the agent or the customer | On phone recordings, an extra voice that talks for less than about ten seconds is merged into the closest main speaker. | Move those lines to another speaker in your review screen. |
+| The first segment starts several seconds into the recording | The recording opens with ringing or a caller tune, which is left out. | Nothing to fix. Its times are in `diarization.non_speech`. |
 | No `words` on segments | `words` was not sent, `diarize` was `false`, or the recording is not in Hindi. | Send `words: true` with speaker separation on. |
 | `completed`, but no `text` | The transcript is no longer kept. | Save transcripts when they complete. |
 
