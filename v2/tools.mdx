@@ -20,11 +20,11 @@ Pre-call and post-call tools run in the order you list them. On-call tools use
 `description` and `when` to tell the voice agent when to invoke them.
 
 <Note>
-**Node-based agents take pre-call and post-call tools only.** A
-[node-based agent](/v2/node-agents)'s transitions are the only functions its
-model is offered, so an enabled `on_call` tool on one is refused with
-`400 invalid_flow` at `tools[i]`. Remove it or set `enabled: false`. This
-includes the on-call **End call** tool: a flow ends at its end nodes.
+[Node-based agents](/v2/node-agents) support all three tool phases. A start or
+conversation node offers only the on-call tools named in its `data.tools`,
+alongside its transitions. Define those tools on the agent first, or save the
+definitions and graph together. Keep **End call** disabled or absent: a flow
+ends at its end nodes. See the [Node.js editor cookbook](/cookbooks/node-flow-builder).
 </Note>
 
 ## Configure tools in Agent Studio
@@ -717,8 +717,9 @@ differs from the API's usual error envelope:
 ```
 
 `error` can also be `tool_unavailable` or `tool_style_unsupported`. Fix the
-listed fields before retrying. On a node-based agent, an enabled `on_call` tool
-is reported in the same shape with `error: "invalid_flow"`; see
+listed fields before retrying. On a node-based agent, invalid node tool
+references or an enabled `end_call` tool use the same shape with
+`error: "invalid_flow"`; see
 [node-based agent errors](/v2/node-agents#errors). Ordinary authentication, lookup, and conflict
 errors keep the [standard error shape](/v2/errors).
 

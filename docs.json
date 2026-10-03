@@ -99,6 +99,12 @@
             ]
           },
           {
+            "group": "Agent builders",
+            "pages": [
+              "cookbooks/node-flow-builder"
+            ]
+          },
+          {
             "group": "Browser voice apps",
             "pages": [
               "cookbooks/browser-voice-interviews"

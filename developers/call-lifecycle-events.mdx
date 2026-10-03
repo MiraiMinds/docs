@@ -269,7 +269,7 @@ and action machinery did not carry over, and the analysis is not built yet.
 
 **`metadata` works differently.** v1 echoes your object back on every event. v2
 hands you the `call_id` in the `202` response to
-[`POST /v2/calls`](/v2/calls#place-a-call) — store that against your own record
+[`POST /v2/calls`](/v2/calls#create-a-call) — store that against your own record
 before the first event can arrive, and correlate on it. `variables` you pass at
 create are used in the prompt; they do not come back on the event.
 
