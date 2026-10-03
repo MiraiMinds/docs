@@ -8,8 +8,9 @@ Mirai Voice is **prepaid**. Every workspace has one INR wallet. Calls debit it
 when they end, [text-to-speech](/v2/tts-quickstart) requests debit it when they
 complete, [AI flow drafts](/v2/node-agents#what-a-draft-costs) and
 [recording transcriptions](/v2/node-agents#what-transcription-costs) debit it
-when they finish, and top-ups credit it. If the wallet cannot cover a
-minute, `POST /v2/calls` returns [`402`](#402-insufficient-balance) and no call
+when they finish, [offline transcriptions](/v2/transcribe-recorded-calls#pricing)
+debit it when a job completes, and top-ups credit it. If the wallet cannot
+cover a minute, `POST /v2/calls` returns [`402`](#402-insufficient-balance) and no call
 is placed.
 
 For rates and how call time is counted — 10-second blocks, rounded up — see
@@ -173,9 +174,9 @@ The ledger. One row per credit or debit, newest first.
 | `amount_inr` | number | Always positive; read `type` for direction. |
 | `balance_after_inr` | number | Balance immediately after this row. |
 | `call_id` | string \| null | Set on call debits, `null` on top-ups and adjustments. |
-| `kind` | string | The transaction category: `call`, `tts`, `flow_generation`, `number_rental`, `promotion` or `monthly_minimum`. **Branch on this**, never on `description`, and tolerate new categories. |
-| `reference` | string | The id of the thing billed: the `tts_…` request id on a `tts` row; the `fgen_…` generation id, or the `ftr_…` transcription id, on a `flow_generation` row. |
-| `quantity` | number | How much was billed: characters on a `tts` row, tokens (input plus output) on a `flow_generation` row. |
+| `kind` | string | The transaction category: `call`, `tts`, `flow_generation`, `transcription`, `number_rental`, `promotion` or `monthly_minimum`. **Branch on this**, never on `description`, and tolerate new categories. |
+| `reference` | string | The id of the thing billed: the `tts_…` request id on a `tts` row; the `fgen_…` generation id, or the `ftr_…` transcription id, on a `flow_generation` row; the `trn_…` job id on a `transcription` row. |
+| `quantity` | number | How much was billed: characters on a `tts` row, tokens (input plus output) on a `flow_generation` row, seconds of audio (rounded up) on a `transcription` row. |
 | `description` | string | Human-readable. Do not parse it. |
 | `promotional_inr` | number | Promotional credit granted on a `promotion` row, or the portion of a debit paid with promotional credit. Omitted when zero. Promotional credit does not count towards a monthly minimum. |
 | `pricing` | object | The rates snapshotted when the call was admitted: voice AI, optional T1 insights, and any managed provider rate and billing block. Absent on historical rows. |
@@ -272,6 +273,32 @@ recording in which no conversation was heard is charged the same way, and its
 description says so, for example
 `Recording transcription · gemini-3.8-flash · failed · 12s · 410 in / 96 out tokens`.
 Tell a transcription from a draft by its `reference` prefix, `ftr_` or `fgen_`.
+
+### An offline transcription row
+
+Each completed [offline transcription](/v2/transcribe-recorded-calls#pricing)
+is one debit with `kind: "transcription"`, at ₹18 per hour of audio. Degraded
+and failed jobs write no row.
+
+```json
+{
+  "id": "txn_01M3XRSP44KR3116AZ578NC2F1",
+  "object": "wallet_transaction",
+  "type": "debit",
+  "amount_inr": 0.12,
+  "balance_after_inr": 8762.06,
+  "call_id": null,
+  "kind": "transcription",
+  "reference": "trn_01M3XRSFXW77RHEQ85979AJXAF",
+  "quantity": 24,
+  "description": "Transcription · 23s of audio · mira-transcribe-offline-1",
+  "created_at": "2026-10-02T07:38:26Z"
+}
+```
+
+`reference` is the job's `id`, and `quantity` is the billed length in whole
+seconds, rounded up. These rows are separate from the recording transcriptions
+above, which turn calls into a flow and are billed as `flow_generation`.
 
 ## Top up
 
