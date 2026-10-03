@@ -65,10 +65,11 @@ curl https://sandbox.voice.miraiminds.co/v2/voices \
 
 The voices today are `ashu`, `neha`, `shruti` and `sameer`. All four are Hindi
 voices that code-switch into English the way real Indian speech does. `neha` is
-the default if you omit `voice`. Each entry has a `sampleAudio` URL, so you can
-listen before you choose. An unknown voice returns a 400 that names the allowed
-set; we never swap in another voice silently. Gujarati is accepted in beta, and
-five more languages are on the way. See the
+the default if you omit `voice`. Each entry gives the `voice_id`, the voice's
+name and its language. To hear a voice before you choose, use the voice picker
+in the console's Agent Studio. An unknown voice returns a 400 that names the
+allowed set; we never swap in another voice silently. Gujarati is accepted in
+beta, and five more languages are on the way. See the
 [language roadmap](/v2/tts-languages).
 
 ## 4. Stream it with the OpenAI SDK
@@ -141,18 +142,20 @@ failed request.
 
 | Limit | Default | Over the limit |
 | :--- | :--- | :--- |
-| Requests in flight | **10 per workspace** | `429 at_capacity` with a `Retry-After` header. |
+| Requests in flight | Your workspace's limit, **10** unless it has been set otherwise | `429 at_capacity` with a `Retry-After` header. |
 | `input` length | **2,000 characters** | `400 invalid_request`. Split longer text. |
 | Request rate | Per key (see [Limits](/v2/limits)) | `429 rate_limited` with a `Retry-After` header. |
 
-We refuse the eleventh concurrent request instead of queueing it. Honour
+We refuse a request over the limit instead of queueing it. Honour
 `Retry-After` and send it again. A refused request does not hold a slot and
 costs nothing. `at_capacity` can also come from a deployment-wide ceiling when
 the speech node is saturated. Handle it the same way.
 
-A workspace is provisioned at 10 in flight unless its plan says otherwise; see
-the plans under [Billing](#billing). If you need more, ask your Mirai contact.
-Raising the limit is a provisioning change and needs no change to your code.
+The limit is set per workspace, and a workspace starts at 10. The plans under
+[Billing](#billing) list the concurrency each plan includes. If your
+workspace's limit doesn't match your plan, or you need more, ask your Mirai
+contact. Changing the limit is a provisioning change and needs no change to
+your code.
 
 ## Billing
 
@@ -272,7 +275,7 @@ check it there than poll the API.
 | 401 | `unauthorized` | Missing or unknown key. Check the `Authorization: Bearer sk_live_…` header. |
 | 402 | `insufficient_balance` | The wallet cannot cover this request. Nothing was synthesised and nothing was charged. |
 | 404 | `model_not_found` | `model` is neither `mira-tts` nor the `mira-tts-v51` alias. |
-| 429 | `at_capacity` | You already have 10 requests in flight, or the deployment is saturated. Honour `Retry-After`. |
+| 429 | `at_capacity` | You already have as many requests in flight as your workspace allows (10 unless it has been set otherwise), or the deployment is saturated. Honour `Retry-After`. |
 | 429 | `rate_limited` | Per-key request rate. Honour `Retry-After`, and see [Limits](/v2/limits). |
 | 502 | `upstream_error` | The engine refused, returned no audio, or the stream stalled past its timeout. Nothing was charged; the message says which. Retry. |
 

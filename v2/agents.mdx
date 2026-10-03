@@ -194,9 +194,10 @@ word such as "stop" or "ruko" interrupts at every setting except `never`.
 On a [node-based agent](/v2/node-agents), a node with `allow_interrupt: false`
 is never interrupted whatever this setting is, and `never` applies to every node.
 
-`PATCH` updates the fields you send and keeps the others. Send
-`"behavior": null` to go back to the defaults. The setting takes effect on the
-next call and is saved with each agent revision.
+`PATCH` merges `behavior` field by field: the fields you send change and the
+others keep their values, unlike other nested objects, which are replaced
+whole. Send `"behavior": null` to go back to the defaults. The setting takes
+effect on the next call and is saved with each agent revision.
 
 <Tip>
 If your callers use a laptop's built-in microphone in a busy room, keep
@@ -383,11 +384,13 @@ Deleted agents are excluded. See [pagination](/v2/overview#pagination).
 PATCH /v2/agents/{id}
 ```
 
-Send only the fields you are changing. Nested objects are replaced wholesale, so
-to change `end_call.message`, send the whole `end_call` object. The same goes
-for `flow`: send the whole graph, or use
-[`PUT /v2/agents/{id}/flow`](/v2/node-agents#edit-the-graph). `"flow": null`
-turns a node-based agent back into a single-prompt agent.
+Send only the fields you are changing. Nested objects such as `voice`,
+`end_call`, `voicemail`, `background_sound` and `tools` are replaced wholesale,
+so to change `end_call.message`, send the whole `end_call` object. `behavior`
+is the one exception: it is merged field by field, as described in
+[Behavior](#behavior). `flow` is replaced wholesale too: send the whole graph,
+or use [`PUT /v2/agents/{id}/flow`](/v2/node-agents#edit-the-graph).
+`"flow": null` turns a node-based agent back into a single-prompt agent.
 
 <Tabs>
   <Tab title="cURL">

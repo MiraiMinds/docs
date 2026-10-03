@@ -63,14 +63,16 @@ None of this belongs in your prompt. Use the prompt for the job the call has to
 do.
 
 <Warning>
-**The agent's only tool today is `end_call`.**
+**The agent can only do what its tools do.**
 
-There is no transfer to a human, no SMS, WhatsApp or email, no CRM lookup, no
-calendar and no payment link. Nothing fetches or sends data during the call. A
-prompt must therefore never promise "I'll transfer you", "I'll send you the
-link" or "I'm booking it in the system". The honest line is "the team will call
-you back" or "आपको team से call आएगा". For branching conversations, use
-[node-based agents](/v2/node-agents).
+Besides ending the call, an agent acts only through the [tools](/v2/tools)
+you give it: HTTP requests to your own systems before, during or after the
+call, and built-ins such as scheduling a callback. Transfer to a human is not
+available yet, so a prompt must never promise "I'll transfer you". It must not
+promise "I'll send you the link" or "I'm booking it in the system" either,
+unless a tool on that agent does exactly that. Without one, the honest line is
+"the team will call you back" or "आपको team से call आएगा". For branching
+conversations, use [node-based agents](/v2/node-agents).
 </Warning>
 
 ## The structure
@@ -325,7 +327,7 @@ call, 180 to 300 seconds is right. The default is 300, and the allowed range is
 | Shuddh Hindi: भुगतान, देय, राशि | The register of a notice, not a call | The words people use: payment, due date |
 | Two questions in one turn | One answer, and you cannot tell which question it belongs to | One ask per step |
 | Multi-branch scripts — "if they say X, ask the following seven questions" | The model loses its place and the call sprawls | A linear flow, plus one IF THEY PUSH BACK block |
-| "I'll transfer you" / "I'll send the link" / "I'm booking it in the system" | The agent has no tool but `end_call`, so nobody keeps the promise. | "the team will call you back" / "आपको team से call आएगा" |
+| "I'll transfer you" / "I'll send the link" / "I'm booking it in the system" | No tool on the agent does it, so nobody keeps the promise. | "the team will call you back" / "आपको team से call आएगा" |
 | Customer data hard-coded: "Rahul's EMI is 5200" | You need a separate agent for every customer | `{{customer_name}}`, `{{emi_amount}}` in `variables` |
 | A long list of forbidden phrases | Naming a phrase primes the model to use it, so a list of what not to say teaches it those phrases. | The positive rule: "one short sentence, maximum two" |
 | "Wait for the user to finish speaking" | The engine owns turn-taking, so the prompt only controls what is said. | Nothing. Delete the line |

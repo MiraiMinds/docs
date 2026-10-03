@@ -11,7 +11,7 @@ row on this page, confirm it with your account contact.
 | What | Target | Status |
 | :--- | :--- | :--- |
 | [Post-call analytics on every tier](#post-call-analytics-everywhere) — AI summary + QA score in the v2 API | August 2026 | rolling out |
-| [Warm transfer on every tier](#warm-transfer-everywhere) — `ended_reason: transferred` goes live | August 2026 | rolling out |
+| [Warm transfer on every tier](#warm-transfer-everywhere) — hand a call to a person | not yet scheduled | planned |
 | [Price ladder](/general/tiers) — T5 pay as you go, T3 and T1 with a monthly commitment, one Mira stack on every tier | September 2026 | ✅ **live** |
 | [Campaigns](/v2/campaigns) — server-side dialler with windows, retries, budgets and a report | August 2026 | ✅ **live** |
 | [Transcripts + recordings](/v2/calls#get-the-transcript) in the v2 API | August 2026 | rolling out |
@@ -36,11 +36,10 @@ them over v2.
 
 ## Warm transfer everywhere
 
-Human handoff is part of every tier, so a caller who asks for a person gets one.
-The August rollout adds the last pieces:
-[`ended_reason: transferred`](/v2/calls#ended-reasons) starts being emitted, and
-transfer targets become configurable per agent. Ask your account contact to
-enable it on your workspace as the rollout reaches you.
+Transfer to a human is not available yet, and it has no date. The plan is for
+an agent on any tier to hand a call to a person at a number you set per agent.
+A call that ends this way will report
+[`ended_reason: transferred`](/v2/calls#ended-reasons).
 
 ## Model APIs
 
@@ -76,9 +75,9 @@ immutable, so a live campaign never runs an unreviewed edit.
 ## New voices
 
 The catalogue grows every month from August 2026. New voices appear in the
-[voice gallery](/v2/voices) as they clear evaluation. Listen to `sampleAudio`
-before you switch, because the choice of voice moves answer-through rates more
-than prompt wording does.
+[voice gallery](/v2/voices) as they clear evaluation. Listen to a new voice in
+Agent Studio before you switch, because the choice of voice moves
+answer-through rates more than prompt wording does.
 
 ## Channels
 

@@ -38,11 +38,22 @@ leaves the way they sound unchanged.
 
 ## Hearing them first
 
-There is no `GET /v2/voices` yet. The live catalogue is the voice picker in the
-[console](https://sandbox.voice.miraiminds.co). Open Agent Studio to hear each
-voice before you commit to one. The name in the picker is the `voice_id`. The
-catalogue grows monthly, so if this page and the picker disagree, trust the
-picker.
+`GET /v2/voices`, with your API key, returns the live catalogue: each voice's
+`voice_id`, its name and its language. It has no audio samples, so open Agent
+Studio in the [console](https://sandbox.voice.miraiminds.co) to hear each voice
+before you commit to one. The name in the picker is the `voice_id`. The
+catalogue grows monthly, so if this page and the API disagree, trust the API.
+
+```json title="GET /v2/voices"
+{
+  "data": [
+    { "voice_id": "ashu", "name": "आशु", "language": "hi" },
+    { "voice_id": "neha", "name": "नेहा", "language": "hi" },
+    { "voice_id": "shruti", "name": "श्रुति", "language": "hi" },
+    { "voice_id": "sameer", "name": "समीर", "language": "hi" }
+  ]
+}
+```
 
 <Tip>
 **Listen before you pick.** Voice choice affects answer-through rates more than
