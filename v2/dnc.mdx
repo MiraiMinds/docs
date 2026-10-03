@@ -1,29 +1,30 @@
 ---
 title: Do-not-call list
-description: Your workspace's own suppression list — numbers campaigns will never dial.
+description: Your workspace's own suppression list of numbers that campaigns will never dial.
 ---
 
 
 The **do-not-call list** is a per-workspace set of phone numbers that
-[campaigns](/v2/campaigns) will not dial. Add a number and every campaign in the
-workspace — running, paused or not yet created — skips it.
+[campaigns](/v2/campaigns) will not dial. Once you add a number, every campaign
+in the workspace skips it, whether the campaign is running, paused or not yet
+created.
 
 Base URL `https://sandbox.voice.miraiminds.co`.
 
 <Warning>
 **This is your suppression list, not the national registry.**
 
-It suppresses *your* campaigns on *our* platform. It is not TRAI's DND/NCPR
-register, we do not scrub against that register for you, and having a number on
-this list is not a substitute for the consent and DND obligations that sit with
-the business placing the calls. See
+It suppresses numbers for *your* campaigns on *our* platform. It is separate
+from TRAI's DND/NCPR register, and we do not scrub against that register for
+you. The consent and DND obligations sit with the business placing the calls,
+and putting a number on this list does not meet them. See
 [India calling rules](/v2/limits#india-calling-rules).
 </Warning>
 
 ## How suppression works
 
-Numbers are checked **at dial time**, in the same database statement that hands
-contacts to the dialler. Three consequences worth knowing:
+We check numbers **at dial time**, in the same database statement that hands
+contacts to the dialler. This has three consequences:
 
 - **Late additions work.** A number added while a campaign is running is
   suppressed from that moment on, even though it was uploaded in the original
@@ -31,13 +32,15 @@ contacts to the dialler. Three consequences worth knowing:
 - **Suppression is not deletion.** The contact stays in the campaign with
   [`status: "suppressed"`](/v2/campaigns#contact-statuses) and shows up in the
   report, so you can prove the number was uploaded and not called.
-- **Suppressed contacts are never billed.** No dial, no minute, no charge.
+- **Suppressed contacts are never billed.** We never dial them, so there are
+  no minutes to charge.
 
-It does **not** apply to [`POST /v2/calls`](/v2/calls#create-a-call). A direct
-single call is an explicit instruction to ring one number now; refusing it based
-on a list would silently swallow transactional calls — a delivery confirmation
-to a customer who opted out of marketing, say. Check the list yourself before
-placing single calls if that is the behaviour you want.
+The list does **not** apply to [`POST /v2/calls`](/v2/calls#create-a-call). A
+direct single call is an explicit instruction to ring one number now. If we
+refused it because the number is on the list, transactional calls would be
+dropped without any notice, such as a delivery confirmation to a customer who
+opted out of marketing. If you want single calls checked as well, check the
+list yourself before you place them.
 
 ## The entry object
 
@@ -68,20 +71,21 @@ curl -X POST https://sandbox.voice.miraiminds.co/v2/dnc \
 { "object": "dnc_entry", "phone": "+919876543210", "added": true }
 ```
 
-Adding a number that is already on the list is **not an error** — you asked for
-it to be suppressed and it is suppressed. You get `200 OK` with
-`"added": false` instead of `201`:
+Adding a number that is already on the list is **not an error**, because the
+number is already suppressed. You get `200 OK` with `"added": false` instead of
+`201`:
 
 ```json title="200 OK — already on the list"
 { "object": "dnc_entry", "phone": "+919876543210", "added": false }
 ```
 
-Branch on `added` if you are keeping your own count; branch on nothing at all if
-you are just making sure. Both answers mean the number will not be dialled.
+If you keep your own count, branch on `added`. If you only need the number
+suppressed, you can ignore it. Both responses mean the number will not be
+dialled.
 
 | Status | `error.code` | Cause |
 | :--- | :--- | :--- |
-| `400` | `invalid_request` | `phone` is not E.164 — `+919876543210`, not `9876543210`. |
+| `400` | `invalid_request` | `phone` is not E.164. Send `+919876543210`, not `9876543210`. |
 | `503` | `campaigns_unavailable` | Campaigns (and with them this list) are not enabled for your workspace. |
 
 ---
@@ -109,8 +113,8 @@ curl -G https://sandbox.voice.miraiminds.co/v2/dnc \
 }
 ```
 
-Standard [pagination](/v2/overview#pagination): `limit` 1–100, default 20, and
-`cursor` from `next_cursor`.
+This route uses standard [pagination](/v2/overview#pagination): `limit` from 1
+to 100 (default 20), and `cursor` from `next_cursor`.
 
 ---
 
@@ -120,30 +124,31 @@ Standard [pagination](/v2/overview#pagination): `limit` 1–100, default 20, and
 DELETE /v2/dnc/{phone}
 ```
 
-The number goes in the path, URL-encoded — `+` becomes `%2B`.
+The number goes in the path, URL-encoded, so `+` becomes `%2B`.
 
 ```bash
 curl -X DELETE "https://sandbox.voice.miraiminds.co/v2/dnc/%2B919876543210" \
   -H "Authorization: Bearer sk_live_YOUR_API_KEY"
 ```
 
-`204 No Content` on success. `404 not_found` if the number was not on the list.
+A successful delete returns `204 No Content`. If the number was not on the
+list, you get `404 not_found`.
 
 <Warning>
 **Removing a number un-suppresses it immediately.** Contacts already marked
-`suppressed` in a campaign stay marked — that status is a record of a decision
-already taken — but any future campaign, and any contact not yet claimed, will
-dial it. Keep an audit trail of who removed what: an opt-out you reversed is the
-complaint you will be asked about.
+`suppressed` in a campaign stay marked, because that status records a decision
+already taken. Any future campaign, and any contact not yet claimed, will dial
+the number. Keep an audit trail of who removed each number. If a reversed
+opt-out leads to a complaint, you will be asked about it.
 </Warning>
 
 ---
 
 ## Keeping it in sync
 
-The list is a set of numbers, and the operations are idempotent, so the simplest
-correct integration is also the right one: on every opt-out event in your own
-system, `POST` the number. No read-modify-write, no diffing.
+The list is a set of numbers and the operations are idempotent, so the simplest
+integration is also correct: on every opt-out event in your own system, `POST`
+the number. You don't need to read the list first or diff it against yours.
 
 ```python
 def on_opt_out(phone: str) -> None:
@@ -153,12 +158,13 @@ def on_opt_out(phone: str) -> None:
     # 201 -> newly added, 200 -> already there. Both mean suppressed.
 ```
 
-Three habits worth having:
+We recommend three habits:
 
 1. **Suppress on the call, not after the campaign.** If your agent hears "stop
-   calling me", write it to the list from the webhook handler that same minute.
-2. **Suppress before you upload.** Scrubbing the list you upload *and* keeping
-   the DNC list current are belt and braces; the DNC list is the one that
-   protects you from the campaign you forgot to scrub.
-3. **Never remove in bulk.** Removals should be individual, deliberate, and
-   logged with a reason.
+   calling me", add the number to the list from the webhook handler that same
+   minute.
+2. **Suppress before you upload.** Scrub each contact list before you upload
+   it, *and* keep the DNC list current. If you forget to scrub a campaign's
+   list, the DNC list still keeps those numbers from being dialled.
+3. **Never remove in bulk.** Remove numbers one at a time, deliberately, and
+   log a reason for each removal.

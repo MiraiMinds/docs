@@ -57,7 +57,7 @@ curl -G https://api.voice-agents.miraiminds.co/v1/number-pool/search \
 }
 ```
 
-Rates are in **cents**, not rupees — `monthlyRateCents: 100` is 1.00 of the
+Rates are in **cents**, not rupees. `monthlyRateCents: 100` is 1.00 of the
 provider's billing unit.
 
 ## Purchase a number
@@ -102,7 +102,7 @@ curl -X POST https://api.voice-agents.miraiminds.co/v1/number-pool/purchase \
 }
 ```
 
-Keep `data._id` — that is what goes in an assistant's `telephony.inbound` or
+Keep `data._id`. That is what goes in an assistant's `telephony.inbound` or
 `telephony.outbound`, not the number itself.
 
 | Status | Cause |
@@ -138,7 +138,7 @@ The path takes the telephony record `_id`, not the phone number.
 | `409` | Already released |
 
 <Warning>
-Releasing is irreversible — the number returns to the provider pool and you are
+Releasing is irreversible. The number returns to the provider pool, and you are
 unlikely to get it back. Detach it from every assistant first, or their calls
 will fail.
 </Warning>

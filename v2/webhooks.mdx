@@ -1,12 +1,12 @@
 ---
 title: Webhooks
-description: Signed lifecycle events — event types, signature verification, retries and idempotency.
+description: The signed lifecycle events we send, how to verify their signatures, and how retries and idempotency work.
 ---
 
 
 Pass `webhook_url` when you [create a call](/v2/calls#create-a-call) and we POST
-a signed JSON event at each lifecycle transition. Webhooks are how you learn a
-call's outcome — polling is the fallback, not the design.
+a signed JSON event at each lifecycle transition. Webhooks are the intended way
+to learn a call's outcome. Use polling only as a fallback.
 
 Your endpoint must be **public HTTPS** and must return a **2xx** quickly. Any
 other status, or a connection failure, triggers [retries](#retries).
@@ -40,7 +40,7 @@ Every event has the same shape.
 
 | Field | Description |
 | :--- | :--- |
-| `id` | `evt_<ulid>`. Unique per **delivery attempt group** — retries of the same event reuse it. [Dedupe on this](#idempotency). |
+| `id` | `evt_<ulid>`. Unique per delivery attempt group: retries of the same event reuse it. [Dedupe on this](#idempotency). |
 | `type` | See [event types](#event-types). |
 | `created_at` | When the event was generated, not when it was delivered. |
 | `data.call` | The [call object](/v2/calls#the-call-object), exactly as `GET /v2/calls/{id}` would return it at that moment. On a `campaign.*` event this is `data.campaign` instead. |
@@ -53,13 +53,13 @@ Ignore what you do not recognise.
 
 | Type | Fires when | `data.call.status` |
 | :--- | :--- | :--- |
-| `call.queued` | The call is admitted to the queue. **Opt-in** — ask your Mirai contact to enable it. | `queued` |
+| `call.queued` | The call is admitted to the queue. This event is opt-in: ask your Mirai contact to enable it. | `queued` |
 | `call.started` | Media is live; the conversation has begun. | `in_progress` |
 | `call.completed` | The call connected and finished normally. | `completed` |
-| `call.processed` | Analysis and post-call tool processing finished for a call with those features enabled — or, for a call created with `final_results: true`, the [final results](#final-results) are ready. | Unchanged terminal status |
+| `call.processed` | Analysis and post-call tool processing finished for a call with those features enabled. For a call created with `final_results: true`, it fires when the [final results](#final-results) are ready. | Unchanged terminal status |
 | `call.voicemail` | An answering machine answered. | `voicemail` |
 | `call.failed` | The call did not connect, or the pipeline errored. | `no_answer`, `busy`, `failed`, `timeout` |
-| `call.aborted` | You cancelled it with [`POST /abort`](/v2/calls#abort-a-call) — queued, ringing or mid-conversation. | `aborted` |
+| `call.aborted` | You cancelled it with [`POST /abort`](/v2/calls#abort-a-call), whether it was queued, ringing or mid-conversation. | `aborted` |
 
 Exactly one terminal event fires per call: `call.completed`, `call.voicemail`,
 `call.failed` or `call.aborted`.
@@ -69,7 +69,7 @@ It includes `data.processing.version`, analysis status, and post-call tool statu
 Explicit reruns produce a new version. Background on-call tools can finish
 later; read their receipts separately. See [Tools: call.processed](/v2/tools#receive-call-processed).
 For the finished transcript in the same event, create the call with
-`final_results: true` — see [final results](#final-results).
+`final_results: true`. See [final results](#final-results).
 
 {/* FLOW-OUTCOME */}
 
@@ -80,9 +80,9 @@ A call run by a [node-based agent](/v2/node-agents) always sends
 
 {/* /FLOW-OUTCOME */}
 
-[Campaigns](/v2/campaigns) add five more. They are delivered to the campaign's
-own `webhook_url`, signed with the same workspace secret, in the same envelope —
-with `data.campaign` where `data.call` would be.
+[Campaigns](/v2/campaigns) add five more event types. We deliver them to the
+campaign's own `webhook_url`, signed with the same workspace secret and in the
+same envelope, with `data.campaign` in place of `data.call`.
 
 | Type | Fires when |
 | :--- | :--- |
@@ -93,7 +93,7 @@ with `data.campaign` where `data.call` would be.
 | `campaign.stopped` | You stopped it. |
 
 A campaign's calls emit the ordinary `call.*` events as well, to the same URL.
-See [Campaigns → Webhooks](/v2/campaigns#webhooks) for the payload.
+For the payload, see [Webhooks](/v2/campaigns#webhooks) on the Campaigns page.
 
 ```mermaid
 sequenceDiagram
@@ -114,8 +114,8 @@ sequenceDiagram
 
 ### `call.failed`
 
-Read `data.call.status` to tell the failure modes apart — `no_answer` is a
-retry-tomorrow, `failed` is a page-someone.
+Read `data.call.status` to tell the failure modes apart. A `no_answer` is
+worth retrying the next day, while a `failed` is worth paging someone about.
 
 ```json
 {
@@ -165,12 +165,13 @@ retry-tomorrow, `failed` is a page-someone.
 }
 ```
 
-`status: voicemail` always carries `ended_reason: "voicemail"` — that reason is
-what identifies the answering machine in the first place, so the pair is the
-only combination you will see.
+`status: voicemail` always comes with `ended_reason: "voicemail"`. That reason
+is how we identify the answering machine in the first place, so you will only
+ever see the two together.
 
-Voicemail calls **are billed** — media was live. 18 seconds bills as two
-10-second blocks: ₹1.00 on T3. See [metering](/general/tiers#metering).
+Voicemail calls are billed, because media was live. The 18-second call above
+bills as two 10-second blocks: ₹1.00 on T3. See
+[metering](/general/tiers#metering).
 
 ### `call.aborted`
 
@@ -205,10 +206,10 @@ never billed.
 
 ## Final results
 
-Create a call with `final_results: true` to receive **one** `call.processed`
-event with everything about the finished call: the call object, the transcript,
-and the status of analysis and post-call tools. It is the event to start
-processing a conversation on.
+Create a call with `final_results: true` to receive one `call.processed` event
+with everything about the finished call: the call object, the transcript, and
+the status of analysis and post-call tools. Start processing a conversation
+when this event arrives.
 
 ```json title="call.processed with final_results: true"
 {
@@ -259,7 +260,7 @@ processing a conversation on.
 | :--- | :--- |
 | `data.call` | The [call object](/v2/calls#the-call-object) in its final state, with your `metadata` and the `analysis` result. |
 | `data.transcript.status` | `ready`, `empty`, `failed` or `fetch_required`. See below. |
-| `data.transcript.turns` | Present when `ready`: the final user and agent turns, shaped exactly like [`GET /v2/calls/{id}/transcript`](/v2/calls#get-the-transcript) — `role`, `text`, `start_ms`, `end_ms`. |
+| `data.transcript.turns` | Present when `ready`: the final user and agent turns, in exactly the same shape as [`GET /v2/calls/{id}/transcript`](/v2/calls#get-the-transcript) (`role`, `text`, `start_ms`, `end_ms`). |
 | `data.processing` | One status per part: `transcript`, `analysis` and `post_call_tools`, plus `version`. A part that is off for this call reports `not_enabled`. |
 
 | `data.transcript.status` | Meaning |
@@ -293,24 +294,23 @@ The fields are described in [flow outcome](/v2/calls#flow-outcome).
 `nodes_visited` and `variables` are always present; `final_node`, `status` and
 `tags` are omitted when unknown.
 
-- **Always sent.** A node-based agent's call sends `call.processed` whenever
-  the call has a `webhook_url`, even without analysis, post-call tools or
-  `final_results`.
-- **Waits for the outcome.** The outcome is usually recorded within seconds of
-  the call ending. `call.processed` waits up to 2 minutes for it, then is sent
-  without `flow`. In that case, read
-  [`GET /v2/calls/{id}`](/v2/calls#get-a-call) later.
+A node-based agent's call sends `call.processed` whenever the call has a
+`webhook_url`, even without analysis, post-call tools or `final_results`.
+
+The outcome is usually recorded within seconds of the call ending.
+`call.processed` waits up to 2 minutes for it and is then sent without `flow`.
+In that case, read [`GET /v2/calls/{id}`](/v2/calls#get-a-call) later.
 
 {/* /FLOW-OUTCOME */}
 
-**When it arrives.** After the terminal event, once the transcript has settled —
-within about 2 minutes of the call ending — and once any analysis and post-call
-tools have finished, which can take longer. Do not wait for it to decide that a
-conversation is over.
+**When it arrives.** It comes after the terminal event, once the transcript has
+settled (within about 2 minutes of the call ending) and any analysis and
+post-call tools have finished, which can take longer. Do not wait for it to
+decide that a conversation is over.
 
 **One event, stable ID.** With `final_results: true`, this is the call's
-`call.processed` — it replaces the ordinary one, never adds a second. Retries
-keep its `id`, so dedupe on it as usual. An explicit
+`call.processed`. It replaces the ordinary one, so you never get a second.
+Retries keep its `id`, so dedupe on it as usual. An explicit
 [post-call rerun](/v2/tools#rerun-post-call-tools) produces a new `version`.
 
 Final results are delivered only to the call's `webhook_url`. Set one when you
@@ -321,10 +321,10 @@ set `final_results`.
 | You want to | Use |
 | :--- | :--- |
 | Know the conversation ended | The terminal event: `call.completed`, `call.failed`, `call.aborted` (or `call.voicemail` on phone calls). It arrives promptly and is never delayed by processing. |
-| Process the transcript now | `call.processed` from a call created with `final_results: true`, when `data.transcript.status` is `ready` — or fetch it on `fetch_required`. |
+| Process the transcript now | `call.processed` from a call created with `final_results: true`, when `data.transcript.status` is `ready`. On `fetch_required`, fetch the transcript instead. |
 
 For the whole browser-call flow, see
-[Browser calls → Ending and results](/v2/web-calls#ending-and-results).
+[Ending and results](/v2/web-calls#ending-and-results) on the Browser calls page.
 
 ---
 
@@ -345,10 +345,11 @@ The signed string is the timestamp, a literal `.`, then the **raw request body
 bytes**. The secret is your per-workspace `whsec_…`, shown once when your key is
 issued.
 
-Verification is four steps:
+Verification takes four steps:
 
 1. Parse `t` and `v1` out of the header.
-2. Reject if `|now − t| > 300` seconds — this is the [replay window](#replay-protection).
+2. Reject the delivery if `|now − t| > 300` seconds. This is the
+   [replay window](#replay-protection).
 3. Recompute the HMAC over `t + "." + raw_body`.
 4. Compare with `v1` in **constant time**.
 
@@ -487,7 +488,7 @@ Verification is four steps:
     }
     ```
 
-    Express — note `express.raw`, not `express.json`:
+    Express (note `express.raw`, not `express.json`):
 
     ```javascript
     import express from "express";
@@ -541,7 +542,7 @@ Verification is four steps:
 
 ### Test vector
 
-Check your implementation against this before you go anywhere near a real call.
+Check your implementation against this test vector before you try a real call.
 
 ```text title="secret"
 whsec_7d4f1a09c2e58b36a1f0d7c93b2e64a8
@@ -565,7 +566,7 @@ printf '%s' '1785057398.{"id":"evt_01JZQ9C5N9P4R7S3T6V8W2X4YB","type":"call.comp
 
 ### Raw body
 
-The single most common integration bug: signing a re-serialised body.
+The most common integration bug is signing a re-serialised body.
 
 ```js
 // ✗ wrong — key order, spacing and unicode escaping all differ from what we sent
@@ -583,17 +584,17 @@ base64-transformed on the way in.
 
 ### Replay protection
 
-We reject nothing on your behalf — the timestamp is there so **you** can. Drop
-deliveries where `|now − t| > 300` seconds. Without that check, anyone who
-captures one valid delivery can replay it forever.
+We do not reject deliveries on your behalf. The timestamp is there so that you
+can: drop any delivery where `|now − t| > 300` seconds. Without that check,
+anyone who captures one valid delivery can replay it forever.
 
 If legitimate deliveries fail the window check, your server clock is wrong.
-Run NTP.
+Keep it synced with NTP.
 
 ### Rotating the secret
 
-Ask ops. During rotation both the old and the new secret are considered valid
-for a short overlap, so verify against a list:
+Ask ops to rotate it. During rotation, the old and the new secret are both
+valid for a short overlap, so verify against a list:
 
 ```python
 def verify_any(raw_body, header, secrets):
@@ -604,37 +605,38 @@ def verify_any(raw_body, header, secrets):
 
 ## Retries
 
-A delivery succeeds on any `2xx`. Anything else — `4xx`, `5xx`, timeout, TLS
-error, DNS failure — is retried: **six attempts with exponential backoff over
-roughly 36 minutes**, the first fired immediately and the gaps widening up to a
-half-hour cap.
+A delivery succeeds on any `2xx`. We retry anything else, including a `4xx`, a
+`5xx`, a timeout, a TLS error or a DNS failure. You get **six attempts with
+exponential backoff over roughly 36 minutes**. The first fires immediately, and
+the gaps widen up to a half-hour cap.
 
-Design against the window, not against the individual gaps — the exact delays
-are an implementation detail and we tune them. What is contractual is that a
-brief outage on your side is survivable without losing the event, and that an
-endpoint down for the whole 36 minutes will lose it.
+Design for the whole window. The individual delays are an implementation detail
+that we tune, so do not build around them. What we guarantee is that a brief
+outage on your side will not lose the event, and that an endpoint that is down
+for the whole 36 minutes will lose it.
 
-After the sixth attempt the event goes to a dead-letter queue. We can replay
-from the DLQ — a replayed event is byte-identical to the original, including its
-`id`, and carries a **fresh** `t` and `v1` so it passes your window check.
+After the sixth attempt, the event goes to a dead-letter queue (DLQ), and we can
+replay it from there. A replayed event is byte-identical to the original,
+including its `id`. It carries a fresh `t` and `v1`, so it passes your window
+check.
 
-Consequences worth planning for:
+Some consequences to plan for:
 
 - **Order is not guaranteed.** A retried `call.started` can arrive after
   `call.completed`. Order your own state machine by `data.call.status`, not by
   arrival.
 - **Slow endpoints get retried.** If your handler takes longer than our client
-  timeout we treat it as a failure and send again. Acknowledge first, work
-  later.
-- **A `401` from your signature check is a retryable failure to us.** That is
-  intentional — a transient secret-loading bug on your side should not lose the
-  event.
+  timeout, we treat it as a failure and send again. Acknowledge first and do the
+  work afterwards.
+- **A `401` from your signature check is a retryable failure to us.** We do
+  this on purpose, so that a transient secret-loading bug on your side does not
+  lose the event.
 
 ## Linking an event to your own records
 
-An event carries the call, not your database. The join key is `call_id`, and
-you have it **before** any event can arrive — `POST /v2/calls` returns it
-synchronously in the `202`:
+An event describes the call and carries nothing from your own database. Join
+the two on `call_id`. You have it **before** any event can arrive, because
+`POST /v2/calls` returns it synchronously in the `202`:
 
 ```python
 call = mirai.calls.create(agent_id=agent.id, to=customer.phone)
@@ -645,12 +647,12 @@ Do that write before you return from the request that placed the call. A
 webhook can land while the placing request is still in flight, and a handler
 that cannot find the call yet has to either drop the event or retry blindly.
 
-`variables` are substituted into the prompt; they are **not** echoed back on
-the event. [`metadata`](/v2/calls#metadata) is: set small identifiers such as
-your `session_id` when you create the call, and every event for the call
-carries them in `data.call.metadata`. That also covers a webhook that lands
-before your own `call_id` write has finished. Anything larger belongs in your
-own row, keyed by `call_id`.
+`variables` are substituted into the prompt and are **not** echoed back on
+the event. [`metadata`](/v2/calls#metadata) is echoed back. Set small
+identifiers such as your `session_id` when you create the call, and every event
+for the call carries them in `data.call.metadata`. This also handles a webhook
+that lands before your own `call_id` write has finished. Store anything larger
+in your own row, keyed by `call_id`.
 
 ## Idempotency
 
@@ -675,12 +677,13 @@ Assume at-least-once delivery. Dedupe on `id`:
   </Tab>
 </Tabs>
 
-Or make the handler naturally idempotent — `UPDATE orders SET call_status = ?
+You can also make the handler naturally idempotent. A statement such as
+`UPDATE orders SET call_status = ?
 WHERE id = ?` needs no dedupe table at all.
 
 ## Local development
 
-Webhooks need a public URL. Tunnel to your laptop:
+Webhooks need a public URL. To receive them on your laptop, open a tunnel:
 
 ```bash
 ngrok http 3000
@@ -688,8 +691,8 @@ ngrok http 3000
 ```
 
 Then pass `"webhook_url": "https://a1b2c3d4.ngrok-free.app/mirai/webhook"` when
-creating a call. Replay a captured delivery against your handler with `curl` to
-iterate without burning wallet balance:
+creating a call. To iterate without spending wallet balance, replay a captured
+delivery against your handler with `curl`:
 
 ```bash
 curl -X POST http://localhost:3000/mirai/webhook \
@@ -706,4 +709,4 @@ curl -X POST http://localhost:3000/mirai/webhook \
 - [ ] Timestamp window enforced at 300 seconds.
 - [ ] Events deduped on `id`.
 - [ ] Unknown `type` values ignored, not crashed on.
-- [ ] Handler does no slow work inline — enqueue and return.
+- [ ] Handler does no slow work inline. It enqueues the work and returns.

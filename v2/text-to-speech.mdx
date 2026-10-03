@@ -13,40 +13,41 @@ the [TTS quickstart](/v2/tts-quickstart): the current endpoint lives at
 ## What `/tts/v1` does now
 
 **The URL keeps working.** `POST /tts/v1/audio/speech` is an alias for
-[`POST /v1/audio/speech`](/v2/tts-quickstart) — the same handler, the same
-audio — so a caller that only changes its key needs no other change:
+[`POST /v1/audio/speech`](/v2/tts-quickstart). It runs the same handler and
+returns the same audio, so a caller that changes only its key needs no other
+change:
 
 - **Auth is your `sk_live_` API key**, the one you mint in the
   [console](https://sandbox.voice.miraiminds.co) under **Developers**. The old
-  `mira_` speech keys are **retired**; if you are still holding one, get an
-  `sk_live_` key from the [quickstart](/v2/tts-quickstart#1-get-a-key).
+  `mira_` speech keys are retired. If you still have one, get an `sk_live_` key
+  from the [quickstart](/v2/tts-quickstart#1-get-a-key).
 - **`model` is `mira-tts`**, and `mira-tts-v51` is accepted as an alias, so an
   existing body keeps working unchanged.
-- **Everything else follows the current endpoint** — voices, `pcm` streaming,
+- **Everything else follows the current endpoint**: voices, `pcm` streaming,
   the 2,000-character ceiling, the response headers, the
-  [price](/v2/tts-quickstart#billing), the wallet it debits, and the
-  [request log](/v2/tts-quickstart#your-request-log). One contract, documented
-  in one place.
-- **The options below that were unique to this endpoint** — `speech_ready`,
-  `instructions`, `lexicon` and `numbers` — are no longer applied. They are
-  ignored, not rejected.
+  [price](/v2/tts-quickstart#billing), the wallet it debits and the
+  [request log](/v2/tts-quickstart#your-request-log). The TTS quickstart
+  documents all of it.
+- **The options below that were unique to this endpoint** (`speech_ready`,
+  `instructions`, `lexicon` and `numbers`) are no longer applied. The endpoint
+  ignores them, and sending them does not cause an error.
 
 The rest of this page describes the original endpoint as it behaved, for
 callers reading old code.
 
 ## The original endpoint
 
-The speech endpoint is the voice from our agents, on its own. Send text, get a
-WAV back. It takes the same request shape as the OpenAI audio API, so any
-OpenAI SDK works by swapping `base_url` and the key.
+The speech endpoint is the voice our agents use, on its own. You send text and
+get a WAV back. It takes the same request shape as the OpenAI audio API, so any
+OpenAI SDK works once you swap `base_url` and the key.
 
 The engine speaks Hindi, English and the Hinglish in between, plus Gujarati in
-beta. Five more languages — Telugu, Tamil, Marathi, Kannada and Bengali —
-arrive over the next two months: see the [language roadmap](/v2/tts-languages).
+beta. Five more languages (Telugu, Tamil, Marathi, Kannada and Bengali) arrive
+over the next two months. See the [language roadmap](/v2/tts-languages).
 
 ## Calling the alias
 
-The old body, the new key:
+This request sends the old body with the new key:
 
 ```bash
 curl https://sandbox.voice.miraiminds.co/tts/v1/audio/speech \
@@ -60,17 +61,17 @@ curl https://sandbox.voice.miraiminds.co/tts/v1/audio/speech \
   --output speech.wav
 ```
 
-The response body **is** the audio: 48 kHz mono PCM16, `wav` by default. Ask
-for `"response_format": "pcm"` and it **streams**, which is what you want in a
-live pipeline — see the [TTS quickstart](/v2/tts-quickstart#2-first-audio).
+The response body is the audio itself: 48 kHz mono PCM16, `wav` by default. If
+you ask for `"response_format": "pcm"`, it streams, which is what you want in a
+live pipeline. See the [TTS quickstart](/v2/tts-quickstart#2-first-audio).
 
 ## Request
 
 <Note>
-Read as history. On the alias, `model`, `input`, `voice` and `response_format`
-behave as the [TTS quickstart](/v2/tts-quickstart) documents — `input` goes up
-to 2,000 characters and `pcm` streams — and the four fields below that are ours
-alone are ignored.
+Read this table as history. On the alias, `model`, `input`, `voice` and
+`response_format` behave as the [TTS quickstart](/v2/tts-quickstart) documents:
+`input` goes up to 2,000 characters and `pcm` streams. The four fields below
+that are specific to Mirai are ignored.
 </Note>
 
 | Field | Type | Notes |
@@ -82,13 +83,13 @@ alone are ignored.
 | `speech_ready` | boolean | `true` (default) runs the rewrite pass below. `false` sends your text to the engine untouched. |
 | `instructions` | string | Up to 500 characters, steers the rewrite (tone, pacing). Ignored when `speech_ready` is `false`. |
 | `lexicon` | object | Pronunciation overrides, `{"Gallabox": "Galla Box"}`. Applied as a deterministic replace, never by the model. |
-| `numbers` | string | `auto` (default), `english`, or `native` — which language digits are spoken in. |
+| `numbers` | string | Which language digits are spoken in: `auto` (default), `english` or `native`. |
 
 <Note>
-`model` is a stable public name, not the build number. It always points at the
-current production voice, which we upgrade underneath you — so a clip you
-generate today may sound better than one from last month without your code
-changing.
+`model` is a stable public name rather than a build number. It always points at
+the current production voice, which we upgrade over time, so a clip you
+generate today may sound better than one from last month with no change to your
+code.
 </Note>
 
 ## The rewrite pass
@@ -101,21 +102,20 @@ returned. Send text you are happy to hear read aloud.
 
 Raw text is rarely speech-ready. `97%` should be read as "ninety-seven
 percent", a product name should not be transliterated, and a bare URL should
-not be spelled out character by character. By default we run your text through
-a rewrite that fixes exactly that, preserving meaning, before it reaches the
-engine.
+not be spelled out character by character. By default, before your text reaches
+the engine, a rewrite pass fixes these cases and keeps the meaning the same.
 
-Every response carries a header naming what happened:
+Every response carries a header that says what happened:
 
 | `X-Mira-Speech-Ready` | Meaning |
 | :--- | :--- |
 | `rewritten` | The rewrite ran and its output was synthesised. |
-| `bypassed` | You sent `"speech_ready": false`. Your text, untouched. |
+| `bypassed` | You sent `"speech_ready": false`, so your text was synthesised untouched. |
 | `fallback` | The rewrite was unavailable, so your **original** text was synthesised. |
 
 `fallback` is a degradation, never an error: you still get audio and still get
 a 200. If you are debugging pronunciation and the header says `fallback`, the
-rewrite is not what shaped that clip.
+rewrite did not shape that clip.
 
 ```bash title="Skip the rewrite"
 curl https://sandbox.voice.miraiminds.co/tts/v1/audio/speech \
@@ -132,7 +132,7 @@ curl https://sandbox.voice.miraiminds.co/tts/v1/models \
   -H "Authorization: Bearer $MIRA_API_KEY"
 ```
 
-The list names one model — the current one:
+The list names one model, the current one:
 
 ```json
 {
@@ -147,7 +147,7 @@ The list names one model — the current one:
 
 ## Errors
 
-Errors use the same envelope as the rest of the API — see [Errors](/v2/errors).
+Errors use the same envelope as the rest of the API. See [Errors](/v2/errors).
 
 | Status | `code` | Cause |
 | :--- | :--- | :--- |
@@ -156,7 +156,7 @@ Errors use the same envelope as the rest of the API — see [Errors](/v2/errors)
 | 400 | `invalid_voice` | Not `ashu` or `aishe`. |
 | 400 | `invalid_response_format` | Anything other than `wav`. |
 | 400 | `invalid_instructions` | Not a string, or over 500 characters. |
-| 400 | `invalid_lexicon` | Not an object of string → string. |
+| 400 | `invalid_lexicon` | Not an object that maps strings to strings. |
 | 400 | `invalid_numbers` | Not `auto`, `english` or `native`. |
 | 400 | `invalid_json` | Body is not valid JSON. |
 | 401 | `invalid_api_key` | Missing or unknown key. |
@@ -172,14 +172,15 @@ Errors use the same envelope as the rest of the API — see [Errors](/v2/errors)
 }
 ```
 
-The alias returns the current endpoint's codes instead —
+The alias returns the current endpoint's codes instead:
 `invalid_request`, `unauthorized`, `insufficient_balance`, `at_capacity`,
 `rate_limited`, `model_not_found`, `upstream_error`. See
 [When something fails](/v2/tts-quickstart#when-something-fails).
 
 ## Using an OpenAI SDK
 
-The shape matches, so point the client at us and keep your code:
+The request shape matches, so you can point the client at us and keep your
+code:
 
 ```python
 from openai import OpenAI
@@ -198,6 +199,7 @@ client.audio.speech.create(
 
 <Note>
 `lexicon`, `numbers`, `instructions` and `speech_ready` are ours, not
-OpenAI's. SDKs that validate their request body may reject them — send those
-with a plain HTTP client, or use `extra_body` where your SDK supports it.
+OpenAI's. SDKs that validate their request body may reject them, so send those
+fields with a plain HTTP client, or use `extra_body` where your SDK supports
+it.
 </Note>

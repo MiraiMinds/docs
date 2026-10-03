@@ -1,6 +1,6 @@
 ---
 title: Webhook Signature Verification
-description: Learn how to verify webhook signatures to ensure authenticity and integrity.
+description: Verify the HMAC-SHA256 signature on each webhook to confirm it came from Voice Agents and was not changed in transit.
 ---
 
 <Note>
@@ -11,36 +11,40 @@ on it. If you are building something new, start with the
 
 ## Overview
 
-All webhook events emitted by the Voice Agents Backend are cryptographically signed using HMAC-SHA256. The signature is calculated from the payload data, allowing consumers to verify the data's authenticity and integrity.
+The Voice Agents backend signs every webhook event with HMAC-SHA256, and it
+computes the signature from the payload. Checking the signature confirms:
 
-This approach allows consumers to verify that:
+1. **Authenticity**: the webhook came from our service.
+2. **Integrity**: the payload was not tampered with in transit.
 
-1. **Authenticity**: The webhook originated from our service
-2. **Integrity**: The payload has not been tampered with during transmission
-
-After successful signature verification, the consumer can trust and use the payload data included in the request body.
+Once the signature checks out, you can trust and use the payload in the request
+body.
 
 ## Keys
 
-Each organization has a unique key pair automatically generated when the organization is created:
+Each organization gets its own key pair, generated automatically when the
+organization is created:
 
 - **Public Key** (`publicKey`): Format `pk_<32 hex characters>`
 - **Secret Key** (`privateKey`): Format `sk_<64 hex characters>`
 
-These keys are stored at the organization level and can be found in your organization settings. The secret key is used to sign webhooks, while the public key is included in webhook headers for identification purposes.
+The keys are stored at the organization level, and you can find them in your
+organization settings. We sign webhooks with the secret key and send the public
+key in the webhook headers to identify the organization.
 
 <Warning>Keep your secret key secure and never expose it publicly. Only the public key should be shared or used for verification.</Warning>
 
 ## Signature Headers
 
-Every webhook request includes the following headers along with the payload in the request body:
+Every webhook request carries these headers, with the payload in the request
+body:
 
 | Header         | Description                                        | Example                  |
 | -------------- | -------------------------------------------------- | ------------------------ |
 | `x-signature`  | HMAC-SHA256 signature of the payload (hex encoded) | `a1b2c3d4e5f6...`        |
 | `x-public-key` | Organization's public key identifier               | `pk_1234567890abcdef...` |
 
-<Note>The request body contains the full event payload. The signature is calculated from this payload data. After successful verification, you can trust and use the payload data.</Note>
+<Note>The request body contains the full event payload, and the signature is calculated from it.</Note>
 
 ## Verification Process
 
@@ -48,14 +52,16 @@ To verify a webhook signature, follow these steps:
 
 ### Step 1: Extract Headers
 
-Extract the following headers from the incoming request:
+Read these headers from the incoming request:
 
 - `x-signature`: The signature to verify against
-- `x-public-key`: Used to identify which organization's secret key to use
+- `x-public-key`: Tells you which organization's secret key to use
 
 ### Step 2: Get the Secret Key
 
-Using the `x-public-key` header, retrieve the corresponding secret key for your organization. This should match the secret key stored in your organization settings.
+Use the `x-public-key` header to look up the matching secret key for your
+organization. It should be the same secret key that is stored in your
+organization settings.
 
 ### Step 3: Reconstruct the Signature
 
@@ -72,7 +78,8 @@ Compare the computed signature with the `x-signature` header value. They must ma
 
 ### Step 5: Use the Payload Data
 
-After successful signature verification, you can trust and use the payload data from the request body. The signature proves the data's authenticity and integrity.
+Once the signatures match, you can trust and use the payload data from the
+request body.
 
 ## Code Examples
 
@@ -203,7 +210,9 @@ def get_secret_key_by_public_key(public_key):
 
 ## Important Notes
 
-1. **Raw Body**: Always use the raw, unparsed request body for signature verification. Do not use parsed JSON objects, as JSON serialization may differ between systems.
+1. **Raw Body**: Always use the raw, unparsed request body for signature
+   verification. Don't use a parsed JSON object, because JSON serialization can
+   differ between systems.
 
 2. **Constant-Time Comparison**: Use constant-time comparison functions (like `crypto.timingSafeEqual` in Node.js or `hmac.compare_digest` in Python) to prevent timing attacks.
 
@@ -211,17 +220,18 @@ def get_secret_key_by_public_key(public_key):
 
 4. **Error Handling**: If signature verification fails, return a 401 Unauthorized status and log the event for security monitoring.
 
-5. **Using Payload Data**: After successful signature verification, you can trust and use the payload data from the request body. The signature proves the data's authenticity and integrity.
+5. **Using Payload Data**: Once the signature is verified, you can trust and use
+   the payload data from the request body.
 
 ## Troubleshooting
 
 ### Signature Mismatch
 
-- Ensure you're using the raw request body (before JSON parsing)
+- Make sure you're using the raw request body (before JSON parsing)
 - Verify you're using the correct secret key for the public key in the header
 - Check that the payload string matches exactly (no extra whitespace, correct encoding)
 
 ### Missing Headers
 
 - Verify that your webhook endpoint is receiving all required headers: `x-signature`, `x-public-key`
-- Check your reverse proxy or load balancer configuration to ensure headers are not being stripped
+- Check that your reverse proxy or load balancer is not stripping these headers

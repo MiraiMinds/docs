@@ -1,6 +1,6 @@
 ---
 title: Shopify Integration
-description: Connect your Shopify store to enable voice agents for customer support, order management, and automated sales assistance.
+description: Connect your Shopify store so voice agents can handle customer support, order management and sales assistance.
 ---
 
 <Note>
@@ -11,7 +11,7 @@ on it. If you are building something new, start with the
 
 ## Overview
 
-Voice Agents seamlessly integrates with Shopify to provide intelligent customer support, order tracking, inventory inquiries, and sales assistance. Your customers can interact naturally with voice agents to check order status, find products, apply discounts, and get instant support.
+With the Shopify integration, a voice agent can handle customer support, order tracking, inventory questions and sales assistance for your store. Customers talk to the voice agent to check order status, find products, apply discounts and get support right away.
 
 <CardGroup cols={2}>
   <Card title="Order Management" icon="document">
@@ -28,29 +28,29 @@ Voice Agents seamlessly integrates with Shopify to provide intelligent customer 
   </Card>
   <Card title="Sales Automation" icon="star">
     Upsell, cross-sell, and guide customers through the purchase process with
-    intelligent recommendations.
+    product recommendations.
   </Card>
 </CardGroup>
 
 ## Required Permissions
 
-Your voice agent needs specific Shopify API permissions to function effectively:
+Your voice agent needs these Shopify API permissions:
 
 ### Essential Scopes
 
-- **`read_customers`** - Access customer information for personalized support
-- **`read_products`** - Provide product details and inventory status
-- **`read_orders`** - Check order status and history
-- **`write_orders`** - Process order modifications and cancellations
-- **`read_discounts`** - Apply available discount codes
-- **`write_discounts`** - Create promotional codes for customers
+- **`read_customers`**: access customer information for personalized support
+- **`read_products`**: provide product details and inventory status
+- **`read_orders`**: check order status and history
+- **`write_orders`**: process order changes and cancellations
+- **`read_discounts`**: apply available discount codes
+- **`write_discounts`**: create promotional codes for customers
 
 ### Optional Scopes (based on your use case)
 
-- **`read_inventory`** - Real-time inventory checking
-- **`read_shipping`** - Shipping rate calculations
-- **`write_customers`** - Update customer information
-- **`read_returns`** - Handle return requests
+- **`read_inventory`**: check inventory in real time
+- **`read_shipping`**: calculate shipping rates
+- **`write_customers`**: update customer information
+- **`read_returns`**: handle return requests
 
 ## Setup Guide
 
@@ -107,7 +107,7 @@ Your voice agent needs specific Shopify API permissions to function effectively:
    - `read_discounts`
    - `write_discounts`
 
-   Add additional scopes based on your specific use case, then save your changes.
+   Add any optional scopes your use case needs, then save your changes.
 
    ![Configure API scopes](/images/shopify-integration/image_7.png)
 
@@ -121,7 +121,7 @@ Your voice agent needs specific Shopify API permissions to function effectively:
 
 10. **Copy Access Token**
 
-    After installation, copy the generated access token. **Keep this secure** - you'll need it to connect with Voice Agents.
+    After installation, copy the generated access token and keep it secure. You'll need it to connect to Voice Agents.
 
     ![Access token](/images/shopify-integration/image_10.png)
 
@@ -145,9 +145,9 @@ Your voice agent needs specific Shopify API permissions to function effectively:
 
 ## What's Next?
 
-Once connected, your voice agent can immediately start handling:
+Once you connect the store, your voice agent can start handling these requests right away:
 
-- **Order inquiries** - "What's the status of my order #1234?"
-- **Product questions** - "Do you have this item in stock?"
-- **Customer support** - "How do I return an item?"
-- **Sales assistance** - "What's your best-selling product?"
+- Order inquiries: "What's the status of my order #1234?"
+- Product questions: "Do you have this item in stock?"
+- Customer support: "How do I return an item?"
+- Sales assistance: "What's your best-selling product?"

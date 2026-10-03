@@ -1,6 +1,6 @@
 ---
 title: Campaign Management
-description: Learn how to create and manage voice campaigns with CSV data or API integration
+description: Create and manage voice campaigns from a CSV file or through the API.
 ---
 
 <Note>
@@ -11,24 +11,22 @@ on it. If you are building something new, start with the
 
 ## Overview
 
-Voice campaigns allow you to automate outbound calls to multiple contacts. You can create campaigns using CSV data uploads or connect directly through your existing systems via API integration.
+A voice campaign places automated outbound calls to a list of contacts. You can load the contacts by uploading a CSV file, or send them from your existing systems through the API.
 
 <CardGroup cols={2}>
   <Card title="CSV Data Upload" icon="document">
-    Upload contact lists using our CSV template for quick campaign setup and
-    data management.
+    Upload a contact list in our CSV template to set up a campaign quickly.
   </Card>
   <Card title="API Integration" icon="puzzle">
-    Connect your existing systems via webhook to automatically sync contact
-    data.
+    Connect your existing systems through a webhook so contact data syncs
+    automatically.
   </Card>
   <Card title="Smart Scheduling" icon="calendar">
-    Configure precise timing, timezone handling, and operating hours for optimal
-    contact rates.
+    Set the dates, timezone and operating hours to reach more of your
+    contacts.
   </Card>
   <Card title="Call Management" icon="phone">
-    Set retry logic, call duration limits, and inactivity periods to maximize
-    efficiency.
+    Set retry logic, call duration limits and inactivity periods.
   </Card>
 </CardGroup>
 
@@ -52,7 +50,7 @@ Voice campaigns allow you to automate outbound calls to multiple contacts. You c
 
 3. **Enter Campaign Name**
 
-   Provide a descriptive name for your campaign that clearly identifies its purpose.
+   Give the campaign a name that describes its purpose.
 
    ![Campaign name field](/images/campaign-integration/image_3.png)
 
@@ -64,7 +62,7 @@ Voice campaigns allow you to automate outbound calls to multiple contacts. You c
 
 5. **Configure Webhook Integration**
 
-   Enable webhook integration if you need to add data from your platform through API. When enabled, CSV upload becomes optional.
+   Enable webhook integration if you want to send contact data from your platform through the API. With it enabled, CSV upload is optional.
 
    ![Webhook configuration](/images/campaign-integration/image_5.png)
 
@@ -80,29 +78,29 @@ Voice campaigns allow you to automate outbound calls to multiple contacts. You c
 
 7. **Prepare Your Contact Data**
 
-   Update the downloaded CSV template with your contact information, ensuring all required fields are completed.
+   Fill in the downloaded CSV template with your contacts. Complete every required field.
 
 8. **Upload CSV File**
 
-   Upload your completed CSV file using the file upload interface.
+   Upload the completed CSV file using the file upload interface.
 
    ![CSV upload interface](/images/campaign-integration/image_7.png)
 
 9. **Preview Contact Data**
 
-   Review your uploaded data in the right panel preview to verify accuracy before proceeding.
+   Check the uploaded data in the preview panel on the right before you continue.
 
    ![Data preview panel](/images/campaign-integration/image_8.png)
 
 #### Option B: API Integration
 
-When webhook is enabled, your platform can send contact data directly through API calls, eliminating the need for manual CSV uploads.
+With webhook integration enabled, your platform can send contact data directly through API calls, so you don't need to upload a CSV file by hand.
 
 ### Step 4: Schedule Configuration
 
 10. **Set Campaign Dates**
 
-    Configure your campaign timeline:
+    Set the campaign's start and end dates:
 
     - **Start Date**: Select when the campaign should begin
     - **End Date**: Choose when the campaign should conclude
@@ -111,7 +109,7 @@ When webhook is enabled, your platform can send contact data directly through AP
 
 11. **Configure Timezone**
 
-    Select the appropriate timezone for your campaign to ensure calls are made at the right local times.
+    Select the timezone for your campaign so that calls go out at the right local time.
 
     ![Timezone configuration](/images/campaign-integration/image_10.png)
 
@@ -141,7 +139,7 @@ When webhook is enabled, your platform can send contact data directly through AP
     Configure call timing parameters:
 
     - **Maximum Call Duration**: Longest allowable call time
-    - **Inactivity Period**: Wait time during no response before ending calls
+    - **Inactivity Period**: How long to wait with no response before ending the call
 
     ![Maximum call duration settings](/images/campaign-integration/image_14.png)
     ![Inactivity period settings](/images/campaign-integration/image_15.png)
@@ -150,7 +148,7 @@ When webhook is enabled, your platform can send contact data directly through AP
 
 15. **Create**
 
-    Once all settings are configured, click **"Create Campaign"** to Create your campaign.
+    When all the settings are done, click **"Create Campaign"**.
 
     ![Create campaign final step](/images/campaign-integration/image_16.png)
 
@@ -161,19 +159,19 @@ When webhook is enabled, your platform can send contact data directly through AP
     - **Valid Data**: Successfully stored and included in the campaign
     - **Invalid/Missing Data**: Not stored but displayed in a validation modal
 
-    Any invalid or missing entries will be shown in list format, allowing you to download this data for correction and potential re-upload.
+    The modal lists any invalid or missing entries. You can download them, correct them and upload them again.
 
 ### Step 7: Launch and Manage Campaign
 
 17. **Launch Your Campaign**
 
-    After creating your campaign, navigate to the campaign list to launch it. Click the **"Play"** button next to your campaign to start making calls.
+    After you create the campaign, launch it from the campaign list. Click the **"Play"** button next to your campaign to start making calls.
 
     ![Campaign list with play button](/images/campaign-integration/image_17.png)
 
 18. **Track Campaign Status**
 
-    Monitor your campaign's progress by visiting the **Campaign Status** page. Here you can view:
+    The **Campaign Status** page shows how the campaign is progressing, including:
 
     - Call completion rates
     - Success/failure statistics
@@ -184,7 +182,7 @@ When webhook is enabled, your platform can send contact data directly through AP
 
 19. **Copy Webhook API Endpoint**
 
-    If you enabled webhook integration, you can copy the API endpoint for your platform integration. Click **"Copy Webhook"** to get the endpoint URL for sending data via API.
+    If you enabled webhook integration, click **"Copy Webhook"** to copy the endpoint URL that your platform sends data to through the API.
 
     ![Copy webhook endpoint button](/images/campaign-integration/image_19.png)
 
@@ -194,18 +192,18 @@ When webhook is enabled, your platform can send contact data directly through AP
 
 Once your campaign is created and launched, you can:
 
-- **Monitor Performance** - Track call success rates and campaign progress
-- **Manage Active Campaigns** - Pause, resume, or modify running campaigns
-- **Analyze Results** - Review detailed campaign analytics and outcomes
-- **Export Reports** - Download campaign performance data
+- Track call success rates and campaign progress
+- Pause, resume or modify running campaigns
+- Review detailed campaign analytics and outcomes
+- Download campaign performance reports
 
 ## Best Practices
 
 ### Data Preparation
 
 - Test your CSV data with a small sample before uploading large datasets
-- Ensure phone numbers are properly formatted for your target regions
-- Include all required fields to minimize data validation issues
+- Format phone numbers correctly for the regions you are calling
+- Fill in all required fields to reduce validation errors
 
 ### Campaign Optimization
 
@@ -215,6 +213,6 @@ Once your campaign is created and launched, you can:
 
 ### Compliance Considerations
 
-- Ensure you have proper consent to contact all numbers in your campaign
+- Make sure you have proper consent to contact every number in your campaign
 - Respect do-not-call lists and opt-out requests
 - Follow local regulations for automated calling

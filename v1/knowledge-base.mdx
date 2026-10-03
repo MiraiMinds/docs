@@ -1,6 +1,6 @@
 ---
 title: Knowledge base
-description: Upload documents for retrieval-augmented answers — chunked upload, indexing status, collections.
+description: Upload documents in chunks for retrieval-augmented answers, check indexing status and manage collections.
 ---
 
 
@@ -23,7 +23,8 @@ types: `application/pdf`, `text/plain`, `text/markdown`, and `.docx`
 
 ## Upload a document
 
-Three steps: start a session, push the chunks, complete.
+An upload takes three steps: start a session, push the chunks, then complete
+the upload.
 
 <Steps>
 <Step title="Start a session">
@@ -262,7 +263,8 @@ GET /v1/knowledge-base/files
 GET /v1/knowledge-base/files/{knowledgeBaseId}
 ```
 
-Same object under `data`. This is the endpoint you poll after `complete`.
+Returns the same object under `data`. This is the endpoint you poll after
+`complete`.
 
 ## Delete a collection
 
@@ -288,12 +290,12 @@ Detach it from the assistant first.
 
 ## Writing documents that retrieve well
 
-- **Short, self-contained sections.** Retrieval returns fragments, not
-  documents. A fragment that only makes sense with the page around it is a
-  fragment the assistant will read out wrong.
+- **Short, self-contained sections.** Retrieval returns fragments of a
+  document. If a fragment only makes sense with the page around it, the
+  assistant will read it out wrong.
 - **Put the question in the text.** A heading of "Return policy" retrieves worse
   than a line reading "How do I return an item?".
-- **One fact per paragraph.** Tables and multi-column PDFs chunk badly — flatten
-  them to prose before uploading.
+- **One fact per paragraph.** Tables and multi-column PDFs chunk badly, so
+  flatten them to prose before uploading.
 - **Say numbers explicitly.** "Returns accepted within 7 days of delivery" is
   retrievable; "within the standard window" is not.

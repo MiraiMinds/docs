@@ -1,6 +1,6 @@
 ---
 title: Developer Introduction
-description: Get started with the Voice Agents API to build programmatic voice interactions.
+description: The base URL, authentication headers and first steps for the Voice Agents API.
 ---
 
 <Note>
@@ -9,11 +9,12 @@ on it. If you are building something new, start with the
 [Quickstart](/v2/quickstart).
 </Note>
 
-Welcome to the Voice Agents Developer Hub. Our API allows you to programmatically trigger voice calls, manage agents, and integrate voice capabilities directly into your applications.
+Use the Voice Agents API to trigger voice calls and manage agents from your own
+applications.
 
 ## Base URL
 
-All API requests should be made to:
+Send all API requests to:
 
 ```bash
 https://api.voice-agents.miraiminds.co/v1
@@ -21,7 +22,8 @@ https://api.voice-agents.miraiminds.co/v1
 
 ## Authentication
 
-We use a workspace and organization-based authentication system. Every request to the API must include the following headers to identify your account:
+Authentication is based on your workspace and organization. Every request must
+include these headers to identify your account:
 
 | Header | Description |
 | :--- | :--- |
@@ -30,22 +32,22 @@ We use a workspace and organization-based authentication system. Every request t
 | `Authorization` | Your Bearer token (e.g., `Bearer eyJhbGciOiJIUzI1Ni...`) |
 
 <Note>
-  To get your Organization ID, Workspace ID, and Authorization Token, please contact [sneh@miraiminds.co](mailto:sneh@miraiminds.co).
+  Contact [sneh@miraiminds.co](mailto:sneh@miraiminds.co) to get your organization ID, workspace ID and authorization token.
 </Note>
 
 ## Quick Start
 
 <Steps>
   <Step title="Get your Credentials">
-    Contact [sneh@miraiminds.co](mailto:sneh@miraiminds.co) to obtain your `workspace`, `organization`, and `Authorization` token.
+    Contact [sneh@miraiminds.co](mailto:sneh@miraiminds.co) to get your `workspace`, `organization` and `Authorization` token.
   </Step>
 
   <Step title="Choose an Assistant">
-    Identify the `assistant_id` of the voice agent you want to trigger.
+    Find the `assistant_id` of the voice agent you want to use.
   </Step>
 
   <Step title="Make your first Call">
-    Use our [Make a Call](/developers/make-a-call) endpoint to trigger an outbound call immediately.
+    Use the [Make a Call](/developers/make-a-call) endpoint to place an outbound call right away.
   </Step>
 </Steps>
 

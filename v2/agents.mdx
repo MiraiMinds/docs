@@ -60,10 +60,10 @@ only `pre_call` and `post_call` tools are allowed. See
 | :--- | :--- | :--- | :--- |
 | `name` | string | yes | Human label. Shown in logs and the console. |
 | `system_prompt` | string | yes, unless `flow` is set | The agent's instructions. Supports `{{variable}}` placeholders. Unused on a node-based agent. |
-| `first_message` | string | yes, unless `flow` is set | Spoken the moment the callee answers, before the model runs. Keep it short — it is your first-audio latency. Unused on a node-based agent: its start node's `greeting` opens the call. |
+| `first_message` | string | yes, unless `flow` is set | Spoken the moment the callee answers, before the model runs. Keep it short, because it sets your first-audio latency. Unused on a node-based agent: its start node's `greeting` opens the call. |
 | `voice` | object | yes | See [Voice](#voice). |
 | `language` | string | yes | BCP-47 conversation language, e.g. `hi-IN`, `en-IN`. Drives ASR and the model's default output language. |
-| `max_duration_secs` | integer | no | Hard cap. The call is ended with `ended_reason: exceeded-max-duration`. Minimum `30`, maximum `1800`, default `300`. |
+| `max_duration_secs` | integer | no | Hard cap. When it is reached, the call ends with `ended_reason: exceeded-max-duration`. Minimum `30`, maximum `1800`, default `300`. |
 | `tools` | array | no | Tool definitions for this agent. See [Tools](/v2/tools). PATCH replaces the full list. |
 | `emit_processed_webhook` | boolean | no | Defaults to `true`. Set `false` to suppress `call.processed` while keeping analysis and post-call tools enabled. |
 | `end_call` | object | no | See [Ending a call](#ending-a-call). |
@@ -82,19 +82,19 @@ Server-set and read-only: `id`, `object`, `created_at`, `updated_at`.
 
 | Field | Type | Description |
 | :--- | :--- | :--- |
-| `voice_id` | string | **Required.** A voice from the catalogue — `ashu`, `neha`, `shruti` or `sameer`, the same on every [tier](/general/tiers). Anything else is a `400` that names the allowed set. See [Voices](/v2/voices). |
-| `language` | string | Rendering language for that voice. Omit to inherit the agent's `language`. **Accepted and stored, not yet honoured** — see below. |
+| `voice_id` | string | **Required.** A voice from the catalogue: `ashu`, `neha`, `shruti` or `sameer`. The same voices are available on every [tier](/general/tiers). Anything else returns a `400` that names the allowed set. See [Voices](/v2/voices). |
+| `language` | string | Rendering language for that voice. Omit to inherit the agent's `language`. **Accepted and stored, not yet honoured.** See the note below. |
 
 <Note>
 **`voice.language` is recorded, not yet applied**
 
 The field is validated, stored and echoed back, and it travels with the call
-payload — but the voice today renders in the agent's top-level `language`. Set
-both to the same value and you get what you expect; set them differently and the
-top-level one wins until per-voice rendering ships.
+payload. Today, though, the voice renders in the agent's top-level `language`.
+If you set both to the same value, you get what you expect. If you set them
+differently, the top-level one wins until per-voice rendering ships.
 </Note>
 
-Hear the catalogue and pick a `voice_id` in the
+Listen to the catalogue and pick a `voice_id` in the
 [console](https://sandbox.voice.miraiminds.co). See [Voices](/v2/voices).
 
 ### Ending a call
@@ -104,9 +104,9 @@ hangs up.
 
 | Field | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
-| `enabled` | boolean | `true` | Set `false` to remove the tool entirely — the call then ends only on the callee hanging up or `max_duration_secs`. |
-| `message` | string | `""` | Spoken farewell, played **after** the agent's own goodbye when the call ends. Empty by default — the agent's last line is the farewell. Live today. |
-| `confirm` | boolean | `true` | Require a second `end_call` within the confirmation window before hanging up. Guards against fast models ending on a bare "ok". |
+| `enabled` | boolean | `true` | Set `false` to remove the tool entirely. The call then ends only when the callee hangs up or `max_duration_secs` is reached. |
+| `message` | string | `""` | Spoken farewell, played **after** the agent's own goodbye when the call ends. It is empty by default, so the agent's last line is the farewell. Live today. |
+| `confirm` | boolean | `true` | Require a second `end_call` within the confirmation window before hanging up. This stops fast models from ending the call on a bare "ok". |
 
 If you define an explicit `end_call` entry in `tools`, that entry controls whether
 the tool is available, including its condition. Its `builtin.enabled`,
@@ -137,12 +137,13 @@ hanging up on a customer mid-sentence.
 
 Either way the call ends with `status: voicemail` and fires a
 [`call.voicemail`](/v2/webhooks#call-voicemail) event. Voicemail detection is
-available on every tier — see [tiers](/general/tiers#one-stack-on-every-tier).
+available on every tier. See [tiers](/general/tiers#one-stack-on-every-tier).
 
 ### Background sound
 
-An agent answering out of complete silence is the loudest tell that nobody is
-there. `background_sound` plays a room under the voice for the whole call.
+An agent speaking out of complete silence is the most obvious sign that nobody
+is there. `background_sound` plays room ambience under the voice for the whole
+call.
 
 ```json
 { "background_sound": "office" }
@@ -157,12 +158,12 @@ Or, with the level:
 | Field | Type | Description |
 | :--- | :--- | :--- |
 | `sound` | `off` \| `office` | Which room. Default `off`. |
-| `volume` | number | `0`–`1`, default `0.08`. The default sits about 22 dB under the agent's voice — a room you notice when the line goes quiet, never one that competes with the words. Raise it if you want the room forward; a bed at `0.3` is already conversational-level. |
+| `volume` | number | `0` to `1`, default `0.08`. The default sits about 22 dB under the agent's voice, so you notice the room when the line goes quiet but it never competes with the words. Raise it if you want the room more present. A bed at `0.3` is already at conversation level. |
 
-Two things worth knowing before you turn it on:
+Before you turn it on, note two things:
 
-- The bed is in the **call recording** too, because it is what the callee
-  heard. If you run your own transcription over recordings, test it first.
+- The bed is in the call recording too, because it is what the callee heard.
+  If you run your own transcription over recordings, test it first.
 - It does not touch what the agent hears. Ambience is mixed into the outbound
   audio only, so your callers' speech recognition is unchanged.
 
@@ -198,8 +199,8 @@ is never interrupted whatever this setting is, and `never` applies to every node
 next call and is saved with each agent revision.
 
 <Tip>
-Callers on a laptop's built-in microphone in a busy room? Keep
-`adaptive_interruptions` on, and let the browser reduce noise. See
+If your callers use a laptop's built-in microphone in a busy room, keep
+`adaptive_interruptions` on and let the browser reduce noise. See
 [Microphone capture](/v2/web-calls#microphone-capture).
 </Tip>
 
@@ -280,7 +281,7 @@ POST /v2/agents
   </Tab>
 </Tabs>
 
-**`201 Created`** — the full [agent object](#the-agent-object).
+Responds with **`201 Created`** and the full [agent object](#the-agent-object).
 
 | Error | `error.code` | Cause |
 | :--- | :--- | :--- |
@@ -320,11 +321,11 @@ GET /v2/agents/{id}
   </Tab>
 </Tabs>
 
-**`200 OK`** — the agent object. **`404 not_found`** if the agent was deleted, if
-the ID does not exist, or if it exists in another workspace — all three answer
-identically, so a `404` is never a hint that the ID is real. Never `403`: that
-status means your key has been revoked and nothing else. See
-[errors](/v2/errors#error-codes).
+Responds with **`200 OK`** and the agent object. You get **`404 not_found`** if
+the agent was deleted, if the ID does not exist, or if it exists in another
+workspace. All three cases return the same response, so a `404` never hints that
+the ID is real. None of these cases returns `403`; that status only means your
+key has been revoked. See [errors](/v2/errors#error-codes).
 
 ---
 
@@ -367,10 +368,10 @@ curl "https://sandbox.voice.miraiminds.co/v2/agents?limit=20" \
 }
 ```
 
-Each element is the **full** [agent object](#the-agent-object) — the same shape
+Each element is the full [agent object](#the-agent-object), in the same shape
 `GET /v2/agents/{id}` returns, prompts included. There is no trimmed summary
-form, so listing a page of agents with long prompts is a large response: page
-with `limit` rather than pulling everything at once.
+form, so a page of agents with long prompts makes a large response. Page through
+with `limit` instead of pulling everything at once.
 
 Deleted agents are excluded. See [pagination](/v2/overview#pagination).
 
@@ -382,7 +383,7 @@ Deleted agents are excluded. See [pagination](/v2/overview#pagination).
 PATCH /v2/agents/{id}
 ```
 
-Send only the fields you are changing. Nested objects are replaced wholesale —
+Send only the fields you are changing. Nested objects are replaced wholesale, so
 to change `end_call.message`, send the whole `end_call` object. The same goes
 for `flow`: send the whole graph, or use
 [`PUT /v2/agents/{id}/flow`](/v2/node-agents#edit-the-graph). `"flow": null`
@@ -424,7 +425,7 @@ turns a node-based agent back into a single-prompt agent.
   </Tab>
 </Tabs>
 
-**`200 OK`** — the updated agent object.
+Responds with **`200 OK`** and the updated agent object.
 
 <Warning>
 An update takes effect on the **next** call. Calls already `queued`, `dialing`
@@ -455,16 +456,16 @@ longer be used for new calls, but historical calls keep resolving their
 ## Writing a good prompt
 
 A single-prompt agent does one job, start to finish, usually in under two or
-three minutes. The [prompting guide](/v2/prompting-guide) is the long version;
-the short one:
+three minutes. The [prompting guide](/v2/prompting-guide) covers this in
+detail. In short:
 
 - **Name the job in the first line.** "Confirm order `{{order_id}}`. Nothing else."
 - **Cap reply length explicitly.** "One or two short sentences." Long turns are
   the single biggest driver of perceived latency.
 - **State the ending condition.** "When the customer confirms or refuses, thank
   them and call `end_call`." Without this the model keeps talking.
-- **Put per-call data in `variables`, not the prompt.** One agent, thousands of
-  calls, no re-create.
+- **Put per-call data in `variables`, not the prompt.** One agent can then run
+  thousands of calls without being re-created.
 - **Write in the language you will speak.** A Hindi call driven by an English
   prompt code-switches badly. Write the Hindi lines in Devanagari.
 

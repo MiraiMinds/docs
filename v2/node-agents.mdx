@@ -1,6 +1,6 @@
 ---
 title: Node-based agents
-description: Build an agent as a graph of steps, each with its own instructions, and let the model move between them. Generate a draft from a brief or from call recordings, the graph schema, a worked example, editing, versions, limits and errors.
+description: Build an agent as a graph of steps, each with its own instructions, and let the model move between them. This page covers drafting a flow from a brief or from call recordings, the graph schema, a worked example, editing, versions, limits and errors.
 ---
 
 
@@ -11,9 +11,9 @@ speaks. When a condition is met, the call moves to the next step and that
 step's instructions take over.
 
 Node-based agents are available on every [tier](/general/tiers). They take
-phone calls, browser calls and campaigns, and they are billed like any other
-call. A flow is one field on the [agent](/v2/agents), `flow`, so it is created,
-edited, versioned and called with the same API key and the same routes.
+phone calls, browser calls and campaigns, and their calls are billed like any
+other call. A flow is one field on the [agent](/v2/agents), `flow`, so you
+create, edit, version and call it with the same API key and the same routes.
 
 Base URL `https://sandbox.voice.miraiminds.co`. All endpoints require
 `Authorization: Bearer sk_live_…`.
@@ -45,9 +45,9 @@ editor example, follow the [Node.js cookbook](/cookbooks/node-flow-builder).
    and `condition` is its description. When the model decides the condition is
    met, it calls the function and the call moves to the target node.
 4. **The conversation carries across nodes.** Moving to a node replaces the
-   instructions, not the history: the model still knows everything said so far.
-   It then replies as the new node.
-5. **Speech first, then the move.** If the model speaks and calls a transition
+   instructions and keeps the history, so the model still knows everything said
+   so far. It then replies as the new node.
+5. **Speech plays before the move.** If the model speaks and calls a transition
    in the same reply, the move happens after that speech has played.
 6. **An end node ends the call.** The agent speaks its reply to the end node's
    prompt, then hangs up. The call ends `completed` with
@@ -85,15 +85,15 @@ POST /v2/agents/flow/generate
 
 | Field | Type | Required | Description |
 | :--- | :--- | :--- | :--- |
-| `brief` | string | yes, unless you send `examples` | 1–20,000 characters. What the agent does: who it talks to, what it says and asks, how each answer is handled, what to record, and the language. A structured specification written with another assistant fits. |
+| `brief` | string | yes, unless you send `examples` | 1–20,000 characters. What the agent does: who it talks to, what it says and asks, how each answer is handled, what to record, and the language. You can also send a structured specification written with another assistant. |
 | `examples` | array | no | 2–10 example calls to learn the flow from, each `{"transcript": "…"}`. See [draft a flow from call recordings](#draft-a-flow-from-call-recordings). |
 | `language` | string | no | Up to 32 characters. A language code or name for the spoken lines, such as `hi`, `en` or `Hinglish`. Without it, the brief decides. |
 | `model` | string | no | The model that writes the draft: `gemini-3.8-flash` (default), `gpt-6-sol` or `claude-opus-5.5`. See [choose a model](#choose-a-model). Any other value is refused with `400 invalid_request`. |
 | `flow` | object | no | A graph to revise, as `GET /v2/agents/{id}/flow` returns it. It must itself be valid. See [revise a flow](#revise-a-flow). |
 
-**Nothing is saved.** The response is a draft for you to review, test and save.
-Each generation is [charged to your wallet](#what-a-draft-costs) at what the
-model's provider reports it cost, plus 20%.
+Generating a flow saves nothing. The response is a draft for you to review, test
+and save. Each generation is [charged to your wallet](#what-a-draft-costs) at
+what the model's provider reports it cost, plus 20%.
 
 ```json title="200 OK"
 {
@@ -131,7 +131,7 @@ model's provider reports it cost, plus 20%.
 | `flow` | The draft graph, with every default filled in. It passes every rule `PUT /v2/agents/{id}/flow` applies. |
 | `variables` | The call variables the draft reads as `{{name}}`: facts you know before the call, such as a name or an order number. What the caller says is captured by the nodes' [extraction variables](#extraction) instead. |
 | `input_schema` | The same variables as the agent's `input_schema`, every one required. Save it together with the flow. |
-| `flow_revision` | The draft's [fingerprint](#step-2-validate-it). Saved unchanged, the graph keeps it. |
+| `flow_revision` | The draft's [fingerprint](#step-2-validate-it). If you save the graph unchanged, it keeps this value. |
 | `rounds` | How many attempts the draft took, from 1 to 3. Each attempt is checked against the graph rules, and any problems are sent back for another attempt. |
 | `usage` | Tokens the model used, summed over every attempt: `prompt_tokens` in, `completion_tokens` out. |
 | `cost` | What was charged to your wallet, `amount_inr`: the provider's reported cost plus 20%. |
@@ -152,27 +152,28 @@ events](#step-4-test-it-in-the-browser) and take every branch at least once.
 | Claude Opus 5.5 | `claude-opus-5.5` | ₹6–8 | 25–35 s |
 
 Start with the default. Try another model when a draft misses branches or rules
-your brief asked for. A draft from two example calls is larger: about ₹8–12,
-and up to a minute on Claude Opus 5.5. Whatever the model, set your client's
-timeout to a few minutes; the examples below use 5.
+your brief asked for. A draft from two example calls costs more and takes
+longer: about ₹8 to ₹12, and up to a minute on Claude Opus 5.5. With any model,
+set your client's timeout to a few minutes. The examples below use 5.
 
 ### What a draft costs
 
 Each generation is charged to your [wallet](/v2/wallet) at what the model's
 provider reports it cost, plus 20%. The response's `cost` says what was
-charged. If the provider reports no cost for an attempt, that attempt is
-charged its tokens at the chosen model's published rates per million input and
-output tokens, which are on [Billing & tiers](/general/tiers#ai-flow-drafts).
+charged. If the provider reports no cost for an attempt, we charge that
+attempt's tokens at the chosen model's published rates per million input and
+output tokens. You can find those rates on
+[Billing & tiers](/general/tiers#ai-flow-drafts).
 
-- **Every attempt counts.** The cost of every attempt is added up, and the
-  total is rounded up to the paisa once.
+- **Every attempt counts.** We add up the cost of every attempt and round the
+  total up to the paisa once.
 - **Failures are charged too.** A `422 flow_generation_failed`, and a `503`
   after the model had already answered, are charged for what the model did.
   Both responses carry `id`, `model`, `usage` and `cost`. Nothing is charged
   when the model never answered.
-- **The wallet must hold a positive balance.** An empty wallet is refused with
-  `402 insufficient_balance` before the model runs. A charge never takes the
-  wallet below zero.
+- **The wallet must hold a positive balance.** If it is empty, the request is
+  refused with `402 insufficient_balance` before the model runs. A charge never
+  takes the wallet below zero.
 - **Where it shows.** Each charge is one wallet transaction of kind
   [`flow_generation`](/v2/wallet#a-flow-generation-row), and the billing
   statement lists the charges as **AI flow drafts**.
@@ -482,8 +483,8 @@ collected, and how calls end. It then designs the flow for what happened in the
 calls and their obvious variants.
 
 <Tip>
-**In Agent Studio**, choose **Create agent → Node-based**. Describe the calls,
-add 2 to 10 recordings, or both, then choose **Draft flow**. To write the
+In **Agent Studio**, choose **Create agent**, then **Node-based**. Describe the
+calls, add 2 to 10 recordings, or both, then choose **Draft flow**. To write the
 description with ChatGPT or Claude, choose **Copy prompt**, paste the prompt
 there, and paste the answer back as the description. Agent Studio drafts with
 Claude Opus 5.5 and creates the agent, ready to test and edit in the builder.
@@ -537,7 +538,7 @@ ends, and it is never logged. The transcript is not stored either: it exists
 only in the response, so keep it if you want to draft again.
 </Note>
 
-A two-minute call takes about 5–10 seconds to transcribe. Set a client timeout
+A two-minute call takes about 5 to 10 seconds to transcribe. Set a client timeout
 of a few minutes to allow for the upload. Transcribe one or two recordings at a
 time: while the transcriber is busy with other requests, it answers
 `429 rate_limited` with `Retry-After`.
@@ -679,15 +680,15 @@ the calls took before it calls anyone.
 
 Each transcription is charged to your [wallet](/v2/wallet) at what the
 provider reports it cost, plus 20%, like a draft. The provider prices audio
-above text, so this is not a token rate: it comes to about ₹1 per minute of
-audio. The response's `cost` says what was charged.
+higher than text, so the charge does not follow a token rate. It comes to about
+₹1 per minute of audio. The response's `cost` says what was charged.
 
 - **A transcript is charged, and so is a recording with no conversation in it**
   (`422 transcription_failed`): the model listened to the audio either way.
 - **Nothing else is charged.** A request refused before the model runs (`400`,
   `402`, `429`) and a model that is unavailable (`503`) cost nothing.
-- **The wallet must hold a positive balance.** An empty wallet is refused with
-  `402 insufficient_balance` before the recording is decoded.
+- **The wallet must hold a positive balance.** If it is empty, the request is
+  refused with `402 insufficient_balance` before the recording is decoded.
 - **Where it shows.** Each charge is one wallet transaction of kind
   [`flow_generation`](/v2/wallet#a-recording-transcription-row), and the
   billing statement lists it with the **AI flow drafts**.
@@ -726,8 +727,8 @@ the transcriber is busy do not count against the hourly limit.
 
 ## The graph
 
-A flow is a JSON object with `nodes`, `edges` and, optionally, `viewport`.
-Nothing else is accepted.
+A flow is a JSON object with `nodes`, `edges` and, optionally, `viewport`. Any
+other key is refused.
 
 ```json
 {
@@ -850,7 +851,7 @@ A graph is refused unless all of these hold:
 - Your tier's model makes native tool calls, because every transition is a tool
   call. The standard model on every tier does.
 
-Problems are reported with the path of each. See [errors](#errors).
+Each problem is reported with its path. See [errors](#errors).
 
 ---
 
@@ -870,8 +871,8 @@ flowchart LR
     reschedule -->|new_day_agreed| goodbye
 ```
 
-**You need:** your `sk_live_` key, a phone number you are allowed to call, a
-public HTTPS URL for [webhooks](/v2/webhooks), and `jq` for the cURL examples.
+You need your `sk_live_` key, a phone number you are allowed to call, a public
+HTTPS URL for [webhooks](/v2/webhooks), and `jq` for the cURL examples.
 
 ### Step 1: Write the graph
 
@@ -1008,12 +1009,12 @@ Save this as `delivery-flow.json`.
 What each part does:
 
 - **`persona`** holds what every step shares: who the agent is, the language,
-  reply length, and the rule to move on silently. Each step's own prompt stays
-  short.
+  reply length, and the rule to move on silently. That keeps each step's own
+  prompt short.
 - **`identity`** discloses that the caller is speaking with an AI, and says
   nothing about the order until the right person has confirmed.
 - **`slot`** and **`reschedule`** each name the transitions they may call, and
-  when. Conditions repeat that decision in plain words.
+  when. Each transition's condition repeats that decision in plain words.
 - **`goodbye`** sets `allow_interrupt: false`, so the summary of what was
   agreed is always heard in full.
 
@@ -1309,8 +1310,8 @@ events.addEventListener("flow.variables.extracted", (e) => {
 });
 ```
 
-Your backend can read the same stream with the API key. An abridged test where
-the customer asks for another day:
+Your backend can read the same stream with the API key. Here is an abridged
+test in which the customer asks for another day:
 
 ```bash
 curl -N https://sandbox.voice.miraiminds.co/v2/calls/call_01K8C5F7H9K1M3P5R7T9V1X3Z5/events \
@@ -1489,7 +1490,7 @@ and is sent without `flow` if it has not arrived by then; read
 
 ## Edit the graph
 
-Three ways to change a saved graph:
+Use these three routes to change a saved graph:
 
 | Route | Use it to |
 | :--- | :--- |
@@ -1497,7 +1498,7 @@ Three ways to change a saved graph:
 | `PUT /v2/agents/{id}/flow?if_revision=N` | Replace the graph without resending the rest of the agent. It also turns a single-prompt agent into a node-based one. |
 | `PATCH /v2/agents/{id}` with `flow` | Change the graph together with other fields. `flow` is replaced whole, like every nested object. |
 
-`GET` returns the graph and its identities:
+`GET` returns the graph with its agent ID and revisions:
 
 ```json title="200 OK"
 {
@@ -1509,7 +1510,7 @@ Three ways to change a saved graph:
 }
 ```
 
-A single-prompt agent has no graph: `GET` answers `404 not_found`.
+A single-prompt agent has no graph, so `GET` returns `404 not_found`.
 
 To edit safely, read the graph, change it, and save it with
 `if_revision` set to the `agent_revision` you read. If someone saved the agent
@@ -1717,14 +1718,15 @@ Everything else uses the [standard error envelope](/v2/errors):
   when: "If they confirm, call `confirmed_identity`." Then write the
   `condition` to match.
 - **Move silently.** Tell the model to call a transition without speaking
-  first. The next node's prompt owns what is said next, so nothing is said
+  first. The next node's prompt decides what is said next, so nothing is said
   twice.
 - **Make conditions exclusive.** Two transitions from one node that could both
   be true make the model guess. Say what distinguishes them.
-- **Put shared rules in the global node.** Persona, language, reply length and
-  what never to promise belong there once, not in every node.
+- **Put shared rules in the global node.** Write the persona, language, reply
+  length and what never to promise there once, instead of repeating them in
+  every node.
 - **Keep end nodes to one line.** An end node gets one reply before the call
-  ends. Ask no question there.
+  ends, so don't ask a question there.
 - **Extract only what you use.** Every extraction variable is stored with the
   call. Do not extract personal data you do not need.
 
@@ -1736,10 +1738,11 @@ Everything else uses the [standard error envelope](/v2/errors):
   confirmed, and give a wrong-person branch its own end node.
 - **Mind what you extract.** Extracted values are stored with the call and
   delivered to your webhook. Treat them like the transcript.
-- **Use recordings you may use.** Transcribe only calls you have the right to
-  process, with the notice or consent your calling rules require. The audio is
-  not stored and personal data is replaced with placeholders, but a transcript
-  is still your customers' conversation: keep it like a call transcript.
+- **Check your rights to a recording.** Transcribe only calls you have the right
+  to process, with the notice or consent your calling rules require. The audio
+  is not stored and personal data is replaced with placeholders, but a
+  transcript is still your customers' conversation: keep it like a call
+  transcript.
 - **Calling rules still apply.** Calling windows, consent and do-not-call rules
   are the same for every agent. See [India calling rules](/v2/limits#india-calling-rules).
 

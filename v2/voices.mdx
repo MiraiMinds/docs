@@ -1,11 +1,11 @@
 ---
 title: Voices
-description: Choosing a voice_id for your agent — one catalogue on every tier, and the one caveat about the language field.
+description: How to choose a voice_id for your agent. The catalogue is the same on every tier, and the language field has one caveat.
 ---
 
-Every agent speaks in one voice, set by `voice.voice_id`. **Every
-[tier](/general/tiers) speaks through the same Mira voices**, so the catalogue
-does not change with your plan.
+Every agent speaks in one voice, set by `voice.voice_id`. Every
+[tier](/general/tiers) uses the same Mira voices, so the catalogue does not
+change with your plan.
 
 ## The catalogue
 
@@ -16,10 +16,10 @@ does not change with your plan.
 | `shruti` | Female |
 | `sameer` | Male |
 
-All four are Hindi voices that code-switch through the English of real Indian
-speech. **`voice` is required** when you create an agent. Anything outside the
-catalogue is rejected at agent-create time, and the error names the allowed set
-so you are not left guessing:
+All four are Hindi voices that code-switch into English the way real Indian
+speech does. **`voice` is required** when you create an agent. A voice outside
+the catalogue is rejected when you create the agent, with an error that names
+the allowed set:
 
 ```json title="400 Bad Request"
 {
@@ -32,20 +32,20 @@ so you are not left guessing:
 
 <Note>
 Because the catalogue is the same on every tier, an agent's voice never depends
-on your plan. Moving to a different plan changes what your calls cost, not how
-they sound.
+on your plan. Moving to a different plan changes what your calls cost and
+leaves the way they sound unchanged.
 </Note>
 
 ## Hearing them first
 
 There is no `GET /v2/voices` yet. The live catalogue is the voice picker in the
-[console](https://sandbox.voice.miraiminds.co) — open Agent Studio and you can
-**hear each voice** before you commit to one. The name in the picker is the
-`voice_id`, and the catalogue grows monthly; treat the picker, not this page, as
-the source of truth.
+[console](https://sandbox.voice.miraiminds.co). Open Agent Studio to hear each
+voice before you commit to one. The name in the picker is the `voice_id`. The
+catalogue grows monthly, so if this page and the picker disagree, trust the
+picker.
 
 <Tip>
-**Listen before you pick.** Voice choice moves answer-through rates more than
+**Listen before you pick.** Voice choice affects answer-through rates more than
 prompt wording does.
 </Tip>
 
@@ -62,8 +62,8 @@ prompt wording does.
 
 | Field | Type | Description |
 | :--- | :--- | :--- |
-| `voice_id` | string | **Required.** A voice from [the catalogue](#the-catalogue) — the same on every tier. Unknown ⇒ `400`. |
-| `language` | string | Rendering language. Omit to inherit the agent's top-level `language`. **Accepted and stored, not yet honoured** — see below. |
+| `voice_id` | string | **Required.** A voice from [the catalogue](#the-catalogue), which is the same on every tier. An unknown voice returns `400`. |
+| `language` | string | Rendering language. Omit it to inherit the agent's top-level `language`. **Accepted and stored, but not yet honoured.** See below. |
 
 Change it later with `PATCH /v2/agents/{id}`:
 
@@ -81,10 +81,9 @@ See the [Agents reference](/v2/agents#voice) for the full agent shape.
 <Warning>
 **`voice.language` is recorded, not yet applied**
 
-It is validated, stored, echoed back and carried with the call payload — but
-the voice renders in the agent's **top-level** `language`. Set both to the same
-value and you get what you expect; set them differently and the top-level one
-wins.
+We validate it, store it, echo it back and carry it with the call payload, but
+the voice renders in the agent's top-level `language`. If the two match, you
+get what you expect. If they differ, the top-level one wins.
 </Warning>
 
 Keep `voice.language` and the agent's `language` identical.

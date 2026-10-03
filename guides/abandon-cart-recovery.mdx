@@ -1,6 +1,6 @@
 ---
 title: Abandon Cart Recovery
-description: Complete guide to setting up automated abandon cart recovery using Voice Agents with GoKwik integration and Shopify coupon automation.
+description: Set up automated abandon cart recovery with Voice Agents, using GoKwik webhooks and automatic Shopify coupons.
 ---
 
 <Note>
@@ -11,7 +11,7 @@ on it. If you are building something new, start with the
 
 ## Overview
 
-Abandon cart recovery is one of the most powerful applications of Voice Agents in e-commerce, capable of recovering up to 20% of abandoned carts through intelligent, automated outreach. This guide provides complete setup instructions for implementing abandon cart recovery using GoKwik webhook integration and [Shopify coupon automation](/integrations/shopify).
+Abandon cart recovery is one of the most effective uses of Voice Agents in e-commerce. Automated calls and messages can recover up to 20% of abandoned carts. This guide covers the full setup, using a GoKwik webhook and [Shopify coupon automation](/integrations/shopify).
 
 <CardGroup cols={2}>
   <Card title="Quick Setup" icon="stopwatch">
@@ -20,12 +20,12 @@ Abandon cart recovery is one of the most powerful applications of Voice Agents i
     integrations.
   </Card>
   <Card title="Automated & Instant" icon="rocket">
-    Instantly detect abandoned carts via GoKwik webhooks and trigger a
-    personalized AI voice call within minutes.
+    GoKwik webhooks report abandoned carts as they happen, and a personalized
+    AI voice call goes out within minutes.
   </Card>
   <Card title="Smart Incentives" icon="star">
-    Automatically generate unique, time-sensitive Shopify discount coupons to
-    encourage purchase completion.
+    Generate unique, time-limited Shopify discount coupons automatically to
+    encourage customers to complete the purchase.
   </Card>
   <Card title="Multi-Channel Outreach" icon="phone">
     Combine an AI voice call with an immediate WhatsApp follow-up containing the
@@ -35,22 +35,22 @@ Abandon cart recovery is one of the most powerful applications of Voice Agents i
 
 ## How It Works
 
-The recovery system operates through a seamless, automated workflow triggered in real-time:
+Recovery runs automatically and starts in real time:
 
 1.  **Cart Abandoned:** A customer abandons their cart on your GoKwik checkout page.
 2.  **Webhook Trigger:** GoKwik instantly sends a webhook notification to the Voice Agents platform with the cart and customer details.
 3.  **Coupon Generated:** The system connects to your [Shopify store](/integrations/shopify) and automatically generates a unique, time-limited discount coupon.
 4.  **AI Voice Call:** Within minutes, an AI Voice Agent places a personalized call to the customer, referencing their cart items and offering the discount.
-5.  **WhatsApp Follow-up:** Immediately after the call, a [WhatsApp message](/integrations/whatsapp) is sent containing the direct GoKwik checkout link and the unique coupon code, making it easy to complete the purchase.
+5.  **WhatsApp Follow-up:** Right after the call, the customer gets a [WhatsApp message](/integrations/whatsapp) with the direct GoKwik checkout link and their unique coupon code, so they can complete the purchase from there.
 
 ## Data Access & Permissions
 
-We prioritize your data security and privacy. Our system is designed to be non-intrusive and only accesses the minimal data required to function.
+Voice Agents accesses only the minimum data it needs to run.
 
 <Note>
 **Strictly Read-Only and Action-Specific**
 
-The Voice Agents system **NEVER** manipulates cart contents, modifies payment information, or alters customer data in GoKwik or Shopify. It only listens for events and performs specific, authorized actions.
+Voice Agents never changes cart contents, payment information or customer data in GoKwik or Shopify. It only listens for events and performs specific actions that you have authorized.
 </Note>
 
 - **GoKwik Integration:**
@@ -69,8 +69,6 @@ The Voice Agents system **NEVER** manipulates cart contents, modifies payment in
 
 ## Setup Guide
 
-Follow these steps to configure your automated abandon cart recovery campaign.
-
 ### Step 1: GoKwik Webhook Integration
 
 This is the recommended method for real-time recovery.
@@ -83,11 +81,11 @@ This is the recommended method for real-time recovery.
 
 2.  **Get Your Webhook Endpoint.**
 
-    - You can find this unique URL in your abandon cart campaign page on the Voice Agents platform.
+    - This unique URL is on your abandon cart campaign page in the Voice Agents platform.
       ![Webhook Configuration](/images/guide/webhook.png)
 
 3.  **How It Works:**
-    - Once configured, GoKwik will send a JSON payload with cart details to this endpoint whenever a cart is abandoned. Our platform automatically extracts the relevant information (customer name, phone, cart items) to initiate the recovery call.
+    - Once this is set up, GoKwik sends a JSON payload with the cart details to this endpoint whenever a cart is abandoned. The platform pulls out the customer name, phone and cart items and uses them to start the recovery call.
 
 #### GoKwik Webhook Data Structure
 
@@ -131,7 +129,7 @@ This is the recommended method for real-time recovery.
 
 ### Step 2: Shopify Integration Setup
 
-This is required for automatically generating discount codes. For detailed setup instructions, see our [complete Shopify integration guide](/integrations/shopify).
+You need this to generate discount codes automatically. For detailed setup instructions, see the [complete Shopify integration guide](/integrations/shopify).
 
 1.  **Connect Your Store:** In the Voice Agents dashboard, navigate to **Integrations** and select **Shopify**.
 2.  **Authorize:** Enter your Shopify store URL (`your-store.myshopify.com`) and follow the prompts to authorize the connection.
@@ -142,36 +140,33 @@ This is required for automatically generating discount codes. For detailed setup
 
 ### Step 3: WhatsApp Integration Setup
 
-This is required for sending the follow-up message with the checkout link.
+You need this to send the follow-up message with the checkout link.
 
 1.  **Connect Your Account:** In the Voice Agents dashboard, navigate to **Integrations** and select **WhatsApp**.
 2.  **Authorize:** Follow the steps to connect your WhatsApp Business Account (WABA).
 3.  **Configure Message Template:**
     - Select or create an approved message template for abandon cart recovery.
-    - Ensure it includes placeholders for the customer's name, coupon code, and the GoKwik checkout link.
+    - Make sure it has placeholders for the customer's name, the coupon code and the GoKwik checkout link.
 
 ### Step 4: Tracking Recovery Success
 
-To measure the effectiveness of your campaigns, we automatically add UTM parameters to the checkout link.
-
-- **UTM Parameters:** The `abandonLink` from GoKwik is appended with parameters like `&utm_source=voiceagents&utm_medium=call`.
-- **Attribution:** This allows you to see all recovered orders attributed directly to Voice Agents on your GoKwik dashboard, giving you a clear view of your ROI.
+To measure how well your campaigns work, we automatically add UTM parameters to the checkout link. We append parameters such as `&utm_source=voiceagents&utm_medium=call` to the `abandonLink` from GoKwik. On your GoKwik dashboard you can then see all the recovered orders attributed directly to Voice Agents, which gives you a clear view of your ROI.
 
 ## Alternative Method: CSV Upload
 
 <Warning>
 **Not Recommended**
 
-Using the CSV method significantly delays outreach, reducing the "heat of the moment" urgency and lowering conversion rates. Only use this if real-time webhook integration is not possible.
+The CSV method delays outreach significantly. By the time the call goes out, the customer's "heat of the moment" urgency has faded, so conversion rates drop. Use it only if real-time webhook integration is not possible.
 </Warning>
 
 1.  **Export Data:** Export your abandoned cart data from the GoKwik dashboard.
-2.  **Format CSV:** Ensure the file includes columns for customer phone, name, cart items, and the checkout URL.
+2.  **Format CSV:** Make sure the file has columns for customer phone, name, cart items and the checkout URL.
 3.  **Upload Manually:** Upload the formatted CSV to a new campaign on the Voice Agents platform.
 
 ## Best Practices for Optimization
 
-- **Timing is Key:** The AI call should be triggered within 5-15 minutes of abandonment for the highest impact.
-- **Smart Discounts:** Start with a 5-10% discount. A/B test different offers to find what works best for your audience.
-- **Clear Call to Action:** Both the voice call and WhatsApp message should clearly guide the user to complete their purchase using the provided link and code.
-- **Monitor & Refine:** Regularly check your campaign's performance metrics (recovery rate, coupon redemption rate) and refine your call scripts and offers accordingly.
+- Trigger the AI call within 5-15 minutes of abandonment, when it has the most effect.
+- Start with a 5-10% discount, and A/B test different offers to find what works best for your audience.
+- Make sure the voice call and the WhatsApp message both tell the customer clearly how to complete the purchase with the link and code.
+- Check your campaign's performance metrics (recovery rate, coupon redemption rate) regularly, and refine your call scripts and offers based on them.

@@ -1,6 +1,6 @@
 ---
 title: Create Assistant
-description: Create a new voice assistant with specific configuration.
+description: Create a voice assistant and set its prompt, model, transcriber and voice.
 ---
 
 <Note>
@@ -9,7 +9,8 @@ on it. If you are building something new, start with the
 [Quickstart](/v2/quickstart).
 </Note>
 
-The `Create Assistant` endpoint allows you to programmatically create a new voice assistant. You can configure its personality, voice, tools, and other settings.
+The `Create Assistant` endpoint creates a new voice assistant. You can set its
+personality, voice, tools and other settings.
 
 ## Endpoint
 
@@ -186,7 +187,7 @@ print(response.text)
 
 ## Response
 
-Returns a JSON object containing the created assistant details.
+Returns a JSON object with the details of the new assistant.
 
 ### Success Response (`200 OK`)
 

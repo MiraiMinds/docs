@@ -1,6 +1,6 @@
 ---
 title: Assistants
-description: Create, read, list and update v1 assistants — prompts, identity, variants, call settings and analysis plans.
+description: Create, read, list and update v1 assistants, including their prompts, identity, variants, call settings and analysis plans.
 ---
 
 
@@ -12,7 +12,7 @@ on it. If you are building something new, start with the
 
 An **assistant** is v1's agent: prompt, voice identity, telephony bindings, call
 settings, knowledge base and post-call analysis plan. All endpoints are
-workspace-scoped — send the `workspace` header.
+workspace-scoped, so send the `workspace` header.
 
 ## Variants
 
@@ -34,7 +34,7 @@ POST /v1/admin/assistant/create
 | `name` | string | yes | Max 40 characters. Unique per workspace. |
 | `variant.type` | enum | yes | `custom` \| `abandoned_cart` |
 | `variant.config.inputSchema` | array | no | Variables the prompt references. See [variables](#variables). |
-| `agent.identity` | object | yes | `{ name, gender, voice }` — `gender` is `male` or `female`, `voice` is a slug from the [voice gallery](#voice-gallery). |
+| `agent.identity` | object | yes | `{ name, gender, voice }`. `gender` is `male` or `female`; `voice` is a slug from the [voice gallery](#voice-gallery). |
 | `agent.systemPrompt` | string | no | The instructions. Supports `{{placeholders}}`. |
 | `agent.firstMessage` | string | no | Spoken on connect. If empty, a greeting is generated from the identity and ICP language. |
 | `agent.endMessage` | string | no | Spoken just before hanging up. |
@@ -175,7 +175,8 @@ POST /v1/admin/assistant/create
   </Tab>
 </Tabs>
 
-**`200 OK`** — the created assistant under `data`.
+A successful request returns **`200 OK`** with the created assistant under
+`data`.
 
 | Status | Cause |
 | :--- | :--- |
@@ -199,7 +200,7 @@ per call. Nested values use dot paths: `{{customer.firstName}}`.
 
 `type` is one of `string`, `number`, `boolean`, `object`, `array`; nested shapes
 use `fields`. **A placeholder with no matching value is left in the prompt
-verbatim** — the assistant will read the braces aloud. Always send every
+verbatim**, and the assistant will read the braces aloud. Always send every
 required variable.
 
 <Warning>
@@ -213,7 +214,7 @@ while the `POST /v2/call/initiate` request schema and all of its examples use
 
 ### ICP context
 
-Shapes tone, vocabulary and pace.
+ICP context shapes the assistant's tone, vocabulary and pace.
 
 | Field | Values |
 | :--- | :--- |
@@ -244,18 +245,18 @@ Shapes tone, vocabulary and pace.
 
 | Field | Default | Meaning |
 | :--- | :--- | :--- |
-| `maxAttemptsNoPickup` | `2` | Rang, nobody answered — retry this many times. |
-| `maxAttemptsLowEngagement` | `1` | Answered but cut immediately — retry this many times. |
+| `maxAttemptsNoPickup` | `2` | Rang and nobody answered. Retry this many times. |
+| `maxAttemptsLowEngagement` | `1` | Answered but cut immediately. Retry this many times. |
 | `reAttemptPeriod` | `300` | Seconds between attempts. |
 | `maxRescheduleCount` | `1` | Callbacks the customer can request. Maximum 5. |
 
-`slots` is v1's calling-window enforcement. Set it to your compliant window —
-see [India calling rules](/v2/limits#india-calling-rules).
+`slots` is how v1 enforces calling windows. Set it to your compliant window
+(see [India calling rules](/v2/limits#india-calling-rules)).
 
 ### Analysis plan
 
-Post-call AI evaluation. Results arrive on the [`end-of-call`](/v1/webhooks#end-of-call)
-event.
+The analysis plan is a post-call AI evaluation. Its results arrive on the
+[`end-of-call`](/v1/webhooks#end-of-call) event.
 
 | Field | What it does |
 | :--- | :--- |
@@ -272,15 +273,15 @@ event.
 }
 ```
 
-Vague success criteria produce vague booleans. Enumerate the conditions and
-state the false cases explicitly.
+Enumerate the conditions and state the false cases explicitly. If the success
+criteria are vague, the boolean they produce is unreliable.
 
 ### Pre-call enrichment
 
 If `preCall.apiPlan.url` is set, we call your endpoint before the call connects
 (inbound or outbound) and merge the returned data into the call's variables, so
-your `{{placeholders}}` can use it — greeting an inbound caller by name, for
-example.
+your `{{placeholders}}` can use it. For example, the assistant can greet an
+inbound caller by name.
 
 We send `number` and `assistantId` as query parameters for `method: get`, or as
 a JSON body for `method: post`. Keep the endpoint fast: it sits in front of the
@@ -341,8 +342,8 @@ organization instead.
 GET /v1/admin/voice-gallery
 ```
 
-The catalogue of available voices. The `slug` is what goes in
-`agent.identity.voice` — and in [v2's](/v2/agents#voice) `voice.voice_id`.
+This returns the catalogue of available voices. The `slug` is what goes in
+`agent.identity.voice`, and also in [v2's](/v2/agents#voice) `voice.voice_id`.
 
 ```bash
 curl https://api.voice-agents.miraiminds.co/v1/admin/voice-gallery \

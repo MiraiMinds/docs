@@ -18,7 +18,8 @@ POSTs events there as the call progresses.
 
 v1 uses `x-signature` (a bare hex HMAC over the raw body) plus `x-public-key`.
 [v2](/v2/webhooks) uses `X-Mirai-Signature: t=…,v1=…` with a replay window. If
-you run both, use **two separate routes** — the schemes are not interchangeable.
+you run both, use **two separate routes**, because the schemes are not
+interchangeable.
 </Note>
 
 ## Envelope
@@ -71,7 +72,7 @@ stateDiagram-v2
 | `call.ended` | The phone connection dropped. |
 | `call.completed` | Recording, transcript and duration processed. |
 | `call.timeout` | Exceeded the maximum duration. |
-| `end-of-call` | Analysis is complete — summary, success flag, insights, credits. |
+| `end-of-call` | Analysis is complete, with the summary, success flag, insights and credits. |
 | `call.lifecycle-ended` | **Final event.** No further attempts for this call task. |
 
 ### Failure and retry events
@@ -87,13 +88,13 @@ stateDiagram-v2
 | `call.aborted` | Cancelled through the [abort API](/v1/calls#abort-a-call). |
 
 `retryProtocol` on the assistant decides how many attempts follow a failure.
-`call.lifecycle-ended` is what tells you the chain is over — **that** is the
-event to close your record on, not `call.failed`.
+`call.lifecycle-ended` tells you the chain is over, so close your record on
+**that** event, not on `call.failed`.
 
 ## `end-of-call`
 
-Carries the [analysis plan](/v1/assistants#analysis-plan) output and credit
-usage.
+This event carries the [analysis plan](/v1/assistants#analysis-plan) output
+and credit usage.
 
 ```json
 {
@@ -257,8 +258,8 @@ raw bytes and compare in constant time.
 3. **Keep the private key out of the browser.** It signs webhooks *and*
    authenticates API calls.
 4. **Return `200` fast.** Enqueue the work; do not do it inline.
-5. **Expect duplicates.** v1 events carry no event ID — dedupe on
-   `event.type` + `call.id`, and make handlers idempotent.
+5. **Expect duplicates.** v1 events carry no event ID, so dedupe on
+   `event.type` + `call.id` and make handlers idempotent.
 
 ### Troubleshooting
 
@@ -266,4 +267,4 @@ raw bytes and compare in constant time.
 | :--- | :--- |
 | Signature never matches | Body was parsed before hashing, or a proxy re-encoded it |
 | Headers missing | A reverse proxy or WAF stripped `x-signature` |
-| Wrong key | `x-public-key` identifies which organization's secret to use — check it matches the one you have |
+| Wrong key | `x-public-key` identifies which organization's secret to use; check that it matches the one you have |

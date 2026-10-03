@@ -35,8 +35,8 @@ to edit the conversation without losing your tool changes.
 
 The first tool opens automatically when you choose a phase. **Test agent** stays
 visible while you edit. Type `@` in the prompt or a supported tool field to insert
-available context. Variables and tool references have distinct highlights in the
-prompt; pre-call results are grouped under the tool that returned them.
+available context. Variables and tool references are highlighted differently in
+the prompt, and pre-call results are grouped under the tool that returned them.
 
 1. Choose **Pre-call**, **On-call**, or **Post-call**, then click **HTTP request**.
 2. Enter a unique tool name, an HTTP method, and your HTTPS endpoint. Expand
@@ -59,7 +59,7 @@ prompt; pre-call results are grouped under the tool that returned them.
   changed in another editor, reload it before running the test.
 </Note>
 
-In **Response**, optionally transform the result with jq. For a pre-call tool,
+In **Response**, you can transform the result with jq. For a pre-call tool,
 choose which returned fields become prompt variables. For example, selecting
 `name` from `lookup_customer` makes `{{lookup_customer.name}}` available in the
 prompt and `{{ vars.lookup_customer.name }}` available to later requests.
@@ -70,13 +70,13 @@ Bearer token. You can reference any stored secret in a header with
 
 Pre-call and post-call tools run independently of the conversation's LLM. Use
 **Move up** and **Move down** to arrange their order. An on-call condition is
-checked from call inputs and pre-call results before the conversation; the
-tool's **When should the agent use it?** instructions guide invocation during
-the call.
+checked against call inputs and pre-call results before the conversation
+starts. During the call, the tool's **When should the agent use it?**
+instructions tell the agent when to invoke it.
 
 Supported actions such as ending a call or scheduling a callback appear under
-**Add preset** for their available phases. Nested conditions and more complex
-argument schemas remain editable through the advanced JSON fields.
+**Add preset** for the phases they support. You can still edit nested
+conditions and more complex argument schemas in the advanced JSON fields.
 
 ## Default tools
 
@@ -142,8 +142,8 @@ values describe when the pre-call request ran; they do not update during the cal
 
 End call runs directly on the voice worker during a conversation. It does not
 make an HTTP request. The default requires confirmation before hanging up and
-keeps the agent's **Closing message**. Configure it under **On-call → End call**.
-Testing the tool by itself does not place or end a phone call.
+keeps the agent's **Closing message**. To configure it, choose **On-call**, then
+**End call**. Testing the tool by itself does not place or end a phone call.
 
 ## Connect your first tool
 
@@ -194,8 +194,9 @@ and expects a JSON response such as `{"status":"shipped","eta":"Friday"}`.
 
 ### 2. Save it on your agent
 
-This creates or replaces just `order_status`, preserving the agent's other tools.
-The response is `200 OK` with the updated agent, including its `tools` and `revision`.
+This creates or replaces only `order_status` and leaves the agent's other tools
+as they are. The response is `200 OK` with the updated agent, including its
+`tools` and `revision`.
 
 <CodeGroup>
 ```bash cURL
@@ -335,7 +336,7 @@ For example, collect another detail while a slow delivery lookup runs:
 ```
 
 Pass `customer_id` in the call's `variables`. The voice agent should acknowledge
-that work is pending, continue with useful questions, and confirm the outcome
+that work is pending, keep asking useful questions, and confirm the outcome
 only after receiving the final result. Do not ask it to repeat the same request
 while the first one is running.
 
@@ -350,8 +351,9 @@ while the first one is running.
   must finish before dialing; post-call tools already run after the conversation.
 
 `speak_while` is an optional short line spoken as a tool starts, such as
-`"Let me check that for you."`. Leaving it empty adds no canned filler; an async
-tool can still allow the voice agent to continue the conversation.
+`"Let me check that for you."`. If you leave it empty, the agent speaks no
+canned filler. An async tool still lets the voice agent continue the
+conversation.
 
 ## Before a call: fetch context or skip dialing
 
@@ -377,11 +379,11 @@ become `customer_lookup.name` and `customer_lookup.plan`.
 
 Use `{{customer_lookup.name}}` in the agent's `first_message` or `system_prompt`.
 Inside another tool's template, use `{{ vars.customer_lookup.name }}` instead.
-Pre-call HTTP time happens before dialing or opening browser audio.
+The pre-call request runs before dialing or opening browser audio.
 
 `on_failure: "abort"` prevents the call if this lookup fails. The default,
-`"continue"`, allows the call to proceed; design the greeting to handle missing
-values if you choose that behavior.
+`"continue"`, lets the call go ahead, so if you keep it, write the greeting to
+handle missing values.
 
 ### Skip when a condition holds
 
@@ -396,14 +398,14 @@ values if you choose that behavior.
 
 When the condition matches, nothing is dialed and the call is not charged.
 The call ends as `aborted` with a skip reason. A campaign contact becomes
-`skipped` and is not retried as a failed attempt. This complements your
+`skipped` and is not retried as a failed attempt. Use it alongside your
 [workspace do-not-call list](/v2/dnc).
 
 ## Conditions and templates
 
-`condition` decides whether a tool is available or runs. `when` is a natural
-language instruction telling the voice agent when to choose an on-call tool.
-They serve different purposes.
+`condition` decides whether a tool is available or runs. `when` is a
+natural-language instruction that tells the voice agent when to choose an
+on-call tool.
 
 ```json
 {
@@ -429,11 +431,11 @@ Combine conditions with `all`, `any`, and `not`. Supported operators are:
 Conditions support up to eight nested levels and 64 comparisons. Use `exists`
 or `not_exists` when checking for a missing value.
 
-Pre-call and post-call conditions are evaluated before each tool. On-call
-availability is selected when the call is prepared, after pre-call outputs
-exist. Base that condition on call inputs and pre-call results. It does not
-dynamically expose new tools after another on-call tool finishes; model
-arguments are not available when the initial tool list is selected.
+Pre-call and post-call conditions are evaluated before each tool runs. The set
+of available on-call tools is chosen when the call is prepared, after pre-call
+outputs exist, so base an on-call condition on call inputs and pre-call
+results. Finishing one on-call tool does not make new tools available, and
+model arguments are not available when the initial tool list is chosen.
 
 ### Values you can reference
 
@@ -528,8 +530,8 @@ analysis result.
 The terminal event, such as `call.completed`, describes the finished call.
 `call.processed` reports the subsequent analysis and post-call tool results. It
 is emitted when the agent has post-call tools or analysis enabled, unless you
-set `emit_processed_webhook: false` on the agent. That setting disables the
-event, not the work.
+set `emit_processed_webhook: false` on the agent. That setting turns off only
+the event. Analysis and post-call tools still run.
 
 The event uses your call's `webhook_url` and the normal
 [webhook signature verification](/v2/webhooks#signature-verification).
@@ -585,7 +587,7 @@ Add this minimal builtin to let the voice agent arrange a later call:
 The tool automatically exposes a required `at` argument and optional `note` to
 the model. `at` should be a future RFC3339 timestamp with a UTC offset, such as
 `2026-10-01T15:00:00+05:30`. Ask the customer to clarify an ambiguous time.
-Custom `description` and `parameters` are preserved if supplied.
+If you supply a custom `description` or `parameters`, we keep them.
 
 The default window is at least 30 minutes and at most 14 days ahead. Change it
 with `builtin.min_delay_minutes` and `builtin.max_days`. For a post-call

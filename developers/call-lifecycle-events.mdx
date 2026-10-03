@@ -1,6 +1,6 @@
 ---
 title: Call Lifecycle & Webhooks
-description: Understand the lifecycle of a voice call and how to handle webhook events.
+description: The stages a voice call goes through, the webhook event each one sends, and how to handle them.
 ---
 
 <Note>
@@ -9,11 +9,13 @@ on it. If you are building something new, start with the
 [Quickstart](/v2/quickstart).
 </Note>
 
-Voice Agents uses webhooks to notify your application about the state of every call in real-time. Whether a call connects, fails, or triggers a specific action (like creating an order), your configured **callback URL** receives an event payload.
+Voice Agents sends webhooks to tell your application about the state of every
+call in real time. When a call connects, fails or triggers an action such as
+creating an order, your configured callback URL receives an event payload.
 
 ## Call Lifecycle
 
-Every call progresses through a specific lifecycle. At each stage, an event is fired.
+Every call moves through the lifecycle below, and each stage fires an event.
 
 ```mermaid
 stateDiagram-v2
@@ -30,7 +32,7 @@ stateDiagram-v2
 
 ### Lifecycle Events
 
-These events track the normal progression of a successful call.
+These events follow a successful call from start to finish.
 
 | Event | Description |
 | :--- | :--- |
@@ -39,12 +41,13 @@ These events track the normal progression of a successful call.
 | `call.ended` | The phone connection has dropped. |
 | `call.completed` | Call data (recording, transcript, duration) has been processed. |
 | `call.timeout` | The call exceeded the maximum allowed duration. |
-| `end-of-call` | AI analysis is complete — summary, success evaluation, and structured data are available. |
-| `call.lifecycle-ended` | All processing is finished. This is the **final event** for this call. |
+| `end-of-call` | AI analysis is complete. The summary, success evaluation and structured data are available. |
+| `call.lifecycle-ended` | All processing is finished. This is the final event for this call. |
 
 ### Failure & Retry Events
 
-If a call cannot be established, one of these events will fire. The system may automatically retry based on your campaign settings.
+If a call can't be connected, one of these events fires. The system may retry
+automatically, depending on your campaign settings.
 
 | Event | Description |
 | :--- | :--- |
@@ -62,12 +65,13 @@ If a call cannot be established, one of these events will fire. The system may a
 | `call.aborted` | The call was manually cancelled via the abort API. |
 
 <Note>
-After all retry attempts are exhausted, `call.lifecycle-ended` is sent to signal that no further attempts will be made for this specific call task.
+When all retry attempts are used up, we send `call.lifecycle-ended` to signal
+that no more attempts will be made for this call task.
 </Note>
 
 ## Webhook Payload Structure
 
-Every webhook event shares a common envelope structure.
+Every webhook event uses the same envelope.
 
 ```json
 {
@@ -94,8 +98,10 @@ Every webhook event shares a common envelope structure.
 
 ### Key Fields
 
-- **`metadata`**: The custom JSON object you passed when initiating the call. This is passed back in **every** event, allowing you to link calls to your internal records (e.g., `userId`, `orderId`).
-- **`event.type`**: The specific event name (e.g., `call.in-progress`, `end-of-call`).
+- **`metadata`**: The custom JSON object you passed when initiating the call. It
+  comes back in every event, so you can link calls to your internal records
+  (e.g., `userId`, `orderId`).
+- **`event.type`**: The event name (e.g., `call.in-progress`, `end-of-call`).
 - **`event.data`**: The payload specific to the event.
 
 ### Special Payloads
@@ -137,11 +143,13 @@ Contains a report of all attempts.
 
 ## Actions
 
-Actions are special events triggered by the AI during the conversation when a specific task needs to be performed on your end, such as creating an order or sending a message.
+Actions are events the AI sends during the conversation when your system needs
+to do something, such as create an order or send a message.
 
 ### `create_order`
 
-Fires when the AI determines the customer wants to place an order and has provided all necessary details.
+Fires when the AI decides that the customer wants to place an order and has given
+all the details it needs.
 
 ```json
 {
@@ -170,7 +178,8 @@ Fires when the AI determines the customer wants to place an order and has provid
 
 ### `send_whatsapp`
 
-Fires when the AI cannot complete a task (like creating an order) due to missing info, and triggers a fallback message via WhatsApp.
+Fires when the AI can't complete a task, such as creating an order, because
+information is missing. It triggers a fallback message on WhatsApp.
 
 | Reason | Meaning |
 | :--- | :--- |
@@ -192,7 +201,7 @@ Fires when the AI cannot complete a task (like creating an order) due to missing
 
 ## Handling Webhooks
 
-Here is an example of how to handle these events in a Node.js Express application.
+This example handles these events in a Node.js Express application.
 
 ```javascript
 app.post('/webhooks/voice-agent', (req, res) => {
@@ -243,34 +252,37 @@ app.post('/webhooks/voice-agent', (req, res) => {
 
 ## Security
 
-To ensure that the webhooks you receive are genuinely from Voice Agents, you should verify the signature included in the headers.
+To confirm that a webhook really came from Voice Agents, verify the signature in
+its headers.
 
 See [Webhook Signature Verification](/developers/webhook-signature) for implementation details.
 
 ## The same thing in v2
 
-Most of the shape above survives — one event per state change, an envelope you
-acknowledge with `200`, a signature you verify. The names changed, the retry
-and action machinery did not carry over, and the analysis is not built yet.
+v2 keeps most of this design. It still sends one event per state change, and
+each event comes in an envelope you acknowledge with `200` and carries a
+signature you verify. The event names are different. Retries and actions did
+not carry over to v2, and the analysis is not built yet.
 
 | v1 event | v2 | Notes |
 | :--- | :--- | :--- |
 | `call.initiate` | `call.queued` | Opt-in in v2; ask to have it enabled. |
 | `call.in-progress` | `call.started` | Media is live. |
 | `call.ended` + `call.completed` | `call.completed` | One terminal event, not two. |
-| `call.timeout` | `call.failed` | Read `data.call.status` — it is `timeout`. |
+| `call.timeout` | `call.failed` | Read `data.call.status`, which is `timeout`. |
 | `call.failed` / `call.busy` / `call.no-answer` | `call.failed` | One event; the status distinguishes them. |
 | `call.aborted` | `call.aborted` | Same meaning. |
 | — | `call.voicemail` | New in v2, and it is billed. |
 | `call.validation-failed` | — | v2 rejects a bad number at create time, with `400`. |
-| `call.rescheduled`, `call.skip`, `call.lifecycle-ended` | — | **v2 does not retry.** One call object, one outcome. Retry from your own dialler. |
+| `call.rescheduled`, `call.skip`, `call.lifecycle-ended` | — | **v2 does not retry.** Each call object has one outcome, so retry from your own dialler. |
 | `end-of-call` (summary, sentiment) | — | Post-call analysis is on the [roadmap](/general/roadmap). |
 | `action` (`create_order`, `send_whatsapp`) | — | Not in v2. |
 
 **`metadata` works differently.** v1 echoes your object back on every event. v2
-hands you the `call_id` in the `202` response to
-[`POST /v2/calls`](/v2/calls#create-a-call) — store that against your own record
-before the first event can arrive, and correlate on it. `variables` you pass at
-create are used in the prompt; they do not come back on the event.
+returns the `call_id` in the `202` response to
+[`POST /v2/calls`](/v2/calls#create-a-call). Store it against your own record
+before the first event can arrive, and use it to match events to that record.
+The `variables` you pass when you create the call go into the prompt and do not
+come back on the event.
 
-Full reference: [v2 Webhooks](/v2/webhooks).
+For the full reference, see [v2 Webhooks](/v2/webhooks).

@@ -1,6 +1,6 @@
 ---
 title: Make a Call
-description: Trigger an outbound call from a specific voice assistant to a target phone number.
+description: Place an outbound call from one of your voice assistants to a phone number.
 ---
 
 <Note>
@@ -9,7 +9,9 @@ on it. If you are building something new, start with the
 [Quickstart](/v2/quickstart).
 </Note>
 
-The `Make a Call` endpoint allows you to programmatically trigger an outbound call to any phone number using a specific voice assistant. This is useful for automated notifications, appointment reminders, or immediate lead qualification.
+The `Make a Call` endpoint places an outbound call to any phone number, using the
+voice assistant you choose. Use it for automated notifications, appointment
+reminders or qualifying leads right away.
 
 ## Endpoint
 
@@ -19,7 +21,8 @@ POST /admin/assistant/call
 
 ## Request Flow
 
-Before the call is placed, the system validates your workspace, checks the assistant's availability, and then initiates the telephony connection.
+Before it places the call, the API validates your workspace, checks that the
+assistant is available and then starts the telephony connection.
 
 ```mermaid
 sequenceDiagram
@@ -130,7 +133,7 @@ print(response.text)
 
 ## Response
 
-Returns a JSON object containing the status of the call request.
+Returns a JSON object with the status of the call request.
 
 ### Success Response (`200 OK`)
 

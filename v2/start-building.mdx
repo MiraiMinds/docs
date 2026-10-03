@@ -1,31 +1,32 @@
 ---
 title: Start building
-description: From a secret key to a running campaign in ten minutes — the whole journey, copy-paste.
+description: Go from a secret key to a running campaign in ten minutes, with every request ready to copy and paste.
 ---
 
 
-This is the partner on-ramp. Ten minutes, start to finish: check your key, make
-one agent, ring one phone, run one campaign, read the report. Every request
-below is copy-paste — change the key and the phone number and nothing else.
+This page is the partner on-ramp, and it takes ten minutes from start to
+finish. You check your key, make one agent, ring one phone, run one campaign
+and read the report. You can paste every request below as it is; the only
+things to change are the key and the phone number.
 
 **You need:** your `sk_live_` key, a phone number you are allowed to call, and
-(for step 5) a public HTTPS URL. That is all.
+(for step 5) a public HTTPS URL.
 
 ```bash
 https://sandbox.voice.miraiminds.co
 ```
 
 <Note>
-**Your key arrives from your Mirai contact**, in the same message as this link —
-or you mint it yourself in the [console](https://sandbox.voice.miraiminds.co)
+Your Mirai contact sends your key in the same message as this link. You can
+also create one yourself in the [console](https://sandbox.voice.miraiminds.co)
 under **Developers → Create key**. It looks like `sk_live_` followed by 32 hex
-characters and it is shown **once**: we store only its SHA-256, so a lost key is
-rotated, never recovered. Put it in your secret manager now, before you go
-further.
+characters, and it is shown only **once**. We store only its SHA-256, so we
+cannot recover a lost key; you rotate it instead. Put it in your secret manager
+now, before you go further.
 
-Issued alongside it is a webhook signing secret, `whsec_…`. That one belongs to
-the **workspace**, not the key — rotating a key does not change it, so your
-receiver keeps verifying without an outage.
+You also get a webhook signing secret, `whsec_…`. It belongs to the workspace
+rather than the key, so rotating a key does not change it and your receiver
+keeps verifying without an outage.
 </Note>
 
 <Steps>
@@ -44,10 +45,10 @@ curl https://sandbox.voice.miraiminds.co/v2/wallet \
 A `401` here is almost always a trailing newline from `cat`-ing a key file.
 Paste the key; do not pipe it.
 
-That balance is real money and it is what pays for the calls below. Billing is
-**in 10-second blocks, rounded up, one-block minimum**, at your plan's
-[tier](/general/tiers). The examples below ran on T3: ₹3 a minute, ₹0.50 a
-block.
+That balance is real money, and it pays for the calls below. We bill
+**in 10-second blocks, rounded up, with a one-block minimum**, at your plan's
+[tier](/general/tiers). The examples below ran on T3, which costs ₹3 a minute
+or ₹0.50 a block.
 
 </Step>
 
@@ -57,13 +58,14 @@ Download both files:
 
 | File | What it is |
 | :--- | :--- |
-| [mirai-voice-sandbox.postman_collection.json](/files/mirai-voice-sandbox.postman_collection.json) | The collection — every endpoint, with worked example responses. |
-| [sandbox.postman_environment.json](/files/sandbox.postman_environment.json) | The environment — base URL, your key, your test number. |
+| [mirai-voice-sandbox.postman_collection.json](/files/mirai-voice-sandbox.postman_collection.json) | The collection, with every endpoint and worked example responses. |
+| [sandbox.postman_environment.json](/files/sandbox.postman_environment.json) | The environment, which holds the base URL, your key and your test number. |
 
-Postman → **Import** → drop in both → select the **Voice Infra — Sandbox**
-environment → fill in `api_key` (your `sk_live_…`) and `test_phone` (a number
-**you own**, E.164). Then open **0-Quickstart** and run it top to bottom: each
-step saves the id the next one needs, so there is nothing to copy and paste.
+In Postman, click **Import** and drop in both files. Select the
+**Voice Infra — Sandbox** environment and fill in `api_key` (your `sk_live_…`)
+and `test_phone` (an E.164 number **you own**). Then open **0-Quickstart** and
+run it from top to bottom. Each step saves the id that the next one needs, so
+you don't have to copy and paste anything.
 
 You can skip this entirely and use the `curl` below. The collection is the
 faster path if more than one person on your side will touch the API.
@@ -72,8 +74,8 @@ faster path if more than one person on your side will touch the API.
 
 <Step title="Create an agent (2 minutes)">
 
-An agent is the reusable configuration a call runs: prompt, opening line, voice,
-language, limits. Make it once, call it thousands of times.
+An agent is the reusable configuration a call runs: its prompt, opening line,
+voice, language and limits. You make it once and use it for thousands of calls.
 
 ```bash
 curl -X POST https://sandbox.voice.miraiminds.co/v2/agents \
@@ -103,13 +105,13 @@ curl -X POST https://sandbox.voice.miraiminds.co/v2/agents \
 
 Keep that `id`.
 
-`{{order_id}}` and `{{customer_name}}` are **agent placeholders**, filled per
-call from `variables`. They are not shell or Postman variables — leave them
-exactly as they are.
+`{{order_id}}` and `{{customer_name}}` are **agent placeholders**, which each
+call fills from its `variables`. They are not shell or Postman variables, so
+leave them exactly as they are.
 
 <Tip>
-`voice_id` is `ashu`, `neha`, `shruti` or `sameer` — the same catalogue on
-every tier. See [Voices](/v2/voices).
+`voice_id` is `ashu`, `neha`, `shruti` or `sameer`. The catalogue is the same
+on every tier. See [Voices](/v2/voices).
 </Tip>
 
 </Step>
@@ -135,8 +137,8 @@ curl -X POST https://sandbox.voice.miraiminds.co/v2/calls \
 { "id": "call_01K7QB4M8N3P6R2S5T7V9W1YA", "status": "queued" }
 ```
 
-`202` means **accepted, not connected** — the phone has not rung yet. Read the
-outcome when it ends:
+`202` means the call is **accepted but not yet connected**, so the phone has
+not rung. Read the outcome when the call ends:
 
 ```bash
 curl https://sandbox.voice.miraiminds.co/v2/calls/call_01K7QB4M8N3P6R2S5T7V9W1YA \
@@ -155,7 +157,7 @@ curl https://sandbox.voice.miraiminds.co/v2/calls/call_01K7QB4M8N3P6R2S5T7V9W1YA
 }
 ```
 
-96 seconds rounds up to 10 blocks of 10 seconds — ₹5 on T3. See
+96 seconds rounds up to 10 blocks of 10 seconds, which costs ₹5 on T3. See
 [what a minute costs](/general/tiers#what-a-minute-costs).
 
 <Warning>
@@ -169,16 +171,17 @@ person twice.
 
 <Step title="Receive the webhook (3 minutes)">
 
-Poll if you must; subscribe if you can. We `POST` a signed JSON event at each
-lifecycle transition, and **you verify the signature before you trust the body**.
+You can poll for the outcome, but subscribe to webhooks if you can. We `POST` a
+signed JSON event at each lifecycle transition. **Verify the signature before
+you trust the body.**
 
 ```
 X-Mirai-Signature: t=1785057398,v1=5f3c…
 ```
 
-`v1` is `HMAC-SHA256(whsec, "{t}.{raw_body}")`, hex. Sign the **raw** bytes — a
-framework that parsed and re-serialized the JSON produces a different string and
-will never verify.
+`v1` is `HMAC-SHA256(whsec, "{t}.{raw_body}")`, hex-encoded. Sign the **raw**
+bytes. If your framework parsed the JSON and serialized it again, the string is
+different and the signature will never verify.
 
 ```python
 import hmac, hashlib, time
@@ -204,18 +207,18 @@ def hook():
     return "", 200        # any 2xx stops our retries
 ```
 
-The events: `call.started`, `call.completed`, `call.voicemail`, `call.failed`,
-`call.aborted`, plus `campaign.started` / `paused` / `resumed` / `completed` /
-`stopped`. Dedupe on `id` — a retried delivery repeats it. Full reference and a
-test vector in [Webhooks](/v2/webhooks).
+The events are `call.started`, `call.completed`, `call.voicemail`, `call.failed`
+and `call.aborted`, plus `campaign.started` / `paused` / `resumed` /
+`completed` / `stopped`. Dedupe on `id`, because a retried delivery repeats it.
+[Webhooks](/v2/webhooks) has the full reference and a test vector.
 
 </Step>
 
 <Step title="Run a campaign (2 minutes)">
 
-One call proves the plumbing. A campaign is the product: upload a list, set a
-window and a budget, and let the platform dial it — pacing, retries, do-not-call
-suppression and all.
+One call proves that the plumbing works. Campaigns are the main product: you
+upload a list, set a window and a budget, and the platform dials the list,
+handling pacing, retries and do-not-call suppression.
 
 ```bash
 curl -X POST https://sandbox.voice.miraiminds.co/v2/campaigns \
@@ -254,8 +257,8 @@ curl -X POST https://sandbox.voice.miraiminds.co/v2/campaigns \
 }
 ```
 
-Note the shape: the campaign object itself, with the upload result as top-level
-keys. Bad rows come back **by index** rather than failing the whole upload.
+The response is the campaign object itself, with the upload result as top-level
+keys. Bad rows come back by index, and they do not fail the rest of the upload.
 
 Start it:
 
@@ -268,9 +271,9 @@ curl -X POST https://sandbox.voice.miraiminds.co/v2/campaigns/cmp_01K7QAC5N9P4R7
 { "id": "cmp_01K7QAC5N9P4R7S3T6V8W2X4YB", "status": "play" }
 ```
 
-`play` means the dialler is running. Outside `10:00`–`19:00` it waits, in `play`,
-until the window opens — that is correct, not stuck. Full semantics in
-[Campaigns](/v2/campaigns).
+`play` means the dialler is running. Outside the `10:00` to `19:00` window it
+waits in `play` until the window opens. That is expected, and the campaign is
+not stuck. [Campaigns](/v2/campaigns) has the full semantics.
 
 </Step>
 
@@ -304,7 +307,8 @@ curl -G https://sandbox.voice.miraiminds.co/v2/campaigns/cmp_01K7QAC5N9P4R7S3T6V
   --data-urlencode "format=csv" -o campaign.csv
 ```
 
-That is the whole loop. Everything after this is scale and hygiene.
+You have now run the whole loop. The rest of this page covers scale and
+hygiene.
 
 </Step>
 
@@ -316,31 +320,33 @@ That is the whole loop. Everything after this is scale and hygiene.
 
 <Accordion title="Verify webhook signatures — and reject what fails">
 Verify `X-Mirai-Signature` over the **raw** body, enforce the 5-minute timestamp
-window, and return `401` when it does not match. Dedupe on the event `id`;
-retries repeat it. Do not order your state machine by arrival order — a retried
-`call.started` can land after `call.completed`. Order by `data.call.status`.
+window, and return `401` when it does not match. Dedupe on the event `id`,
+since retries repeat it. Don't order your state machine by arrival order,
+because a retried `call.started` can land after `call.completed`. Order by
+`data.call.status` instead.
 [Reference](/v2/webhooks#signature-verification).
 </Accordion>
 
 <Accordion title="Wire the do-not-call list to your opt-outs">
-Every "stop calling me" — on a call, over WhatsApp, by email — should become a
-`POST /v2/dnc` in the same minute. It is idempotent, so there is no read-modify-
-write. Suppression is checked at dial time, so it takes effect on campaigns that
-are already running. [Reference](/v2/dnc).
+Every "stop calling me", whether it comes on a call, over WhatsApp or by email,
+should become a `POST /v2/dnc` in the same minute. The request is idempotent, so
+you don't need a read-modify-write. We check suppression at dial time, so it
+also takes effect on campaigns that are already running. [Reference](/v2/dnc).
 </Accordion>
 
 <Accordion title="Cap every campaign with budget_paise">
-`budget_paise` bounds a mistake in the *list* — a duplicated CSV, a column
-shifted by one — which is the failure mode that no amount of code review
-catches. When the cap is hit the campaign pauses with
+`budget_paise` limits the cost of a mistake in the *list*, such as a duplicated
+CSV or a column shifted by one. Code review cannot catch that kind of failure.
+When the campaign hits the cap, it pauses with
 `pause_reason: "budget_exhausted"`, keeps its place, and continues when you raise
-it. Alert on `campaign.paused`.
+the cap. Alert on `campaign.paused`.
 </Accordion>
 
 <Accordion title="Alert on wallet balance, hourly">
-`GET /v2/wallet` at a threshold covering a day of traffic. A `402` mid-campaign
-is an expensive way to find out you are empty — and an underfunded campaign
-starts, dials what it can, and then pauses itself on `insufficient_balance`.
+Check `GET /v2/wallet` and alert at a threshold that covers a day of traffic.
+A `402` in the middle of a campaign is an expensive way to learn that your
+wallet is empty. An underfunded campaign still starts, dials what it can, and
+then pauses itself on `insufficient_balance`.
 Once your company is live, top up from the **Billing** page of the console.
 </Accordion>
 
@@ -348,35 +354,35 @@ Once your company is live, top up from the **Billing** page of the console.
 | Limit | Default | Over it |
 | :--- | :--- | :--- |
 | Request rate | 10 req/s, burst 20 | `429 rate_limited`, honour `Retry-After` |
-| Concurrent live calls | 5 | nothing fails — calls wait in `queued` |
+| Concurrent live calls | 5 | nothing fails; calls wait in `queued` |
 | Queue depth | 500 accepted-and-not-yet-ended | `429 rate_limited`, `Retry-After: 30` |
 
-Concurrency is a **pacer, not a gate**. Higher ceilings are a provisioning
-change, not a code change — ask before the campaign, not during it.
-[Limits](/v2/limits).
+The concurrency limit paces your calls: extra calls wait instead of failing.
+Raising a ceiling is a provisioning change and needs no code change, so ask for
+it before the campaign starts. See [Limits](/v2/limits).
 </Accordion>
 
 <Accordion title="Handle these errors specifically">
 | `error.code` | Status | Do |
 | :--- | :--- | :--- |
 | `insufficient_balance` | `402` | Stop dialling, alert, top up. No call was placed and nothing was charged. |
-| `rate_limited` | `429` | Back off, honour `Retry-After`. Read `message` to see which ceiling. |
-| `duplicate_call` | `409` | Not an error — the same `Idempotency-Key` is still in flight. No second call. |
+| `rate_limited` | `429` | Back off and honour `Retry-After`. `message` says which ceiling you hit. |
+| `duplicate_call` | `409` | This is not an error. The same `Idempotency-Key` is still in flight, and we place no second call. |
 | `at_capacity` | `429` | Every line is busy. Retry in 30 seconds. |
 | `fleet_offline` | `503` | Speech capacity is down. Retry in a few minutes; nothing was charged. |
 | `contract_unavailable` | `403` | The call's `tier` is not your plan's, or the company has not finished going live. Leave `tier` out. |
-| `campaigns_unavailable` | `503` | Campaigns are not enabled on your workspace. Ask us — retrying will not clear it. |
+| `campaigns_unavailable` | `503` | Campaigns are not enabled on your workspace. Ask us, because retrying will not clear it. |
 
-Branch on status first, then on `error.code`. Full table and a retry wrapper in
-two languages: [Errors](/v2/errors).
+Branch on status first, then on `error.code`. [Errors](/v2/errors) has the full
+table and a retry wrapper in two languages.
 </Accordion>
 
 <Accordion title="Get the compliance basics right">
-The calling window, consent records, national DND scrubbing and telling people
-they are speaking to an AI are obligations of the business placing the calls.
-Campaigns enforce **your** window and **your** suppression list — they do not
-make the calls compliant for you. Put the AI disclosure in `first_message`; it
-costs one clause and it reduces early hang-ups.
+The business placing the calls is responsible for the calling window, consent
+records, national DND scrubbing and telling people they are speaking to an AI.
+Campaigns enforce the window and the suppression list that you set, but they do
+not make your calls compliant. Put the AI disclosure in `first_message`. It
+costs one clause, and it reduces early hang-ups.
 [India calling rules](/v2/limits#india-calling-rules).
 </Accordion>
 
@@ -399,5 +405,6 @@ costs one clause and it reduces early hang-ups.
   </Card>
 </CardGroup>
 
-Stuck on something that is not in here? [help@miraiminds.co](mailto:help@miraiminds.co) —
-send the `call_id` or `campaign_id` and we can see exactly what happened.
+If you are stuck on something this page does not cover, email
+[help@miraiminds.co](mailto:help@miraiminds.co) with the `call_id` or
+`campaign_id`, and we can see exactly what happened.

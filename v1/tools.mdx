@@ -9,9 +9,9 @@ on it. If you are building something new, start with the
 [Quickstart](/v2/quickstart).
 </Note>
 
-An **API tool** lets an assistant call your HTTP endpoint during a call — look
-up an order, check stock, book a slot. Create the tool once per workspace, then
-list its `_id` in the assistant's `agent.tools`.
+An **API tool** lets an assistant call your HTTP endpoint during a call, for
+example to look up an order, check stock or book a slot. Create the tool once
+per workspace, then list its `_id` in the assistant's `agent.tools`.
 
 <Note>
 This page covers legacy v1 tools. For new integrations, use [v2 tools](/v2/tools):
@@ -32,7 +32,7 @@ POST /v1/admin/tool/api
 | `description` | string | yes | **Tells the model when to call this tool.** The single most important field. |
 | `url` | string | yes | Your endpoint. |
 | `method` | enum | yes | `get`, `post`, `put`, `patch`, `delete`. |
-| `headers` | array | no | `[{ key, value }]` — static headers such as auth. |
+| `headers` | array | no | `[{ key, value }]` for static headers such as auth. |
 | `parameters` | object | no | `{ required: [names], properties: [ToolProperty] }`. |
 | `isActive` | boolean | no | Default `true`. |
 
@@ -112,16 +112,18 @@ a fixed `value` is sent as-is rather than being asked of the model.
 
 ### Writing tool descriptions
 
-The `description` is a prompt, not documentation. The model reads it to decide
-whether to call the tool, mid-conversation, under latency pressure.
+The model reads the `description` as a prompt when it decides whether to call
+the tool, mid-conversation and under latency pressure.
 
-- **Say when, not what.** "Use this whenever the customer asks where their order
-  is" beats "Returns order status."
+- **Say when to use the tool.** "Use this whenever the customer asks where their
+  order is" works better than "Returns order status."
 - **Name the trigger phrases** your customers actually use.
-- **Describe each parameter** in the same terms. `orderId` — "the order
-  identifier, e.g. ORD-12345" — tells the model what shape to extract.
-- **Keep the endpoint fast.** A tool call happens between turns; a slow endpoint
-  is dead air on a live phone call. Budget a few hundred milliseconds.
+- **Describe each parameter** in the same terms. For `orderId`, a description
+  like "the order identifier, e.g. ORD-12345" tells the model what shape to
+  extract.
+- **Keep the endpoint fast.** A tool call happens between turns, so a slow
+  endpoint means dead air on a live phone call. Budget a few hundred
+  milliseconds.
 
 ## List tools
 
@@ -148,8 +150,8 @@ curl -X PUT https://api.voice-agents.miraiminds.co/v1/admin/tool/api/6710a1b2c3d
   -d '{ "description": "Updated guidance for when to use this tool.", "isActive": false }'
 ```
 
-`isActive: false` is the safe way to take a tool out of service — assistants
-stop calling it without you having to edit each one.
+`isActive: false` is the safe way to take a tool out of service. Assistants stop
+calling it, and you don't have to edit each one.
 
 | Status | Cause |
 | :--- | :--- |
@@ -182,4 +184,4 @@ Remove the tool `_id` from every assistant's `agent.tools` first.
 ```
 
 Mention the tool's *purpose* in the system prompt as well as in the tool's own
-description. Two nudges are more reliable than one.
+description. The assistant uses the tool more reliably with both in place.
