@@ -86,7 +86,7 @@ A finished job, as `GET /v2/transcriptions/{id}` returns it:
 | `created_at` | string | RFC 3339, UTC. When the job was accepted. |
 | `finished_at` | string \| null | When the job completed or failed. `null` before that. |
 | `duration_s` | number \| null | Length of the recording in seconds. `null` until the recording has been decoded. |
-| `degraded` | boolean \| null | `true` when the language model step was unavailable, so the transcript is a single recognition pass without roles. A degraded job is free. `null` until the job completes. See [degraded jobs](/v2/transcribe-recorded-calls#degraded-jobs). |
+| `degraded` | boolean \| null | `true` when the language model step could not write the transcript, so the text is the strongest single recognition pass with less clean-up, and roles can be missing. A degraded job is free. `null` until the job completes. See [degraded jobs](/v2/transcribe-recorded-calls#degraded-jobs). |
 | `model` | string \| null | The model that wrote the transcript, once the job completes: `mira-transcribe-offline-1`. |
 | `source` | enum | `upload` for a multipart file, `url` for a link we fetched. |
 | `file_name` | string | The uploaded file's name, or the last part of the link's path. |
@@ -96,7 +96,7 @@ A finished job, as `GET /v2/transcriptions/{id}` returns it:
 | `words` | boolean | Whether word timings were requested. |
 | `text` | string | The whole transcript as one string. Completed jobs only. |
 | `segments` | array | One entry per turn. See [segments](#segments). Completed jobs only. |
-| `draft` | array | While the job is `merging`: the stronger single recognition pass, in the same shape as `segments`, with an empty `speaker` and no `speaker_id`. Gone once the job completes. |
+| `draft` | array | While the job is `merging`: the strongest single recognition pass, in the same shape as `segments`, with an empty `speaker` and no `speaker_id`. Gone once the job completes. |
 | `diarization` | object | Who spoke and for how long. See [diarization](#diarization). Completed jobs only. |
 | `error` | object \| null | For a failed job, `code` and `message`. See [why a job failed](#why-a-job-failed). `null` otherwise. |
 | `cost` | object | `status` is `pending` until the job finishes, then `charged` or `free`. `amount_inr` is `null` while pending, then what the job was charged (`0` when free). `rate_inr_per_hour` is the rate fixed on the job when it was accepted. |
@@ -109,8 +109,8 @@ A finished job, as `GET /v2/transcriptions/{id}` returns it:
 
 | Field | Description |
 | :--- | :--- |
-| `speaker` | The role: `Agent`, `Customer` or `Other`. A best guess from what each voice says; it can be wrong, and it is empty when it could not be told. |
-| `speaker_id` | The voice: `spk0`, `spk1` and so on, in the order the voices first speak. Present when speaker separation was applied. Group lines by this field. |
+| `speaker` | The role: `Agent`, `Customer` or `Other`. Every segment with the same `speaker_id` has the same role. It is worked out from what each person says and can be wrong. It is empty when it could not be told. |
+| `speaker_id` | The person: `spk0`, `spk1` and so on. Agent voices are numbered first, then Customer voices, then any others, each in the order they first speak. On a call between an agent and a customer, the agent is `spk0` and the customer `spk1`. Present when speaker separation was applied. Group lines by this field. |
 | `start`, `end` | Seconds from the start of the recording. |
 | `text` | What was said, as it was spoken: Hindi in Devanagari and English in Latin script, though common English loanwords can stay in Devanagari. Nothing is translated. |
 | `words` | Word timings, present when you sent `words: true` and the words lined up with the audio. |
@@ -147,8 +147,20 @@ With `words: true`, each segment also carries its words:
 | :--- | :--- |
 | `enabled` | Whether speaker separation ran for this job. `false` when you sent `diarize: false`. |
 | `applied` | Whether its result was used. When it is `false`, segments keep the roles the language model gave them and have no `speaker_id`. |
-| `speakers` | One entry per voice: `id` (the `speaker_id`), `role` and `talk_s`, the seconds that voice spoke. |
+| `speakers` | One entry per speaker, in `speaker_id` order: `id` (the `speaker_id`), `role` and `talk_s`, the seconds that speaker talked. |
+| `non_speech` | The parts of the recording that were left out because they were not speech, such as ringing, a caller tune or hold music. Each entry has a `start` and an `end` in seconds. Absent when nothing was left out. |
 | `words.applied` | Present when you sent `words: true` and speaker separation was applied. `true` when word timings were added. Today they are added for Hindi recordings; Gujarati and English recordings get none. |
+
+Speaker separation also finds what is not speech, so `non_speech` appears only
+on jobs with `diarize` on. The parts it lists were silenced before the
+recording was transcribed. For a call that opens with a caller tune, it looks
+like this:
+
+```json
+"non_speech": [
+  { "start": 1.66, "end": 9.35 }
+]
+```
 
 ## Statuses
 
@@ -156,7 +168,7 @@ With `words: true`, each segment also carries its words:
 | :--- | :---: | :--- |
 | `queued` | | Accepted and waiting for its turn. |
 | `decoding` | | The recognition passes are listening to the recording. |
-| `merging` | | The language model is writing the transcript and the speakers. `duration_s` is set, and `draft` holds the stronger single pass. |
+| `merging` | | The language model is writing the transcript and the speakers. `duration_s` is set, and `draft` holds the strongest single pass. |
 | `completed` | Yes | `text`, `segments` and `diarization` are ready. Charged, unless `degraded` is `true`. |
 | `failed` | Yes | Not transcribed and not charged. `error` says why. |
 

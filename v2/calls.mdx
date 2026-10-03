@@ -166,14 +166,14 @@ for control flow; use `ended_reason` for analytics and support.
 | `time-limit-close` | `completed` | The [timing policy](/v2/web-calls#timing-policy) closed the call before its hard cap. Billable. |
 | `user-silence-close` | `completed` | The [timing policy](/v2/web-calls#timing-policy) closed the call after the user stayed silent for `user_silence_close_secs`. Billable. |
 | `assistant-error` | `failed` | Pipeline failure on our side. Not billed. |
-| `transferred` | `completed` | The call ended in a completed warm transfer to a human. Handoff is [part of every tier](/general/tiers#one-stack-on-every-tier), but the rollout is still finishing and **no call emits this yet**. See the [roadmap](/general/roadmap). |
+| `transferred` | `completed` | Reserved for a call that ends in a warm transfer to a human. Transfer is not available yet, so **no call emits this yet**. See the [roadmap](/general/roadmap). |
 | `balance-exhausted` | `completed` | Reserved for a call ended when the wallet emptied mid-call. **Not wired, so no call emits this yet.** |
 
 <Note>
 Treat `ended_reason` as an open vocabulary. We add new values without a version
 bump, so always have a default branch. The last two rows above are in the
-vocabulary, but **no call emits them today**. They arrive with the
-warm-transfer rollout and later releases. See the [roadmap](/general/roadmap).
+vocabulary, but **no call emits them today**. They arrive when warm transfer
+and later releases ship. See the [roadmap](/general/roadmap).
 </Note>
 
 <Warning>

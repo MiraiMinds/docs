@@ -3,8 +3,8 @@ title: WhatsApp calling for partners
 description: Add voice calling to the WhatsApp numbers your brands already use, with one partner workspace, a separate agent for each brand, permission-based callbacks, signed results and combined billing.
 ---
 
-This cookbook is for platforms such as 11za that already manage WhatsApp for
-many businesses. You add voice calling to each brand's existing number through
+This cookbook is for platforms that already manage WhatsApp for many
+businesses. You add voice calling to each brand's existing number through
 your backend. Each brand keeps using your application and does not need a
 separate Voice Infra login.
 
@@ -155,30 +155,29 @@ An [agent](/v2/agents) holds the brand's instructions, greeting, voice, language
 and call duration. Use one agent per brand so that business information and
 future changes stay separate.
 
-### A real pilot agent example
+### An acceptance test agent
 
-The 11za pilot uses an agent named **11za WhatsApp Pilot**, with voice `neha`,
-language `en` and a 120-second limit. Its job is to confirm two-way audio, and
-it does not claim to access orders or customer records. Use the same kind of
-acceptance agent before you enable a brand's business workflow.
+Start each number with a test agent like this one, with voice `neha`, language
+`en` and a 120-second limit. Its job is to confirm two-way audio, and it does
+not claim to access orders or customer records. Use it before you enable a
+brand's business workflow.
 
 Save this complete definition as `agent.json`:
 
 ```json
 {
-  "name": "11za WhatsApp Pilot",
-  "system_prompt": "You are Mira, a voice agent running a short WhatsApp voice-call test for 11za. Clearly say this is a test. Start in English and switch to Hindi or Hinglish if the caller prefers. Ask whether they can hear you clearly, listen to a short reply, and repeat its main point to confirm two-way audio. Keep replies brief and natural. Do not claim to access orders, customer records, payments, or other business systems. If asked about this test, explain that it checks whether a WhatsApp call can connect to a voice agent and carry audio in both directions. When the caller wants to finish, thank them and end the call.",
-  "first_message": "Hello! I am Mira, the voice agent for the 11za WhatsApp calling test. Can you hear me clearly?",
+  "name": "WhatsApp Calling Test",
+  "system_prompt": "You are Mira, a voice agent running a short WhatsApp voice-call test. Clearly say this is a test. Start in English and switch to Hindi or Hinglish if the caller prefers. Ask whether they can hear you clearly, listen to a short reply, and repeat its main point to confirm two-way audio. Keep replies brief and natural. Do not claim to access orders, customer records, payments, or other business systems. If asked about this test, explain that it checks whether a WhatsApp call can connect to a voice agent and carry audio in both directions. When the caller wants to finish, thank them and end the call.",
+  "first_message": "Hello! I am Mira, the voice agent for this WhatsApp calling test. Can you hear me clearly?",
   "voice": {"voice_id": "neha", "language": "en"},
   "language": "en",
   "max_duration_secs": 120
 }
 ```
 
-This definition is adapted from the real test agent. We share the existing
-pilot identifiers privately with that partner. If you already have an agent in
-your workspace, read it with `GET /v2/agents/{agent_id}` and reuse its ID
-instead of creating a duplicate. You cannot use an ID from another workspace.
+If you already have an agent in your workspace, read it with
+`GET /v2/agents/{agent_id}` and reuse its ID instead of creating a duplicate.
+You cannot use an ID from another workspace.
 
 Check the selected voice in your workspace's [voice catalogue](/v2/voices).
 Set the top-level `language` as well as any voice language. Replace the test
@@ -285,9 +284,9 @@ curl --fail-with-body -X POST \
   --data-binary @meta-settings.json
 ```
 
-The `ws` hint is our workspace ID, and `agent` is our agent ID. Neither is an
-11za brand ID or a Meta WABA ID. SDES and the additional codecs must match this
-integration. Check the response before continuing.
+The `ws` hint is our workspace ID, and `agent` is our agent ID. Neither is your
+platform's brand ID or a Meta WABA ID. SDES and the additional codecs must match
+this integration. Check the response before continuing.
 
 ### Retrieve the SIP password
 

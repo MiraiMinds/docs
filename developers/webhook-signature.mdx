@@ -32,7 +32,7 @@ The keys are stored at the organization level, and you can find them in your
 organization settings. We sign webhooks with the secret key and send the public
 key in the webhook headers to identify the organization.
 
-<Warning>Keep your secret key secure and never expose it publicly. Only the public key should be shared or used for verification.</Warning>
+<Warning>Keep your secret key secure and never expose it publicly. The public key only identifies your organization and can't verify a signature: verification uses the secret key, as shown below.</Warning>
 
 ## Signature Headers
 

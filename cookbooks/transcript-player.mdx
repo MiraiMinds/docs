@@ -423,11 +423,13 @@ export function toJson(doc) {
 }
 ```
 
-Lines are grouped by `speaker_id`, which identifies a voice. The role in
-`speaker` (`Agent`, `Customer` or `Other`) only supplies the first label,
-numbered when two voices share a role. A draft has no speakers yet, so all of
-it goes in one lane called **Speech**. Colours follow the order in which voices
-first speak, so the first voice is always green.
+Lines are grouped by `speaker_id`, which identifies one person on the call.
+Every line of a `speaker_id` carries the same role in `speaker` (`Agent`,
+`Customer` or `Other`), and the role only supplies the first label, numbered
+when two speakers share a role. On a call between an agent and a customer, the
+agent is `spk0` and the customer `spk1`. A draft has no speakers yet, so all of
+it goes in one lane called **Speech**. Colours follow the order in which
+speakers first talk, so whoever talks first is always green.
 
 ## Step 4: Build the player page
 
@@ -526,7 +528,7 @@ first speak, so the first voice is always green.
     if (job.status === "completed") {
       doc = load(job.id) ?? fromJob(job);
       const cost = job.cost.status === "charged" ? `₹${job.cost.amount_inr.toFixed(2)}` : "free";
-      say(job.degraded ? `Single-pass transcript without speaker roles (${cost}).` : `Finished (${cost}).`);
+      say(job.degraded ? `Single-pass transcript; speaker roles may be missing (${cost}).` : `Finished (${cost}).`);
     } else if (job.status === "merging" && job.draft?.length) {
       doc = fromJob(job);
       say("Draft. The finished transcript, with speakers, replaces it here when it is ready.");
@@ -648,7 +650,10 @@ While the job is `merging`, `show` draws the draft greyed out and read-only,
 with export turned off. When the job completes, the finished transcript
 replaces it in place. The status line shows what the job cost, or that it was
 free. A [degraded](/v2/transcribe-recorded-calls#degraded-jobs) job is marked
-as a single-pass transcript without roles.
+as a single-pass transcript whose roles may be missing.
+
+Ringing, caller tunes and hold music are left out before transcription. To
+mark them on the timeline, use the times in `diarization.non_speech`.
 
 ### Play from a line and follow the audio
 

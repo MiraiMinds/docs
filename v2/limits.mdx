@@ -18,6 +18,8 @@ Limits are per **secret key**.
 | TTS requests in flight | 10 **per workspace** | `/v1/audio/speech` and `/v2/tts` | `429 at_capacity` |
 | Flow generations | 30 per hour **per workspace** | [`POST /v2/agents/flow/generate`](/v2/node-agents#generate-a-flow-from-a-brief) | `429 rate_limited` with `Retry-After` |
 | Recording transcriptions | 60 per hour **per workspace** | [`POST /v2/agents/flow/transcribe`](/v2/node-agents#transcribe-a-recording) | `429 rate_limited` with `Retry-After` |
+| Offline transcriptions | 120 per hour **per workspace** | [`POST /v2/transcriptions`](/v2/transcriptions#create-a-transcription) | `429 rate_limited` with `Retry-After` |
+| Unfinished offline transcriptions | 20 **per workspace** | jobs not yet `completed` or `failed` | `429 at_capacity` with `Retry-After: 30` |
 
 <Warning>
 **Pilot keys are provisioned individually**
@@ -202,6 +204,21 @@ when it is busy. Each generation and transcription is charged to your wallet at
 the provider's reported cost plus 20%; see
 [AI flow drafts](/general/tiers#ai-flow-drafts).
 
+### Offline transcription
+
+[Offline transcription](/v2/transcriptions) checks the job count and your
+wallet before it reads the recording, and nothing is charged for a refused
+request.
+
+| Thing | Limit |
+| :--- | :--- |
+| Uploaded file | 45 MB. Over it, `413 request_too_large`. Send a larger file by link. |
+| Recording sent by `url` | 200 MB. Over it, `413 request_too_large`. |
+| Length of a recording | 120 minutes. A longer recording is accepted, then the job fails with `audio_too_long`, free. |
+| `context` | 2,000 characters |
+| `vocabulary` | 200 terms of up to 100 characters each |
+| Time to finish | 24 hours after the job was accepted. After that, the job fails with `timed_out`, free. |
+
 ## Campaign ceilings
 
 [Campaigns](/v2/campaigns) carry their own bounds, all enforced at the API edge
@@ -246,6 +263,8 @@ tuned for prompts in the hundreds of tokens, not thousands.
 | Call recordings and transcripts | 90 days, then deleted |
 | Wallet ledger | 12 months |
 | Campaigns and their contact rows | For the life of the workspace |
+| Offline transcription audio | Not kept. An upload passes through a temporary file that is deleted when the request ends, a file sent by link is fetched once, and the transcription service deletes the recording once it has decoded it. |
+| Offline transcripts | Kept by the transcription service so that [`GET /v2/transcriptions/{id}`](/v2/transcriptions#get-a-transcription) can return them, with no published retention period. There is no endpoint to delete one yet. |
 
 You can fetch recordings and transcripts through the API with
 [`GET /v2/calls/{id}/recording`](/v2/calls#get-the-recording) and
@@ -253,6 +272,11 @@ You can fetch recordings and transcripts through the API with
 beyond 90 days into your own system. To store no audio, create calls with
 `recording_enabled: false`, or ask us to turn recording off for your whole
 workspace.
+
+Save your own copy of each offline transcript when its job completes. If a
+transcript is no longer available, its job still reads `completed` with its
+cost, but without the text. To have a transcript removed, write to
+[help@miraiminds.co](mailto:help@miraiminds.co).
 
 ---
 
