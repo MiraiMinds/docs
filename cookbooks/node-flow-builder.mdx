@@ -442,6 +442,17 @@ rollback, which creates a new draft revision.
 
 ## Step 7 Connect a phone number
 
+If your deployment enables its default calling route, you can select
+**Platform default** in the app and skip number setup. Send `channel: "phone"`
+and `to` without `phone_number_id`; Mirai chooses the outgoing number.
+This is the route used by Console's agent dialer. Availability depends on your
+deployment: a disabled route returns `trunk_unavailable`; deployments requiring
+verified test calls return `phone_verification_required` and need the dedicated
+test-call endpoint or a workspace number. The app displays that API error.
+
+To choose an outgoing number yourself or assign an inbound agent, use a
+workspace number as described below.
+
 If you already have an active workspace number, list it and skip provider
 setup:
 
@@ -519,7 +530,7 @@ supported for phone calls.
 const callBody = {
   agent_id: agent.id,
   agent_revision: agent.revision,
-  phone_number_id: number.id,
+  phone_number_id: number.id, // Omit for the platform default route.
   channel: "phone",
   to: process.env.TEST_PHONE_NUMBER,
   variables,
