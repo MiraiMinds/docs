@@ -481,7 +481,7 @@ availability depend on your deployment and workspace setup. Inspect
 `GET /v2/telephony/options` before offering onboarding in your own product.
 
 Assign the published agent for inbound calls, then activate the number if it
-is not already active:
+is not already ready and verified:
 
 ```js
 // Or fetch an existing number: GET /v2/phone-numbers/{id}.
@@ -490,7 +490,7 @@ number = await api("PATCH", `/phone-numbers/${number.id}`, {
   agent_id: agent.id,
 });
 
-if (number.state !== "active") {
+if (number.state !== "ready" || number.connection_state !== "verified") {
   number = await api("POST", `/phone-numbers/${number.id}/activate`, {
     version: number.version,
     replace_existing_application: false,
@@ -506,6 +506,8 @@ always sends `replace_existing_application: false`.
 
 Inbound assignment makes incoming calls to that number use this agent. For
 outbound calls, the request explicitly chooses both the agent and the number.
+You can leave an existing inbound assignment in place when testing outbound
+calls. The number must have `state: "ready"` and `connection_state: "verified"`.
 
 ## Step 8 Place the call and inspect its result
 
