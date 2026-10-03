@@ -1,0 +1,86 @@
+---
+title: "Pipecat"
+description: Add Mirai voices to a Pipecat bot with one package, and keep phone-call audio smooth when your server is busy.
+---
+
+If your voice bot runs on [Pipecat](https://github.com/pipecat-ai/pipecat), install
+our integration and add one service to your pipeline.
+
+```bash
+uv add pipecat-mirai
+```
+
+`pip install pipecat-mirai` works too. You need Pipecat 1.8.1 or newer and
+Python 3.11 or newer.
+
+## Add it to your pipeline
+
+```python
+import os
+from pipecat_mirai import MiraiTTSService
+
+tts = MiraiTTSService(
+    api_key=os.environ["MIRA_API_KEY"],
+    settings=MiraiTTSService.Settings(voice="shruti"),
+)
+
+pipeline = Pipeline([
+    transport.input(),
+    stt,
+    context_aggregator.user(),
+    llm,
+    tts,
+    transport.output(),
+    context_aggregator.assistant(),
+])
+```
+
+Pick `ashu`, `neha`, `shruti` or `sameer` as the voice (you can
+[hear them here](/v2/voices)). Audio comes out at your pipeline's sample rate,
+so a phone call gets 8 kHz audio with nothing extra to set up. When the caller
+interrupts, the service stops the request straight away.
+
+## On phone calls
+
+If your bot reaches callers through a websocket transport (Twilio, Plivo,
+Exotel or Telnyx), add one more line after you create the transport:
+
+```python
+from pipecat_mirai import apply_output_lead
+
+apply_output_lead(transport)
+```
+
+Pipecat normally sends audio to the phone line at exactly real time. If your
+server is busy for a moment, the line runs out of audio and the caller hears
+the voice break up. With `apply_output_lead`, Pipecat sends up to 0.4 seconds
+ahead, so short slowdowns on your server never reach the caller. In our test
+with 10 calls on one server, breaks stretched the bot's speech by 29% with
+stock Pipecat and by 0.01% with this line added. It works the same whichever
+TTS you use.
+
+## Check that it works
+
+```bash
+export MIRA_API_KEY='your_api_key'
+uv run https://raw.githubusercontent.com/MiraiMinds/pipecat-mirai/main/examples/foundational/01-say-hello.py --voice shruti
+```
+
+This speaks one line through a real Pipecat pipeline and saves it as
+`hello.wav`. It uses a few paise of credit.
+
+## Moving from OpenAITTSService
+
+If you set Mirai up through Pipecat's `OpenAITTSService` with the
+`VALID_VOICES` workaround, replace it with `MiraiTTSService`. You can delete the
+voice-list patch, and the 24 kHz warning goes away. Your key, voices and
+billing stay the same.
+
+<CardGroup cols={2}>
+  <Card title="pipecat-mirai on GitHub" icon="github" href="https://github.com/MiraiMinds/pipecat-mirai">
+    Source, a Twilio phone-bot example and the phone-call benchmark.
+  </Card>
+  <Card title="TTS quickstart" icon="bolt" href="/v2/tts-quickstart">
+    Keys, limits, request logs and billing for text to speech.
+  </Card>
+</CardGroup>

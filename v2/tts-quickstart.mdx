@@ -94,32 +94,25 @@ with client.audio.speech.with_streaming_response.create(
 
 ## 5. Drop it into your orchestrator
 
-Frameworks with an OpenAI TTS integration need no custom code. In pipecat, for
-example, the stock `OpenAITTSService` is the whole integration:
+If you build on Pipecat, use our integration. Install it with
+`uv add pipecat-mirai` and add the service to your pipeline:
 
 ```python
-from pipecat.services.openai.tts import VALID_VOICES, OpenAITTSService
+import os
+from pipecat_mirai import MiraiTTSService
 
-# pipecat validates voices against OpenAI's own hardcoded list (alloy, nova, …)
-# before it ever sends a request — without this line every Mirai voice raises
-# KeyError: 'ashu' client-side.
-VALID_VOICES.update({name: name for name in ("ashu", "neha", "shruti", "sameer")})
-
-tts = OpenAITTSService(
+tts = MiraiTTSService(
     api_key=os.environ["MIRA_API_KEY"],
-    base_url="https://sandbox.voice.miraiminds.co/v1",
-    sample_rate=48000,
-    settings=OpenAITTSService.Settings(model="mira-tts", voice="ashu"),
+    settings=MiraiTTSService.Settings(voice="ashu"),
 )
 ```
 
-<Note>
-`sample_rate=48000` makes pipecat log "OpenAI TTS only supports 24000Hz" at
-startup. You can ignore it: our audio is natively 48 kHz and the frames are
-tagged correctly. A complete agent of about 100 lines built this way, taking
-browser mic audio through ASR and an LLM to Mirai TTS, is available on request.
-Ask for it on your onboarding thread.
-</Note>
+It handles sample rates and interruptions for you, and has a one-line fix for
+choppy audio on phone calls. See [Pipecat](/v2/pipecat) for the full setup.
+
+Other frameworks with an OpenAI TTS integration can call the endpoint directly.
+Point them at `https://sandbox.voice.miraiminds.co/v1` with model `mira-tts`
+and `response_format="pcm"`, and treat the audio as 48 kHz.
 
 ## What comes back
 
