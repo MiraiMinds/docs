@@ -389,11 +389,11 @@ an OpenAI-style error body:
 | `402` | `insufficient_balance` | Top up your wallet. |
 | `404` | `not_found` | The `agent_id` is not in your workspace. |
 | `409` | `flow_agent_realtime_unsupported` | Node-based agents cannot run as Realtime sessions. Use a single-prompt agent, or leave out `agent_id`. |
-| `429` | `rate_limited` | Too many requests, or too many sessions open at once. Retry after `Retry-After` seconds. |
+| `429` | `rate_limited` | Too many requests, or your queue of waiting calls is full. Retry after `Retry-After` seconds. |
 | `503` | `at_capacity`, `worker_unavailable`, `fleet_offline`, `upstream_unavailable` | No capacity right now. Retry after `Retry-After` seconds. |
 | `504` | `start_timeout` | The session could not be set up in time. Try again. |
 
-{/* TODO: confirm with conductor whether a session over the concurrency ceiling is refused (429) or queued like a call (a queued session would hit 504 start_timeout at the edge). */}
+{/* TODO: the build contract asks for 429 when a session is over the concurrency ceiling; conductor currently queues it like a call, so it ends as 504 start_timeout at the edge. Update this table and Limits when that is settled. */}
 
 Clients that authenticate with the subprotocol cannot read an HTTP status, so
 they get the upgrade, one `error` event with the same `code`, and a close code of
@@ -411,7 +411,8 @@ During a session, errors arrive as `error` events. Two of them end the session:
 - **Maximum duration.** Each session has a maximum duration, after which it ends
   with `session_expired`.{/* TODO: state the default and maximum session duration once conductor sets it for the realtime channel */}
 - **Concurrency.** Sessions count towards your workspace's concurrent calls. See
-  [limits](/v2/limits).
+  [limits](/v2/limits). A session that would go over your limit waits for a free
+  slot for up to about 8 seconds, then fails with `504 start_timeout`.
 - **Setup time.** If setting up a session takes longer than about 8 seconds,
   for example because an agent's pre-call tools are slow, the upgrade fails with
   `504 start_timeout`.
