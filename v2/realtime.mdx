@@ -40,10 +40,16 @@ your company has gone live, `sandbox.voice.miraiminds.co` with a sandbox key.
 | :--- | :--- | :--- |
 | `model` | no | Accepted and ignored. Every session runs Mirai's stack at your workspace's tier, and reports its model as `mira-realtime`. Pipecat adds this parameter itself. |
 | `agent_id` | no | Start from one of your [agents](/v2/agents): its prompt, tools, voice and language. Without it, the session starts empty and your `session.update` supplies the instructions, tools and voice. |
+| `webhook_url` | no | Where this session's [webhooks](/v2/webhooks) go (`call.started`, `call.completed` and the rest), as for a [call](/v2/calls#create-a-call). URL-encode it. |
+| `max_duration_secs` | no | Ends the session after this many seconds, as for a call. |
+| `metadata` | no | A JSON object, URL-encoded. It is echoed on the call and in every webhook, and never given to the model. |
 
-Pipecat builds its URL as `base_url + "?model=…"`. A `base_url` that already ends
-in `?agent_id=agt_…` therefore reaches us as `?agent_id=agt_…?model=…`. That is
-fine: we read the agent ID correctly.
+A malformed `webhook_url`, `max_duration_secs` or `metadata` fails the upgrade
+with `400 invalid_request`, and `error.param` names the parameter.
+
+Pipecat builds its URL as `base_url + "?model=…"`. A `base_url` that already
+carries a query, such as `…/v2/realtime?agent_id=agt_…`, therefore reaches us as
+`?agent_id=agt_…?model=…`. That is fine: we read your parameters correctly.
 
 ### Authentication
 
@@ -384,6 +390,7 @@ an OpenAI-style error body:
 
 | Status | `code` | What to do |
 | :--- | :--- | :--- |
+| `400` | `invalid_request` | A URL parameter is malformed; `error.param` names it. |
 | `401` | `missing_api_key`, `unauthorized` | Send a valid key. |
 | `403` | `forbidden`, `production_workspace_required`, `contract_unavailable` | The key is revoked, it is a sandbox key on the production address, or your plan does not cover the session. |
 | `402` | `insufficient_balance` | Top up your wallet. |
