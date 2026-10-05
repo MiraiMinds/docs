@@ -388,7 +388,7 @@ an OpenAI-style error body:
 | `403` | `forbidden`, `production_workspace_required`, `contract_unavailable` | The key is revoked, it is a sandbox key on the production address, or your plan does not cover the session. |
 | `402` | `insufficient_balance` | Top up your wallet. |
 | `404` | `not_found` | The `agent_id` is not in your workspace. |
-| `409` | `flow_agent_not_supported` | Node-based agents cannot run as Realtime sessions. Use a single-prompt agent, or leave out `agent_id`. |
+| `409` | `flow_agent_realtime_unsupported` | Node-based agents cannot run as Realtime sessions. Use a single-prompt agent, or leave out `agent_id`. |
 | `429` | `rate_limited` | Too many requests, or too many sessions open at once. Retry after `Retry-After` seconds. |
 | `503` | `at_capacity`, `worker_unavailable`, `fleet_offline`, `upstream_unavailable` | No capacity right now. Retry after `Retry-After` seconds. |
 | `504` | `start_timeout` | The session could not be set up in time. Try again. |
