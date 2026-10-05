@@ -218,7 +218,7 @@ POST /v2/calls
 | `timing` | object | no | Wrap-up, timed-close and user-silence timers for this call. Phone and browser calls. See [timing policy](/v2/web-calls#timing-policy). |
 | `recording_enabled` | boolean | no | Default `true`. `false` stores no audio for this call: no recording, `recording_available: false`. If your workspace has recording turned off, the default is `false` and `true` is refused with `403 recording_disabled`. |
 | `final_results` | boolean | no | Default `false`. `true` sends one [`call.processed`](/v2/webhooks#final-results) with the finished transcript after the call ends. |
-| `tier` | string | no | `t1` \| `t3` \| `t5`. Defaults to your key's tier, which is your company's plan, so leave it out. Any other tier is refused with `403 contract_unavailable`. See [tiers](/general/tiers#setting-the-tier). |
+| `tier` | string | no | `t1` \| `t3` \| `t5`. Defaults to your key's tier, which is your company's plan, so leave it out. Any other tier is refused with `403 contract_unavailable`. Before your company goes live, every call runs at `t5`, whatever you send. See [tiers](/general/tiers#setting-the-tier). |
 
 <Tabs>
   <Tab title="cURL">

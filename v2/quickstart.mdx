@@ -26,7 +26,7 @@ Open the [console](https://sandbox.voice.miraiminds.co) and go to
 | :--- | :--- | :--- |
 | Secret key | `sk_live_YOUR_API_KEY` | every API request |
 | Webhook secret | `whsec_7d4f1a09c2e58b36a1f0d7c93b2e64a8` | verifying events we send you |
-| Starting wallet balance | `₹500` | pays for call minutes |
+| Starting wallet balance | `₹200` | pays for call minutes at ₹5 a minute (T5) |
 
 **The key is shown once.** We store only its SHA-256, so we cannot recover a
 lost key; you rotate it instead. Keep both secrets in your secret manager and
@@ -305,18 +305,18 @@ The final event for a connected call:
       "agent_id": "agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ",
       "to": "+919876543210",
       "status": "completed",
-      "tier": "t3",
+      "tier": "t5",
       "ended_reason": "assistant-ended-call",
       "started_at": "2026-07-26T09:15:02Z",
       "ended_at": "2026-07-26T09:16:38Z",
       "duration_secs": 96,
-      "cost_inr": 5
+      "cost_inr": 8.34
     }
   }
 }
 ```
 
-96 seconds is billed as 10 blocks of 10 seconds, which is ₹5.00 on T3.
+96 seconds is billed as 10 blocks of 10 seconds, which is ₹8.34 on T5, the sandbox rate.
 [Blocks are whole and rounded up](/general/tiers#metering), with a one-block
 minimum.
 </Step>

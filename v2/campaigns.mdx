@@ -242,7 +242,7 @@ POST /v2/campaigns
 | :--- | :--- | :--- | :--- |
 | `name` | string | yes | 1–120 characters. |
 | `agent_id` | string | yes | Must exist in your workspace. |
-| `tier` | string | no | `t1` \| `t3` \| `t5`. Defaults to your key's tier, which is your company's plan, so leave it out. Calls at any other tier are not covered by your plan. |
+| `tier` | string | no | `t1` \| `t3` \| `t5`. Defaults to your key's tier, which is your company's plan, so leave it out. Calls at any other tier are not covered by your plan. Before your company goes live, campaigns run at `t5`, whatever you send. |
 | `timezone` | string | yes | IANA name, e.g. `Asia/Kolkata`. |
 | `start_date` / `end_date` | string | yes | `YYYY-MM-DD`, local, inclusive. |
 | `slots` | array | yes | 1–4 × `{start, end}` as `HH:MM`. |
