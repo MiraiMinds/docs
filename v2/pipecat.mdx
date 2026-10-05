@@ -69,6 +69,23 @@ uv run https://raw.githubusercontent.com/MiraiMinds/pipecat-mirai/main/examples/
 This speaks one line through a real Pipecat pipeline and saves it as
 `hello.wav`. It uses a few paise of credit.
 
+## Run the whole turn on Mirai
+
+The service above replaces only your TTS. If you would rather hand us speech
+recognition, turn detection and the model as well, point Pipecat's stock
+`OpenAIRealtimeLLMService` at the [Realtime API](/v2/realtime):
+
+```python
+llm = OpenAIRealtimeLLMService(
+    api_key=os.environ["MIRA_API_KEY"],
+    base_url="wss://prod.voice.miraiminds.co/v2/realtime",
+    settings=OpenAIRealtimeLLMService.Settings(session_properties=session),
+)
+```
+
+It replaces your STT, LLM and TTS services with one, and each turn makes a
+single round trip to your server. It is billed per minute, like a call.
+
 ## Moving from OpenAITTSService
 
 If you set Mirai up through Pipecat's `OpenAITTSService` with the
