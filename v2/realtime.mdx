@@ -43,9 +43,11 @@ your company has gone live, `sandbox.voice.miraiminds.co` with a sandbox key.
 | `webhook_url` | no | Where this session's [webhooks](/v2/webhooks) go (`call.started`, `call.completed` and the rest), as for a [call](/v2/calls#create-a-call). URL-encode it. |
 | `max_duration_secs` | no | Ends the session after this many seconds, as for a call. |
 | `metadata` | no | A JSON object, URL-encoded. It is echoed on the call and in every webhook, and never given to the model. |
+| `mirai_events` | no | `1` or `true` turns on the [Mirai-only events](#mirai-events), `mirai.session.applied` and `mirai.turn.metrics`. Off by default. Do not set it with stock Pipecat. |
 
-A malformed `webhook_url`, `max_duration_secs` or `metadata` fails the upgrade
-with `400 invalid_request`, and `error.param` names the parameter.
+A malformed `webhook_url`, `max_duration_secs`, `metadata` or `mirai_events`
+fails the upgrade with `400 invalid_request`, and `error.param` names the
+parameter.
 
 Pipecat builds its URL as `base_url + "?model=…"`. A `base_url` that already
 carries a query, such as `…/v2/realtime?agent_id=agt_…`, therefore reaches us as
@@ -260,8 +262,8 @@ The events are the OpenAI Realtime GA events. These are the ones we handle.
 | `response.function_call_arguments.done` | The model called one of your tools. See [tools](#tools). |
 | `response.done` | The reply is finished. |
 | `error` | See [errors](#errors). |
-| `mirai.session.applied` | The settings we actually applied. Mirai only. |
-| `mirai.turn.metrics` | Per-turn latency and providers. Mirai only. See [turn metrics](#turn-metrics). |
+| `mirai.session.applied` | The settings we actually applied. Only with `mirai_events=1`. |
+| `mirai.turn.metrics` | Per-turn latency and providers. Only with `mirai_events=1`. See [Mirai events](#mirai-events). |
 
 {/* TODO: R5 conformance events (response.created, output_item/content_part added/done, output_audio.done, input_audio_buffer.committed, rate_limits.updated) once the worker sends them. */}
 
@@ -318,7 +320,25 @@ Pipecat does both for functions registered with `llm.register_function`.
 We wait up to 10 seconds for the result. After that, the model is told the tool
 failed and the agent carries on, so the caller is never left in silence.
 
-## Turn metrics
+## Mirai events
+
+Two events are ours rather than OpenAI's: `mirai.session.applied`, which
+echoes the settings we actually applied, and `mirai.turn.metrics`, which
+reports where each turn's time went. We send them only when you ask, by adding
+`mirai_events=1` to the session URL:
+
+```text
+wss://prod.voice.miraiminds.co/v2/realtime?mirai_events=1
+```
+
+<Warning>
+Do not set `mirai_events` with stock Pipecat. Pipecat 1.8.1's Realtime service
+raises an error on any event type it does not know, and that stops it reading
+the socket, so the session goes silent. Turn it on only in a client that ignores
+or handles event types it does not recognise.
+</Warning>
+
+### Turn metrics
 
 After each turn, `mirai.turn.metrics` reports where the time went:
 
@@ -343,10 +363,10 @@ After each turn, `mirai.turn.metrics` reports where the time went:
 
 {/* TODO: field names and example values are from the build contract; replace the example with a real event once the worker ships. */}
 
-<Warning>
-Pipecat 1.8.1's Realtime service stops reading the socket when it receives an
-event type it does not know, and `mirai.*` events are not in its list.{/* TODO(worker): confirm mirai.* events are only sent to clients that ask for them, and document how to ask. */}
-</Warning>
+{/* TODO(worker): keep this sentence only if the worker ships per-turn numbers in response.done; confirm the exact metadata keys. */}
+Without `mirai_events`, the same numbers are in each `response.done` event's
+`response.metadata`, as `mirai_v2v_ms` and the matching keys, which any Realtime
+client, stock Pipecat included, receives without complaint.
 
 ## Fallback
 
@@ -354,8 +374,8 @@ Every session runs Mirai's own speech recognition, model and speech synthesis.
 If one of them is unavailable during a session, that step moves to a
 third-party fallback provider and the conversation continues. Speech recognition
 and speech synthesis fall back to Sarvam.{/* TODO: describe the language model fallback once it is on for realtime sessions (MIRA_LLM_FAILOVER) */}
-You pay the same per-minute rate either way, and `mirai.turn.metrics` tells you
-which turns used a fallback.
+You pay the same per-minute rate either way, and
+[`mirai.turn.metrics`](#turn-metrics) tells you which turns used a fallback.
 
 ## Billing
 
