@@ -113,6 +113,12 @@
             ]
           },
           {
+            "group": "Phone calling",
+            "pages": [
+              "cookbooks/inbound-calling"
+            ]
+          },
+          {
             "group": "WhatsApp voice apps",
             "pages": [
               "cookbooks/whatsapp-calling-for-partners"

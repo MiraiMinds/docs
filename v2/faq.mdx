@@ -44,7 +44,10 @@ ceiling, the call waits in `queued` until a slot frees up. We queue it instead
 of rejecting it, so going over the ceiling never returns `429`.
 
 **Can I do inbound calls?**
-Not yet. The API places outbound calls only.
+Yes. Connect an Indian Plivo voice number, assign a published agent, and
+activate incoming calls. You can use your own Plivo number or a dedicated
+number already provided to your workspace. See the
+[inbound calling cookbook](/cookbooks/inbound-calling) for setup and testing.
 
 **Can I transfer a call to a human?**
 Not yet. Transfer to a human is on the [roadmap](/general/roadmap), but no
