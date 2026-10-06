@@ -1,6 +1,6 @@
 ---
 title: "Pipecat"
-description: Add Mirai voices to a Pipecat bot with one package, and keep phone-call audio smooth when your server is busy.
+description: Add Mirai voices to a Pipecat bot with one package, keep phone-call audio smooth when your server is busy, or run the whole turn on Mirai with the Realtime API.
 ---
 
 If your voice bot runs on [Pipecat](https://github.com/pipecat-ai/pipecat), install
@@ -85,6 +85,31 @@ llm = OpenAIRealtimeLLMService(
 
 It replaces your STT, LLM and TTS services with one, and each turn makes a
 single round trip to your server. It is billed per minute, like a call.
+
+## Or let Mirai run the whole turn
+
+You can also hand us the whole turn: speech recognition, turn detection, the
+model and the voice. Our [Realtime API](/v2/realtime) speaks the OpenAI Realtime
+protocol, so Pipecat's own `OpenAIRealtimeLLMService` connects to it without any
+extra package. It replaces your STT, LLM and TTS services:
+
+```python
+import os
+from pipecat.services.openai.realtime.llm import OpenAIRealtimeLLMService
+
+llm = OpenAIRealtimeLLMService(
+    api_key=os.environ["MIRA_API_KEY"],
+    base_url="wss://sandbox.voice.miraiminds.co/v2/realtime",
+)
+
+pipeline = Pipeline([transport.input(), ctx.user(), llm, transport.output(), ctx.assistant()])
+```
+
+Every turn makes one round trip to your server instead of three. A session is
+billed per minute like a browser call, not per character or token. Use
+`wss://prod.voice.miraiminds.co/v2/realtime` once your company has gone live.
+The [Realtime API page](/v2/realtime) has a complete agent you can run with one
+command, plus how to start a session from one of your agents.
 
 ## Moving from OpenAITTSService
 
