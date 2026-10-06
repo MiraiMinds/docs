@@ -44,7 +44,11 @@ ceiling, the call waits in `queued` until a slot frees up. We queue it instead
 of rejecting it, so going over the ceiling never returns `429`.
 
 **Can I do inbound calls?**
-Not yet. The API places outbound calls only.
+Yes. First **buy a dedicated number through Mirai** or **connect your own
+supported telco number**. Then assign a published agent and activate incoming
+calls. You do not need your own Plivo account when buying through Mirai.
+BYO currently supports Plivo, and numbers are currently limited to India (+91). See the
+[inbound calling cookbook](/cookbooks/inbound-calling) for setup and testing.
 
 **Can I transfer a call to a human?**
 Not yet. Transfer to a human is on the [roadmap](/general/roadmap), but no

@@ -131,13 +131,20 @@ Derive the key from your own domain object, such as an order ID or a job ID,
 instead of generating a random UUID for each attempt. That way a retry sends
 the same key. See [Calls](/v2/calls#idempotency).
 
+## Incoming calls and phone numbers
+
+To receive inbound calls, **buy a dedicated number through Mirai** from
+**Phone numbers → Add a number**, or **connect your own supported telco number**.
+Then assign a published agent and activate incoming calls. Buying through Mirai
+does not require your own Plivo account. BYO currently supports Plivo; both
+options support Indian +91 numbers. The purchase flow shows available rentals,
+business verification requirements, and renewal terms. Follow the
+[inbound calling cookbook](/cookbooks/inbound-calling) for console and API setup.
+
 ## Not built yet
 
-The API places outbound calls. These are the known gaps, so you can check them
-before you start building:
+These are the known gaps, so you can check them before you start building:
 
-- **Inbound calls.** Outbound only.
-- **Buying phone numbers.** We provide the line.
 - **Knowledge base / RAG**. For function calling, use [v2 tools](/v2/tools).
 - **Wallet top-up over the API.** Add credit from the **Billing** page of the
   console instead.

@@ -1,6 +1,6 @@
 ---
 title: "Pipecat"
-description: Add Mirai voices to a Pipecat bot with one package, and keep phone-call audio smooth when your server is busy.
+description: Add Mirai voices to a Pipecat bot with one package, keep phone-call audio smooth when your server is busy, or run the whole turn on Mirai with the Realtime API.
 ---
 
 If your voice bot runs on [Pipecat](https://github.com/pipecat-ai/pipecat), install
@@ -85,6 +85,46 @@ llm = OpenAIRealtimeLLMService(
 
 It replaces your STT, LLM and TTS services with one, and each turn makes a
 single round trip to your server. It is billed per minute, like a call.
+
+## Or let Mirai run the whole turn
+
+You can also hand us the whole turn: speech recognition, turn detection, the
+model and the voice. Use `MiraiRealtimeLLMService` from the same package. It
+connects to our [Realtime API](/v2/realtime) and replaces your STT, LLM and TTS
+services:
+
+```python
+from pipecat_mirai import MiraiRealtimeLLMService
+
+llm = MiraiRealtimeLLMService(voice="shruti", language="hi")
+
+pipeline = Pipeline([transport.input(), ctx.user(), llm, transport.output(), ctx.assistant()])
+```
+
+Every turn makes one round trip to your server instead of three. A session is
+billed per minute like a browser call, not per character or token.
+
+To start from one of your agents, pass `agent_id` (and `variables` for its
+placeholders). Each reply's timing on our side arrives through an event
+handler:
+
+```python
+llm = MiraiRealtimeLLMService(agent_id="agt_...", variables={"customer_name": "Rahul"})
+
+@llm.event_handler("on_turn_metrics")
+async def on_turn_metrics(service, m):
+    print(f"{m.v2v_ms} ms voice to voice")
+```
+
+It connects to the sandbox by default. Once your company has gone live, pass
+`base_url=PRODUCTION_REALTIME_URL` (also from `pipecat_mirai`). On a phone line the pipeline can stay at
+8 kHz: the service converts the caller's audio for you.
+
+Pipecat's own `OpenAIRealtimeLLMService` works too, with
+`base_url="wss://sandbox.voice.miraiminds.co/v2/realtime"`. The package version
+adds our settings (language, temperature, tool timeout), the per-turn timing and
+the agent parameters that the stock service can't send. The
+[Realtime API page](/v2/realtime) has the protocol details.
 
 ## Moving from OpenAITTSService
 
