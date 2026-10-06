@@ -65,6 +65,7 @@ GET /v2/wallet
 | `balance_inr` | number | Spendable balance. Never negative. |
 | `currency` | string | Always `INR`. |
 | `updated_at` | string | When the balance last changed. |
+| `realtime_free_minutes` | object | Your free [Realtime API](/v2/realtime#billing) minutes, in seconds: `granted_seconds`, `used_seconds` and `remaining_seconds`. `remaining_seconds` leaves out time set aside by sessions in progress. Present on production workspaces. |
 
 <Tip>
 **Alert on this, don't discover it**
@@ -179,7 +180,9 @@ The ledger. One row per credit or debit, newest first.
 | `quantity` | number | How much was billed: characters on a `tts` row, tokens (input plus output) on a `flow_generation` row, seconds of audio (rounded up) on a `transcription` row. |
 | `description` | string | Human-readable. Do not parse it. |
 | `promotional_inr` | number | Promotional credit granted on a `promotion` row, or the portion of a debit paid with promotional credit. Omitted when zero. Promotional credit does not count towards a monthly minimum. |
-| `pricing` | object | The rates snapshotted when the call was admitted: voice AI, optional T1 insights, and any managed provider rate and billing block. Absent on historical rows. |
+| `pricing` | object | The rates snapshotted when the call was admitted: voice AI, optional T1 insights, and any managed provider rate and billing block. A Realtime API session's `pricing` has `"rate_card": "realtime"`. Absent on historical rows. |
+| `channel` | string | `realtime` on a [Realtime API](/v2/realtime) session's row. Omitted on other rows. |
+| `free_seconds` | integer | The part of `billed_seconds` that your free Realtime minutes covered. `amount_inr` is the rest at `per_min_inr`, so a session they covered in full is a ₹0 row. Omitted when none were used. |
 
 The call amount combines voice and insights at the voice billing block, rounds
 that charge up to a paisa, then adds the separately rounded provider charge.
@@ -193,6 +196,29 @@ the shape changed, so a reader that ignores all three keeps working.
 </Note>
 
 Reconcile against `call_id`: every billable call produces exactly one debit row.
+That includes a Realtime API session that your free minutes covered in full: its
+row is ₹0 and carries `free_seconds`.
+
+```json title="A Realtime API session, partly free"
+{
+  "id": "txn_01K0RT8M2N4P6R8S1T3V5W7X9Y",
+  "object": "wallet_transaction",
+  "type": "debit",
+  "amount_inr": 1.67,
+  "balance_after_inr": 8.33,
+  "call_id": "call_01K0RT7A3C5E7G9J2L4N6Q8S0U",
+  "kind": "call",
+  "channel": "realtime",
+  "description": "call 245s @ t5 · realtime · 200s free",
+  "billed_seconds": 250,
+  "free_seconds": 200,
+  "per_min_inr": 2,
+  "billing_block_secs": 10,
+  "created_at": "2026-10-06T09:16:39Z"
+}
+```
+
+The 50 seconds that were not free are charged at ₹2 a minute: ₹1.67.
 
 ### A text-to-speech row
 

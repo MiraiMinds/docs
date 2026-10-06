@@ -23,9 +23,10 @@ caller's audio up and plays the agent's audio back. Compared with calling our
 speech-to-text, LLM and text-to-speech APIs one by one, a turn makes one round
 trip to your server instead of three.
 
-A session is a call. It has a call ID, it shows up in your call list, it sends
-[webhooks](/v2/webhooks) and it is [billed per minute](#billing), like a
-[browser call](/v2/web-calls).
+A session is a call. It has a call ID, it shows up in your call list and it
+sends [webhooks](/v2/webhooks), like a [browser call](/v2/web-calls). It is
+[billed per minute](#billing) at its own Realtime API rate, and your first
+Realtime minutes are free.
 
 ## Connect
 
@@ -511,18 +512,41 @@ fallback apart and compare their latency.
 
 ## Billing
 
-A session is billed per minute at your workspace's [tier](/general/tiers) rate,
-exactly like a browser call:
+A session is billed per minute at your plan's Realtime API rate, which is
+separate from the rate for agent calls. Agent call rates do not change.
+
+{/* pricing:realtime:start */}
+
+| Plan | Realtime API rate | Monthly commitment |
+| --- | --- | --- |
+| T5 | ₹2 / minute | None — pay as you go |
+| T3 | ₹1.50 / minute | ₹50,000 |
+| T1 | ₹1 / minute | ₹1,00,000 |
+
+**Your first 100 Realtime minutes are free.** Every workspace gets them once. They are used before your wallet and metered the same way, and your statement shows the free seconds each session used.
+
+Realtime API sessions are billed per minute at your plan's Realtime rate, in 10-second blocks rounded up with a one-block minimum. There is no charge per token, request or tool call. Agent calls keep their own rates. A 95-second session bills 100 seconds: T5 ₹3.34, T3 ₹2.50, T1 ₹1.67. T3 and T1 are the same monthly commitments as for agents: paid Realtime usage counts towards the minimum; free minutes do not. All prices exclude GST.
+
+{/* pricing:realtime:end */}
 
 - Billing starts when the session's audio goes live and stops when the socket
   closes.
-- Minutes are billed in 10-second blocks, rounded up, with a one-block minimum.
-- There is no charge per token, per request or per tool call.
-- A session is a call on the `realtime` channel: it appears in your call list
-  and is charged to your wallet like any other call.
+- Free minutes are used first, in the same 10-second blocks. When a session
+  uses the last of them, the rest of that session is charged to your wallet.
+- A session is a call on the `realtime` channel. It appears in your call list,
+  its `cost.per_min_inr` is the Realtime rate, and `cost.free_seconds` shows
+  what your free minutes covered. Its debit in your
+  [wallet transactions](/v2/wallet#list-transactions) carries the same
+  `free_seconds`; a session your free minutes covered in full is a ₹0 row.
+- [`GET /v2/wallet`](/v2/wallet) shows your remaining free minutes in
+  `realtime_free_minutes`, in seconds.
 
-A session needs enough balance to start, and ends if your balance runs out
-while it is open.
+To start a session, your free minutes and wallet together need to cover one
+minute at your Realtime rate. When it starts, we set aside its maximum duration
+(`max_duration_secs`) from your free minutes first and then your wallet, and
+return whatever it does not use when it ends. A session therefore never runs
+past what you can pay for. To keep a low balance usable, lower
+`max_duration_secs`.
 
 ## Errors
 
@@ -544,7 +568,7 @@ an OpenAI-style error body:
 | :--- | :--- | :--- |
 | `400` | `invalid_request` | A URL parameter is malformed or out of range, such as `max_duration_secs` outside 30 to 1800. The error names the parameter. |
 | `401` | `missing_api_key`, `unauthorized` | Send a valid key. |
-| `402` | `insufficient_balance` | Top up your wallet. |
+| `402` | `insufficient_balance` | Your free Realtime minutes are used up and your wallet cannot cover one minute. Top up your wallet. |
 | `403` | `forbidden`, `production_workspace_required`, `contract_unavailable` | The key is revoked, it is a sandbox key on the production address, or your plan does not cover the session. |
 | `404` | `not_found` | The `agent_id` is not in your workspace. |
 | `409` | `flow_agent_realtime_unsupported` | Node-based agents cannot run as Realtime sessions. Use a single-prompt agent, or leave out `agent_id`. |

@@ -15,6 +15,9 @@ T5 and T3 include Mirai phone calling and insights. On T1, optional Mirai
 phone calling adds ₹0.30 / minute only when Mirai supplies the phone connection.
 BYO telco, WhatsApp and browser calls have no Mirai telco charge.
 
+[Realtime API](/v2/realtime) sessions have their own per-minute rates, and
+your first Realtime minutes are free. See [Realtime API](#realtime-api).
+
 {/* pricing:agents:start */}
 
 | Tier | Rate | Monthly commitment | Details |
@@ -30,6 +33,32 @@ T3 and T1 are minimum monthly spend plans, funded upfront. Paid workspace usage 
 Your workspace's agreed contract determines your charges. Advertised rates do not replace an existing contract. T5 and T3 include Mirai phone calling and call insights. T1 adds optional Mirai phone calling at ₹0.30 / minute only on Mirai-managed phone calls. BYO telco, WhatsApp and browser calls have no Mirai telco charge. T1 call insights are optional at ₹0.20 / minute and can be enabled in Billing.
 
 {/* pricing:agents:end */}
+
+## Realtime API
+
+A [Realtime API](/v2/realtime) session is priced per minute on its own rate
+card. Your plan picks the rate; agent calls keep the rates above.
+
+{/* pricing:realtime:start */}
+
+| Plan | Realtime API rate | Monthly commitment |
+| --- | --- | --- |
+| T5 | ₹2 / minute | None — pay as you go |
+| T3 | ₹1.50 / minute | ₹50,000 |
+| T1 | ₹1 / minute | ₹1,00,000 |
+
+**Your first 100 Realtime minutes are free.** Every workspace gets them once. They are used before your wallet and metered the same way, and your statement shows the free seconds each session used.
+
+Realtime API sessions are billed per minute at your plan's Realtime rate, in 10-second blocks rounded up with a one-block minimum. There is no charge per token, request or tool call. Agent calls keep their own rates. A 95-second session bills 100 seconds: T5 ₹3.34, T3 ₹2.50, T1 ₹1.67. T3 and T1 are the same monthly commitments as for agents: paid Realtime usage counts towards the minimum; free minutes do not. All prices exclude GST.
+
+{/* pricing:realtime:end */}
+
+A session's call object reports the Realtime rate as `cost.per_min_inr`, and
+`cost.free_seconds` shows how much of it your free minutes covered. Each
+session's debit in the [ledger](/v2/wallet#list-transactions) carries the same
+`free_seconds`; a session your free minutes covered in full is a ₹0 row.
+[`GET /v2/wallet`](/v2/wallet) shows what is left of your free minutes in
+`realtime_free_minutes`.
 
 ## One stack on every tier
 
