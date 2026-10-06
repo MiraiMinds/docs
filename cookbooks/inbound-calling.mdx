@@ -1,20 +1,33 @@
 ---
 title: Receive inbound phone calls
-description: Connect a phone number, choose the voice agent that answers it, and test incoming calls through the console or API.
+description: Buy a number through Mirai or connect your own supported telco number, then assign an agent and activate inbound calling.
 ---
 
-Let customers call your business number and speak with your voice agent. This
-cookbook takes you from number setup to your first incoming conversation and
-its call history, transcript, and recording.
+**To receive inbound calls, first buy a dedicated number through Mirai or
+connect a number from your own supported telco account. Then assign a published
+voice agent and activate incoming calls.**
+
+Customers can then call your business number and speak with that agent. This
+cookbook takes you through both number options, your first incoming
+conversation, and its call history, transcript, and recording.
 
 ## What you'll build
 
 A phone number that answers incoming calls with your agent's greeting and
 instructions. You can set it up in the console or from your backend.
 
-This recipe covers **Indian +91 Plivo voice numbers**. You can bring an existing
-number from your Plivo account or use a dedicated number already provided to
-your workspace by Mirai. WhatsApp calling has a
+Choose the option that suits your business:
+
+| Option | What you do |
+| :--- | :--- |
+| **Buy a number through Mirai** | Open **Phone numbers → Add a number**, choose **Mirai wallet** as the billing account, complete any required business verification, and confirm the number rental. You do not need your own Plivo account or credentials. |
+| **Connect your own telco** | Connect your supported provider account and import a voice number you own. You keep your provider account and its billing. **Plivo is the currently supported BYO provider.** |
+
+Both options add a dedicated number to your workspace. You then use the same
+agent assignment and activation steps. Numbers purchased through Mirai are
+recurring rentals; review their charges and renewal terms before confirming.
+
+This recipe currently supports **Indian +91 voice numbers**. WhatsApp calling has a
 [separate cookbook](/cookbooks/whatsapp-calling-for-partners).
 
 You need:
@@ -23,15 +36,16 @@ You need:
   its applicable calling rate.
 - A published agent in that workspace. A draft or archived agent cannot answer
   incoming calls.
-- A dedicated, voice-enabled number you control. If you bring your own Plivo
-  number, have its account's Auth ID and Auth Token available.
+- A dedicated, voice-enabled number purchased through Mirai or connected from
+  your own supported telco. For BYO Plivo only, have your account's Auth ID and
+  Auth Token available.
 - For API setup: your workspace API key, its assigned API host, cURL and `jq`,
   or Python 3.10+ with `httpx`, or Node.js 18+.
 
 <Note>
-Importing a number does not activate incoming calls. Activation configures its
-voice routing. Test a real incoming call before you advertise the number.
-Mirai's shared outgoing test line is not your dedicated inbound number.
+Purchasing or importing a number is the first step. Assign a published agent
+and activate incoming calls to make it answer. Test a real incoming call before
+you advertise the number.
 </Note>
 
 ## How it works
@@ -39,7 +53,7 @@ Mirai's shared outgoing test line is not your dedicated inbound number.
 ```mermaid
 sequenceDiagram
     participant Caller
-    participant Number as Your Plivo number
+    participant Number as Your dedicated phone number
     participant Mirai as Mirai Voice
     participant App as Your backend
     Caller->>Number: Calls your business number
@@ -57,22 +71,46 @@ send `POST /v2/calls` to receive a call. That endpoint starts an outgoing call.
 1. Open the [console](https://console.voice.miraiminds.co) and select your
    workspace. Trial workspaces use the
    [sandbox console](https://sandbox.voice.miraiminds.co).
-2. Create your agent in **Agent Studio**. Set its greeting, instructions,
-   language, voice, and maximum call duration, then publish it.
-3. Open **Phone numbers**. If your workspace already has a dedicated number,
-   skip to the assignment step.
-4. Select **Connect Plivo**, enter your Plivo Auth ID and Auth Token, and save.
-   Select **Import a number**, then **Import** beside the number you own.
-5. Under **Incoming calls go to**, select your published agent and click
-   **Save**.
-6. Click **Activate incoming calls**. Review the routing change, confirm that
-   you want incoming calls to reach Mirai, and activate.
-7. Call the number from another phone and complete the [test below](#test-it).
+2. Open **Phone numbers** and follow either option below. If your workspace
+   already has a dedicated number, continue to [assign and activate](#assign-your-agent-and-activate).
 
-If you need a new number, open **Add a number**. Availability, business
-verification, rental charges, and renewal terms appear in that flow. Complete
-any required verification and rental confirmation before assigning the number.
-Contact [support](mailto:help@miraiminds.co) if that option is unavailable.
+### Option A: Buy a number through Mirai
+
+1. Click **Add a number** and choose **Mirai wallet** under **Billing account**.
+2. Complete **Verify your business** if prompted. Submit the requested details
+   and documents, then use **Refresh status** to check the review result.
+3. After approval, search the available numbers and select one for your business.
+4. Review the rental amount, renewal terms, and separate call-usage charges.
+   Confirm the rental from your workspace wallet.
+5. Once the purchase completes and the number appears in your workspace,
+   continue to agent assignment below.
+
+You do not need to open a separate Plivo account. Mirai manages the provider
+integration for the number you rent through Mirai. Availability depends on
+inventory and business verification. If your purchase is still processing,
+check its status before trying again. Contact
+[support](mailto:help@miraiminds.co) if the option is unavailable.
+
+### Option B: Connect your own telco number
+
+1. Click **Connect Plivo**, enter your Plivo Auth ID and Auth Token, and save.
+2. Select **Import a number**, then **Import** beside the voice number you own.
+3. Once the number appears in your workspace, continue to agent assignment below.
+
+This option currently supports Plivo. Your provider continues to bill your own
+account for its number rental and telephony usage.
+
+### Assign your agent and activate
+
+These steps are the same for numbers purchased through Mirai and BYO numbers:
+
+1. Create your agent in **Agent Studio**. Set its greeting, instructions,
+   language, voice, and maximum call duration, then publish it.
+2. Return to **Phone numbers**. Under **Incoming calls go to**, select your
+   published agent and click **Save**.
+3. Click **Activate incoming calls**. Review the routing change, confirm that
+   you want incoming calls to reach Mirai, and activate.
+4. Call the number from another phone and complete the [test below](#test-it).
 
 <Warning>
 Activation can replace the number's existing voice application. Check where
@@ -81,6 +119,11 @@ refused to protect their SMS/MMS routing; use a dedicated voice number.
 </Warning>
 
 ## Set up through the API
+
+The API uses the same number options. If you purchased a number through Mirai
+in the console, list it in step 1 and skip the BYO integration and import in
+step 3. You do not need Plivo credentials for a Mirai-managed number. The agent
+assignment, activation, and result APIs are the same for both options.
 
 ### 1. Choose your API host
 
@@ -198,9 +241,11 @@ Any other required input must have a usable default in your agent's
 or order number during the conversation. Do not treat caller ID as proof of
 identity. See [agents](/v2/agents) and [tools](/v2/tools) for API lookups.
 
-### 3. Connect Plivo and import your number
+### 3. Connect your own telco number (BYO only)
 
-Skip this step for a number already in your workspace. If the Plivo integration
+**Skip this step if you purchased your number through Mirai or it is already
+in your workspace.** The following example connects Plivo, the currently
+supported BYO provider. If the Plivo integration
 already exists, get its ID from `GET /v2/telephony/connections` instead of
 creating it again.
 
