@@ -93,7 +93,7 @@ cannot reach the wrong workspace by accident with valid credentials.
 | `agent.tools` | [`tools`](/v2/tools) (full definitions, not v1 tool IDs) |
 | `telephony.inbound` / `telephony.outbound` | Assign `agent_id` on a v2 phone number for inbound; set `phone_number_id` when creating an outgoing call. See [inbound calling](/cookbooks/inbound-calling). |
 | `callSettings.slots` (calling window) | `slots` + `timezone` on a [campaign](/v2/campaigns#calling-window) (or [your scheduler](/v2/limits#calling-window) for single calls) |
-| `callSettings.concurrentCallCount` | `max_concurrent` on a [campaign](/v2/campaigns); the workspace ceiling is provisioned per key, see [Limits](/v2/limits) |
+| `callSettings.concurrentCallCount` | `max_concurrent` on a [campaign](/v2/campaigns); your account's ceiling is its [concurrent channels](/v2/concurrency) |
 | `callSettings.retryProtocol` | `retry_count` + `re_attempt_period_secs` on a [campaign](/v2/campaigns#retries) |
 | `analysisPlan` | — (post-call analysis is part of every tier; its v2 surface is on the [roadmap](/general/roadmap)) |
 

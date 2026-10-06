@@ -25,8 +25,7 @@ trip to your server instead of three.
 
 A session is a call. It has a call ID, it shows up in your call list and it
 sends [webhooks](/v2/webhooks), like a [browser call](/v2/web-calls). It is
-[billed per minute](#billing) at its own Realtime API rate, and your first
-Realtime minutes are free.
+[billed per minute](#billing) at one Realtime API price on every plan.
 
 ## Connect
 
@@ -524,41 +523,34 @@ fallback apart and compare their latency.
 
 ## Billing
 
-A session is billed per minute at your plan's Realtime API rate, which is
-separate from the rate for agent calls. Agent call rates do not change.
+A session is billed per minute at the Realtime API price, which is the same on
+every plan. Your plan (T5, T3 or T1) sets the price of agent calls, not of
+Realtime sessions.
 
 {/* pricing:realtime:start */}
 
-| Plan | Realtime API rate | Monthly commitment |
-| --- | --- | --- |
-| T5 | ₹2 / minute | None — pay as you go |
-| T3 | ₹1.50 / minute | ₹50,000 |
-| T1 | ₹1 / minute | ₹1,00,000 |
+**₹1 per minute** for every Realtime API session, on every plan. Call insights add ₹0.20 per minute on sessions that run them.
 
-**Your first 100 Realtime minutes are free.** Every workspace gets them once. They are used before your wallet and metered the same way, and your statement shows the free seconds each session used.
-
-Realtime API sessions are billed per minute at your plan's Realtime rate, in 10-second blocks rounded up with a one-block minimum. There is no charge per token, request or tool call. Agent calls keep their own rates. A 95-second session bills 100 seconds: T5 ₹3.34, T3 ₹2.50, T1 ₹1.67. T3 and T1 are the same monthly commitments as for agents: paid Realtime usage counts towards the minimum; free minutes do not. All prices exclude GST.
+Realtime API sessions cost the same on every plan, in 10-second blocks rounded up with a one-block minimum. There is no phone-line charge and no charge per token, request or tool call. Plans (T5, T3, T1) set the price of agent calls, not of Realtime sessions. A 95-second session bills 100 seconds: ₹1.67 (₹2.00 with call insights). All prices exclude GST.
 
 {/* pricing:realtime:end */}
 
 - Billing starts when the session's audio goes live and stops when the socket
   closes.
-- Free minutes are used first, in the same 10-second blocks. When a session
-  uses the last of them, the rest of that session is charged to your wallet.
+- Call insights are added only on a session that runs them: one started with
+  an `agent_id` whose post-call analysis is on (on T1, also with insights
+  switched on in **Billing**).
 - A session is a call on the `realtime` channel. It appears in your call list,
-  its `cost.per_min_inr` is the Realtime rate, and `cost.free_seconds` shows
-  what your free minutes covered. Its debit in your
-  [wallet transactions](/v2/wallet#list-transactions) carries the same
-  `free_seconds`; a session your free minutes covered in full is a ₹0 row.
-- [`GET /v2/wallet`](/v2/wallet) shows your remaining free minutes in
-  `realtime_free_minutes`, in seconds.
+  its `cost.per_min_inr` is the rate it was billed at, and its debit in your
+  [wallet transactions](/v2/wallet#list-transactions) carries
+  `channel: "realtime"`.
+- A session uses one of your account's
+  [concurrent channels](/v2/concurrency) while it is open.
 
-To start a session, your free minutes and wallet together need to cover one
-minute at your Realtime rate. When it starts, we set aside its maximum duration
-(`max_duration_secs`) from your free minutes first and then your wallet, and
-return whatever it does not use when it ends. A session therefore never runs
-past what you can pay for. To keep a low balance usable, lower
-`max_duration_secs`.
+To start a session, your wallet needs to cover one minute. When it starts, we
+set aside its maximum duration (`max_duration_secs`) from your wallet and
+return whatever it does not use when it ends, so a session never runs past what
+you can pay for. To keep a low balance usable, lower `max_duration_secs`.
 
 ## Errors
 
@@ -580,11 +572,11 @@ an OpenAI-style error body:
 | :--- | :--- | :--- |
 | `400` | `invalid_request` | A URL parameter is malformed or out of range, such as `max_duration_secs` outside 30 to 1800. The error names the parameter. |
 | `401` | `missing_api_key`, `unauthorized` | Send a valid key. |
-| `402` | `insufficient_balance` | Your free Realtime minutes are used up and your wallet cannot cover one minute. Top up your wallet. |
+| `402` | `insufficient_balance` | Your wallet cannot cover one minute. Top up your wallet. |
 | `403` | `forbidden`, `production_workspace_required`, `contract_unavailable` | The key is revoked, it is a sandbox key on the production address, or your plan does not cover the session. |
 | `404` | `not_found` | The `agent_id` is not in your workspace. |
 | `409` | `flow_agent_realtime_unsupported` | Node-based agents cannot run as Realtime sessions. Use a single-prompt agent, or leave out `agent_id`. |
-| `429` | `concurrency_limit` | Your workspace already has as many calls and sessions open as it is allowed. Retry after `Retry-After` seconds (5). |
+| `429` | `concurrency_limit` | Every [concurrent channel](/v2/concurrency) of your account is busy with calls and sessions, or every line on our side is. Retry after `Retry-After` seconds (5), or add channels in **Billing**. |
 | `429` | `rate_limited` | Too many requests. Retry after `Retry-After` seconds. |
 | `503` | `at_capacity`, `worker_unavailable`, `fleet_offline`, `upstream_unavailable` | No capacity right now. Retry after `Retry-After` seconds. |
 | `504` | `start_timeout` | The session could not be set up in time. Try again. |
@@ -619,9 +611,10 @@ ends a Pipecat session.
   With `agent_id`, the agent's own limit applies. Set `max_duration_secs` in the
   URL to change it, from 30 to 1800 seconds. At the limit you get an `error`
   with code `session_expired`, and the socket closes.
-- **Concurrency.** Sessions count towards your workspace's concurrent calls
-  (see [limits](/v2/limits)). A session over the limit is refused with
-  `429 concurrency_limit` and `Retry-After: 5`. It does not queue.
+- **Concurrency.** A session uses one of your account's
+  [concurrent channels](/v2/concurrency), shared with your agent calls. When
+  they are all busy, a new session is refused with `429 concurrency_limit` and
+  `Retry-After: 5`. It does not queue.
 - **Setup time.** If setting up a session takes longer than about 8 seconds,
   for example because an agent's pre-call tools are slow, the upgrade fails with
   `504 start_timeout`.

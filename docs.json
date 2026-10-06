@@ -84,6 +84,7 @@
             "group": "Reference",
             "pages": [
               "v2/errors",
+              "v2/concurrency",
               "v2/limits",
               "v2/faq",
               "general/roadmap"

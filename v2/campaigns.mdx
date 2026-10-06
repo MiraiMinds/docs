@@ -206,11 +206,12 @@ The retry wait is a minimum, and the actual retry can come later.
 
 ## Budget and pacing
 
-**`max_concurrent`** (1 to 50) is this campaign's own ceiling on live calls. It
-is separate from your workspace
-[concurrency and queue-depth limits](/v2/limits), which also apply. Two
-campaigns at `max_concurrent: 20` on a workspace provisioned for 5 concurrent
-calls will share those 5.
+**`max_concurrent`** (1 to 50) is this campaign's own ceiling on live calls.
+Your account's [concurrent channels](/v2/concurrency) also apply: a campaign
+never has more calls ringing or talking than you have channels, and two
+campaigns at `max_concurrent: 20` on an account with 5 channels share those 5.
+A campaign is never refused for channels; it dials the next contact when one
+frees up, and picks up channels you add at its next step.
 
 **`budget_paise`** caps the spend of this campaign alone. When `spent_paise`
 reaches it, the campaign pauses with `budget_exhausted`. Contacts keep their

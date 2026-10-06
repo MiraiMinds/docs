@@ -15,8 +15,8 @@ T5 and T3 include Mirai phone calling and insights. On T1, optional Mirai
 phone calling adds ₹0.30 / minute only when Mirai supplies the phone connection.
 BYO telco, WhatsApp and browser calls have no Mirai telco charge.
 
-[Realtime API](/v2/realtime) sessions have their own per-minute rates, and
-your first Realtime minutes are free. See [Realtime API](#realtime-api).
+[Realtime API](/v2/realtime) sessions have one price on every plan, and every
+account includes 2 [concurrent channels](#concurrent-channels). See below.
 
 {/* pricing:agents:start */}
 
@@ -36,29 +36,36 @@ Your workspace's agreed contract determines your charges. Advertised rates do no
 
 ## Realtime API
 
-A [Realtime API](/v2/realtime) session is priced per minute on its own rate
-card. Your plan picks the rate; agent calls keep the rates above.
+A [Realtime API](/v2/realtime) session has one price on every plan. Your plan
+sets the price of agent calls only.
 
 {/* pricing:realtime:start */}
 
-| Plan | Realtime API rate | Monthly commitment |
-| --- | --- | --- |
-| T5 | ₹2 / minute | None — pay as you go |
-| T3 | ₹1.50 / minute | ₹50,000 |
-| T1 | ₹1 / minute | ₹1,00,000 |
+**₹1 per minute** for every Realtime API session, on every plan. Call insights add ₹0.20 per minute on sessions that run them.
 
-**Your first 100 Realtime minutes are free.** Every workspace gets them once. They are used before your wallet and metered the same way, and your statement shows the free seconds each session used.
-
-Realtime API sessions are billed per minute at your plan's Realtime rate, in 10-second blocks rounded up with a one-block minimum. There is no charge per token, request or tool call. Agent calls keep their own rates. A 95-second session bills 100 seconds: T5 ₹3.34, T3 ₹2.50, T1 ₹1.67. T3 and T1 are the same monthly commitments as for agents: paid Realtime usage counts towards the minimum; free minutes do not. All prices exclude GST.
+Realtime API sessions cost the same on every plan, in 10-second blocks rounded up with a one-block minimum. There is no phone-line charge and no charge per token, request or tool call. Plans (T5, T3, T1) set the price of agent calls, not of Realtime sessions. A 95-second session bills 100 seconds: ₹1.67 (₹2.00 with call insights). All prices exclude GST.
 
 {/* pricing:realtime:end */}
 
-A session's call object reports the Realtime rate as `cost.per_min_inr`, and
-`cost.free_seconds` shows how much of it your free minutes covered. Each
-session's debit in the [ledger](/v2/wallet#list-transactions) carries the same
-`free_seconds`; a session your free minutes covered in full is a ₹0 row.
-[`GET /v2/wallet`](/v2/wallet) shows what is left of your free minutes in
-`realtime_free_minutes`.
+A session's call object reports its rate as `cost.per_min_inr`, and its debit in
+the [ledger](/v2/wallet#list-transactions) carries `channel: "realtime"`.
+
+## Concurrent channels
+
+How many calls and Realtime sessions your account runs at once. See
+[Concurrency](/v2/concurrency) for what happens at the limit and how to add
+channels.
+
+{/* pricing:concurrency:start */}
+
+| Channels | Price |
+| --- | --- |
+| First 2 on every account | Included |
+| Each extra channel | ₹1,000 / month |
+
+A channel is one call or Realtime session in progress at a time, across your whole account: agent calls on every channel (phone, browser, WhatsApp and campaigns) and Realtime sessions. Every account includes 2 channels. Each extra channel costs ₹1,000 a month, paid from your wallet when you add it and again each month it renews. If your wallet cannot cover a renewal, that channel lapses at the end of its month; calls in progress are never cut. All prices exclude GST.
+
+{/* pricing:concurrency:end */}
 
 ## One stack on every tier
 

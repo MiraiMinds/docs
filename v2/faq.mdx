@@ -39,9 +39,10 @@ Because the phone has not rung yet. `202` means queued. The outcome arrives by
 [webhook](/v2/webhooks), or from [`GET /v2/calls/{id}`](/v2/calls#get-a-call).
 
 **How long until the phone rings?**
-Normally a couple of seconds after the `202`. If you are at your concurrency
-ceiling, the call waits in `queued` until a slot frees up. We queue it instead
-of rejecting it, so going over the ceiling never returns `429`.
+Normally a couple of seconds after the `202`. If our fleet is busy, the call
+waits in `queued` until a line frees up. If every one of your
+[concurrent channels](/v2/concurrency) is busy, the request is refused with
+`429 concurrency_limit` instead, so you never queue behind your own calls.
 
 **Can I do inbound calls?**
 Yes. First **buy a dedicated number through Mirai** or **connect your own
@@ -164,8 +165,9 @@ for.
 ## Limits and compliance
 
 **How many concurrent calls can I run?**
-The pilot default is 5. It is a provisioning setting, so raising it needs no
-code change. Ask us for more. See [Limits](/v2/limits).
+As many as your account has [concurrent channels](/v2/concurrency): 2 are
+included, and you can add more in **Billing**. Accounts that were already
+running calls kept what they could run before.
 
 **Do you enforce the 9am to 9pm calling window?**
 No. Your scheduler enforces it, and we dial when you tell us to. See
