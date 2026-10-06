@@ -13,7 +13,7 @@ Limits are per **secret key**.
 | Limit | Pilot default | Applies to | Over the limit |
 | :--- | :--- | :--- | :--- |
 | Request rate | 10 requests/second, burst 20 | all `/v2/*` endpoints | `429 rate_limited` |
-| Concurrent live calls | 5 | calls in `dialing` or `in_progress` | the call **queues** |
+| [Concurrent channels](/v2/concurrency) | 2 included **per account**; add more in Billing | every call and Realtime session in progress | `429 concurrency_limit` (a campaign waits instead) |
 | Queue depth | 500 | calls accepted and not yet ended | `429 rate_limited` |
 | TTS requests in flight | 10 **per workspace** | `/v1/audio/speech` and `/v2/tts` | `429 at_capacity` |
 | Flow generations | 30 per hour **per workspace** | [`POST /v2/agents/flow/generate`](/v2/node-agents#generate-a-flow-from-a-brief) | `429 rate_limited` with `Retry-After` |
@@ -26,8 +26,8 @@ Limits are per **secret key**.
 
 The numbers above are the defaults a new pilot key is issued with, and yours
 may differ. Confirm your actual ceilings with your account contact before you
-size a campaign. Higher concurrency only needs a provisioning change, so ask for
-it.
+size a campaign. Concurrent channels are a product: see
+[Concurrency](/v2/concurrency) to add more.
 </Warning>
 
 ### Request rate
@@ -47,20 +47,16 @@ API, not how many phones are ringing.
 
 ### Concurrency
 
-**Call** concurrency does **not** produce a `429`. A `POST /v2/calls` beyond
-your concurrent-call ceiling is still accepted with `202`. It waits in `queued`
-until a slot frees and then dials, so no call is rejected or lost. On the call
-path, `429` is request-rate only. ([Text to speech](#text-to-speech) is the one
-exception: it has no queue, so it refuses the request.)
+Your account runs as many calls and Realtime sessions at once as it has
+[concurrent channels](/v2/concurrency). At the limit, `POST /v2/calls` and a
+Realtime session are refused with `429 concurrency_limit` and `Retry-After: 5`;
+nothing is created or charged, and the `Idempotency-Key` is not used. A
+[campaign](/v2/campaigns) is never refused: it paces itself to your channels.
+A call in progress is never cut.
 
-So the ceiling paces your calls instead of refusing them. That has two
-consequences:
-
-- A queued call's phone rings later than you asked. If a call is only useful
-  inside a window, check `status` before you assume it went out, or do not
-  submit it until you have the capacity.
-- Submitting a burst does not fail; it builds a queue that drains at your
-  concurrency.
+When your channels are free but our fleet is busy, a call is still accepted
+with `202` and waits in `queued` until a line frees; that does not return
+`429`.
 
 ### Queue depth
 
@@ -83,10 +79,10 @@ handle them the same way: honour `Retry-After` and retry. Read `error.message`
 if you want to log which one you hit.
 
 The count covers calls **accepted and not yet ended**. That is `queued` plus the
-few calls actually `dialing` or `in_progress`, not `queued` alone. With a
-concurrency of 5, the difference is at most 5 calls.
+few calls actually `dialing` or `in_progress`, not `queued` alone. The
+difference is at most your number of channels.
 
-Queue depth is provisioned per workspace, like concurrency. If a campaign needs
+Queue depth is provisioned per workspace. If a campaign needs
 to submit more than 500 rows in one batch, ask your Mirai contact before the
 campaign starts, not during it.
 

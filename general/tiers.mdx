@@ -15,6 +15,9 @@ T5 and T3 include Mirai phone calling and insights. On T1, optional Mirai
 phone calling adds ₹0.30 / minute only when Mirai supplies the phone connection.
 BYO telco, WhatsApp and browser calls have no Mirai telco charge.
 
+[Realtime API](/v2/realtime) sessions have one price on every plan, and every
+account includes 2 [concurrent channels](#concurrent-channels). See below.
+
 {/* pricing:agents:start */}
 
 | Tier | Rate | Monthly commitment | Details |
@@ -30,6 +33,39 @@ T3 and T1 are minimum monthly spend plans, funded upfront. Paid workspace usage 
 Your workspace's agreed contract determines your charges. Advertised rates do not replace an existing contract. T5 and T3 include Mirai phone calling and call insights. T1 adds optional Mirai phone calling at ₹0.30 / minute only on Mirai-managed phone calls. BYO telco, WhatsApp and browser calls have no Mirai telco charge. T1 call insights are optional at ₹0.20 / minute and can be enabled in Billing.
 
 {/* pricing:agents:end */}
+
+## Realtime API
+
+A [Realtime API](/v2/realtime) session has one price on every plan. Your plan
+sets the price of agent calls only.
+
+{/* pricing:realtime:start */}
+
+**₹1 per minute** for every Realtime API session, on every plan. Call insights add ₹0.20 per minute on sessions that run them.
+
+Realtime API sessions cost the same on every plan, in 10-second blocks rounded up with a one-block minimum. There is no phone-line charge and no charge per token, request or tool call. Plans (T5, T3, T1) set the price of agent calls, not of Realtime sessions. A 95-second session bills 100 seconds: ₹1.67 (₹2.00 with call insights). All prices exclude GST.
+
+{/* pricing:realtime:end */}
+
+A session's call object reports its rate as `cost.per_min_inr`, and its debit in
+the [ledger](/v2/wallet#list-transactions) carries `channel: "realtime"`.
+
+## Concurrent channels
+
+How many calls and Realtime sessions your account runs at once. See
+[Concurrency](/v2/concurrency) for what happens at the limit and how to add
+channels.
+
+{/* pricing:concurrency:start */}
+
+| Channels | Price |
+| --- | --- |
+| First 2 on every account | Included |
+| Each extra channel | ₹1,000 / month |
+
+A channel is one call or Realtime session in progress at a time, across your whole account: agent calls on every channel (phone, browser, WhatsApp and campaigns) and Realtime sessions. Every account includes 2 channels. Each extra channel costs ₹1,000 a month, paid from your wallet when you add it and again each month it renews. If your wallet cannot cover a renewal, that channel lapses at the end of its month; calls in progress are never cut. All prices exclude GST.
+
+{/* pricing:concurrency:end */}
 
 ## One stack on every tier
 

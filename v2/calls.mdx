@@ -329,7 +329,8 @@ A browser call's `202` also carries the links the page needs:
 | `400` | `invalid_flow` | `agent_id` is a [node-based agent](/v2/node-agents) and your tier's model cannot run flows. The body lists the problem with its path. Nothing was dialled. |
 | `409` | `flow_agent_voice_only` | A text chat (`channel: "text"`) with a node-based agent. Node-based agents run on `phone` and `web`. |
 | `409` | `flow_first_message_unsupported` | `first_message` sent for a node-based agent. Its start node's `greeting` opens the call; personalise it with `variables`. |
-| `429` | `rate_limited` | Request rate exceeded, or your queue is full (500 calls accepted and not yet ended); `error.message` says which. Going over your concurrency cap does not return 429: those calls wait in the queue. Honour `Retry-After`. See [Limits](/v2/limits). |
+| `429` | `rate_limited` | Request rate exceeded, or your queue is full (500 calls accepted and not yet ended); `error.message` says which. Honour `Retry-After`. See [Limits](/v2/limits). |
+| `429` | `concurrency_limit` | Every [concurrent channel](/v2/concurrency) of your account is busy. Nothing was created; the `Idempotency-Key` was not used. Retry after `Retry-After` (5 seconds), or add channels in Billing. |
 | `429` | `at_capacity` | Every line on the deployment is busy. `Retry-After: 30`. Nothing was charged. |
 | `501` | `tier_unavailable` | `tier` names a tier that is not enabled on this deployment |
 

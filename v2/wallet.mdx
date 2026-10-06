@@ -174,12 +174,13 @@ The ledger. One row per credit or debit, newest first.
 | `amount_inr` | number | Always positive; read `type` for direction. |
 | `balance_after_inr` | number | Balance immediately after this row. |
 | `call_id` | string \| null | Set on call debits, `null` on top-ups and adjustments. |
-| `kind` | string | The transaction category: `call`, `tts`, `flow_generation`, `transcription`, `number_rental`, `promotion` or `monthly_minimum`. **Branch on this**, never on `description`, and tolerate new categories. |
-| `reference` | string | The id of the thing billed: the `tts_…` request id on a `tts` row; the `fgen_…` generation id, or the `ftr_…` transcription id, on a `flow_generation` row; the `trn_…` job id on a `transcription` row. |
-| `quantity` | number | How much was billed: characters on a `tts` row, tokens (input plus output) on a `flow_generation` row, seconds of audio (rounded up) on a `transcription` row. |
+| `kind` | string | The transaction category: `call`, `tts`, `flow_generation`, `transcription`, `number_rental`, `channels`, `promotion` or `monthly_minimum`. **Branch on this**, never on `description`, and tolerate new categories. |
+| `reference` | string | The id of the thing billed: the `tts_…` request id on a `tts` row; the `fgen_…` generation id, or the `ftr_…` transcription id, on a `flow_generation` row; the `trn_…` job id on a `transcription` row; the `chb_…` channel block on a `channels` row. |
+| `quantity` | number | How much was billed: characters on a `tts` row, tokens (input plus output) on a `flow_generation` row, seconds of audio (rounded up) on a `transcription` row, channels on a `channels` row. |
 | `description` | string | Human-readable. Do not parse it. |
 | `promotional_inr` | number | Promotional credit granted on a `promotion` row, or the portion of a debit paid with promotional credit. Omitted when zero. Promotional credit does not count towards a monthly minimum. |
-| `pricing` | object | The rates snapshotted when the call was admitted: voice AI, optional T1 insights, and any managed provider rate and billing block. Absent on historical rows. |
+| `pricing` | object | The rates snapshotted when the call was admitted: voice AI, optional T1 insights, and any managed provider rate and billing block. A Realtime API session's `pricing` has `"rate_card": "realtime"`. Absent on historical rows. |
+| `channel` | string | `realtime` on a [Realtime API](/v2/realtime) session's row. Omitted on other rows. |
 
 The call amount combines voice and insights at the voice billing block, rounds
 that charge up to a paisa, then adds the separately rounded provider charge.
@@ -193,6 +194,54 @@ the shape changed, so a reader that ignores all three keeps working.
 </Note>
 
 Reconcile against `call_id`: every billable call produces exactly one debit row.
+
+### A Realtime API session row
+
+A [Realtime API](/v2/realtime) session is a call row with `channel: "realtime"`,
+billed at the Realtime price:
+
+```json
+{
+  "id": "txn_01K0RT8M2N4P6R8S1T3V5W7X9Y",
+  "object": "wallet_transaction",
+  "type": "debit",
+  "amount_inr": 1.67,
+  "balance_after_inr": 498.33,
+  "call_id": "call_01K0RT7A3C5E7G9J2L4N6Q8S0U",
+  "kind": "call",
+  "channel": "realtime",
+  "description": "call 95s @ t5 · realtime",
+  "billed_seconds": 100,
+  "per_min_inr": 1,
+  "billing_block_secs": 10,
+  "created_at": "2026-10-06T09:16:39Z"
+}
+```
+
+### A concurrent channels row
+
+Adding [concurrent channels](/v2/concurrency), and each monthly renewal, is one
+debit with `kind: "channels"`. `quantity` is the channels and `reference` the
+channel block:
+
+```json
+{
+  "id": "txn_01K0RT9C4D6F8H1J3K5M7N9P2Q",
+  "object": "wallet_transaction",
+  "type": "debit",
+  "amount_inr": 2000,
+  "balance_after_inr": 3000,
+  "call_id": null,
+  "kind": "channels",
+  "reference": "chb_01K0RT9B2C4E6G8J1K3M5N7P9R",
+  "quantity": 2,
+  "description": "Concurrent channels · 2 × ₹1,000 · 6 Oct – 6 Nov 2026",
+  "created_at": "2026-10-06T09:30:00Z"
+}
+```
+
+A renewal says `Concurrent channels renewal`. If your wallet cannot cover one,
+there is no row: the channels lapse and nothing is owed.
 
 ### A text-to-speech row
 

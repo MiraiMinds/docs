@@ -1,0 +1,97 @@
+---
+title: Concurrency
+description: How many calls and Realtime sessions your account can run at once, what happens at the limit, and how to add channels.
+---
+
+A **concurrent channel** is one call or Realtime session in progress at a
+time. Your channels are shared by everything your account runs: agent calls on
+every channel (phone, browser, WhatsApp and text), campaign calls, incoming
+calls and [Realtime API](/v2/realtime) sessions.
+
+{/* pricing:concurrency:start */}
+
+| Channels | Price |
+| --- | --- |
+| First 2 on every account | Included |
+| Each extra channel | ₹1,000 / month |
+
+A channel is one call or Realtime session in progress at a time, across your whole account: agent calls on every channel (phone, browser, WhatsApp and campaigns) and Realtime sessions. Every account includes 2 channels. Each extra channel costs ₹1,000 a month, paid from your wallet when you add it and again each month it renews. If your wallet cannot cover a renewal, that channel lapses at the end of its month; calls in progress are never cut. All prices exclude GST.
+
+{/* pricing:concurrency:end */}
+
+## What uses a channel
+
+A call holds a channel from the moment we start placing it until it ends,
+including while the phone rings. A Realtime session holds one from the moment it
+is admitted until the socket closes. When a call or session ends, its channel is
+free for the next one straight away.
+
+You can see your channels, and how many are in use, in the
+[console](https://sandbox.voice.miraiminds.co) under **Billing → Plan tier**.
+
+## At the limit
+
+When every channel is busy, what happens depends on what you start:
+
+| What you start | When all your channels are busy |
+| :--- | :--- |
+| [`POST /v2/calls`](/v2/calls#create-a-call) (phone, browser or text) | Refused with `429 concurrency_limit` and `Retry-After: 5`. No call is created and nothing is charged. |
+| A [Realtime API](/v2/realtime) session | The WebSocket upgrade fails with `429 concurrency_limit` and `Retry-After: 5`. Sessions are not queued. |
+| A [campaign](/v2/campaigns) | Not an error. The campaign never has more calls ringing or talking than you have channels, and dials the next contact when one frees up. |
+| A scheduled callback | Waits for a channel, then dials. |
+| An incoming call | Waits a few seconds for a channel. If none frees up, the call is not answered. |
+
+**A call in progress is never cut** to make room, and never cut because your
+channel count went down. A lower limit only stops new calls until enough have
+ended.
+
+```json title="429 Too Many Requests"
+{
+  "error": {
+    "code": "concurrency_limit",
+    "message": "concurrency limit reached: all 2 concurrent channels of this account are busy with calls and sessions; add channels in Billing or retry after 5 seconds"
+  }
+}
+```
+
+Honour `Retry-After` and retry with the same `Idempotency-Key`: a refused call
+did not use the key. If you hit this often, you need more channels, or a
+[campaign](/v2/campaigns), which paces itself to your channels for you.
+
+Your channels are separate from the [request rate and queue
+limits](/v2/limits). Those answer `429 rate_limited`; the channel limit answers
+`429 concurrency_limit`.
+
+## Add channels
+
+Add channels in the console under **Billing → Plan tier → Concurrent channels →
+Add channels**. Only owners and billing members can add them.
+
+- Each extra channel costs the monthly price above, paid from your wallet
+  credit when you add it. GST is charged when you add the credit, not again
+  here.
+- Channels you add together renew together, every month from the day you added
+  them. Each renewal is paid from your wallet.
+- **Remove** them at any time. They stay until the end of the month you paid
+  for, and are not renewed.
+- **If your wallet cannot cover a renewal**, those channels lapse at the end of
+  their month: you are back to your included channels, nothing is owed, and
+  calls in progress are not cut. We email your account's owners and billing
+  members, and **Billing** shows the lapse. Add credit, then add the channels
+  again.
+
+Adding channels needs a [live account](/general/tiers#your-plan). Before you go
+live, your workspace runs on its included channels.
+
+## Accounts that were running before channels
+
+If your account was already running calls when concurrent channels were
+introduced, it keeps what it could already run, as included channels at no
+charge: the most of its provisioned concurrency, its widest campaign and its
+busiest moment in the previous 30 days. **Billing** shows your number.
+
+## On your statement
+
+Channel purchases and renewals are their own lines in your
+[wallet transactions](/v2/wallet#a-concurrent-channels-row) (`kind:
+"channels"`) and on your statement, separate from calls.
