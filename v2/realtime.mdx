@@ -74,7 +74,19 @@ not available yet.
 
 ## With Pipecat
 
-Stock Pipecat 1.8.1 works unchanged. Here is a complete microphone-and-speaker
+The easiest way is `MiraiRealtimeLLMService` from our
+[Pipecat package](/v2/pipecat) (`uv add pipecat-mirai`). It takes `agent_id`,
+`variables` and the other session parameters as arguments, sends the
+[`mirai` block](#the-mirai-block), handles [Mirai events](#mirai-events) and
+reports each turn's timing:
+
+```python
+from pipecat_mirai import MiraiRealtimeLLMService
+
+llm = MiraiRealtimeLLMService(voice="neha", language="hi")
+```
+
+Stock Pipecat 1.8.1 works unchanged too. Here is a complete microphone-and-speaker
 agent. Save it as `pipecat_realtime.py`, put on headphones and run it with
 [uv](https://docs.astral.sh/uv/), which installs Pipecat for you. The microphone
 needs PortAudio (`brew install portaudio` on macOS).
@@ -355,8 +367,8 @@ validate it strictly: an unknown key returns an `error` with code
 | `events` | boolean | | `mirai.*` events on or off. Sending a `mirai` block turns them on unless you set `"events": false`. |
 
 Pipecat 1.8.1's `SessionProperties` drops fields it does not know, so stock
-Pipecat cannot send the `mirai` block. Send your own `session.update` from a
-client that can.
+Pipecat cannot send the `mirai` block. `MiraiRealtimeLLMService` from
+[`pipecat-mirai`](/v2/pipecat) sends it: pass `language=` and `mirai={...}`.
 
 ## Tools
 
@@ -432,8 +444,8 @@ time is missing, and speech recognition and speech synthesis both ran on their
 fallbacks.
 
 Stock Pipecat 1.8.1 does not keep `response.metadata` when it parses
-`response.done`. To use these numbers there, read the raw event, or turn on
-[Mirai events](#mirai-events) in a client that can handle them.
+`response.done`. `MiraiRealtimeLLMService` from [`pipecat-mirai`](/v2/pipecat)
+reads these numbers for you and passes them to its `on_turn_metrics` handler.
 
 ## Mirai events
 
@@ -448,8 +460,8 @@ wss://prod.voice.miraiminds.co/v2/realtime?mirai_events=1
 <Warning>
 Do not set `mirai_events` with stock Pipecat. Pipecat 1.8.1's Realtime service
 raises an error on any event type it does not know, and that stops it reading
-the socket, so the session goes silent. Turn it on only in a client that ignores
-or handles event types it does not recognise.
+the socket, so the session goes silent. `MiraiRealtimeLLMService` from
+[`pipecat-mirai`](/v2/pipecat) handles them, and turns them on for you.
 </Warning>
 
 **`mirai.session.applied`** is sent when the session starts and after every
