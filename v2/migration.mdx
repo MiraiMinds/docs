@@ -65,7 +65,7 @@ cannot reach the wrong workspace by accident with valid credentials.
 | `POST /v2/call/abort` with `{callId}` in body | [`POST /v2/calls/{id}/abort`](/v2/calls#abort-a-call) | ID moves into the path. |
 | `PUT /v2/call/{callId}` (update payload) | — | No equivalent. Set everything at create time. |
 | `POST /v2/call/web` | [`POST /v2/calls`](/v2/web-calls#create-the-call) with `channel: "web"` | Your backend creates the call and gives the page an audio link and a live event link. See [Browser calls](/v2/web-calls). |
-| `GET /v1/number-pool/*` | — | [v1 Telephony](/v1/telephony). |
+| `GET /v1/number-pool/*` | `/v2/phone-numbers` and `/v2/telephony/*` | Different resources and IDs. Follow the [inbound setup recipe](/cookbooks/inbound-calling); importing does not change routing until activation. |
 | `/v1/admin/tool/api` (all methods) | [`/v2/agents/{id}/tools/{name}`](/v2/tools#api-routes) | Tools belong to an agent; recreate the definition instead of copying a v1 ID. |
 | `/v1/knowledge-base/*` | — | [v1 Knowledge Base](/v1/knowledge-base). |
 | [`GET /v1/admin/voice-gallery`](/v1/assistants#voice-gallery) | — | Still v1. v2 `voice_id` values come from this same catalogue. See [Voices](/v2/voices). |
@@ -91,7 +91,7 @@ cannot reach the wrong workspace by accident with valid credentials.
 | `variant.type` / `variant.config` | — (no variants; one shape) |
 | `variant.config.inputSchema` | — (declare nothing; just pass `variables`) |
 | `agent.tools` | [`tools`](/v2/tools) (full definitions, not v1 tool IDs) |
-| `telephony.inbound` / `telephony.outbound` | — (managed) |
+| `telephony.inbound` / `telephony.outbound` | Assign `agent_id` on a v2 phone number for inbound; set `phone_number_id` when creating an outgoing call. See [inbound calling](/cookbooks/inbound-calling). |
 | `callSettings.slots` (calling window) | `slots` + `timezone` on a [campaign](/v2/campaigns#calling-window) (or [your scheduler](/v2/limits#calling-window) for single calls) |
 | `callSettings.concurrentCallCount` | `max_concurrent` on a [campaign](/v2/campaigns); the workspace ceiling is provisioned per key, see [Limits](/v2/limits) |
 | `callSettings.retryProtocol` | `retry_count` + `re_attempt_period_secs` on a [campaign](/v2/campaigns#retries) |

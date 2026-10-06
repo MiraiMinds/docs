@@ -131,13 +131,18 @@ Derive the key from your own domain object, such as an order ID or a job ID,
 instead of generating a random UUID for each attempt. That way a retry sends
 the same key. See [Calls](/v2/calls#idempotency).
 
+## Incoming calls and phone numbers
+
+Receive calls on an Indian Plivo voice number by assigning a published agent
+and activating the number. Bring a number you own or use one already provided
+to your workspace. **Phone numbers → Add a number** shows available rentals
+and their verification requirements. Follow the
+[inbound calling cookbook](/cookbooks/inbound-calling) for console and API setup.
+
 ## Not built yet
 
-The API places outbound calls. These are the known gaps, so you can check them
-before you start building:
+These are the known gaps, so you can check them before you start building:
 
-- **Inbound calls.** Outbound only.
-- **Buying phone numbers.** We provide the line.
 - **Knowledge base / RAG**. For function calling, use [v2 tools](/v2/tools).
 - **Wallet top-up over the API.** Add credit from the **Billing** page of the
   console instead.
