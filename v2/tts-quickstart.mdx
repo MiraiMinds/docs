@@ -255,7 +255,10 @@ With all four in place, using pipecat-mirai's WebSocket service, we ran 12 and
 then 16 simultaneous phone calls through our API to the speech engine: 235 and
 262 conversational turns, about a fifth of them interrupted by the caller.
 Every call played with no audible gaps and no errors, and every sentence
-arrived in order. The [test
+arrived in order. We then repeated the 12-call run against this production
+API from a client in Europe: 194 turns, again no gaps, no errors and every
+sentence in order, with first audio at the phone (from the LLM's first token)
+at 622 ms median and 737 ms at the 95th percentile. The [test
 harness](https://github.com/MiraiMinds/pipecat-mirai/tree/main/benchmarks/customer-e2e)
 is public, so you can run it yourself.
 
