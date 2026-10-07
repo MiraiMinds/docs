@@ -10,7 +10,7 @@ our integration and add one service to your pipeline.
 uv add pipecat-mirai
 ```
 
-`pip install -U pipecat-mirai` works too. This page describes version 0.3.1.
+`pip install -U pipecat-mirai` works too. This page describes version 0.4.0.
 You need Pipecat 1.8.1 or newer and Python 3.11 or newer.
 
 ## Add it to your pipeline
@@ -65,6 +65,22 @@ Billing is per character, as on the HTTP endpoint, and each sentence Mirai
 delivers shows up in your [request log](/v2/tts-quickstart#your-request-log).
 The [WebSocket page](/v2/tts-websocket) has the protocol underneath, if you
 want to know what the service sends.
+
+### Streaming from the edge
+
+From 0.4.0 the WebSocket service streams from Mirai's edge, a server next to
+the speech GPUs, instead of through the API region. You don't change anything.
+The socket opens on the edge with your API key, the same way it would on the
+API, and the key is sent in the header, never in a URL. In our production test
+from India (10 calls at once on the default settings), the first audio of a
+reply came ~100 ms sooner at the median and up to ~500 ms sooner at p95.
+
+If the edge can't be reached or doesn't answer within 3 seconds, the socket
+opens on the API (`url`) as before and the edge is left alone for a minute. If that
+keeps happening, the wait doubles, up to 16 minutes. A rejected key, an empty
+wallet or a rate limit always comes back with the API's own error message.
+`edge=False` (or `MIRAI_TTS_EDGE=off` in the environment) keeps every socket on
+the API. `tts.connected_url` shows where a call is streaming from.
 
 ## Recommended phone setup
 
@@ -189,9 +205,15 @@ Both services take these arguments:
 | `keep_warm_secs` | `30` | Keeps an idle connection open while the pipeline runs. `None` turns it off. |
 | `http_client` | its own | An `httpx.AsyncClient` you manage. |
 
+## Upgrading from 0.3
+
+Run `uv add "pipecat-mirai>=0.4.0"` or `pip install -U pipecat-mirai`. That's
+it: the WebSocket service now [streams from the edge](#streaming-from-the-edge),
+and nothing else changes.
+
 ## Upgrading from 0.2
 
-Run `uv add "pipecat-mirai>=0.3.1"` or `pip install -U pipecat-mirai`. Your
+Run `uv add "pipecat-mirai>=0.4.0"` or `pip install -U pipecat-mirai`. Your
 existing `MiraiTTSService` code keeps working, with three differences you may
 notice:
 
