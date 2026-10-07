@@ -23,8 +23,9 @@ change:
   from the [quickstart](/v2/tts-quickstart#1-get-a-key).
 - **`model` is `mira-tts`**, and `mira-tts-v51` is accepted as an alias, so an
   existing body keeps working unchanged.
-- **Everything else follows the current endpoint**: voices, `pcm` streaming,
-  the 2,000-character ceiling, the response headers, the
+- **Everything else follows the current endpoint**: voices, the
+  [output formats and sample rates](/v2/tts-quickstart#output-formats),
+  `pcm` streaming, the 2,000-character ceiling, the response headers, the
   [price](/v2/tts-quickstart#billing), the wallet it debits and the
   [request log](/v2/tts-quickstart#your-request-log). The TTS quickstart
   documents all of it.
@@ -56,14 +57,16 @@ curl https://sandbox.voice.miraiminds.co/tts/v1/audio/speech \
   -d '{
     "model": "mira-tts-v51",
     "input": "नमस्ते, मैं आशु बोल रहा हूं। आपका ऑर्डर तैयार है।",
-    "voice": "ashu"
+    "voice": "ashu",
+    "response_format": "wav"
   }' \
   --output speech.wav
 ```
 
-The response body is the audio itself: 48 kHz mono PCM16, `wav` by default. If
-you ask for `"response_format": "pcm"`, it streams, which is what you want in a
-live pipeline. See the [TTS quickstart](/v2/tts-quickstart#2-first-audio).
+The response body is the audio itself, in the format you ask for. Send
+`response_format` explicitly: `wav` gives you a file, and `pcm`, `ulaw_8000`
+and the other raw formats stream, which is what you want in a live pipeline.
+See [Output formats](/v2/tts-quickstart#output-formats).
 
 ## Request
 

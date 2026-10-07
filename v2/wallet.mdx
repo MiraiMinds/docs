@@ -219,6 +219,12 @@ Reconcile against `call_id`: every billable call produces exactly one debit row.
 reconciles against your [request log](/v2/tts-quickstart#your-request-log) the
 way a call row reconciles against `call_id`.
 
+On a [WebSocket stream](/v2/tts-websocket#billing), each spoken sentence is its
+own row, and `reference` is the `request_id` from that sentence's `audio.done`
+event. Fractions of a paisa carry over between sentences on a socket, so a
+sentence whose share rounds to nothing has a request-log row but no wallet
+row.
+
 ### A flow generation row
 
 Each [AI flow draft](/v2/node-agents#what-a-draft-costs) is one debit, at the
