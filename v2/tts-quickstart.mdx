@@ -143,15 +143,15 @@ message when the caller interrupts.
 ## 5. Drop it into your orchestrator
 
 If you build on Pipecat, use our integration. Install it with
-`uv add pipecat-mirai` and add the WebSocket service to your pipeline:
+`uv add pipecat-mirai` and add `MiraiTTSService` to your pipeline:
 
 ```python
 import os
-from pipecat_mirai import MiraiWebsocketTTSService
+from pipecat_mirai import MiraiTTSService
 
-tts = MiraiWebsocketTTSService(
+tts = MiraiTTSService(
     api_key=os.environ["MIRA_API_KEY"],
-    settings=MiraiWebsocketTTSService.Settings(voice="ashu"),
+    settings=MiraiTTSService.Settings(voice="ashu"),
 )
 ```
 
@@ -251,7 +251,7 @@ ordinary server link that can fall behind real time, and the calls start to
 break up. 8 kHz μ-law needs a twelfth of that, and a narrowband phone line
 carries no more than 8 kHz anyway.
 
-With all four in place, using pipecat-mirai's WebSocket service, we ran 12 and
+With all four in place, using pipecat-mirai's `MiraiTTSService`, we ran 12 and
 then 16 simultaneous phone calls through our API to the speech engine: 235 and
 262 conversational turns, about a fifth of them interrupted by the caller.
 Every call played with no audible gaps and no errors, and every sentence
