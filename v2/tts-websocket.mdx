@@ -31,7 +31,7 @@ For one-off audio, such as a file, a voicemail or a notification, the
 [HTTP endpoint](/v2/tts-quickstart) is simpler.
 
 <Tip>
-If your voice agent runs on Pipecat, `MiraiWebsocketTTSService` from our
+If your voice agent runs on Pipecat, `MiraiTTSService` from our
 [Pipecat package](/v2/pipecat) speaks this protocol for you, including
 barge-in, capacity retries and reconnects.
 </Tip>
@@ -680,7 +680,7 @@ reconnect, for example after the socket has been idle for two minutes.
     The HTTP endpoint, output formats, billing and the request log.
   </Card>
   <Card title="Pipecat" icon="python" href="/v2/pipecat">
-    `MiraiWebsocketTTSService` and the recommended phone setup.
+    `MiraiTTSService` and the recommended phone setup.
   </Card>
   <Card title="Fixing choppy audio" icon="wave-square" href="/v2/tts-quickstart#fixing-choppy-or-broken-audio">
     Symptoms, causes and fixes for gaps and breaks.
