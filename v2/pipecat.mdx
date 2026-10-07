@@ -1,6 +1,6 @@
 ---
 title: "Pipecat"
-description: Add Mirai voices to a Pipecat bot with one package, keep phone-call audio smooth when your server is busy, or run the whole turn on Mirai with the Realtime API.
+description: Add Mirai voices to a Pipecat bot with one package, stream each call over one WebSocket, keep phone audio smooth under load, or run the whole turn on Mirai with the Realtime API.
 ---
 
 If your voice bot runs on [Pipecat](https://github.com/pipecat-ai/pipecat), install
@@ -10,18 +10,21 @@ our integration and add one service to your pipeline.
 uv add pipecat-mirai
 ```
 
-`pip install pipecat-mirai` works too. You need Pipecat 1.8.1 or newer and
-Python 3.11 or newer.
+`pip install -U pipecat-mirai` works too. This page describes version 0.3.0.
+You need Pipecat 1.8.1 or newer and Python 3.11 or newer.
 
 ## Add it to your pipeline
 
+Use `MiraiWebsocketTTSService`. It opens one WebSocket to Mirai when the
+pipeline starts and carries the whole call over it:
+
 ```python
 import os
-from pipecat_mirai import MiraiTTSService
+from pipecat_mirai import MiraiWebsocketTTSService
 
-tts = MiraiTTSService(
+tts = MiraiWebsocketTTSService(
     api_key=os.environ["MIRA_API_KEY"],
-    settings=MiraiTTSService.Settings(voice="shruti"),
+    settings=MiraiWebsocketTTSService.Settings(voice="shruti"),
 )
 
 pipeline = Pipeline([
@@ -36,28 +39,163 @@ pipeline = Pipeline([
 ```
 
 Pick `ashu`, `neha`, `shruti` or `sameer` as the voice (you can
-[hear them here](/v2/voices)). Audio comes out at your pipeline's sample rate,
-so a phone call gets 8 kHz audio with nothing extra to set up. When the caller
-interrupts, the service stops the request straight away.
+[hear them here](/v2/voices)). Each sentence of the LLM's reply goes to Mirai
+as soon as Pipecat has it, and Mirai synthesises the next sentence while the
+current one plays, so there is no pause between them. The service also:
 
-## On phone calls
+- asks Mirai for audio at your pipeline's sample rate, so a phone pipeline at
+  8 kHz downloads a sixth of the data that 48 kHz would need, and nothing is
+  resampled on your side;
+- cancels the reply on Mirai the moment the caller interrupts, drops any of
+  its audio still arriving, and you are not charged for the cut sentence;
+- waits and resends once if Mirai is briefly at capacity and says when to try
+  again (up to 5 seconds);
+- reopens a dropped socket at once and resends a reply the drop cut short,
+  from the first sentence the caller had not started hearing;
+- keeps a quiet socket open through long pauses in the call;
+- holds 150 ms of audio before each sentence starts, so a short first chunk
+  cannot start playback and then stall.
 
-If your bot reaches callers through a websocket transport (Twilio, Plivo,
-Exotel or Telnyx), add one more line after you create the transport:
+To send every LLM token as it arrives and let Mirai find the sentence ends,
+pass `text_aggregation_mode=TextAggregationMode.TOKEN` (from
+`pipecat.services.tts_service`). Mirai knows the danda (।), abbreviations like
+"Rs." and "Dr.", and numbers like 3.5.
+
+Billing is per character, as on the HTTP endpoint, and each sentence Mirai
+delivers shows up in your [request log](/v2/tts-quickstart#your-request-log).
+The [WebSocket page](/v2/tts-websocket) has the protocol underneath, if you
+want to know what the service sends.
+
+## Recommended phone setup
+
+For a voice agent that answers phone calls through a websocket transport (Twilio,
+Plivo, Exotel or Telnyx), use three things together: an 8 kHz pipeline, an
+output lead on the transport, and the WebSocket service.
 
 ```python
-from pipecat_mirai import apply_output_lead
+import os
+from pipecat.pipeline.task import PipelineParams
+from pipecat_mirai import MiraiWebsocketTTSService, apply_output_lead
 
-apply_output_lead(transport)
+transport = FastAPIWebsocketTransport(websocket, FastAPIWebsocketParams(
+    audio_in_enabled=True,
+    audio_out_enabled=True,
+    add_wav_header=False,
+    serializer=serializer,          # TwilioFrameSerializer, PlivoFrameSerializer, ...
+))
+apply_output_lead(transport, 0.4)   # send up to 0.4 s ahead of the caller
+
+tts = MiraiWebsocketTTSService(
+    api_key=os.environ["MIRA_API_KEY"],
+    settings=MiraiWebsocketTTSService.Settings(voice="shruti"),
+)
+
+# Run the pipeline at the phone line's rate, so Mirai sends 8 kHz audio.
+params = PipelineParams(audio_in_sample_rate=8000, audio_out_sample_rate=8000)
 ```
 
-Pipecat normally sends audio to the phone line at exactly real time. If your
-server is busy for a moment, the line runs out of audio and the caller hears
-the voice break up. With `apply_output_lead`, Pipecat sends up to 0.4 seconds
-ahead, so short slowdowns on your server never reach the caller. In our test
-with 10 calls on one server, breaks stretched the bot's speech by 29% with
-stock Pipecat and by 0.01% with this line added. It works the same whichever
-TTS you use.
+Each part fixes a different cause of broken audio:
+
+- With the pipeline at 8 kHz, Mirai sends 128 kbit/s per call instead of
+  768 kbit/s at 48 kHz. At 48 kHz, six calls on an ordinary link already
+  arrive slower than real time, and callers hear gaps.
+- Pipecat normally sends audio to the phone line at exactly real time, so the
+  provider never holds more than about 40 ms of it. If your server stalls for
+  longer (a blocking call, a heavy parse, many calls on one CPU), the line
+  runs dry and the voice breaks up. `apply_output_lead` lets Pipecat send up to
+  0.4 seconds ahead, so short stalls never reach the caller. When the caller
+  interrupts, Pipecat still tells the provider to clear its queue, so at most
+  0.4 seconds of sent audio is thrown away. The lead works the same whichever
+  TTS you use.
+- On the WebSocket service, no sentence waits for a new connection, and a
+  sentence waits briefly for capacity instead of failing.
+
+With this setup, we ran 12 and then 16 simultaneous phone calls through our API
+to the speech engine: 235 and 262 conversational turns, about a fifth of them
+interrupted by the caller. Every call played with no audible gaps and no
+errors, and every sentence arrived in order. The
+[test harness](https://github.com/MiraiMinds/pipecat-mirai/tree/main/benchmarks/customer-e2e)
+is in the repository.
+
+We also measured the output lead on its own, with stalls of 50 to 250 ms every
+3 seconds or so on each call. At 10 calls on one server, breaks stretched the
+bot's speech by 29% with stock Pipecat and by 0.01% with `apply_output_lead`.
+The lead has one side effect: Pipecat's "bot stopped speaking" event fires up
+to 0.4 seconds before the caller actually stops hearing the bot.
+
+If callers still hear gaps, see
+[Fixing choppy or broken audio](/v2/tts-quickstart#fixing-choppy-or-broken-audio).
+
+## The HTTP service
+
+`MiraiTTSService` makes one HTTPS request per sentence. It takes the same
+voices and settings, and swapping one class for the other is the only change:
+
+```python
+from pipecat_mirai import MiraiTTSService
+
+tts = MiraiTTSService(
+    api_key=os.environ["MIRA_API_KEY"],
+    settings=MiraiTTSService.Settings(voice="shruti"),
+)
+```
+
+Use it where a WebSocket cannot get through, for example behind a proxy that
+only allows plain HTTPS. It shares one kept-alive connection across requests,
+opens that connection while the pipeline starts, keeps it warm through pauses
+and reopens it straight after an interruption. A sentence that still finds the
+connection gone waits for a new TCP and TLS handshake, 0.4 to 1 second from
+India. The WebSocket service pays for that handshake once, before the agent says
+anything.
+
+## Settings
+
+Both services take these arguments:
+
+| Argument | Default | What it does |
+| :--- | :--- | :--- |
+| `api_key` | `$MIRAI_API_KEY`, then `$MIRA_API_KEY` | Your Mirai API key. |
+| `settings` | `voice="neha"`, `model="mira-tts"` | `MiraiWebsocketTTSService.Settings(...)` or `MiraiTTSService.Settings(...)`. A new voice applies from the next sentence. |
+| `sample_rate` | The pipeline's `audio_out_sample_rate` | The rate the service outputs. |
+| `server_sample_rate` | `"auto"` | The rate to ask Mirai for. `"auto"` asks for the output rate. `None` asks for nothing, so Mirai sends 48 kHz and the service resamples (the 0.2 behaviour). |
+| `prebuffer_secs` | `0.15` | Audio held before a sentence starts playing. `0` plays from the first byte. |
+
+`MiraiWebsocketTTSService` also takes:
+
+| Argument | Default | What it does |
+| :--- | :--- | :--- |
+| `url` | `wss://sandbox.voice.miraiminds.co/v1/audio/speech/stream` | The streaming endpoint. |
+| `keepalive_secs` | `30` | How often a quiet socket is kept open. `None` turns it off; Mirai closes a socket after 120 seconds of quiet. |
+| `text_aggregation_mode` | sentence | `TextAggregationMode.TOKEN` sends every token as it arrives. |
+
+`MiraiTTSService` also takes:
+
+| Argument | Default | What it does |
+| :--- | :--- | :--- |
+| `base_url` | `https://sandbox.voice.miraiminds.co/v1` | The API base URL. |
+| `warm_connection` | `True` | Opens the connection while the pipeline starts and reopens it right after an interruption. |
+| `keep_warm_secs` | `30` | Keeps an idle connection open while the pipeline runs. `None` turns it off. |
+| `http_client` | its own | An `httpx.AsyncClient` you manage. |
+
+## Upgrading from 0.2
+
+Run `uv add "pipecat-mirai>=0.3.0"` or `pip install -U pipecat-mirai`. Your
+existing `MiraiTTSService` code keeps working, with three differences you may
+notice:
+
+- It now asks Mirai for your pipeline's sample rate instead of 48 kHz, so an
+  8 kHz phone pipeline downloads a sixth of the data. If a server rejects the
+  `sample_rate` field, the service retries once without it and stops sending
+  it. `server_sample_rate=None` brings back the old behaviour.
+- The first audio of each sentence waits until 150 ms is in hand. Set
+  `prebuffer_secs=0` to play from the first byte, as 0.2 did.
+- Audio comes downstream in 40 ms frames, and an interruption closes the
+  sentence's HTTP stream at once.
+
+To move to the WebSocket service, change `MiraiTTSService` to
+`MiraiWebsocketTTSService` in the import and the constructor. Voices,
+settings, key and billing stay the same. For phone calls, add the rest of the
+[recommended phone setup](#recommended-phone-setup) at the same time.
 
 ## Check that it works
 
@@ -68,30 +206,16 @@ uv run https://raw.githubusercontent.com/MiraiMinds/pipecat-mirai/main/examples/
 
 This speaks one line through a real Pipecat pipeline and saves it as
 `hello.wav`. It uses a few paise of credit.
+[`03-websocket-say-hello.py`](https://github.com/MiraiMinds/pipecat-mirai/blob/main/examples/foundational/03-websocket-say-hello.py)
+does the same over the WebSocket, feeding the reply in a few words at a time
+the way an LLM would.
 
 ## Run the whole turn on Mirai
 
-The service above replaces only your TTS. If you would rather hand us speech
-recognition, turn detection and the model as well, point Pipecat's stock
-`OpenAIRealtimeLLMService` at the [Realtime API](/v2/realtime):
-
-```python
-llm = OpenAIRealtimeLLMService(
-    api_key=os.environ["MIRA_API_KEY"],
-    base_url="wss://prod.voice.miraiminds.co/v2/realtime",
-    settings=OpenAIRealtimeLLMService.Settings(session_properties=session),
-)
-```
-
-It replaces your STT, LLM and TTS services with one, and each turn makes a
-single round trip to your server. It is billed per minute, like a call.
-
-## Or let Mirai run the whole turn
-
-You can also hand us the whole turn: speech recognition, turn detection, the
-model and the voice. Use `MiraiRealtimeLLMService` from the same package. It
-connects to our [Realtime API](/v2/realtime) and replaces your STT, LLM and TTS
-services:
+The services above replace only your TTS. You can also hand us the whole turn:
+speech recognition, turn detection, the model and the voice. Use
+`MiraiRealtimeLLMService` from the same package. It connects to our
+[Realtime API](/v2/realtime) and replaces your STT, LLM and TTS services:
 
 ```python
 from pipecat_mirai import MiraiRealtimeLLMService
@@ -129,15 +253,15 @@ the agent parameters that the stock service can't send. The
 ## Moving from OpenAITTSService
 
 If you set Mirai up through Pipecat's `OpenAITTSService` with the
-`VALID_VOICES` workaround, replace it with `MiraiTTSService`. You can delete the
-voice-list patch, and the 24 kHz warning goes away. Your key, voices and
-billing stay the same.
+`VALID_VOICES` workaround, replace it with `MiraiWebsocketTTSService`. You can
+delete the voice-list patch, and the 24 kHz warning goes away. Your key, voices
+and billing stay the same.
 
 <CardGroup cols={2}>
   <Card title="pipecat-mirai on GitHub" icon="github" href="https://github.com/MiraiMinds/pipecat-mirai">
-    Source, a Twilio phone-bot example and the phone-call benchmark.
+    Source, a Twilio phone-bot example and the phone-call benchmarks.
   </Card>
-  <Card title="TTS quickstart" icon="bolt" href="/v2/tts-quickstart">
-    Keys, limits, request logs and billing for text to speech.
+  <Card title="Streaming text to speech" icon="bolt" href="/v2/tts-websocket">
+    The WebSocket protocol the service speaks.
   </Card>
 </CardGroup>

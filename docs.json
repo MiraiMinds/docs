@@ -61,6 +61,7 @@
             "group": "Text to speech",
             "pages": [
               "v2/tts-quickstart",
+              "v2/tts-websocket",
               "v2/pipecat",
               "v2/voices",
               "v2/tts-languages"

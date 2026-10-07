@@ -1,6 +1,6 @@
 ---
 title: "TTS quickstart"
-description: Create a key and get Hindi audio from one curl request in two minutes, then call the same endpoint from your own orchestrator.
+description: Create a key and get Hindi audio from one curl request, pick a format and sample rate (8 kHz μ-law for phone lines), and fix choppy audio on live calls.
 ---
 
 This is the voice our agents use, offered as a standalone API. It speaks
@@ -35,15 +35,55 @@ The response body is the audio itself. Keep `--output`: without it, curl
 prints 300 KB of binary into your terminal and you have to reset it. If
 `speech.wav` plays, the integration works, and the sections below refine it.
 
-There are exactly two formats:
+### Output formats
 
-| `response_format` | You get |
-| :--- | :--- |
-| `wav` | A playable file: 48 kHz mono PCM16 with a header. |
-| `pcm` | The same samples, raw and streamed. The first bytes arrive while the rest is still rendering. Use this for anything live. |
+Pick the format and sample rate your player or phone line uses, and we convert
+on our side as the audio streams:
 
-Any other value, including OpenAI's default `mp3`, returns a 400 that names
-these two. Always send `response_format` explicitly.
+| `response_format` | You get | Streams? |
+| :--- | :--- | :--- |
+| `pcm` | Raw signed 16-bit little-endian mono, no header. | Yes. The first bytes arrive while the rest is still being synthesised. |
+| `mulaw` (also `ulaw`, `pcm_mulaw`) | Raw G.711 μ-law, 1 byte per sample. What most phone lines carry. | Yes |
+| `alaw` (also `pcm_alaw`) | Raw G.711 A-law, 1 byte per sample. | Yes |
+| `wav` | A playable file: 16-bit mono PCM with a WAV header. | No. It arrives in one piece once synthesis finishes. |
+
+Send the rate in `sample_rate`, or use a value with the rate built in:
+
+| Field | Values | Default |
+| :--- | :--- | :--- |
+| `sample_rate` | `8000`, `16000`, `22050`, `24000`, `44100` or `48000`. μ-law and A-law come at `8000` or `16000` only. | `48000` for `pcm` and `wav`, `8000` for μ-law and A-law |
+| `response_format` with a rate | `pcm_8000`, `pcm_16000`, `pcm_22050`, `pcm_24000`, `pcm_44100`, `pcm_48000`, `ulaw_8000` (or `mulaw_8000`), `ulaw_16000` (or `mulaw_16000`), `alaw_8000`, `alaw_16000` | |
+
+If `response_format` includes a rate, leave `sample_rate` out or send the same
+value; a different one returns a 400. For a WAV at another rate, send `wav`
+with `sample_rate`, for example `"sample_rate": 16000`. Values are not case
+sensitive.
+
+Any other value, including OpenAI's default `mp3`, returns a 400 whose message
+lists the values we accept. Always send `response_format` explicitly. Without
+it you get `pcm` at 48 kHz.
+
+```bash title="Phone-ready audio: 8 kHz μ-law"
+curl https://sandbox.voice.miraiminds.co/v1/audio/speech \
+  -H "Authorization: Bearer $MIRA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "mira-tts",
+    "voice": "neha",
+    "response_format": "ulaw_8000",
+    "input": "नमस्ते, आपका ऑर्डर कल तक पहुँच जाएगा।"
+  }' \
+  --output speech.ulaw
+```
+
+Play it with `ffplay -f mulaw -ar 8000 speech.ulaw`.
+
+<Note>
+`sample_rate` used to be ignored. If your code already sends it, check the
+value: a supported rate such as `16000` now gets you audio at that rate
+instead of 48 kHz, and an unsupported one such as `32000` returns a 400 that
+lists the allowed rates.
+</Note>
 
 <Note>
 **One model name.** `model` is `mira-tts`. The old build-numbered name,
@@ -92,27 +132,37 @@ with client.audio.speech.with_streaming_response.create(
         ...  # raw s16le mono @ 48 kHz — feed your player as it arrives
 ```
 
+`sample_rate` is not an OpenAI parameter. To get another rate through the SDK,
+pass it in `extra_body={"sample_rate": 16000}`.
+
+For a live conversation, the [WebSocket endpoint](/v2/tts-websocket) is a
+better fit than one request per sentence. You keep one connection for the
+whole call, send text as your model writes it, and stop a reply with one
+message when the caller interrupts.
+
 ## 5. Drop it into your orchestrator
 
 If you build on Pipecat, use our integration. Install it with
-`uv add pipecat-mirai` and add the service to your pipeline:
+`uv add pipecat-mirai` and add the WebSocket service to your pipeline:
 
 ```python
 import os
-from pipecat_mirai import MiraiTTSService
+from pipecat_mirai import MiraiWebsocketTTSService
 
-tts = MiraiTTSService(
+tts = MiraiWebsocketTTSService(
     api_key=os.environ["MIRA_API_KEY"],
-    settings=MiraiTTSService.Settings(voice="ashu"),
+    settings=MiraiWebsocketTTSService.Settings(voice="ashu"),
 )
 ```
 
-It handles sample rates and interruptions for you, and has a one-line fix for
-choppy audio on phone calls. See [Pipecat](/v2/pipecat) for the full setup.
+It asks for audio at your pipeline's sample rate, stops the reply when the
+caller interrupts, and keeps one connection open for the call. See
+[Pipecat](/v2/pipecat) for the recommended phone setup.
 
 Other frameworks with an OpenAI TTS integration can call the endpoint directly.
 Point them at `https://sandbox.voice.miraiminds.co/v1` with model `mira-tts`
-and `response_format="pcm"`, and treat the audio as 48 kHz.
+and `response_format="pcm"`. The audio is 48 kHz unless you ask for another
+rate, and `X-Sample-Rate` always tells you which rate you got.
 
 ## What comes back
 
@@ -124,12 +174,113 @@ pin a build without a second request:
 | `X-Request-Id` | This request's id (`tts_…`). It identifies the row in your [request log](#your-request-log) and is the `reference` on the [ledger row](#billing). |
 | `X-Chars-Billed` | Characters counted for billing. |
 | `X-Cost-Paise` | What this request costs, in paise, once it completes. |
-| `X-Sample-Rate` | Always `48000`. |
+| `X-Sample-Rate` | The sample rate of the audio you received, for example `8000` or `48000`. |
+| `X-Audio-Encoding` | How the samples are encoded: `pcm_s16le` (for `pcm` and `wav`), `mulaw` or `alaw`. |
+| `Content-Type` | `audio/pcm` for `pcm` at any rate, `audio/wav`, `audio/PCMU;rate=8000` for μ-law or `audio/PCMA;rate=8000` for A-law (with `16000` at 16 kHz). |
 | `X-Mira-Model` | The build that produced the audio, for example `miraiminds/mira-tts-v53`. Pin it when you compare quality across releases. |
+
+Read `X-Sample-Rate` and `X-Audio-Encoding` before you play the audio. Raw
+audio has no header, so playing μ-law as PCM, or 8 kHz audio as 48 kHz, gives
+you noise or audio at the wrong speed.
 
 Every error after authentication also carries `X-Request-Id`, so you can trace
 a failure the same way as a success. Quote the id when you ask us about a
 failed request.
+
+## For phone calls
+
+Four things keep a phone call's audio smooth.
+
+### Ask for the line's format
+
+Phone audio is 8 kHz. Request it from us and forward each chunk to your
+provider as it arrives, base64-encoded into the provider's media message, with
+no decoding or resampling on your side:
+
+| Where the audio goes | `response_format` |
+| :--- | :--- |
+| Twilio Media Streams | `ulaw_8000` |
+| Plivo audio streams | `ulaw_8000` |
+| Exotel voice streaming | `pcm_8000` (16-bit PCM) |
+| Your own SIP or RTP leg | `ulaw_8000` for PCMU, `alaw_8000` for PCMA, whichever codec the call negotiated |
+| A wideband (16 kHz) leg | `pcm_16000` |
+
+### Keep one connection open
+
+Opening a new HTTPS connection for every sentence adds a TCP and TLS handshake
+before that sentence can start: 0.4 to 1 second from India, and more when a
+connection attempt has to be retried. Use the [WebSocket
+endpoint](/v2/tts-websocket), which carries the whole call on one socket. If
+you stay on HTTP, reuse one keep-alive client (one `httpx.AsyncClient` or
+`requests.Session`) for every request in the call.
+
+### Keep the provider 0.4 seconds ahead
+
+If you send audio to the phone line at exactly real time, the provider holds
+only the latest chunk, about 40 ms of audio. Any stall on your server longer
+than that (a blocking call, a long JSON parse, many calls on one CPU) leaves
+the line silent and the caller hears the voice break up. Send audio as it
+arrives until the provider holds about 0.4 seconds more than the caller has
+heard, then pace it. When the caller interrupts, tell the provider to drop what
+it holds (Twilio `clear`, Plivo `clearAudio`, Exotel `clear`). The [phone
+bridge example](/v2/tts-websocket#bridge-to-a-phone-call) shows the pattern for
+Twilio. On Pipecat, it is one call to
+[`apply_output_lead`](/v2/pipecat#recommended-phone-setup).
+
+### Buffer the start of each sentence
+
+Hold about 150 ms of audio before a sentence starts playing. Its first chunk
+can be short and followed by a brief pause. If playback starts on it, the
+caller hears a sliver of a word, a gap, then the rest.
+
+### Why the format matters
+
+Each stream needs its audio to arrive at least as fast as it plays. The
+bandwidth one stream needs, before network overhead:
+
+| Format | One stream | 12 streams |
+| :--- | :--- | :--- |
+| `pcm` at 48 kHz (the default) | 768 kbit/s | 9.2 Mbit/s |
+| `pcm_24000` | 384 kbit/s | 4.6 Mbit/s |
+| `pcm_16000` | 256 kbit/s | 3.1 Mbit/s |
+| `pcm_8000` | 128 kbit/s | 1.5 Mbit/s |
+| `ulaw_8000` or `alaw_8000` | 64 kbit/s | 0.8 Mbit/s |
+
+At 48 kHz, six calls already need a steady 4.6 Mbit/s of download. On an
+ordinary server link that can fall behind real time, and the calls start to
+break up. 8 kHz μ-law needs a twelfth of that, and a narrowband phone line
+carries no more than 8 kHz anyway.
+
+With all four in place, using pipecat-mirai's WebSocket service, we ran 12 and
+then 16 simultaneous phone calls through our API to the speech engine: 235 and
+262 conversational turns, about a fifth of them interrupted by the caller.
+Every call played with no audible gaps and no errors, and every sentence
+arrived in order. The [test
+harness](https://github.com/MiraiMinds/pipecat-mirai/tree/main/benchmarks/customer-e2e)
+is public, so you can run it yourself.
+
+## Fixing choppy or broken audio
+
+If callers hear gaps, clicks or a voice that breaks up, find the symptom below.
+
+| What you hear | Likely cause | Fix |
+| :--- | :--- | :--- |
+| Fine on one call, breaking up once several calls run at once | 48 kHz PCM over a link that cannot carry every stream in real time | Ask for `ulaw_8000`, or the rate your player uses. See [Why the format matters](#why-the-format-matters). |
+| A pause before some sentences, sometimes a second or more | A new HTTPS connection for each sentence | Keep one connection for the call: use the [WebSocket endpoint](/v2/tts-websocket), or one keep-alive HTTP client. |
+| Short breaks in the middle of sentences, worse when your server is busy | Audio sent to the phone line at exactly real time, with nothing in hand when your server stalls | Keep the provider about 0.4 seconds ahead. See [For phone calls](#for-phone-calls). |
+| A sliver of a word, a gap, then the rest of the sentence | Playback starts on the first, very short chunk | Hold about 150 ms of audio before each sentence starts playing. |
+| A sentence goes missing under load, or you see `429 at_capacity` | More sentences in flight than your workspace limit (10 by default) | On the WebSocket, sentences wait up to 3 seconds for a slot. On HTTP, honour `Retry-After`. Ask us to raise the limit if you run many calls at once. |
+| Static or noise, or a voice that is too fast, too slow or too high | The audio is decoded with the wrong encoding or rate | Read `X-Sample-Rate` and `X-Audio-Encoding` (on the WebSocket, `audio.start`) and set your player to match. |
+
+To find out whether a gap starts on our side or yours, look the request up in
+your [request log](#your-request-log). `first_byte_ms` is how long we took to
+send the first audio, and `status` says whether all of it was delivered. If
+those look normal and the caller still hears gaps, the audio is being held up
+between our server and the caller: on your link, in your server's event loop,
+or in how it is paced to the phone line. The fixes above cover each of those.
+
+If you are on Pipecat, the [recommended phone setup](/v2/pipecat#recommended-phone-setup)
+takes care of all of this except the size of your limit.
 
 ## Limits
 
@@ -139,10 +290,15 @@ failed request.
 | `input` length | **2,000 characters** | `400 invalid_request`. Split longer text. |
 | Request rate | Per key (see [Limits](/v2/limits)) | `429 rate_limited` with a `Retry-After` header. |
 
-We refuse a request over the limit instead of queueing it. Honour
+We refuse an HTTP request over the limit instead of queueing it. Honour
 `Retry-After` and send it again. A refused request does not hold a slot and
 costs nothing. `at_capacity` can also come from a deployment-wide ceiling when
 the speech node is saturated. Handle it the same way.
+
+Sentences on the [WebSocket endpoint](/v2/tts-websocket) draw on the same
+limit, but a sentence that finds it full waits up to 3 seconds for a slot
+before it fails. A live conversation rides out a short burst there without a
+retry loop of your own.
 
 The limit is set per workspace, and a workspace starts at 10. The plans under
 [Billing](#billing) list the concurrency each plan includes. If your
@@ -170,7 +326,12 @@ Shared endpoint. No contractual SLA. Monthly commitments are credited to your wa
 Each request is rounded up to the paisa, and we charge only for completed
 audio. If the engine fails, the stream stalls or your client disconnects
 part-way, nothing is charged and no ledger row is written. The request still
-appears in your log, with a status that says why.
+appears in your log, with a status that says why. The output format and sample
+rate do not change the price.
+
+On the [WebSocket endpoint](/v2/tts-websocket#billing), each sentence is
+charged on its own, and fractions of a paisa carry over between sentences, so a
+streamed reply never costs more than the same text sent in one request.
 
 The charge is one debit row on the same [wallet](/v2/wallet) your calls draw
 from, and it appears on the console billing statement under **Text to speech**:
@@ -226,7 +387,8 @@ curl "https://sandbox.voice.miraiminds.co/v2/tts/requests?limit=50" \
   "total_ms": 3210,
   "bytes": 437760,
   "preview": "नमस्ते, मैं शालिनी बोल रही हूँ …",
-  "error_code": null
+  "error_code": null,
+  "transport": "http"
 }
 ```
 
@@ -247,10 +409,12 @@ Rows come newest first, and only from your own workspace:
 | :--- | :--- |
 | `status` | `completed` (audio relayed in full), `failed` (nothing usable), `truncated` (the stream stopped part-way), `rejected` (refused before synthesis because of a bad field, no balance or no free slot). |
 | `source` | `api` for a request made with your key. `playground` for audio from the console's **Hear it** button. Playground requests are logged like any other but never charged, so `cost_inr` is `0`. |
+| `transport` | `http` for a request to this endpoint, `websocket` for one sentence on a [streaming socket](/v2/tts-websocket). |
+| `format` | What you were sent. `pcm` and `wav` mean 48 kHz. Any other format or rate carries its rate, for example `mulaw_8000`, `pcm_16000` or `wav_8000`. |
 | `cost_inr` | What it cost. `0` unless `completed`. |
 | `first_byte_ms` | Time to the first audio byte. In a live pipeline, this is the number to watch. |
 | `total_ms`, `bytes` | Wall time and audio size for the whole request. |
-| `error_code` | The `error.code` that was returned, or `null`. |
+| `error_code` | The `error.code` that was returned, or `null`. A sentence you cancelled on a socket reads `truncated` with `error_code` `cancelled`. |
 
 <Note>
 **We do not keep the text you send.** `preview` is the first 48 characters of
@@ -264,13 +428,14 @@ check it there than poll the API.
 
 | Status | `code` | Cause |
 | :--- | :--- | :--- |
-| 400 | `invalid_request` | Empty `input`, more than 2,000 characters, an unknown voice, or a `response_format` other than `wav` / `pcm`. The message names the valid values. |
+| 400 | `invalid_request` | Empty `input`, more than 2,000 characters, an unknown voice, an unsupported `response_format` or `sample_rate`, or a `sample_rate` that conflicts with the rate in `response_format`. The message names the valid values. |
 | 401 | `unauthorized` | Missing or unknown key. Check the `Authorization: Bearer sk_live_…` header. |
 | 402 | `insufficient_balance` | The wallet cannot cover this request. Nothing was synthesised and nothing was charged. |
 | 404 | `model_not_found` | `model` is neither `mira-tts` nor the `mira-tts-v51` alias. |
 | 429 | `at_capacity` | You already have as many requests in flight as your workspace allows (10 unless it has been set otherwise), or the deployment is saturated. Honour `Retry-After`. |
 | 429 | `rate_limited` | Per-key request rate. Honour `Retry-After`, and see [Limits](/v2/limits). |
 | 502 | `upstream_error` | The engine refused, returned no audio, or the stream stalled past its timeout. Nothing was charged; the message says which. Retry. |
+| 503 | `fleet_offline` | No speech capacity is online. Nothing was charged. Honour `Retry-After`. |
 
 Errors use the same envelope as the rest of the API. See
 [Errors](/v2/errors). If you are stuck on something this page does not cover,

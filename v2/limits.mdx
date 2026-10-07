@@ -15,7 +15,8 @@ Limits are per **secret key**.
 | Request rate | 10 requests/second, burst 20 | all `/v2/*` endpoints | `429 rate_limited` |
 | Concurrent live calls | 5 | calls in `dialing` or `in_progress` | the call **queues** |
 | Queue depth | 500 | calls accepted and not yet ended | `429 rate_limited` |
-| TTS requests in flight | 10 **per workspace** | `/v1/audio/speech` and `/v2/tts` | `429 at_capacity` |
+| TTS requests in flight | 10 **per workspace** | `/v1/audio/speech`, `/v2/tts`, and each sentence being synthesised on a TTS stream | HTTP: `429 at_capacity`. Stream: the sentence waits up to 3 seconds, then `error` `at_capacity`. |
+| Open TTS streams | 20 **per workspace** | WebSockets on `/v1/audio/speech/stream` | `429 at_capacity` with `Retry-After: 5` |
 | Flow generations | 30 per hour **per workspace** | [`POST /v2/agents/flow/generate`](/v2/node-agents#generate-a-flow-from-a-brief) | `429 rate_limited` with `Retry-After` |
 | Recording transcriptions | 60 per hour **per workspace** | [`POST /v2/agents/flow/transcribe`](/v2/node-agents#transcribe-a-recording) | `429 rate_limited` with `Retry-After` |
 | Offline transcriptions | 120 per hour **per workspace** | [`POST /v2/transcriptions`](/v2/transcriptions#create-a-transcription) | `429 rate_limited` with `Retry-After` |
@@ -50,8 +51,8 @@ API, not how many phones are ringing.
 **Call** concurrency does **not** produce a `429`. A `POST /v2/calls` beyond
 your concurrent-call ceiling is still accepted with `202`. It waits in `queued`
 until a slot frees and then dials, so no call is rejected or lost. On the call
-path, `429` is request-rate only. ([Text to speech](#text-to-speech) is the one
-exception: it has no queue, so it refuses the request.)
+path, `429` is request-rate only. ([Text to speech](#text-to-speech) over HTTP
+is the one exception: it has no queue, so it refuses the request.)
 
 So the ceiling paces your calls instead of refusing them. That has two
 consequences:
@@ -116,18 +117,46 @@ fixed delay either wastes capacity or hammers the limit.
 
 ### Text to speech
 
-The [speech API](/v2/tts-quickstart) has no queue, so it refuses requests over
-its concurrency limit instead of queueing them.
+Every workspace has one pool of synthesis slots, **10** by default. An HTTP
+request to the [speech API](/v2/tts-quickstart) holds a slot while it runs,
+and so does each sentence on a [WebSocket stream](/v2/tts-websocket) while it
+is being synthesised. An open socket that is not speaking holds none.
+
+The two handle a full pool differently. The HTTP endpoint has no queue, so it
+refuses the request. On a stream, a sentence whose turn has come waits up to 3
+seconds for a slot, in a queue shared by all your sockets, before it fails.
 
 | Limit | Default | Over the limit |
 | :--- | :--- | :--- |
-| Requests in flight | **10 per workspace** | `429 at_capacity` with `Retry-After`. The request is refused, not queued. |
-| `input` length | **2,000 characters** | `400 invalid_request`. Split longer text. |
-| Request rate | 10 requests/second, burst 20, per key | `429 rate_limited` with `Retry-After`. |
+| Requests in flight | **10 per workspace**, shared by HTTP requests and stream sentences | HTTP: `429 at_capacity` with `Retry-After`; the request is refused, not queued. Stream: the sentence waits up to 3 seconds, then gets an `error` event with `at_capacity` and `retry_after_secs`. |
+| `input` length | **2,000 characters** per HTTP request | `400 invalid_request`. Split longer text. |
+| Request rate | 10 requests/second, burst 20, per key | `429 rate_limited` with `Retry-After`. Opening a socket or minting a stream token counts as a request. |
 
 `at_capacity` can also come from a deployment-wide ceiling when the speech node
 is saturated. It is the same code, and you handle it the same way. A refused
 request holds no slot and is never charged.
+
+The limit is raised on request, with no change to your code. If you run many
+calls at once, ask your Mirai contact for a limit a little above your peak
+number of simultaneous calls: each speaking call needs a slot most of the
+time, and it starts its next sentence shortly before the current one ends.
+
+Streams have their own limits:
+
+| Thing | Limit |
+| :--- | :--- |
+| Open sockets | 20 per workspace. More returns `429 at_capacity` with `Retry-After: 5` before the upgrade. |
+| Stream token | Valid for 60 seconds, opens one socket. |
+| One message | 64 KB |
+| Text waiting to be spoken | 10,000 characters per socket (`queue_full`) |
+| Open contexts | 64 per socket (`too_many_contexts`) |
+| One sentence | 250 characters. Longer text with no sentence end is cut. |
+| Idle socket | Closed after 120 seconds with no message from you and nothing playing |
+| Socket lifetime | 1 hour |
+| Keepalive | We ping every 20 seconds and drop a client that has not answered for 60 seconds. |
+
+See [Streaming text to speech](/v2/tts-websocket#limits) for what each limit
+does to an open socket.
 
 ## Payload and duration ceilings
 
@@ -378,7 +407,7 @@ recording for that call, and a workspace with recording turned off refuses
 | Wallet balance before dialling | ✅ `402 insufficient_balance` |
 | Request rate | ✅ `429 rate_limited` |
 | Concurrency ceiling | ✅ over-cap calls wait in `queued` |
-| TTS requests in flight | ✅ `429 at_capacity` past 10 per workspace |
+| TTS requests in flight | ✅ `429 at_capacity` past 10 per workspace over HTTP; a stream sentence waits up to 3 seconds first |
 | Queue depth | ✅ `429 rate_limited` past 500 outstanding |
 | Maximum call duration | ✅ `status: timeout` |
 | Recording off — per call or per workspace | ✅ `recording_enabled: false`; `403 recording_disabled` on a workspace with recording off |
