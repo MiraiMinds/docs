@@ -10,7 +10,7 @@ our integration and add one service to your pipeline.
 uv add pipecat-mirai
 ```
 
-`pip install -U pipecat-mirai` works too. This page describes version 0.3.0.
+`pip install -U pipecat-mirai` works too. This page describes version 0.3.1.
 You need Pipecat 1.8.1 or newer and Python 3.11 or newer.
 
 ## Add it to your pipeline
@@ -69,13 +69,15 @@ want to know what the service sends.
 ## Recommended phone setup
 
 For a voice agent that answers phone calls through a websocket transport (Twilio,
-Plivo, Exotel or Telnyx), use three things together: an 8 kHz pipeline, an
-output lead on the transport, and the WebSocket service.
+Plivo, Exotel or Telnyx), run the pipeline at 8 kHz and use the WebSocket
+service with its defaults. That's all: since 0.3.1 the service sets the output
+lead on your transport itself, shares warm connections across every call in the
+process, and races a second connect when one stalls.
 
 ```python
 import os
 from pipecat.pipeline.task import PipelineParams
-from pipecat_mirai import MiraiWebsocketTTSService, apply_output_lead
+from pipecat_mirai import MiraiWebsocketTTSService
 
 transport = FastAPIWebsocketTransport(websocket, FastAPIWebsocketParams(
     audio_in_enabled=True,
@@ -83,7 +85,6 @@ transport = FastAPIWebsocketTransport(websocket, FastAPIWebsocketParams(
     add_wav_header=False,
     serializer=serializer,          # TwilioFrameSerializer, PlivoFrameSerializer, ...
 ))
-apply_output_lead(transport, 0.4)   # send up to 0.4 s ahead of the caller
 
 tts = MiraiWebsocketTTSService(
     api_key=os.environ["MIRA_API_KEY"],
@@ -102,15 +103,26 @@ Each part fixes a different cause of broken audio:
 - Pipecat normally sends audio to the phone line at exactly real time, so the
   provider never holds more than about 40 ms of it. If your server stalls for
   longer (a blocking call, a heavy parse, many calls on one CPU), the line
-  runs dry and the voice breaks up. `apply_output_lead` lets Pipecat send up to
-  0.4 seconds ahead, so short stalls never reach the caller. When the caller
+  runs dry and the voice breaks up. The Mirai services let Pipecat send up to
+  0.4 seconds ahead (`output_lead_secs`, applied automatically when the
+  pipeline starts), so short stalls never reach the caller. When the caller
   interrupts, Pipecat still tells the provider to clear its queue, so at most
-  0.4 seconds of sent audio is thrown away. The lead works the same whichever
-  TTS you use.
+  0.4 seconds of sent audio is thrown away. With another TTS vendor, call
+  `apply_output_lead(transport)` yourself.
+- Calls in the same process share connections that are already open, so after
+  the first call a greeting doesn't wait for a TCP and TLS handshake. When many
+  calls start at once, a connect that stalls (a lost packet costs a full
+  second) is raced by a second attempt after 300 ms.
 - On the WebSocket service, no sentence waits for a new connection, and a
   sentence waits briefly for capacity instead of failing.
 
-With this setup, we ran 12 and then 16 simultaneous phone calls through our API
+With only these defaults, we started 10 phone calls at the same instant in one
+Pipecat process against our production API, stalled the bot's event loop for
+150–300 ms every 2 seconds, and interrupted a fifth of the replies: about 100
+turns per run, no audible gaps, no errors, nothing played after an interruption
+and every sentence in order, for both the WebSocket and the HTTP service.
+
+Earlier, with the same setup, we ran 12 and then 16 simultaneous phone calls through our API
 to the speech engine: 235 and 262 conversational turns, about a fifth of them
 interrupted by the caller. Every call played with no audible gaps and no
 errors, and every sentence arrived in order. The
@@ -179,7 +191,7 @@ Both services take these arguments:
 
 ## Upgrading from 0.2
 
-Run `uv add "pipecat-mirai>=0.3.0"` or `pip install -U pipecat-mirai`. Your
+Run `uv add "pipecat-mirai>=0.3.1"` or `pip install -U pipecat-mirai`. Your
 existing `MiraiTTSService` code keeps working, with three differences you may
 notice:
 
@@ -191,6 +203,12 @@ notice:
   `prebuffer_secs=0` to play from the first byte, as 0.2 did.
 - Audio comes downstream in 40 ms frames, and an interruption closes the
   sentence's HTTP stream at once.
+
+From 0.3.1 you can also delete any `apply_output_lead(transport)` call: the
+Mirai services apply the lead themselves (calling it as well is harmless).
+Connections are shared per process, so many agents in one worker reuse warm
+connections; `prewarm()` warms them when your worker starts, if you want even
+the first call after start-up warm.
 
 To move to the WebSocket service, change `MiraiTTSService` to
 `MiraiWebsocketTTSService` in the import and the constructor. Voices,
