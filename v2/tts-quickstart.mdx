@@ -224,8 +224,8 @@ arrives until the provider holds about 0.4 seconds more than the caller has
 heard, then pace it. When the caller interrupts, tell the provider to drop what
 it holds (Twilio `clear`, Plivo `clearAudio`, Exotel `clear`). The [phone
 bridge example](/v2/tts-websocket#bridge-to-a-phone-call) shows the pattern for
-Twilio. On Pipecat, it is one call to
-[`apply_output_lead`](/v2/pipecat#recommended-phone-setup).
+Twilio. On Pipecat, pipecat-mirai 0.3.1 does it for you
+([recommended phone setup](/v2/pipecat#recommended-phone-setup)).
 
 ### Buffer the start of each sentence
 
