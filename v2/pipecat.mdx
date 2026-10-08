@@ -154,6 +154,23 @@ to 0.4 seconds before the caller actually stops hearing the bot.
 If callers still hear gaps, see
 [Fixing choppy or broken audio](/v2/tts-quickstart#fixing-choppy-or-broken-audio).
 
+## Limits
+
+Two limits apply per workspace, shared by every process that uses your key
+(the [limits page](/v2/limits#text-to-speech) has the full table):
+
+- **Sentences in flight: 10.** A call holds a slot while one of its sentences
+  is streaming, which is most of the time its bot is speaking, and none while
+  the caller talks. Ten slots carry ten bots speaking at the same moment. A
+  sentence that starts when all ten are taken waits for one (up to 3 seconds),
+  which shows up as a longer time to first byte; past that the service reports
+  `at_capacity`.
+- **Open sockets.** One per live call, plus the few each worker process keeps
+  waiting (two, or its recent peak of calls plus two).
+
+Before a load test with more than 10 bots speaking at once, tell us the number
+and we raise your workspace's limits. Nothing changes in your code.
+
 ## HTTP only
 
 You shouldn't need it: if WebSockets can't get through to Mirai at all (a proxy
