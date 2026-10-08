@@ -376,7 +376,7 @@ that your wallet can cover it. If it cannot, that sentence fails with
 
 | Limit | Value | Over the limit |
 | :--- | :--- | :--- |
-| Open sockets | **20 per workspace** | `429 at_capacity` before the upgrade, with `Retry-After: 5`. |
+| Open sockets | **200 per workspace** | `429 at_capacity` before the upgrade, with `Retry-After: 5`. |
 | Sentences being synthesised | Your workspace's TTS limit, **10** unless it has been set otherwise, shared with HTTP requests | The sentence waits up to 3 seconds, then `error` `at_capacity`. |
 | One message | 64 KB | The socket is closed. |
 | Text waiting to be spoken | 10,000 characters per socket | `error` `queue_full`. |

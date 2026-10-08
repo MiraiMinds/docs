@@ -16,7 +16,7 @@ Limits are per **secret key**.
 | Concurrent live calls | 5 | calls in `dialing` or `in_progress` | the call **queues** |
 | Queue depth | 500 | calls accepted and not yet ended | `429 rate_limited` |
 | TTS requests in flight | 10 **per workspace** | `/v1/audio/speech`, `/v2/tts`, and each sentence being synthesised on a TTS stream | HTTP: `429 at_capacity`. Stream: the sentence waits up to 3 seconds, then `error` `at_capacity`. |
-| Open TTS streams | 20 **per workspace** | WebSockets on `/v1/audio/speech/stream` | `429 at_capacity` with `Retry-After: 5` |
+| Open TTS streams | 200 **per workspace** | WebSockets on `/v1/audio/speech/stream` | `429 at_capacity` with `Retry-After: 5` |
 | Flow generations | 30 per hour **per workspace** | [`POST /v2/agents/flow/generate`](/v2/node-agents#generate-a-flow-from-a-brief) | `429 rate_limited` with `Retry-After` |
 | Recording transcriptions | 60 per hour **per workspace** | [`POST /v2/agents/flow/transcribe`](/v2/node-agents#transcribe-a-recording) | `429 rate_limited` with `Retry-After` |
 | Offline transcriptions | 120 per hour **per workspace** | [`POST /v2/transcriptions`](/v2/transcriptions#create-a-transcription) | `429 rate_limited` with `Retry-After` |
@@ -145,7 +145,7 @@ Streams have their own limits:
 
 | Thing | Limit |
 | :--- | :--- |
-| Open sockets | 20 per workspace. More returns `429 at_capacity` with `Retry-After: 5` before the upgrade. |
+| Open sockets | 200 per workspace. More returns `429 at_capacity` with `Retry-After: 5` before the upgrade. |
 | Stream token | Valid for 60 seconds, opens one socket. |
 | One message | 64 KB |
 | Text waiting to be spoken | 10,000 characters per socket (`queue_full`) |
