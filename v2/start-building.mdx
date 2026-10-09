@@ -54,18 +54,28 @@ or ₹0.50 a block.
 
 <Step title="Set up Postman (2 minutes, optional but worth it)">
 
-Download both files:
+The easiest way is from your console: **Developers → Postman** gives you the
+collection and an environment that already has your API address (and your key,
+if you just made one).
+
+Or download them here:
 
 | File | What it is |
 | :--- | :--- |
-| [mirai-voice-sandbox.postman_collection.json](/files/mirai-voice-sandbox.postman_collection.json) | The collection, with every endpoint and worked example responses. |
-| [sandbox.postman_environment.json](/files/sandbox.postman_environment.json) | The environment, which holds the base URL, your key and your test number. |
+| [mirai-voice.postman_collection.json](https://console.voice.miraiminds.co/static/postman/mirai-voice.postman_collection.json) | The collection: every v2 endpoint, each with worked example responses. |
+| [sandbox.postman_environment.json](https://console.voice.miraiminds.co/static/postman/sandbox.postman_environment.json) | The environment for trial workspaces (`https://sandbox.voice.miraiminds.co`). |
+| [production.postman_environment.json](https://console.voice.miraiminds.co/static/postman/production.postman_environment.json) | The environment for workspaces that have gone live (`https://prod.voice.miraiminds.co`). |
 
-In Postman, click **Import** and drop in both files. Select the
-**Voice Infra — Sandbox** environment and fill in `api_key` (your `sk_live_…`)
-and `test_phone` (an E.164 number **you own**). Then open **0-Quickstart** and
-run it from top to bottom. Each step saves the id that the next one needs, so
-you don't have to copy and paste anything.
+The collection is built from the API itself and ships with every release, so
+these links always give you the current one. Download it again whenever you
+want the latest.
+
+In Postman, click **Import** and drop in the collection and one environment.
+Select the environment (**Mirai Voice — sandbox** or **Mirai Voice — production**)
+and fill in `api_key` (your `sk_live_…`) and `test_number` (an E.164 number
+**you own**). Then open **Agents → Create agent** and work down through
+**Calls**. Requests that create something save its id for the next request,
+so you don't have to copy and paste anything.
 
 You can skip this entirely and use the `curl` below. The collection is the
 faster path if more than one person on your side will touch the API.
