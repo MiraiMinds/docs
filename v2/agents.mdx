@@ -49,6 +49,8 @@ only `pre_call` and `post_call` tools are allowed. See
   "voicemail": { "action": "hangup" },
   "background_sound": { "sound": "off" },
   "behavior": { "interruptions": "normal", "adaptive_interruptions": true },
+  "revision": 1,
+  "draft": false,
   "created_at": "2026-07-26T09:14:02Z",
   "updated_at": "2026-07-26T09:14:02Z"
 }
@@ -71,8 +73,10 @@ only `pre_call` and `post_call` tools are allowed. See
 | `background_sound` | string \| object | no | Room ambience under the agent's voice. See [Background sound](#background-sound). Default `off`. |
 | `behavior` | object | no | How the agent takes turns with the caller. See [Behavior](#behavior). Default `{"interruptions": "normal", "adaptive_interruptions": true}`. |
 | `flow` | object \| null | no | A node graph. Makes this a [node-based agent](/v2/node-agents). Present on the agent object only when set. PATCH replaces the whole graph; `null` removes it. |
+| `draft` | boolean | no | Default `false`. `true` pauses ordinary calls until you [publish](/v2/agent-revisions#publish-a-draft) the agent. A draft may have an empty `system_prompt` or `first_message`. |
+| `revision` | integer | server-set | The current [revision](/v2/agent-revisions#the-revision-model). `1` on create, and one higher after every save. |
 
-Server-set and read-only: `id`, `object`, `created_at`, `updated_at`.
+Server-set and read-only: `id`, `object`, `revision`, `created_at`, `updated_at`.
 
 ### Voice
 
@@ -391,6 +395,12 @@ is the one exception: it is merged field by field, as described in
 [Behavior](#behavior). `flow` is replaced wholesale too: send the whole graph,
 or use [`PUT /v2/agents/{id}/flow`](/v2/node-agents#edit-the-graph).
 `"flow": null` turns a node-based agent back into a single-prompt agent.
+
+Every update saves a new [revision](/v2/agent-revisions). Add `if_revision`
+with the `revision` you read to refuse a stale edit: if someone saved the agent
+in between, you get `409 conflict` and nothing changes. To check an edit before
+you save it, [preview it](/v2/agent-revisions#preview-an-agent) with `changes`.
+`"draft": true` pauses ordinary calls until you publish the agent.
 
 <Tabs>
   <Tab title="cURL">
