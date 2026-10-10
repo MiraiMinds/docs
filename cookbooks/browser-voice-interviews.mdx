@@ -74,7 +74,7 @@ candidate goes on the call in step 2.
 
 ### Write the instructions
 
-The agent's `system_prompt` holds up to 8,000 characters. An interview guide
+The agent's `system_prompt` holds up to 12,000 characters. An interview guide
 fits comfortably if it contains only what the interviewer needs during the
 conversation. Move anything that is only needed afterwards, such as the scoring
 rubric, into [analysis](#score-the-interview-automatically), which has its own
@@ -129,9 +129,9 @@ screening") rather than one agent per candidate. Changing a prompt is then a
 single edit, and every interview of that type stays comparable.
 </Tip>
 
-### If your interview guide is longer than 8,000 characters
+### If your interview guide is longer than 12,000 characters
 
-The 8,000-character limit on `system_prompt` is the same for every workspace,
+The 12,000-character limit on `system_prompt` is the same for every workspace,
 and there is no per-call system prompt. A call can add its `variables`, its
 `first_message` and, while it runs, [instructions](#step-4-let-a-moderator-steer-the-interview).
 Long interview guides usually carry material the interviewer does not need while
@@ -1090,10 +1090,10 @@ Run three interviews:
   `ended`. `speaking` follows the actual audio, so it is safe for muting the
   microphone while the agent talks, as the page in step 3 does.
   </Accordion>
-  <Accordion title="Can the system prompt be longer than 8,000 characters?">
+  <Accordion title="Can the system prompt be longer than 12,000 characters?">
   No. It is a platform limit, the same for every workspace, and there is no
   per-call system prompt. See
-  [If your interview guide is longer than 8,000 characters](#if-your-interview-guide-is-longer-than-8000-characters)
+  [If your interview guide is longer than 12,000 characters](#if-your-interview-guide-is-longer-than-12000-characters)
   for where each part of a long guide belongs.
   </Accordion>
   <Accordion title="Can the opening line be set per call?">
