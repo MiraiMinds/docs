@@ -161,6 +161,7 @@ for control flow; use `ended_reason` for analytics and support.
 | `silence-timed-out` | `completed` | Media was live but nobody ever spoke. Billable, because the agent ran. |
 | `idle-timed-out` | `completed` | The agent re-prompted its configured number of times and the caller never came back. Billable. |
 | `no-media` | `failed` | The call was placed but audio never flowed. See the note below. Not billed. |
+| `insufficient_balance` | `failed` | Refused before it connected: your wallet's available credit (balance minus credit held by calls in progress) could not cover the call's maximum duration, `max_duration_secs` at your per-minute rate. Spelled like the `402 insufficient_balance` error. Not billed. Top up, or lower `max_duration_secs`. |
 | `aborted-by-api` | `aborted` | You called [`POST /abort`](#abort-a-call). An abort produces this reason and no other. |
 | `api-ended-call` | `completed` | You sent a [`close` control](/v2/web-calls#live-control): the agent said goodbye and the call ended. Billable. |
 | `time-limit-close` | `completed` | The [timing policy](/v2/web-calls#timing-policy) closed the call before its hard cap. Billable. |
