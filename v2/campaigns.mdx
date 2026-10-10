@@ -189,6 +189,20 @@ When the date range runs out entirely, the campaign finishes as `completed`,
 even if some contacts are still `pending`, because no window remains to dial
 them in.
 
+<Note>
+A campaign whose window has already closed for good cannot be started.
+[`POST /start`](#start-a-campaign) and [`POST /resume`](#resume-a-campaign)
+refuse it with `409 window_closed`, instead of accepting it and finishing it
+as `completed` a second later with no calls.
+
+The usual cause is `start_date` and `end_date` both set to today, with a slot
+that has already ended. Extend `end_date`, or add a slot that is still ahead,
+with [`PATCH`](#update-a-campaign). Then start it again.
+
+A campaign started outside its window that opens again later is still
+accepted. It stays `play` and sleeps until the window opens.
+</Note>
+
 ## Retries
 
 | Knob | Range | Effect |
@@ -556,6 +570,8 @@ curl -X POST https://sandbox.voice.miraiminds.co/v2/campaigns/cmp_01K7QAC5N9P4R7
 
 `202` means the dialler is running. It does not mean a phone is ringing yet:
 outside the calling window, the campaign waits in `play`, which is expected.
+If the window can never open again, you get
+[`409 window_closed`](#calling-window) instead.
 
 ### `funded_calls`: an underfunded campaign still starts
 
@@ -580,9 +596,35 @@ it as a floor on how far you get, though not a guaranteed one.
 | Status | `error.code` | Cause |
 | :--- | :--- | :--- |
 | `409` | `conflict` | The campaign is already `play`, or is `stopped`/`completed`. |
+| `409` | `window_closed` | The campaign's calling window can never open again: today is past the last slot and `end_date` has no later opening. Extend `end_date` or widen `slots` with [`PATCH`](#update-a-campaign), then start again. |
 | `429` | `rate_limited` | Your workspace queue is full (500 calls accepted and not yet ended). Honour `Retry-After`. |
 | `503` | `fleet_offline` | Speech capacity is offline. `Retry-After: 300`. Nothing is charged and the campaign stays where it was. |
 | `503` | `campaigns_unavailable` | Campaigns are not enabled for your workspace. |
+
+Here is `window_closed` for a campaign whose `start_date` and `end_date` are
+both today, started after its only slot ended at 17:00:
+
+```json title="409 Conflict"
+{
+  "error": {
+    "code": "window_closed",
+    "message": "calling window is already closed: no slot opens again on or before end_date 2026-10-10 (Asia/Kolkata, slots 09:00–17:00). Extend end_date or widen slots with PATCH /v2/campaigns/cmp_01K7QAC5N9P4R7S3T6V8W2X4YB, then start again."
+  }
+}
+```
+
+Nothing was dialled, and the campaign keeps its status. Move `end_date` out and
+start it again:
+
+```bash
+curl -X PATCH https://sandbox.voice.miraiminds.co/v2/campaigns/cmp_01K7QAC5N9P4R7S3T6V8W2X4YB \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "end_date": "2026-10-11" }'
+
+curl -X POST https://sandbox.voice.miraiminds.co/v2/campaigns/cmp_01K7QAC5N9P4R7S3T6V8W2X4YB/start \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY"
+```
 
 ---
 
@@ -624,6 +666,10 @@ POST /v2/campaigns/{id}/resume
 no running dialler. In that case the message tells you to use
 [`POST /start`](#start-a-campaign) instead, because a bare resume would skip the
 wallet and fleet preflight.
+
+`409 window_closed` if the [calling window](#calling-window) can never open
+again, exactly as on start. The campaign stays `paused`. Extend `end_date` or
+widen `slots` with [`PATCH`](#update-a-campaign), then resume.
 
 ---
 
