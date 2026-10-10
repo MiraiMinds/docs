@@ -285,6 +285,10 @@ curl -X POST https://sandbox.voice.miraiminds.co/v2/campaigns/cmp_01K7QAC5N9P4R7
 waits in `play` until the window opens. That is expected, and the campaign is
 not stuck. [Campaigns](/v2/campaigns) has the full semantics.
 
+Use your own dates, from today onward. If no slot can open again on or before
+`end_date`, start answers [`409 window_closed`](/v2/campaigns#calling-window)
+instead of `202`.
+
 </Step>
 
 <Step title="Read the report (1 minute)">
