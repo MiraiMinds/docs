@@ -126,7 +126,10 @@ hands the page only the token.
 To open several sockets at once, ask for up to 20 tokens in one request with
 `count` (`?count=5`, or `{"count": 5}` as the body). They come back in
 `tokens`, each good for one socket. The wallet is checked before anything is
-minted, so an empty wallet gets `402` here rather than at the socket.
+minted, so an empty wallet gets `402 insufficient_balance` here rather than at
+the socket. The mint shares your key's rate limit (`429 rate_limited`), and
+answers `503 unavailable` on a server where streaming speech to text is not
+switched on.
 
 <Warning>
 A socket opened with a token can transcribe on your wallet until it closes,
@@ -162,6 +165,7 @@ Everything about the session is set on the URL, checked before the upgrade:
 | `endpointing` | `manual` or `vad`. See [Manual or VAD endpointing](#manual-or-vad-endpointing). | `vad` |
 | `stream_type` | `balanced` or `fast`. Both give the same partial cadence today; the parameter is there for Sarvam clients. | `balanced` |
 | `mode` | `transcribe` or `codemix`. Both mean the same here, and are accepted so Sarvam clients work unchanged. | `transcribe` |
+| `return_timestamps` | `true` or `false`. `true` adds `start_s` and `end_s` to each `transcript.final`: where the utterance sits in the audio you have sent, in seconds, padding included. | `false` |
 | `silence_duration_ms` | `vad` only. How long a pause ends an utterance, 0 to 10,000. | `1000` |
 | `threshold` | `vad` only. Speech probability that counts as speech, 0 to 1. | `0.3` |
 | `prefix_padding_ms` | `vad` only. Audio kept from before speech starts, 0 to 2,000. | `300` |
@@ -171,8 +175,9 @@ Everything about the session is set on the URL, checked before the upgrade:
 wss://sandbox.voice.miraiminds.co/v1/audio/transcriptions/stream?language_code=hi-IN&encoding=mulaw&sample_rate=8000&endpointing=manual
 ```
 
-An unknown parameter, or a value outside these, fails the upgrade with
-`400 invalid_config`, and `message` names it.
+An unknown parameter, a value outside these, or a parameter given twice fails
+the upgrade with `400 invalid_config`, and `message` names it. `token` is the
+only other parameter we read.
 
 ### When the connection is refused
 
@@ -187,10 +192,13 @@ gets an ordinary HTTP response with the usual [error envelope](/v2/errors):
 | 402 | `insufficient_balance` | Your wallet is empty. | [Top up](/v2/wallet#top-up). |
 | 403 | `forbidden` | The key, or the key that minted the token, was revoked. | Use a current key. |
 | 426 | `upgrade_required` | A plain HTTP request reached the endpoint. | Connect with a WebSocket client (`wss://`). |
-| 429 | `at_capacity` | Your workspace already has 10 sessions open, or the service is at its own ceiling. Carries `Retry-After`. | Close the sessions you are done with, then retry after that delay. |
+| 429 | `at_capacity` | Your workspace already has 10 sessions open (`Retry-After: 5`), or the service is at its own ceiling. Carries `Retry-After`. | Close the sessions you are done with, then retry after that delay. |
 | 429 | `rate_limited` | Your key's request rate. | Honour `Retry-After`. |
-| 503 | `unavailable` | The server is restarting, or the recogniser is briefly unreachable. `Retry-After: 1`. | Reconnect in a moment. |
-| 503 | `billing_unavailable` | We cannot record usage right now, so we don't open new sessions. | Retry shortly. Open sessions keep running. |
+| 503 | `unavailable` | The server is restarting, the recogniser is briefly unreachable, or streaming speech to text is not switched on for this server. Carries `Retry-After` when retrying helps. | Reconnect after that delay. |
+| 503 | `billing_unavailable` | We could not read your wallet, so we don't open the session. `Retry-After: 2`. | Retry shortly. Open sessions keep running. |
+
+A successful upgrade carries `X-Session-Id: sttws_…`, the same id as
+`session_id` in `session.begin`.
 
 ## How a session flows
 
@@ -327,7 +335,7 @@ open a new one to change them.
 | `transcript.final` | `utterance_idx`, `text` | Once per utterance, after it ends. |
 | `config.updated` | `applied`, `config` | After a valid `config.update`. |
 | `pong` | none | After your `ping`. |
-| `session.draining` | `reason`, `audio_samples_received`, `sample_rate` | We are restarting. See [Closing](#closing). |
+| `session.draining` | `reason`; from the recogniser also `audio_samples_received`, `sample_rate` | We are ending the session: a restart, the 1-hour limit or an empty wallet. See [Closing](#closing). |
 | `session.end` | `request_id`, `total_duration_s`, `total_utterances`, `audio_duration_s`, `audio_seconds_billed`, `cost_paise`, optional `reason` | The session is over. The socket closes after it. |
 | `error` | `code`, `message`, `is_fatal` | A message was refused or the session failed. See [Errors](#errors-on-an-open-socket). |
 
@@ -417,13 +425,14 @@ with. A language change shows up from the next utterance.
 ```
 
 ```json title="session.draining"
-{
-  "event": "session.draining",
-  "reason": "server_draining",
-  "audio_samples_received": 330880,
-  "sample_rate": 8000
-}
+{ "event": "session.draining", "reason": "max_duration" }
 ```
+
+`reason` is `max_duration` (the 1-hour limit), `server_shutdown` (our API
+server is restarting), `insufficient_balance` (your wallet ran out) or
+`server_draining` (the recogniser is restarting; that one also carries
+`audio_samples_received` and `sample_rate`). In every case the open utterance
+is finished and its final and `session.end` still arrive.
 
 ```json title="session.end"
 {
@@ -465,23 +474,28 @@ These hold on every socket:
 ## Errors on an open socket
 
 An `error` with `is_fatal: false` refused one message and changed nothing; the
-session carries on. With `is_fatal: true` the session is over: the socket
-closes, and no `session.end` follows. The session still appears in your
+session carries on. With `is_fatal: true` the session is over and the socket
+closes. No `session.end` follows, except after `insufficient_balance`, where the
+open utterance is finished first. The audio you sent is billed however the
+session ends, and the session appears in your
 [session log](#your-session-log) with what it cost.
 
 | `code` | Fatal | What happened | What to do |
 | :--- | :--- | :--- | :--- |
 | `invalid_config` | no | A `config.update` had an unknown key, a bad value, or a key fixed for the socket. | Fix the message. Nothing changed. |
-| `invalid_message` | no | A frame was not a JSON object. | Send JSON text frames. |
+| `invalid_message` | no | A binary frame, or a text frame that is not a JSON object. | Send JSON text frames. |
 | `invalid_audio` | no | `audio` was not base64, or was not whole samples. | Send whole samples, base64-encoded. |
 | `invalid_event` | no | An unknown `event`, `speech_start`/`speech_end`/`flush` with `vad` endpointing, or `speech_start` while an utterance is open. | Send `speech_end` before the next `speech_start`. |
-| `session_ended` | no | A message after `end`. | Open a new socket. |
 | `audio_too_large` | yes | One message carried more than 128,000 bytes of audio. | Send smaller chunks. |
 | `utterance_too_long` | yes | An utterance ran past 60 seconds. | End utterances sooner, or use `vad`. |
 | `overloaded` | yes | Eight utterances were waiting for their finals, or the recogniser fell behind. | Reconnect. If it repeats, tell us. |
 | `backend_error` | yes | The recogniser failed on an utterance. | Reconnect and send that utterance again. |
-| `inactivity_timeout` | yes | No message from you for 120 seconds. | Keep audio flowing, or send `ping` during long silences. |
+| `idle_timeout` | yes | No message from you for 120 seconds. The recogniser may report the same thing as `inactivity_timeout`. | Keep audio flowing, or send `ping` during long silences. |
+| `insufficient_balance` | yes | Your wallet ran out during the session. The open utterance is finished and `session.end` follows. | [Top up](/v2/wallet#top-up), then reconnect. |
+| `engine_unavailable` | yes | We lost the connection to the recogniser. | Reconnect and send the open utterance again. |
 | `internal_error` | yes | Something failed on our side. | Reconnect. Quote `session_id` if you write to us. |
+
+Messages you send after `end` are ignored.
 
 ## Closing
 
@@ -490,13 +504,20 @@ final for any utterance still open and the session's cost. Closing the socket
 without `end` also ends the session; any utterance still waiting for its final
 is dropped.
 
-When we restart a server, an open session gets `session.draining`. Stop
-sending audio. We finish the open utterance, send its final, then
-`session.end` with `reason: "server_draining"`, and close. Open a new socket
-and carry on. pipecat-mirai does this for you.
+When we end a session ourselves (a restart, the 1-hour limit, or an empty
+wallet), you get `session.draining` first. Stop sending audio. We finish the
+open utterance, send its final, then `session.end`, and close. After a restart,
+open a new socket and carry on; pipecat-mirai does this for you. To stream for
+longer than an hour, open a new socket before the limit.
 
-A session also ends when it reaches its 1-hour limit. Open a new socket to
-continue a longer stream.
+| Close code | Meaning |
+| :--- | :--- |
+| 1000 | `session.end` was delivered: you sent `end`, or the session reached its 1-hour limit (`max_duration`). |
+| 1001 | `server_shutdown`: our API server is restarting. Reconnect. |
+| 1008 | `idle_timeout`, or `insufficient_balance`. |
+| 1011 | The recogniser failed or could not be reached (`engine_unavailable`), or did not finish within 5 seconds of being asked to. |
+
+The close frame's reason text names the cause.
 
 ## Limits
 
@@ -506,11 +527,16 @@ continue a longer stream.
 | One audio message | 128,000 bytes of audio (4 seconds of 16 kHz PCM) | Fatal `audio_too_large`. |
 | One utterance | 60 seconds | Fatal `utterance_too_long`. |
 | Utterances waiting for a final | 8 | Fatal `overloaded`. |
-| Idle socket | 120 seconds with no message from you | Fatal `inactivity_timeout`. |
-| Session length | 1 hour | The session ends. |
+| Idle socket | 120 seconds with no message from you | Fatal `idle_timeout`; the socket closes with 1008. |
+| Session length | 1 hour | `session.draining` with `max_duration`, then the last final and `session.end`. |
 | Stream token | 60 seconds, one socket | `401 invalid_token`. |
 | Tokens per mint | 1 to 20 (`count`) | More than 20 gets 20. |
 | Request rate | Per key (see [Limits](/v2/limits)) | `429 rate_limited`. Opening a socket or minting tokens counts as a request. |
+
+We send a WebSocket ping every 20 seconds and drop a client that has not
+answered for 60 seconds. Most WebSocket libraries answer pings for you. Pings
+do not count as activity for the idle limit: keep sending audio, or send
+`{"event": "ping"}` during long silences.
 
 If you need more than 10 sessions at once, ask your Mirai contact. It is a
 provisioning change and needs no change to your code.
@@ -521,16 +547,23 @@ provisioning change and needs no change to your code.
 
 **₹30 per hour of audio, billed per second.**
 
-You pay for the audio you send, silence included, rounded up to the next
-second once per session. A 3-minute phone call streamed in full costs ₹1.50.
-With manual endpointing you can send audio only around speech, but keep the
-half second before `speech_start` so the first word is not clipped.
+You pay for the audio you send, silence included. Each session is rounded up
+to the next second, and its price to the next paisa. A 3-minute phone call
+streamed in full costs ₹1.50. With manual endpointing you can send audio only
+around speech, but keep the half second before `speech_start` so the first
+word is not clipped.
 
-The charge comes out of the same [wallet](/v2/wallet) your calls draw from. A
-session longer than 5 minutes is charged in parts as it runs, so an hour-long
-call never lands as one lump. Before a session opens, and before a token is
-minted, we check that your wallet is not empty; if it is, you get `402
-insufficient_balance`.
+You are billed for the audio we received however the session ends: with
+`end`, with a closed socket, on a timeout or on an error. The charge comes out
+of the same [wallet](/v2/wallet) your calls draw from, as debits with `kind`
+`stt` whose `reference` is the row's `id` in your session log.
+
+A session longer than 5 minutes is charged in parts as it runs, so an hour-long
+call never lands as one lump; the parts add up to what the whole session would
+cost. Before a session opens, and before a token is minted, we check that your
+wallet is not empty; if it is, you get `402 insufficient_balance`. If it runs
+out during a long session, the session ends at the next 5-minute charge with
+[`insufficient_balance`](#errors-on-an-open-socket).
 
 ### Your session log
 
@@ -543,38 +576,56 @@ curl "https://sandbox.voice.miraiminds.co/v2/stt/requests?limit=50" \
 
 ```json title="200 OK"
 {
-  "id": "stt_01K7C2N0B2D4F6H8K0M2P4R6T8",
-  "object": "stt_request",
-  "created_at": "2026-10-12T05:30:12Z",
-  "session_id": "sttws_01K7C2M3Q4R7T9V2X5Y8A1B4C7",
-  "source": "api",
-  "model": "mira-stt",
-  "language_code": "hi-IN",
-  "encoding": "mulaw",
-  "sample_rate": 8000,
-  "endpointing": "manual",
-  "audio_seconds": 42,
-  "utterances": 7,
-  "status": "completed",
-  "cost_inr": 0.35,
-  "error_code": null,
-  "via": "edge"
+  "data": [
+    {
+      "id": "stt_01K7C2M3Q4R7T9V2X5Y8A1B4C7-1",
+      "object": "stt_request",
+      "session_id": "sttws_01K7C2M3Q4R7T9V2X5Y8A1B4C7",
+      "seq": 1,
+      "created_at": "2026-10-12T05:30:12Z",
+      "ended_at": "2026-10-12T05:31:00Z",
+      "language": "hi-IN",
+      "model": "mira-stt:v5-realtime",
+      "encoding": "mulaw",
+      "sample_rate": 8000,
+      "endpointing": "manual",
+      "audio_seconds": 41.36,
+      "billed_seconds": 42,
+      "utterances": 7,
+      "status": "completed",
+      "cost_inr": 0.35,
+      "error_code": null
+    }
+  ],
+  "has_more": false,
+  "next_cursor": null
 }
 ```
 
-Rows come newest first, and only from your own workspace. The query takes
-`limit` (up to 200, default 50), `cursor` (from the response's
-`next_cursor`), and `from` and `to` as RFC3339 timestamps.
+Rows come newest first, and only from your own workspace:
+
+| Query | Meaning |
+| :--- | :--- |
+| `limit` | Up to 200, default 50. |
+| `cursor` | Opaque, from the response's `next_cursor`. |
+| `from`, `to` | RFC3339 timestamps. |
+| `status` | `interim`, `completed` or `failed`. |
+| `session_id` | Only the rows of one session. |
+
 `GET /v2/stt/requests/{id}` returns a single row.
 
 | Field | Meaning |
 | :--- | :--- |
-| `id` | The row. A session charged in parts has one row per part, `stt_…-1`, `stt_…-2` and so on, all with the same `session_id`. |
-| `audio_seconds` | Seconds of audio billed. |
-| `utterances` | Final transcripts sent. |
-| `status` | `completed` when the session ended normally, `failed` when it ended on a fatal error. |
-| `error_code` | The fatal error's `code`, or `null`. |
-| `via` | `edge` when the socket was served by the [edge](#streaming-from-the-edge), `api` when it was served by the API region. |
+| `id` | The row: `stt_` and the session's ULID, then `-1`, `-2` and so on for each part of a session charged in parts. Every row of a session has the same `session_id`. |
+| `seq` | Which part of the session this row is, from 1. |
+| `created_at`, `ended_at` | When the part started and ended. |
+| `model` | The build that listened. |
+| `audio_seconds` | The audio received in this part, exactly. |
+| `billed_seconds` | The seconds this part was charged for. |
+| `utterances` | Final transcripts sent in this part. |
+| `status` | `interim` for a 5-minute part of a session that was still open, `completed` when the session ended, `failed` when the recogniser or our server ended it. |
+| `cost_inr` | What this part cost. Billed whatever the `status`. |
+| `error_code` | Why the session ended, when it was not a plain `end` or close: `idle_timeout`, `max_duration`, `insufficient_balance`, or an error `code` from the socket. `null` otherwise. |
 
 ## Latency
 
