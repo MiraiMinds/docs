@@ -10,6 +10,10 @@ with the job at once, then read it with
 `completed` or `failed`. For an introduction, see
 [Transcribe recorded calls](/v2/transcribe-recorded-calls).
 
+For live audio, such as a call in progress, use
+[streaming speech to text](/v2/speech-to-text) instead: it sends text back
+while the person is still speaking.
+
 Base URL `https://sandbox.voice.miraiminds.co`. Every request carries
 `Authorization: Bearer sk_live_…`, your workspace API key. A job belongs to the
 workspace whose key created it.

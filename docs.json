@@ -70,6 +70,7 @@
           {
             "group": "Speech to text",
             "pages": [
+              "v2/speech-to-text",
               "v2/transcribe-recorded-calls",
               "v2/transcriptions"
             ]
