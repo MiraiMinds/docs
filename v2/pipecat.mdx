@@ -1,6 +1,6 @@
 ---
 title: "Pipecat"
-description: Add Mirai voices to a Pipecat bot with one package, stream each call over one WebSocket, keep phone audio smooth under load, or run the whole turn on Mirai with the Realtime API.
+description: Add Mirai voices and Mira STT to a Pipecat bot with one package, stream each call over one WebSocket, keep phone audio smooth under load, or run the whole turn on Mirai with the Realtime API.
 ---
 
 If your voice bot runs on [Pipecat](https://github.com/pipecat-ai/pipecat), install
@@ -10,7 +10,8 @@ our integration and add one service to your pipeline.
 uv add pipecat-mirai
 ```
 
-`pip install -U pipecat-mirai` works too. This page describes version 0.5.0.
+`pip install -U pipecat-mirai` works too. This page describes version 0.5.0,
+plus [`MiraiSTTService`](#transcribe-with-miraisttservice), which needs 0.6.0.
 You need Pipecat 1.8.1 or newer and Python 3.11 or newer.
 
 ## Add it to your pipeline
@@ -226,9 +227,78 @@ This speaks one line through a real Pipecat pipeline and saves it as
 does the same over the WebSocket, feeding the reply in a few words at a time
 the way an LLM would.
 
+## Transcribe with MiraiSTTService
+
+From version 0.6.0 the package can replace your STT service too, with Mira
+STT, the recogniser our own agents listen with. Upgrade with
+`uv add "pipecat-mirai>=0.6.0"` and add `MiraiSTTService` where your STT
+service was:
+
+```python
+import os
+from pipecat_mirai import MiraiSTTService, MiraiTTSService
+
+stt = MiraiSTTService(api_key=os.environ["MIRA_API_KEY"], language="hi-IN")
+tts = MiraiTTSService(
+    api_key=os.environ["MIRA_API_KEY"],
+    settings=MiraiTTSService.Settings(voice="shruti"),
+)
+
+pipeline = Pipeline([
+    transport.input(),
+    stt,
+    context_aggregator.user(),
+    llm,
+    tts,
+    transport.output(),
+    context_aggregator.assistant(),
+])
+```
+
+The service opens one WebSocket to the
+[streaming speech-to-text API](/v2/speech-to-text) when the pipeline starts
+and keeps it for the call. While the caller speaks it pushes
+`InterimTranscriptionFrame`s, and each utterance ends with one
+`TranscriptionFrame`. `language` takes any of the
+[supported codes](/v2/speech-to-text#languages): `hi-IN`, `en-IN`, `gu-IN` and
+seven more. It also:
+
+- sends a phone pipeline's 8 kHz audio as it is, and resamples any other rate
+  to 16 kHz first;
+- streams from Mirai's edge next to the GPUs when it can, and falls back to the
+  API URL the same way `MiraiTTSService` does (`edge=False` turns that off);
+- reconnects once if the socket drops mid-call and resends up to 30 seconds of
+  audio that had no transcript yet, so the caller doesn't have to repeat
+  themselves;
+- turns a fatal error from Mirai into an `ErrorFrame`.
+
+### Endpointing
+
+When your pipeline has a VAD, such as Silero on the transport or the user
+aggregator in Pipecat's examples, the service uses manual endpointing. Your
+VAD's "user started speaking" opens an utterance with half a second of the
+audio from just before it, and "user stopped speaking" closes it. The final
+transcript comes back straight away, with no silence wait on Mirai's side.
+
+Without a VAD, the service lets Mirai find the turns (`vad` endpointing),
+which waits for a second of silence by default before the final. Pass
+`endpointing="manual"` or `endpointing="vad"` to choose yourself.
+
+The service's TTFB metric is the time from the end of speech to the final
+transcript, which is the pause your caller sits through before the LLM can
+start. Its usage metric is seconds of audio, which is what you're billed for
+(₹30 per hour; see [Pricing](/v2/speech-to-text#pricing)).
+
+### Limits for STT
+
+A workspace can have 10 sessions open at once: one per live call, plus the few
+each worker process keeps waiting. Before a load test with more calls than
+that, tell us the number and we raise the limit. The
+[streaming page](/v2/speech-to-text#limits) has the full table.
+
 ## Run the whole turn on Mirai
 
-The services above replace only your TTS. You can also hand us the whole turn:
+The services above replace only your TTS and STT. You can also hand us the whole turn:
 speech recognition, turn detection, the model and the voice. Use
 `MiraiRealtimeLLMService` from the same package. It connects to our
 [Realtime API](/v2/realtime) and replaces your STT, LLM and TTS services:
@@ -278,6 +348,9 @@ and billing stay the same.
     Source, a Twilio phone-bot example and the phone-call benchmarks.
   </Card>
   <Card title="Streaming text to speech" icon="bolt" href="/v2/tts-websocket">
-    The WebSocket protocol the service speaks.
+    The WebSocket protocol `MiraiTTSService` speaks.
+  </Card>
+  <Card title="Speech to text, live" icon="microphone" href="/v2/speech-to-text">
+    The WebSocket protocol `MiraiSTTService` speaks.
   </Card>
 </CardGroup>

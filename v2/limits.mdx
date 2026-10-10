@@ -17,6 +17,7 @@ Limits are per **secret key**.
 | Queue depth | 500 | calls accepted and not yet ended | `429 rate_limited` |
 | TTS requests in flight | 10 **per workspace** | `/v1/audio/speech`, `/v2/tts`, and each sentence being synthesised on a TTS stream | HTTP: `429 at_capacity`. Stream: the sentence waits up to 3 seconds, then `error` `at_capacity`. |
 | Open TTS streams | 200 **per workspace** | WebSockets on `/v1/audio/speech/stream` | `429 at_capacity` with `Retry-After: 5` |
+| Open STT streams | 10 **per workspace** | WebSockets on [`/v1/audio/transcriptions/stream`](/v2/speech-to-text) | `429 at_capacity` with `Retry-After` |
 | Flow generations | 30 per hour **per workspace** | [`POST /v2/agents/flow/generate`](/v2/node-agents#generate-a-flow-from-a-brief) | `429 rate_limited` with `Retry-After` |
 | Recording transcriptions | 60 per hour **per workspace** | [`POST /v2/agents/flow/transcribe`](/v2/node-agents#transcribe-a-recording) | `429 rate_limited` with `Retry-After` |
 | Offline transcriptions | 120 per hour **per workspace** | [`POST /v2/transcriptions`](/v2/transcriptions#create-a-transcription) | `429 rate_limited` with `Retry-After` |
@@ -157,6 +158,27 @@ Streams have their own limits:
 
 See [Streaming text to speech](/v2/tts-websocket#limits) for what each limit
 does to an open socket.
+
+### Speech to text (streaming)
+
+Each open socket on the [streaming speech-to-text API](/v2/speech-to-text) is
+one session, and a workspace can have **10** open at once. More returns
+`429 at_capacity` with `Retry-After` before the upgrade. The limit is raised on
+request, with no change to your code.
+
+| Thing | Limit |
+| :--- | :--- |
+| Open sessions | 10 per workspace |
+| Stream token | Valid for 60 seconds, opens one socket. Up to 20 per mint request. |
+| One audio message | 128,000 bytes of audio (4 seconds of 16 kHz PCM) |
+| One utterance | 60 seconds |
+| Utterances waiting for a final | 8 |
+| Idle socket | Closed after 120 seconds with no message from you. `ping` keeps it open. |
+| Session length | 1 hour |
+| Request rate | 10 requests/second, burst 20, per key. Opening a socket or minting tokens counts as a request. |
+
+See [Speech to text, live](/v2/speech-to-text#limits) for what each limit does
+to an open session.
 
 ## Payload and duration ceilings
 
