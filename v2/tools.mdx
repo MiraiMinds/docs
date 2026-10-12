@@ -615,7 +615,7 @@ Your server receives a `POST` like this one, for an inbound call:
 | `call.status`, `call.ended_reason` | The [final status](/v2/calls#statuses) and why the call ended. |
 | `call.started_at`, `call.ended_at`, `call.duration_secs` | When the conversation started and ended, in UTC. `started_at` is an empty string if the call never connected. |
 | `call.answered`, `call.user_spoke`, `call.turns` | Whether the call connected, whether the other person said anything, and how many turns each side took. |
-| `call.cost` | What the call cost. `paise` and `amount_inr` are the same amount. `per_min_inr` and `billing_block_secs` are the rate it was billed at. |
+| `call.cost` | What the call cost. `paise` and `amount_inr` are the same amount. `per_min_inr` and `billing_block_secs` are the rate it was billed at. It can also carry the other `cost` fields of the [call object](/v2/calls#the-call-object). |
 | `call.metadata` | The `metadata` you set when you created the call. `{}` when there is none. |
 | `call.test` | `true` for a test call or a **Run test** request. |
 | `call.transcript_status` | `ready`, `empty` or `failed`. The same value [`GET /v2/calls/{id}`](/v2/calls#get-a-call) reports. |
@@ -628,9 +628,10 @@ Your server receives a `POST` like this one, for an inbound call:
 | `recording.status` | `available`, `disabled` or `not_available`. See below. |
 | `tool` | The tool's name, `webhook`. |
 
-A call can also carry `calls_from_source` or `identity` inside `call`, with the
-meaning they have on the [call object](/v2/calls#the-call-object). We may add
-fields. Ignore the ones you do not use.
+Two more fields appear inside `call` on some calls. `calls_from_source` says
+how an outbound phone call's number was chosen: `request`, `agent`, `shared` or
+`trunk`. `identity` holds the caller's WhatsApp identity on a WhatsApp call. We
+may add fields. Ignore the ones you do not use.
 
 | `transcript.status` | Meaning |
 | --- | --- |
