@@ -666,11 +666,13 @@ curl -G https://sandbox.voice.miraiminds.co/v2/calls \
     }
   ],
   "has_more": true,
-  "next_cursor": "call_01K7Q9B4M8N3P6R2S5T7V9W1YB"
+  "next_cursor": "MTc4ODk2MTQ1Mi4zMzA5MTc6Y2FsbF8wMUs3UTlCNE04TjNQNlIyUzVUN1Y5VzFZQg"
 }
 ```
 
-Results are newest first. See [pagination](/v2/overview#pagination).
+Results are newest first by `created_at`, inbound and outbound calls together.
+`next_cursor` is an opaque string; send it back as `cursor` unchanged. See
+[pagination](/v2/overview#pagination).
 
 <Note>
 Use the list endpoint for reconciliation and reporting. To drive your
