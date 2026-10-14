@@ -22,6 +22,7 @@ Base URL `https://sandbox.voice.miraiminds.co`.
   "object": "call",
   "agent_id": "agt_01K7Q9F3K7M2N5P9R4T6V8W0XZ",
   "to": "+919876543210",
+  "channel": "phone",
   "status": "completed",
   "tier": "t3",
   "ended_reason": "customer-ended-call",
@@ -48,6 +49,7 @@ Base URL `https://sandbox.voice.miraiminds.co`.
 | `id` | string | `call_<ulid>`. Also the idempotency anchor and the workflow ID. |
 | `agent_id` | string | The agent this call ran. |
 | `to` | string | E.164 destination. |
+| `channel` | string | `phone`, `web` (a [browser call](/v2/web-calls)), `text` (a typed test chat from the console) or `realtime`. Calls placed before this field existed read as `phone`. |
 | `status` | enum | See [statuses](#statuses). |
 | `tier` | string | The rate card this call was billed under, which is your company's plan. See [tiers](/general/tiers). |
 | `ended_reason` | string \| null | Why it ended. See [ended reasons](#ended-reasons). `null` while running. |
@@ -678,3 +680,56 @@ Results are newest first by `created_at`, inbound and outbound calls together.
 Use the list endpoint for reconciliation and reporting. To drive your
 application state, use [webhooks](/v2/webhooks).
 </Note>
+
+---
+
+## Count calls
+
+```http
+GET /v2/calls/summary?from=&to=
+```
+
+How many calls your workspace has made and taken, without paging through
+them. These are the same figures the console's Calls page shows.
+
+| Query param | Description |
+| :--- | :--- |
+| `from` | Optional. RFC 3339 lower bound on `created_at`, inclusive. |
+| `to` | Optional. RFC 3339 upper bound on `created_at`, exclusive. |
+
+Leave both out to count every call. The window works the same way as on
+[`GET /v2/calls`](#list-calls), so a count and a list over the same window
+cover the same calls.
+
+```bash
+curl -G https://sandbox.voice.miraiminds.co/v2/calls/summary \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+  --data-urlencode "from=2026-10-01T00:00:00Z"
+```
+
+```json title="200 OK"
+{
+  "object": "call_summary",
+  "total": 1240,
+  "by_channel": { "phone": 1096, "web": 118, "text": 20, "realtime": 6 },
+  "by_direction": { "outbound": 1012, "inbound": 228 },
+  "duration_secs": 98412,
+  "from": "2026-10-01T00:00:00Z",
+  "to": null
+}
+```
+
+| Field | Type | Description |
+| :--- | :--- | :--- |
+| `total` | integer | Every call in the window. |
+| `by_channel` | object | The same calls split by [`channel`](#the-call-object). The four counts add up to `total`. |
+| `by_direction` | object | The same calls split into `outbound` and `inbound`. They add up to `total`. Incoming calls from before mid-October 2026 may be counted as outbound, because their records do not say. |
+| `duration_secs` | integer | Total live time across those calls, in seconds. A call that never connected adds nothing. |
+| `from`, `to` | string \| null | The window you asked for, in UTC. `null` when you didn't set that side. |
+
+Every count is always present, even when it's zero.
+
+| Status | Code | When |
+| :--- | :--- | :--- |
+| `400` | `invalid_request` | `from` or `to` is not an RFC 3339 timestamp. |
+| `503` | `summary_unavailable` | We couldn't read the totals just now. Try again. Don't read it as zero calls. |
