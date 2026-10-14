@@ -1643,6 +1643,7 @@ model.
 | Text chat | Not supported. A call with `channel: "text"` is refused with `409 flow_agent_voice_only`. |
 | `variables` | Fill the node prompts, greetings and extraction prompts. See [variables in node text](#variables-in-node-text). |
 | `first_message` | Refused with `409 flow_first_message_unsupported`. The start node's greeting opens the call; personalise it with `variables`. |
+| `system_prompt` | Refused with `409 flow_system_prompt_unsupported`. The nodes' prompts run the call; personalise them with `variables`. |
 | `agent_revision` | Runs that saved revision's graph. |
 | `timing`, live control | Work as on any call. See [Browser calls](/v2/web-calls#timing-policy). |
 
@@ -1709,6 +1710,7 @@ Everything else uses the [standard error envelope](/v2/errors):
 | `409` | `conflict` | `if_revision` is not the agent's current revision. Read the agent again. |
 | `409` | `flow_agent_voice_only` | A text chat call with a node-based agent. Flows run on phone and browser calls. |
 | `409` | `flow_first_message_unsupported` | A per-call `first_message` for a node-based agent. Change the start node's `greeting` instead. |
+| `409` | `flow_system_prompt_unsupported` | A per-call `system_prompt` for a node-based agent. Change the node prompts instead. |
 
 ## Design tips
 
@@ -1764,6 +1766,7 @@ Everything else uses the [standard error envelope](/v2/errors):
 | `invalid_flow`: `cannot be reached from the start node` | No transition enters the node | Add a transition into it, or remove it. |
 | `invalid_flow` at `flow`, naming the model | Your tier's model writes tool calls as text | Contact support. Flows need a model with native tool calls. |
 | `409 flow_first_message_unsupported` | The call sent `first_message` | Remove it. Personalise the start node's `greeting` with `variables`. |
+| `409 flow_system_prompt_unsupported` | The call sent `system_prompt` | Remove it. Personalise the node prompts with `variables`. |
 | `409 conflict` on `PUT /flow` | The agent was saved since you read it | `GET /v2/agents/{id}/flow` again, reapply your edit, and save with the new `agent_revision`. |
 | `404 not_found` on `GET /flow` | The agent is a single-prompt agent | `PUT /v2/agents/{id}/flow` to add a graph. |
 

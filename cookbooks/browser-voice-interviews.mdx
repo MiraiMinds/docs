@@ -132,7 +132,8 @@ single edit, and every interview of that type stays comparable.
 ### If your interview guide is longer than 12,000 characters
 
 The 12,000-character limit on `system_prompt` is the same for every workspace,
-and there is no per-call system prompt. A call can add its `variables`, its
+and a [per-call `system_prompt`](/v2/calls#per-call-prompt) has the same
+limit. A call can add its `variables`, its
 `first_message` and, while it runs, [instructions](#step-4-let-a-moderator-steer-the-interview).
 Long interview guides usually carry material the interviewer does not need while
 it talks. Move each part to where it is used:
@@ -1091,8 +1092,8 @@ Run three interviews:
   microphone while the agent talks, as the page in step 3 does.
   </Accordion>
   <Accordion title="Can the system prompt be longer than 12,000 characters?">
-  No. It is a platform limit, the same for every workspace, and there is no
-  per-call system prompt. See
+  No. It is a platform limit, the same for every workspace, and a per-call
+  `system_prompt` has the same limit. See
   [If your interview guide is longer than 12,000 characters](#if-your-interview-guide-is-longer-than-12000-characters)
   for where each part of a long guide belongs.
   </Accordion>
