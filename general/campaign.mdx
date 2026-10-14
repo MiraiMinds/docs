@@ -70,25 +70,37 @@ A voice campaign places automated outbound calls to a list of contacts. You can 
 
 #### Option A: CSV Data Upload
 
-6. **Download CSV Template**
+6. **Download the template**
 
-   Click **"Download CSV Template"** to get the correct format for your contact data.
+   Under the upload, the form lists the columns your agent reads, each marked
+   **Required** or **Optional**. Click **Download template** for a CSV with
+   those columns and a second row that explains each one. You can leave that
+   row in when you upload; it is skipped.
 
    ![Download CSV template](/images/campaign-integration/image_6.png)
 
-7. **Prepare Your Contact Data**
+7. **Fill in your contacts**
 
-   Fill in the downloaded CSV template with your contacts. Complete every required field.
+   One row per person. Fill every required column. The phone number can be in
+   any column, and a ten-digit Indian mobile number gets `+91` added for you.
 
-8. **Upload CSV File**
+8. **Upload the file, or the one you already have**
 
-   Upload the completed CSV file using the file upload interface.
+   You don't have to start from the template. Upload your own export and open
+   **Columns** in the preview: each column of your file can be the phone
+   number, one of the agent's variables, extra info, or left out. We match
+   them for you (a "Name" column for `customer_name`, for example), and you
+   can change any match. Your changes are remembered for that agent, so next
+   month's export from the same system is matched for you.
 
    ![CSV upload interface](/images/campaign-integration/image_7.png)
 
-9. **Preview Contact Data**
+9. **Check the preview**
 
-   Check the uploaded data in the preview panel on the right before you continue.
+   The preview shows how many numbers are ready and lists every row that
+   can't be used, with the reason, before anything is created. Extra info is
+   kept with each contact: it shows in the contacts list, the CSV report and
+   your webhooks, and the agent never sees it.
 
    ![Data preview panel](/images/campaign-integration/image_8.png)
 
