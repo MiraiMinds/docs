@@ -44,6 +44,13 @@ You can rotate and revoke keys on the same page. Rotating issues the
 replacement before it revokes the old key, so there is never a moment when
 neither key works. Deploy the new key, then revoke the old one.
 
+Every request on this page goes to the sandbox at
+`https://sandbox.voice.miraiminds.co`. Once your company has
+[gone live](/general/tiers#your-plan), send the same requests to
+`https://prod.voice.miraiminds.co`. On the production address, a key from a
+workspace that has not gone live is refused with
+`403 production_workspace_required`.
+
 Check that it works:
 
 ```bash

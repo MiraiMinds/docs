@@ -12,7 +12,14 @@ outcome arrives by [webhook](/v2/webhooks) (or by polling
 A call can also run in your user's browser instead of on a phone: create it
 with `channel: "web"`. See [Browser calls](/v2/web-calls) for the whole flow.
 
-Base URL `https://sandbox.voice.miraiminds.co`.
+| Environment | Base URL |
+| :--- | :--- |
+| Sandbox | `https://sandbox.voice.miraiminds.co` |
+| Production | `https://prod.voice.miraiminds.co`, once your company has [gone live](/general/tiers#your-plan) |
+
+The examples on this page use the sandbox address. On the production address,
+a key from a workspace that has not gone live is refused with
+`403 production_workspace_required`.
 
 ## The call object
 
@@ -215,6 +222,7 @@ POST /v2/calls
 | `variables` | object | no | Flat string map substituted into the agent's prompt. See [variables](#variables). |
 | `metadata` | object | no | Your own identifiers, up to 16 string keys and values. Returned unchanged on the call and in every webhook. Never shown to the agent. See [metadata](#metadata). |
 | `first_message` | string | no | The opening line for this call only, up to 500 characters. Replaces the agent's `first_message`; `{{variable}}` placeholders work the same way. Refused for a [node-based agent](/v2/node-agents), whose start node opens the call. |
+| `system_prompt` | string | no | The agent's instructions for this call only, 1 to 12,000 characters. Replaces the agent's `system_prompt`; `{{variable}}` placeholders are filled from `variables`. Refused on `channel: "realtime"` and for a [node-based agent](/v2/node-agents). Never returned on the call or in webhooks. See [per-call prompt](#per-call-prompt). |
 | `webhook_url` | string | no | HTTPS URL for [lifecycle events](/v2/webhooks). Applies to this call only. |
 | `max_duration_secs` | integer | no | Overrides the agent's cap for this call only. |
 | `timing` | object | no | Wrap-up, timed-close and user-silence timers for this call. Phone and browser calls. See [timing policy](/v2/web-calls#timing-policy). |
@@ -321,7 +329,7 @@ A browser call's `202` also carries the links the page needs:
 
 | Status | `error.code` | Cause |
 | :--- | :--- | :--- |
-| `400` | `invalid_request` | Missing `agent_id`/`to`, `to` not E.164, `to` sent with `channel: "web"`, `max_duration_secs` out of range, invalid `metadata`, `first_message` or `timing`. `error.message` names the field. |
+| `400` | `invalid_request` | Missing `agent_id`/`to`, `to` not E.164, `to` sent with `channel: "web"`, `max_duration_secs` out of range, invalid `metadata`, `first_message`, `system_prompt` or `timing`, or `system_prompt` sent with `channel: "realtime"`. `error.message` names the field. |
 | `401` | `unauthorized` | Bad or missing key |
 | `402` | `insufficient_balance` | Wallet cannot cover the first minute at your tier. We check before we dial, so there is no partial charge. See [Wallet](/v2/wallet#402-insufficient-balance). |
 | `403` | `recording_disabled` | `recording_enabled: true` on a workspace whose recording is turned off |
@@ -331,6 +339,7 @@ A browser call's `202` also carries the links the page needs:
 | `400` | `invalid_flow` | `agent_id` is a [node-based agent](/v2/node-agents) and your tier's model cannot run flows. The body lists the problem with its path. Nothing was dialled. |
 | `409` | `flow_agent_voice_only` | A text chat (`channel: "text"`) with a node-based agent. Node-based agents run on `phone` and `web`. |
 | `409` | `flow_first_message_unsupported` | `first_message` sent for a node-based agent. Its start node's `greeting` opens the call; personalise it with `variables`. |
+| `409` | `flow_system_prompt_unsupported` | `system_prompt` sent for a node-based agent. Its nodes' prompts run the call; personalise them with `variables`. |
 | `429` | `rate_limited` | Request rate exceeded, or your queue is full (500 calls accepted and not yet ended); `error.message` says which. Going over your concurrency cap does not return 429: those calls wait in the queue. Honour `Retry-After`. See [Limits](/v2/limits). |
 | `429` | `at_capacity` | Every line on the deployment is busy. `Retry-After: 30`. Nothing was charged. |
 | `501` | `tier_unavailable` | `tier` names a tier that is not enabled on this deployment |
@@ -339,7 +348,8 @@ A browser call's `202` also carries the links the page needs:
 
 `variables` is a flat map of string keys to string values. Each key replaces the
 matching `{{key}}` placeholder in the agent's `system_prompt` and
-`first_message`.
+`first_message`, or in the call's own `system_prompt` and `first_message` when
+you send them.
 
 ```json
 { "variables": { "customer_name": "Rahul", "order_id": "8842" } }
@@ -360,6 +370,49 @@ matching `{{key}}` placeholder in the agent's `system_prompt` and
 - On a [node-based agent](/v2/node-agents#variables-in-node-text), variables
   fill the node prompts, the start node's greeting and extraction prompts.
   Transition conditions are not filled in.
+
+### Per-call prompt
+
+`system_prompt` on the call replaces the agent's prompt for that call only. The
+agent is not changed, and the rest of its setup still applies to the call: its
+voice, language, opening line and tools.
+
+One agent with `variables` is still the simplest way to personalise calls,
+because the instructions stay the same and only the details change. Send a
+per-call prompt when each call needs different instructions, for example when
+your own system writes the script for each customer.
+
+```bash
+curl -X POST https://sandbox.voice.miraiminds.co/v2/calls \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: order-8842-redelivery-1" \
+  -d '{
+    "agent_id": "agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ",
+    "to": "+919876543210",
+    "system_prompt": "You are Priya from Acme. {{customer_name}} missed the delivery of order {{order_id}} yesterday. Apologise once, offer a new slot tomorrow between 10:00 and 18:00, and confirm the delivery address. Keep replies to one or two short sentences. When the customer is done, thank them and end the call.",
+    "variables": { "customer_name": "Rahul", "order_id": "8842" },
+    "webhook_url": "https://example.com/mirai/webhook"
+  }'
+```
+
+- It holds 1 to 12,000 characters, the same ceiling as the agent's prompt. A
+  blank or longer prompt returns `400 invalid_request`.
+- `{{variable}}` placeholders are filled from the call's `variables`, as they
+  are in the agent's prompt, and checked by the same rule. If the agent
+  declares an `input_schema`, every variable the prompt reads must be declared
+  in it. An undeclared one returns `400 invalid_request`.
+- It works on `phone` and `web` calls. A `realtime` session takes its
+  instructions from the client's `session.update`, so `system_prompt` on
+  `channel: "realtime"` returns `400 invalid_request`.
+- A [node-based agent](/v2/node-agents) runs its nodes' prompts, so it refuses
+  a per-call prompt with `409 flow_system_prompt_unsupported`.
+- We never return it: it is not on the [call object](#the-call-object) and not
+  in any [webhook](/v2/webhooks). To know later which prompt a call ran, store
+  it on your side against the call `id`.
+- Keep it short. The prompt is on the latency path, and a long one adds delay
+  well before it reaches the limit. See the
+  [prompting guide](/v2/prompting-guide).
 
 ### Metadata
 
