@@ -466,15 +466,18 @@ responses are identical on purpose.
 PATCH /v2/campaigns/{id}
 ```
 
-Editable while `draft` or `paused` only. Any other status returns
-`409 conflict`, because changing the slots, the retry policy or the budget under
-a live dialler would leave the campaign's own report describing settings that
-were never in force for half of its calls. To change a running campaign, pause
-it, patch it and then resume it.
+While the campaign is `draft` or `paused` you can change: `name`, `slots`,
+`start_date`, `end_date`, `max_concurrent`, `retry_count`,
+`re_attempt_period_secs`, `max_duration_secs`, `budget_paise`, `webhook_url`,
+`skip_called_before` and `final_results`. Not patchable: `agent_id`, `tier`,
+`timezone`.
 
-Patchable: `name`, `slots`, `start_date`, `end_date`, `max_concurrent`,
-`retry_count`, `re_attempt_period_secs`, `max_duration_secs`, `budget_paise`,
-`webhook_url`. Not patchable: `agent_id`, `tier`, `timezone`.
+While it is running, only the pacing can change: `max_concurrent` and `slots`.
+They take effect straight away. Anything else returns `409 conflict`, because
+changing the retry policy or the budget under a live dialler would leave the
+campaign's own report describing settings that were never in force for half of
+its calls. Pause it, patch it, then resume it. A finished campaign can't be
+edited.
 
 ```bash
 curl -X PATCH https://sandbox.voice.miraiminds.co/v2/campaigns/cmp_01K7QAC5N9P4R7S3T6V8W2X4YB \

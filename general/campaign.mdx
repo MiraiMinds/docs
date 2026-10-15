@@ -1,5 +1,6 @@
 ---
-title: Campaign Management
+title: Campaigns in the console
+sidebarTitle: Campaigns in the console
 description: Call a whole list with one of your agents from the console. Pick the agent, set the calling hours, upload your list and press Start.
 ---
 
@@ -99,7 +100,9 @@ too.
 - **Budget (₹)** caps what this campaign can spend. When it is reached, the
   campaign pauses. Leave it empty for no cap.
 - **Webhook URL** is optional. Add an `https://` address and we send each
-  call's result there as soon as the call ends.
+  call's events there. Every call ends with one event that carries the
+  transcript, the result and the contact's extra info, so your system doesn't
+  have to fetch anything. See [webhooks](/v2/campaigns#webhooks).
 
 ![Pacing and retries: 5 calls at once with the pace line, 2 retries 60 minutes apart, the Skip numbers box ticked, a 300-second max call length, a ₹5,000 budget and a webhook URL](/images/campaign-integration/pacing-and-retries.png)
 
