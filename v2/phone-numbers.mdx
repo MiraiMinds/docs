@@ -1,0 +1,479 @@
+---
+title: Phone numbers and pools
+description: Group your phone numbers into a pool, set the pace they call at, read how each number is doing, and rest, resume or retire a number from the console or the API.
+---
+
+A phone number that calls too many people too fast gets flagged as spam, and
+people stop answering it. A pool spreads your outbound calls over several of
+your numbers at a pace you choose, calls each person back from the same number,
+and rests a number that stops being answered before it is burnt.
+
+This page covers what a pool is, how the number for a call is chosen, what each
+health state means, and the API. To set one up from start to finish, follow
+[Run a campaign from your own numbers](/cookbooks/run-a-campaign-from-your-own-numbers).
+
+Base URL `https://sandbox.voice.miraiminds.co`. All endpoints require
+`Authorization: Bearer sk_live_…`.
+
+<Note>
+Numbers and pools need the matching dialer update on your workspace. Until it
+is there, the **Pools** tab in the console says pools are not on yet, and every
+other part of **Phone numbers** works as before. Pools are free. A number you
+rent through Mirai keeps its own monthly rental.
+</Note>
+
+## Why a pool
+
+Think of a person on a sales desk. They make a few dozen calls an hour, to
+different people, and nobody blocks them. A single number that places 300 calls
+an hour looks nothing like that to the networks that decide which calls to flag.
+
+A pool gives you the desk's pace from software. With four numbers at 60 calls an
+hour each, the pool places up to 240 attempts an hour, and no single number goes
+past 60.
+
+A pool keeps each number under the hourly and daily pace you set, and it sends a
+contact's retries from the number that called them first, for as long as that
+number stays in the pool. A number that is answered far less than its siblings is
+rested before it is burnt.
+
+A number can be in several pools. Its counters are its own, so a call from it
+counts toward every pool it is in.
+
+## Purposes and pace
+
+Each pool has a purpose. The purpose sets the starting pace, and in the console
+it also adds a one line reminder of what suits that purpose.
+
+| `purpose` | Starting `max_per_hour` | Starting `max_per_day` |
+| :--- | :--- | :--- |
+| `support` | 40 | 400 |
+| `outreach` | 60 | 400 |
+| `reminders` | 60 | 400 |
+| `other` | 60 | 400 |
+
+Pace is attempts per number. `max_per_hour` takes 1 to 180 and `max_per_day`
+takes 1 to 10000. Counting uses India time, so the hour turns over at the top of
+the hour in `Asia/Kolkata`.
+
+### Choosing a pace
+
+You hold the dial. Mirai does not block a higher pace, but the console tells you
+what it costs.
+
+- Above 60 an hour, a number is more likely to be flagged as spam and answered
+  less.
+- Above 120 an hour, most sales desks never run this fast. Expect numbers to
+  rest often.
+
+The campaign form shows a capacity line under **Calls come from**. It compares
+what your campaign will try with what the pool can carry:
+
+```text
+attempts an hour  =  calls at once × 3600 ÷ 40 seconds a call
+pool can carry    =  healthy numbers × pace
+```
+
+Four calls at once is about 360 attempts an hour. Four numbers at 60 can carry
+240, so the form suggests lowering **Calls at once** to 2 or adding numbers.
+
+<Warning>
+Promotional calls from regular mobile numbers can be flagged more often than
+calls from a number series meant for them. The 140 series is the proper home for
+promotional calling. We do not sell 140 numbers yet. When an outreach pool holds
+regular mobile numbers, the console says so in one plain line when you create the
+pool and when you start a campaign, and it never blocks you.
+</Warning>
+
+## Which number a call comes from
+
+Every outbound phone call goes through one rule, whether it comes from a campaign
+or from `POST /v2/calls`. The first choice that applies wins:
+
+1. The call's own `phone_number_id` or `pool_id`. A campaign's own choice counts
+   as the call's own.
+2. The agent's `calls_from`.
+3. Your workspace's default pool, the one with `default_for_campaigns: true`.
+4. The Mirai shared line.
+
+The Mirai shared line is always listed, last, as **Mirai shared line**. It is
+shared with other customers and the person called sees it as Mirai. It stays in
+every picker so you can always see where a call would go when you choose
+nothing. A call from your own number shows your name. The line a call ends up
+using is written on the call, as `phone_number_id`, `from`, and
+`calls_from_source`. When a pool picked the number, `calls_from_source` is
+`pool` and the call also carries `pool_id`.
+
+A number or pool you chose is never replaced silently. If it cannot place the
+call, the request is refused with the reason (see [errors](#errors)).
+
+## Health
+
+Every number you own shows how it is doing. The console uses the words in the
+first column. The API publishes `health.state` in the second.
+
+| In the console | `health.state` | What it means |
+| :--- | :--- | :--- |
+| Live | `active` | Calling at the pool's pace. |
+| Warming up | `warming` | The first 7 days after you rent or import it. It calls at half the pool's hourly pace. `health.warming` carries `done` and `of`, such as day 3 of 7. |
+| Resting | `resting` | No outbound calls until `resting_until`. It rests 45 minutes after the pool judges it burning out, or for as long as you chose when you rested it by hand. |
+| Cooling | `cooling` | No outbound calls until `cooling_until`, 7 hours after the third automatic rest in one day. A person brings it back sooner with Resume. |
+| Retired | `retired` | No outbound calls until you resume it. It still answers calls made to it. |
+
+### How a number comes to rest
+
+A pool compares its numbers with each other. A number rests when all of these
+are true:
+
+- It has made at least 25 attempts since it was last resumed or rested.
+- Its answer rate is below half the average of the pool's numbers that have that
+  many attempts.
+- At least one other number in the pool can still call.
+
+A pool with one number never rests it, because a number that nobody answers and a
+list that nobody answers look the same. You can turn automatic resting off for a
+pool with `auto_rest: false`.
+
+The second rule is an alert and nothing more. A number answered on fewer than 8%
+of at least 100 attempts in a day fires `phone_number.alert` once that day. It
+keeps calling. Check the number and the list.
+
+A rested number gets a clean second chance. Its evidence starts again when it
+comes back, from a rest that ended or from Resume.
+
+### Rest, resume and retire
+
+Each of these is on the number's row in **Phone numbers**, and each has an Undo
+in the notice that follows. The API takes the same three requests.
+
+| Action | What happens | Undo |
+| :--- | :--- | :--- |
+| Rest | No outbound calls for the time you pick, 1 to 1440 minutes. The console offers an hour, three hours, or until 9 a.m. | Resume |
+| Resume | Brings a resting, cooling or retired number back now. Its evidence starts again. | Rest, or Retire |
+| Retire | No outbound calls until you resume it. Calls to the number still ring your agent. | Resume |
+
+A rest stops one number and leaves the rest of the pool dialling. A campaign
+that calls from a single resting number waits for it and carries on from the same
+number when it is back. It does not pause and does not switch to another number.
+A campaign on a retired number pauses and says why.
+
+When every number in a pool is resting or at its hourly pace, a campaign waits
+for the next free number, at most 5 minutes at a time. If a contact's own number
+is resting and `sticky_retries` is on, that contact waits for it and the others
+go on. A pool with no number able to call at all pauses the campaign with
+`pause_reason` starting `calls_from_unavailable`.
+
+## The pool object
+
+```json
+{
+  "id": "pool_01K8F3M2Q6S8T0V2X4Z6A8C0EG",
+  "object": "phone_pool",
+  "name": "Outreach",
+  "purpose": "outreach",
+  "max_per_hour": 60,
+  "max_per_day": 400,
+  "sticky_retries": true,
+  "auto_rest": true,
+  "min_healthy": 2,
+  "default_for_campaigns": false,
+  "version": 3,
+  "created_at": "2026-10-15T08:02:11Z",
+  "updated_at": "2026-10-15T08:40:30Z",
+  "number_ids": ["phn_01K8F2R4T6V8W0X2Y4Z6A8B0CD", "phn_01K8F2R5V7W9X1Y3Z5A7B9C1DE"],
+  "numbers": 2,
+  "healthy": 2,
+  "resting": 0,
+  "answer_rate_7d": 0.21,
+  "used_by": [{ "campaign_id": "cmp_01K7QAC5N9P4R7S3T6V8W2X4YB", "name": "July renewals" }],
+  "members": []
+}
+```
+
+`members` carries each number as it is returned by `GET /v2/phone-numbers/{id}`,
+in pool order. It is on a single pool and absent from list pages.
+
+| Field | Type | Description |
+| :--- | :--- | :--- |
+| `id` | string | `pool_<ulid>`. |
+| `name` | string | 1 to 100 characters. |
+| `purpose` | enum | `outreach`, `reminders`, `support` or `other`. |
+| `max_per_hour` | integer | 1 to 180 attempts per number. |
+| `max_per_day` | integer | 1 to 10000 attempts per number. Default 400. |
+| `sticky_retries` | boolean | Default `true`. A contact is called back from the number that called them first, while that number is in the pool. A retry waits for its own number when it is resting or at its pace. A cooling number lets the contact move to another. |
+| `auto_rest` | boolean | Default `true`. Whether the pool rests a number that is answered far less than its siblings. |
+| `min_healthy` | integer | Default 2, or the pool's size when smaller. When fewer numbers than this can call, the pool is degraded and `phone_pool.degraded` fires. |
+| `default_for_campaigns` | boolean | At most one pool per workspace. It is used when a call, its campaign and its agent choose nothing. Setting it on one pool clears it on another. |
+| `version` | integer | Send it back on `PATCH`. |
+| `number_ids` | array | The members, in order. Up to 100. |
+| `numbers`, `healthy`, `resting` | integer | The pool's size, how many can call now, and how many are resting or cooling. |
+| `answer_rate_7d` | number \| null | Answers divided by attempts over 7 days, across the members. `null` with no attempts. |
+| `used_by` | array | The campaigns and agents calling from this pool. Campaigns that have finished or been archived are left out. |
+
+A member must be one of your numbers that is set up, on a verified connection and
+inside its rental term, and it must not be retired. A pool needs at least one
+member that is not resting or cooling. A number added in the last 7 days runs at
+half the hourly pace.
+
+## Create a pool
+
+```http
+POST /v2/phone-pools
+```
+
+| Field | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `name` | string | yes | 1 to 100 characters. |
+| `purpose` | string | yes | `outreach`, `reminders`, `support` or `other`. |
+| `number_ids` | array | yes | At least one `phn_…`, none twice. |
+| `max_per_hour` | integer | no | Default 60, or 40 for `support`. |
+| `max_per_day` | integer | no | Default 400. |
+| `sticky_retries` | boolean | no | Default `true`. |
+| `auto_rest` | boolean | no | Default `true`. |
+| `min_healthy` | integer | no | 0 up to the pool's size. Default 2, or the size when smaller. |
+| `default_for_campaigns` | boolean | no | Default `false`. |
+
+```bash
+curl -X POST https://sandbox.voice.miraiminds.co/v2/phone-pools \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Outreach",
+    "purpose": "outreach",
+    "number_ids": ["phn_01K8F2R4T6V8W0X2Y4Z6A8B0CD", "phn_01K8F2R5V7W9X1Y3Z5A7B9C1DE"],
+    "max_per_hour": 60
+  }'
+```
+
+The answer is `201 Created` with the pool object, including `members`.
+
+## List, get, update and delete
+
+```http
+GET    /v2/phone-pools
+GET    /v2/phone-pools/{id}
+PATCH  /v2/phone-pools/{id}
+DELETE /v2/phone-pools/{id}
+```
+
+`GET /v2/phone-pools` answers `{ "data": [...], "has_more": false, "next_cursor": null }`,
+100 pools a page, and takes `?cursor=`. Its pools have no `members`.
+
+`PATCH` takes any of the fields above, plus `version`, which is required. A
+stale `version` answers `409 conflict`. Read the pool again and retry. Sending
+`number_ids` replaces the member list. If you shrink the pool below
+`min_healthy` and send no `min_healthy`, it is lowered to the new size.
+
+```bash
+curl -X PATCH https://sandbox.voice.miraiminds.co/v2/phone-pools/pool_01K8F3M2Q6S8T0V2X4Z6A8C0EG \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "version": 3, "max_per_hour": 45 }'
+```
+
+`DELETE` answers `{ "id": "pool_…", "object": "phone_pool", "deleted": true }`.
+A pool that a campaign or an agent calls from cannot be deleted. It answers
+`409 pool_in_use` and names them.
+
+## Point a call, a campaign or an agent at a pool
+
+| Where | Field | Notes |
+| :--- | :--- | :--- |
+| [`POST /v2/calls`](/v2/calls#create-a-call) | `pool_id` | Phone calls only. Not together with `phone_number_id` or `from`. |
+| [`POST` and `PATCH /v2/campaigns`](/v2/campaigns#create-a-campaign) | `pool_id` | Not together with `phone_number_id`, and not together with `caller_ids`. `null` or `""` clears it. |
+| [`POST` and `PATCH /v2/agents`](/v2/agents#calls-from) | `calls_from` | `{ "pool_id": "pool_…" }` or `{ "phone_number_id": "phn_…" }`. `null` unsets it. |
+
+`caller_ids` is the older campaign field for numbers that belong to a SIP line.
+It is not part of pools and keeps working as before.
+
+A campaign's `calls_from` object says where its number comes from, and what the
+pool looks like at that moment:
+
+```json
+{
+  "phone_number_id": null,
+  "number": null,
+  "source": "campaign",
+  "pool_id": "pool_01K8F3M2Q6S8T0V2X4Z6A8C0EG",
+  "pool_name": "Outreach",
+  "numbers": 4,
+  "healthy": 3
+}
+```
+
+`source` is `campaign`, `agent`, `default` (your workspace's default pool) or
+`shared`. The pool fields appear only when a pool applies. While a pool is
+holding for a free number, the campaign's progress carries `holding_until`.
+
+An agent's `calls_from` on the agent object is `{ "pool_id", "pool_name" }` for a
+pool and `{ "phone_number_id", "number" }` for a number.
+
+## Number health
+
+`GET /v2/phone-numbers` and `GET /v2/phone-numbers/{id}` carry `health` and
+`pools` on every number. So do the answers to import, `PATCH`, activate, rest,
+resume and retire. A trimmed number:
+
+```json
+{
+  "id": "phn_01K8F2R4T6V8W0X2Y4Z6A8B0CD",
+  "number": "+918047360814",
+  "state": "ready",
+  "connection_state": "verified",
+  "version": 4,
+  "health": {
+    "state": "resting",
+    "resting_until": "2026-10-15T09:20:00Z",
+    "cooling_until": null,
+    "retired_at": null,
+    "warming": null,
+    "attempts_this_hour": 38,
+    "attempts_today": 112,
+    "answers_today": 19,
+    "answer_rate_7d": 0.23,
+    "series_7d": [
+      { "day": "2026-10-09", "attempts": 41, "answers": 12 },
+      { "day": "2026-10-10", "attempts": 0, "answers": 0 }
+    ],
+    "rests_today": 1
+  },
+  "pools": [{ "id": "pool_01K8F3M2Q6S8T0V2X4Z6A8C0EG", "name": "Outreach" }]
+}
+```
+
+| Field | Description |
+| :--- | :--- |
+| `state` | `warming`, `active`, `resting`, `cooling` or `retired`. |
+| `resting_until` | Set only while resting. |
+| `cooling_until` | Set only while cooling. |
+| `retired_at` | Set only when retired. |
+| `warming` | `{ "done": 3, "of": 7 }` while warming, otherwise `null`. |
+| `attempts_this_hour`, `attempts_today`, `answers_today` | Outbound calls from this number across every campaign and API call, in India time. Calls made to the number are not counted. |
+| `answer_rate_7d` | Answers divided by attempts over 7 days. `null` when there were no attempts. |
+| `series_7d` | Seven days, oldest first, with days that had no calls filled with zeros. |
+| `rests_today` | Automatic rests so far today. |
+
+A call counts as answered when its media went live. The cap to read next to
+`attempts_this_hour` is the `max_per_hour` of the pool it is in, halved while it
+is warming. The number carries no cap of its own.
+
+### History
+
+```http
+GET /v2/phone-numbers/{id}/health
+```
+
+```json
+{
+  "object": "phone_number_health",
+  "phone_number_id": "phn_01K8F2R4T6V8W0X2Y4Z6A8B0CD",
+  "number": "+918047360814",
+  "health": { "state": "active", "…": "the same object as on the number" },
+  "days": [{ "day": "2026-09-16", "attempts": 0, "answers": 0 }],
+  "hours_today": [{ "hour": "2026101508", "attempts": 14, "answers": 3 }]
+}
+```
+
+`days` holds the last 30 days, oldest first. `hours_today` holds today's hours
+so far, each as `yyyymmddhh` in India time.
+
+### Rest, resume and retire
+
+```http
+POST /v2/phone-numbers/{id}/rest
+POST /v2/phone-numbers/{id}/resume
+POST /v2/phone-numbers/{id}/retire
+```
+
+Each answers `200` with the number, including its new `health`.
+
+`rest` takes `{ "minutes": 60 }`, from 1 to 1440.
+
+```bash
+curl -X POST https://sandbox.voice.miraiminds.co/v2/phone-numbers/phn_01K8F2R4T6V8W0X2Y4Z6A8B0CD/rest \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "minutes": 60 }'
+```
+
+`resume` and `retire` take no body. `resume` is also the way to bring back a
+retired number, which makes it the Undo for Retire. Resuming restarts the
+number's evidence. A number in another workspace answers `404 not_found`. Resting
+a retired number answers `409 number_retired`, so resume it first.
+
+## Errors
+
+| Status | `error.code` | When | What to do |
+| :--- | :--- | :--- | :--- |
+| `409` | `number_retired` | A call, a campaign start or resume, a campaign create or `PATCH`, an agent's `calls_from`, or a rest named a retired number. | Resume the number, or choose another. A running campaign on it pauses. |
+| `409` | `number_resting` | `POST /v2/calls` named a number that is resting or cooling. The message gives the time it is back, in India time. | Wait until then, resume it, or choose another number. A campaign on it waits instead of failing. |
+| `409` | `pool_busy` | `POST /v2/calls` named a pool whose numbers are all resting or at their pace this hour. `Retry-After` says how many seconds until the next one is free. | Retry after that time, or raise the pool's pace. |
+| `409` | `pool_unavailable` | The pool has no number that can place a call, or a campaign start or an agent save named one. | Add a ready number to it, or choose another pool or number. |
+| `409` | `pool_in_use` | `DELETE /v2/phone-pools/{id}` on a pool a campaign or agent calls from. The message names them. | Move them to another pool or number, then delete. |
+| `409` | `conflict` | `PATCH /v2/phone-pools/{id}` with a `version` that is no longer current. | Read the pool again and send the new `version`. |
+| `400` | `invalid_request` | A pool field out of range, a number twice, a number that is not yours, not ready or retired, no number that can call right now, `minutes` outside 1 to 1440, or `pool_id` together with `phone_number_id`, `from` or `caller_ids`. | `error.message` names the field. |
+| `404` | `not_found` | A pool or number that does not exist in your workspace, including one that belongs to another. | Check the id. |
+
+## Webhook events
+
+Number and pool events use the same envelope and the same signature as call
+events: `{ "id", "type", "created_at", "data" }`, signed with your workspace
+secret. See [Webhooks](/v2/webhooks#signature-verification) to verify them.
+
+| Type | Fires when |
+| :--- | :--- |
+| `phone_number.rested` | A number rested, because the pool judged it was answered far less than the others or because you rested it. |
+| `phone_number.resumed` | You resumed a number. |
+| `phone_number.cooling` | A number rested for the third time in a day and is cooling for 7 hours. |
+| `phone_number.alert` | A number was answered on fewer than 8% of at least 100 attempts today. Once per number per day. It keeps calling. |
+| `phone_pool.degraded` | Fewer numbers than the pool's `min_healthy` can call. Once per episode. |
+
+Each payload carries the whole object as it stands, plus a `reason` in plain
+words. A number event has `data.phone_number` and, when a pool was involved,
+`data.pool_id`. A pool event has `data.phone_pool`, with every member's health,
+and `data.pool_id`.
+
+```json title="POST https://example.com/mirai/webhook"
+{
+  "id": "evt_01K8F4N7Q9S1T3V5X7Z9A1C3EG",
+  "type": "phone_number.rested",
+  "created_at": "2026-10-15T08:35:02Z",
+  "data": {
+    "reason": "+918047360814 answered 1 of its last 26 calls (4%), under half the pool's 21%; resting 45 minutes",
+    "pool_id": "pool_01K8F3M2Q6S8T0V2X4Z6A8C0EG",
+    "phone_number": {
+      "id": "phn_01K8F2R4T6V8W0X2Y4Z6A8B0CD",
+      "number": "+918047360814",
+      "state": "ready",
+      "health": { "state": "resting", "resting_until": "2026-10-15T09:20:02Z", "…": "as above" },
+      "pools": [{ "id": "pool_01K8F3M2Q6S8T0V2X4Z6A8C0EG", "name": "Outreach" }]
+    }
+  }
+}
+```
+
+<Warning>
+These events go to the `webhook_url` of your running or paused campaigns that
+call from the pool, from the number, or from a pool the number belongs to. If no
+campaign uses the number or pool, or none has a `webhook_url`, nothing is sent.
+Workspace wide subscriptions for these events are not available yet. Events from
+a rest or resume that you ask for through the API are sent on a best effort
+basis. Dedupe on `id`, as for every other [webhook](/v2/webhooks#idempotency).
+</Warning>
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Run a campaign from your own numbers" icon="phone" href="/cookbooks/run-a-campaign-from-your-own-numbers">
+    Rent or import numbers, build a pool, point a campaign at it and watch it.
+  </Card>
+  <Card title="Receive inbound phone calls" icon="phone-arrow-down-left" href="/cookbooks/inbound-calling">
+    Buy a number or connect your own, then assign an agent to answer it.
+  </Card>
+  <Card title="Campaigns" icon="list-check" href="/v2/campaigns">
+    The dialler that calls from a pool.
+  </Card>
+  <Card title="Errors" icon="triangle-exclamation" href="/v2/errors">
+    Every error code in one place.
+  </Card>
+</CardGroup>

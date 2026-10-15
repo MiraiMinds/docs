@@ -74,6 +74,10 @@ only `pre_call` and `post_call` tools are allowed. See
 
 Server-set and read-only: `id`, `object`, `created_at`, `updated_at`.
 
+### Calls from
+
+`calls_from` sets the number the agent's outbound calls and campaigns ring from when they do not choose one. Send `{ "pool_id": "pool_…" }` for a [phone pool](/v2/phone-numbers), or `{ "phone_number_id": "phn_…" }` for one of your numbers, never both. `null` unsets it. See [phone numbers and pools](/v2/phone-numbers#which-number-a-call-comes-from) for the order a call's number is chosen in.
+
 ### Voice
 
 ```json

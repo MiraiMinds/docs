@@ -74,6 +74,8 @@ a key from a workspace that has not gone live is refused with
 | `transcript_available` | boolean | Whether [`GET /transcript`](#get-the-transcript) will return turns. |
 | `transcript_status` | enum | `pending` while the call runs and until its transcript is stored; `ready` when [`GET /transcript`](#get-the-transcript) returns turns; `empty` when nobody spoke; `failed` when the transcript could not be stored. |
 | `metadata` | object | Your [`metadata`](#metadata) from create, unchanged. For a campaign call, the contact's [`metadata`](/v2/campaigns#your-own-fields-metadata). Absent when the call has none. |
+| `phone_number_id` | string | The [phone number](/v2/phone-numbers) the call rang from, when it came from one of your own. |
+| `pool_id` | string | The [phone pool](/v2/phone-numbers) that picked the number. Only when a pool did, and then `calls_from_source` is `pool`. |
 | `campaign_id` | string | The [campaign](/v2/campaigns) that placed the call. Only on campaign calls. |
 | `contact_id` | string | The campaign contact the call was to: the `id` you sent with the contact, or the one we minted. Only on campaign calls. |
 | `analysis` | object \| null | Post-call summary, when the agent was created with `analysis.enabled`. `null` otherwise. |
@@ -226,6 +228,7 @@ POST /v2/calls
 | `first_message` | string | no | The opening line for this call only, up to 500 characters. Replaces the agent's `first_message`; `{{variable}}` placeholders work the same way. Refused for a [node-based agent](/v2/node-agents), whose start node opens the call. |
 | `system_prompt` | string | no | The agent's instructions for this call only, 1 to 12,000 characters. Replaces the agent's `system_prompt`; `{{variable}}` placeholders are filled from `variables`. Refused on `channel: "realtime"` and for a [node-based agent](/v2/node-agents). Never returned on the call or in webhooks. See [per-call prompt](#per-call-prompt). |
 | `webhook_url` | string | no | HTTPS URL for [lifecycle events](/v2/webhooks). Applies to this call only. |
+| `phone_number_id` / `pool_id` | string | no | Phone calls only. Ring from one of your own [phone numbers](/v2/phone-numbers), or from the number a pool picks. Without either, the call uses the agent's `calls_from`, then your default pool, then the Mirai shared line. Send one, not both. |
 | `max_duration_secs` | integer | no | Overrides the agent's cap for this call only. |
 | `timing` | object | no | Wrap-up, timed-close and user-silence timers for this call. Phone and browser calls. See [timing policy](/v2/web-calls#timing-policy). |
 | `recording_enabled` | boolean | no | Default `true`. `false` stores no audio for this call: no recording, `recording_available: false`. If your workspace has recording turned off, the default is `false` and `true` is refused with `403 recording_disabled`. |
@@ -338,6 +341,7 @@ A browser call's `202` also carries the links the page needs:
 | `403` | `contract_unavailable` | The call is not covered by an active production contract: `tier` is not your company's plan, or the company has not finished going live. See [setting the tier](/general/tiers#setting-the-tier). |
 | `404` | `not_found` | `agent_id` does not exist in your workspace (including one that exists in someone else's) |
 | `409` | `duplicate_call` | A request with this `Idempotency-Key` is still being processed. See [idempotency](#idempotency). |
+| `409` | `number_retired`, `number_resting`, `pool_busy`, `pool_unavailable` | The number or pool you chose cannot place the call right now. Nothing was dialled and no other number was used. `pool_busy` carries `Retry-After`. See [phone numbers and pools](/v2/phone-numbers#errors). |
 | `400` | `invalid_flow` | `agent_id` is a [node-based agent](/v2/node-agents) and your tier's model cannot run flows. The body lists the problem with its path. Nothing was dialled. |
 | `409` | `flow_agent_voice_only` | A text chat (`channel: "text"`) with a node-based agent. Node-based agents run on `phone` and `web`. |
 | `409` | `flow_first_message_unsupported` | `first_message` sent for a node-based agent. Its start node's `greeting` opens the call; personalise it with `variables`. |
