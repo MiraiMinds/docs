@@ -73,7 +73,9 @@ a key from a workspace that has not gone live is refused with
 | `recording_available` | boolean | Whether [`GET /recording`](#get-the-recording) will return audio. |
 | `transcript_available` | boolean | Whether [`GET /transcript`](#get-the-transcript) will return turns. |
 | `transcript_status` | enum | `pending` while the call runs and until its transcript is stored; `ready` when [`GET /transcript`](#get-the-transcript) returns turns; `empty` when nobody spoke; `failed` when the transcript could not be stored. |
-| `metadata` | object | Your [`metadata`](#metadata) from create, unchanged. Absent when the call has none. |
+| `metadata` | object | Your [`metadata`](#metadata) from create, unchanged. For a campaign call, the contact's [`metadata`](/v2/campaigns#your-own-fields-metadata). Absent when the call has none. |
+| `campaign_id` | string | The [campaign](/v2/campaigns) that placed the call. Only on campaign calls. |
+| `contact_id` | string | The campaign contact the call was to: the `id` you sent with the contact, or the one we minted. Only on campaign calls. |
 | `analysis` | object \| null | Post-call summary, when the agent was created with `analysis.enabled`. `null` otherwise. |
 
 {/* FLOW-OUTCOME */}

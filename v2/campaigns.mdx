@@ -266,6 +266,7 @@ POST /v2/campaigns
 | `max_duration_secs` | integer | no | 30–1800. Defaults to the agent's. |
 | `budget_paise` | integer | no | Positive paise. Omit for no cap. |
 | `webhook_url` | string | no | HTTPS. Gets `campaign.*` **and** `call.*` events. |
+| `final_results` | boolean | no | Default `true`. Each call ends with one [`call.processed`](/v2/webhooks#final-results) carrying the transcript, the after-call results and the contact's `metadata`. `false` sends the shorter events only. Change it while the campaign is a draft or paused. |
 | `contacts` | array | no | Up to **1000** rows per request. `{phone, variables?, id?}`. Add more later. |
 
 ```bash
@@ -824,8 +825,16 @@ signed with the same workspace secret and verified by the same code path.
 
 Campaign events use the same envelope as call events
 (`{id, type, created_at, data}`), with `data.campaign` where `data.call` would
-be. A campaign call's `call.*` events carry its contact's
-[`metadata`](#your-own-fields-metadata) in `data.call.metadata`. Verification, retries and replay protection are identical; see
+be.
+
+Every `call.*` event of a campaign call names the campaign and the contact in
+`data.call.campaign_id` and `data.call.contact_id`, and carries the contact's
+[`metadata`](#your-own-fields-metadata) in `data.call.metadata`. With
+`final_results` on (the default), each call also ends with one
+[`call.processed`](/v2/webhooks#final-results) that has the transcript and the
+after-call results, so you don't need to fetch anything. An agent with
+`emit_processed_webhook: false` sends no `call.processed`, whatever the
+campaign says. Verification, retries and replay protection are identical; see
 [Webhooks](/v2/webhooks#signature-verification).
 
 <Tip>
