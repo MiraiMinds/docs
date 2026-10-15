@@ -10,7 +10,7 @@ row on this page, confirm it with your account contact.
 
 | What | Target | Status |
 | :--- | :--- | :--- |
-| [Post-call analytics on every tier](#post-call-analytics-everywhere) — AI summary + QA score in the v2 API | August 2026 | rolling out |
+| [Post-call analytics on every tier](#post-call-analytics-everywhere) — AI summary + QA score in the v2 API | August 2026 | ✅ **live**, with follow-up message templates |
 | [Warm transfer on every tier](#warm-transfer-everywhere) — hand a call to a person | not yet scheduled | planned |
 | [Price ladder](/general/tiers) — T5 pay as you go, T3 and T1 with a monthly commitment, one Mira stack on every tier | September 2026 | ✅ **live** |
 | [Campaigns](/v2/campaigns) — server-side dialler with windows, retries, budgets and a report | August 2026 | ✅ **live** |
@@ -27,12 +27,12 @@ row on this page, confirm it with your account contact.
 
 ## Post-call analytics everywhere
 
-Every call on every tier gets an AI summary and a QA score. That covers 100% of
-calls, not a sample. The capability is part of
-[every tier](/general/tiers#one-stack-on-every-tier) today. What lands in August
-is the v2 API surface: an analysis object on the call and a webhook event when
-the analysis is ready. Until then, the summaries exist but you cannot query
-them over v2.
+Every call on every tier can get an AI summary and a QA score. The capability
+is part of
+[every tier](/general/tiers#one-stack-on-every-tier). In the v2 API, turn on
+[`analysis`](/v2/analysis) on an agent: the result is on the call, at
+`GET /v2/calls/{id}/analysis` and in the `call.processed` webhook, and it can
+pick the follow-up message template to send after the call.
 
 ## Warm transfer everywhere
 

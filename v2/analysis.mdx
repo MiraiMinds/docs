@@ -1,0 +1,646 @@
+---
+title: Call analysis
+description: Summarise each finished call, check it against your success criteria, extract fields, and pick the follow-up message to send.
+---
+
+
+Turn on `analysis` on an [agent](/v2/agents) and every call it finishes is read
+once more after the hangup. You get a summary, a `success` verdict against your
+own criteria, the fields you asked for in `output_schema` and, if you give the
+agent a list of message templates, the template to send next with its slots
+filled in from the conversation.
+
+Analysis runs after the call, so it never slows the conversation down. The
+result is on the call, on its own endpoint and in the
+[`call.processed`](/v2/webhooks#final-results) webhook.
+
+Base URL `https://sandbox.voice.miraiminds.co`. All endpoints require
+`Authorization: Bearer sk_live_…`.
+
+## Turn it on
+
+```json
+{
+  "analysis": {
+    "enabled": true,
+    "prompt": "Summarise the call in two sentences: what the customer wanted and what was agreed.",
+    "success_criteria": "The customer confirmed the order or chose a payment method.",
+    "output_schema": {
+      "type": "object",
+      "properties": {
+        "payment_method": { "type": "string", "enum": ["online", "cod", "undecided"] },
+        "callback_requested": { "type": "boolean" }
+      }
+    }
+  }
+}
+```
+
+| Field | Type | Description |
+| :--- | :--- | :--- |
+| `enabled` | boolean | `true` analyses every call this agent finishes. |
+| `prompt` | string | What to look for and how to summarise it. Up to 2,000 characters. |
+| `success_criteria` | string | What makes a call a success. Up to 2,000 characters. The verdict is `success`: `true`, `false` or `null` when it cannot be told. |
+| `output_schema` | object | A JSON Schema for the fields to extract, up to 32 properties. The values arrive in `data`. |
+| `templates` | object | The follow-up messages to choose from. See [Pick a follow-up message](#pick-a-follow-up-message). |
+
+Send `analysis` on [`POST /v2/agents`](/v2/agents#create-an-agent) or
+[`PATCH /v2/agents/{id}`](/v2/agents#update-an-agent). A `PATCH` replaces the
+whole `analysis` object, so send every field you want to keep.
+`"analysis": null` turns analysis off. A call runs the analysis settings of the
+agent revision it was placed with, so a change applies to calls placed after
+it.
+
+## Where the result appears
+
+On the [call object](/v2/calls#the-call-object), in
+[`GET /v2/calls/{id}`](/v2/calls#get-a-call) and in `data.call` of
+`call.processed`:
+
+```json
+{
+  "analysis": {
+    "status": "done",
+    "state": "completed",
+    "generation": 1,
+    "agent_revision": 4,
+    "completed_at": "2026-10-15T10:02:41Z",
+    "summary": "The customer agreed to pay ₹1,499 online and asked for the link on WhatsApp.",
+    "success": true,
+    "data": { "payment_method": "online", "callback_requested": false }
+  }
+}
+```
+
+`status` is `done`, `failed` or `skipped`. A call that never connected is
+skipped, because there is no conversation to read. The same result, with what
+we know about sending it to you, is at its own endpoint:
+
+```http
+GET /v2/calls/{id}/analysis
+```
+
+```json title="200 OK"
+{
+  "call_id": "call_01K8Q2M4Q6S8T0V2X4Z6A8C0EG",
+  "analysis": {
+    "state": "completed",
+    "generation": 1,
+    "agent_revision": 4,
+    "summary": "The customer agreed to pay ₹1,499 online and asked for the link on WhatsApp.",
+    "success": true,
+    "data": { "payment_method": "online", "callback_requested": false },
+    "completed_at": "2026-10-15T10:02:41Z"
+  },
+  "delivery": { "state": "delivered", "event_id": "evt_01K8Q2P1R3T5V7X9Z1B3D5F7H9", "attempts": 1 }
+}
+```
+
+`state` is `pending` until the analysis has run. If it ends `failed`, retry it
+with `POST /v2/calls/{id}/analysis/retry` and the body
+`{"if_generation": <the generation you read>}`. The retry runs as the next
+`generation`.
+
+A [post-call tool](/v2/tools#after-a-call-send-the-outcome-to-your-crm) can
+read the result as `{{ analysis.summary }}`, `{{ analysis.success }}` and
+`{{ analysis.data.<field> }}`.
+
+---
+
+## Pick a follow-up message
+
+Many calls end with a message, such as a WhatsApp template with a payment link
+or an SMS confirming a date. `analysis.templates` gives the agent the list of
+messages you can send. After each call it picks the one that fits, or none,
+and fills in the template's variables from what was said.
+
+```mermaid
+sequenceDiagram
+    participant Caller
+    participant Mirai as Mirai Voice
+    participant You as Your system
+
+    Caller-->>Mirai: hangs up
+    Mirai->>Mirai: analysis (summary, success, data)
+    Mirai->>You: fetch the template list (only with fetch)
+    You-->>Mirai: templates
+    Mirai->>Mirai: choose one, fill its variables
+    Mirai-->>You: call.processed with analysis.template
+    You->>Caller: send the message
+```
+
+The choice is one extra call to the analysis model, made after the analysis
+finishes. It reads your template list, the analysis and the transcript. The
+model is told to fill a variable only with a value the conversation or the
+analysis established, and every slot it leaves empty is listed as missing.
+Choosing a template costs nothing extra.
+
+Give the list in one of two ways:
+
+- `items`: the templates written on the agent. Use this for a short, fixed list,
+  such as approved SMS templates.
+- `fetch`: a request we send to your system after each call to read the current
+  list. Use this when templates are added and approved outside Mirai, as they
+  usually are for WhatsApp.
+
+Set exactly one of the two. `templates` requires `analysis.enabled: true`.
+
+### The `templates` object
+
+| Field | Type | Description |
+| :--- | :--- | :--- |
+| `instructions` | string | How to choose, in your words. Up to 2,000 characters. For example: "Choose none if the customer asked not to be contacted." |
+| `items` | array | 1 to 50 templates. See below. |
+| `fetch` | object | Where to read the templates after each call. See [Templates from your system](#templates-from-your-system). |
+
+Each template in `items`:
+
+| Field | Type | Description |
+| :--- | :--- | :--- |
+| `name` | string | Required. The name your sending system knows the template by, up to 128 characters. Unique in the list. The result names the template exactly like this. |
+| `language` | string | Optional, up to 35 characters. Returned with the choice. |
+| `description` | string | Optional, up to 1,000 characters. When to send it and what it says. This is what the model reads to choose, so write it as you would brief a colleague. |
+| `variables` | array | Up to 30 `{ "key", "description" }` slots. `key` is required, up to 128 characters and unique in the template: use whatever your sending system uses, such as `"1"`, `"2"` for WhatsApp or a name. `description` (up to 1,000 characters) says what goes in the slot and in what format. A template with no slots reads back as `"variables": []`. |
+
+Declare only the slots the conversation can fill. A payment link, a ticket
+number or a fixed sender name are yours to fill when you send the message.
+
+Your `instructions` reach the model as instructions. The template list and
+the transcript reach it as data, and the model is told not to follow
+instructions that appear inside them.
+
+### Templates from your system
+
+With `fetch`, we read your template list after every call, so a template you
+add or retire is used from the next call without editing the agent.
+
+```json
+{
+  "fetch": {
+    "method": "POST",
+    "url": "https://api.example.com/message-templates",
+    "headers": { "Authorization": "Bearer {{ secrets.templates_api_key }}" },
+    "body": { "brand_id": "{{ call.metadata.brand_id }}", "channel": "whatsapp" },
+    "items_path": "data.templates"
+  }
+}
+```
+
+| Field | Type | Description |
+| :--- | :--- | :--- |
+| `method` | string | `GET` (default) or `POST`. |
+| `url` | string | Public HTTPS on port 443, up to 2,048 characters. |
+| `headers` | object | Up to 20 string headers. |
+| `query` | object | Up to 20 string query parameters, URL-encoded for you. |
+| `body` | JSON | `POST` only. Without one, a `POST` sends `{"agent_id", "call_id", "metadata"}` with the call's `metadata` as an object. A `GET` sends no body. |
+| `items_path` | string | A dot path to the list in your answer, such as `Data` or `data.templates`. Up to 256 characters. See [Answers we can read](#answers-we-can-read). |
+
+The request is written like a post-call [HTTP tool](/v2/tools)'s request and
+follows the same rules:
+
+- `{{ }}` placeholders can read `vars.*` (the call's variables), `call.*` (such
+  as `call.id`, `call.agent_id`, `call.to` and `call.metadata.<key>`), `now.*`,
+  `analysis.*` (the analysis that just finished) and `secrets.*`. Inside
+  `body`, `"{{= call.metadata }}"` sends the whole object with its JSON type.
+  `tools.*` is refused, because the fetch runs before the post-call tools.
+- Keep credentials in [workspace secrets](/v2/tools#store-credentials-as-workspace-secrets)
+  and reference them as `{{ secrets.<name> }}`. A secret that does not exist is
+  refused when you save the agent, and a secret the fetch uses cannot be
+  deleted until you remove it from the agent (`409 secret_in_use`).
+- The same outbound network policy applies: public addresses only, no
+  redirects. The request carries the `X-Mirai-Call-Id` header.
+- Each attempt has 5 seconds. A timeout, a network error or a `5xx` is retried
+  once. Your answer must be JSON and at most 256 KB.
+
+A fetch is not a tool run, so it does not appear in the call's
+[tool receipts](/v2/tools#inspect-tool-results).
+
+### Answers we can read
+
+We read the list leniently, so most template APIs work as they are.
+
+1. With `items_path`, the list is at that path.
+2. Without it, the answer itself can be the list, or we take the first list we
+   find under `templates`, `data`, `Data` or `items`.
+
+Inside each entry we read `name`, `language`, `description` and `variables`,
+and ignore every other field. `variables` can be objects with `key` and
+`description`, or plain strings or numbers that are the keys. An entry can also
+be a bare string, which is a template with no variables. An entry without a
+name, or with a name already seen, is dropped, and we use the first 200
+templates.
+
+All of these answers work:
+
+<Tabs>
+  <Tab title="Under a key">
+    ```json
+    {
+      "Data": [
+        {
+          "name": "payment_link_hi",
+          "language": "hi",
+          "description": "Payment link, for a customer who agreed to pay online.",
+          "variables": [
+            { "key": "1", "description": "Customer first name" },
+            { "key": "2", "description": "Amount in rupees, digits only" }
+          ]
+        }
+      ]
+    }
+    ```
+  </Tab>
+  <Tab title="A bare list">
+    ```json
+    [
+      { "name": "payment_link_hi", "variables": ["1", "2"] },
+      { "name": "order_confirmed", "variables": [] },
+      "call_back_later"
+    ]
+    ```
+  </Tab>
+  <Tab title="Nested">
+    ```json
+    {
+      "status": "ok",
+      "result": { "templates": [{ "name": "payment_link_hi", "variables": [1, 2] }] }
+    }
+    ```
+
+    Set `"items_path": "result.templates"`.
+  </Tab>
+</Tabs>
+
+### The result: `analysis.template`
+
+The choice arrives as `template` inside the analysis, wherever the analysis
+appears: the call object, `GET /v2/calls/{id}/analysis` and `call.processed`.
+
+```json title="A template was chosen"
+{
+  "template": {
+    "status": "selected",
+    "name": "payment_link_hi",
+    "language": "hi",
+    "variables": { "1": "Rahul", "2": "1499" },
+    "missing": [],
+    "reason": "The customer agreed to pay online and asked for the link on WhatsApp."
+  }
+}
+```
+
+```json title="No template fits"
+{
+  "template": {
+    "status": "none",
+    "reason": "The customer asked not to be contacted again."
+  }
+}
+```
+
+```json title="The choice could not be made"
+{
+  "template": {
+    "status": "failed",
+    "error": {
+      "code": "catalog_unavailable",
+      "message": "the catalog could not be fetched: the endpoint answered 503"
+    }
+  }
+}
+```
+
+| Field | Description |
+| :--- | :--- |
+| `status` | `selected`, `none` or `failed`. |
+| `name` | The chosen template, spelled as in your list. `selected` only. |
+| `language` | The chosen template's `language`, when it has one. |
+| `variables` | The slots that were filled, by key. Only keys the chosen template declares, each a non-empty string of up to 1,000 characters. Always present on `selected`, `{}` when nothing could be filled. |
+| `missing` | The declared keys the conversation did not establish. Always present on `selected`, `[]` when every slot is filled. A missing value is never guessed and never sent as `""`. |
+| `reason` | One sentence from the model on why it chose this template or none. Up to 500 characters. |
+| `error` | `failed` only: `code` and a `message` that names what went wrong. |
+
+| `error.code` | Meaning |
+| :--- | :--- |
+| `catalog_unavailable` | The fetch failed after its retry, the answer was not JSON, no list was found, or the list was too large for the model to read. |
+| `catalog_empty` | The list had no template with a name. |
+| `invalid_choice` | The model named a template that is not in the list. We report it instead of guessing which one it meant. |
+| `model_failed` | The model could not be reached or gave an answer we could not use. |
+
+Check `missing` before you send. A template with an empty slot usually cannot
+be sent as it is, so decide on your side whether to fill it yourself, send
+another template or pass the call to a person.
+
+`template` is present only when the agent revision the call ran with had
+`analysis.templates` and the analysis completed. Calls of other agents carry no
+`template` key at all.
+
+### A template problem never fails the analysis
+
+When the choice cannot be made, whether the fetch timed out or the model named
+a template that is not in the list, you get `template.status: "failed"` with its
+code. The summary, `success` and `data` still arrive, the analysis `status` is
+still `done`, and post-call tools still run.
+
+### Choosing again
+
+[`POST /v2/calls/{id}/post_call/rerun`](/v2/tools#rerun-post-call-tools) chooses
+again before it sends the new `call.processed` version, and a `fetch` reads
+your list again. Use it after you fix a template endpoint that was down. The
+rerun uses the `templates` settings the call ran with. If the new choice cannot
+be made, the rerun still runs and publishes the template it had.
+
+A [retried analysis](#where-the-result-appears) chooses a template when the
+retry completes.
+
+### Send the message from a post-call tool
+
+A post-call tool can read the choice as `{{ analysis.template.name }}`,
+`{{ analysis.template.language }}` and `{{ analysis.template.variables.<key> }}`.
+Inside a body, `"{{= analysis.template.variables }}"` sends the whole map.
+
+```json
+{
+  "name": "send_follow_up",
+  "phase": "post_call",
+  "condition": { "field": "analysis.template.status", "op": "eq", "value": "selected" },
+  "request": {
+    "method": "POST",
+    "url": "https://api.example.com/messages/send",
+    "headers": { "Authorization": "Bearer {{ secrets.messaging_api_key }}" },
+    "body": {
+      "to": "{{ call.to }}",
+      "template": "{{ analysis.template.name }}",
+      "language": "{{ analysis.template.language }}",
+      "variables": "{{= analysis.template.variables }}",
+      "missing": "{{= analysis.template.missing }}",
+      "call_id": "{{ call.id }}"
+    }
+  }
+}
+```
+
+Your endpoint still checks `missing` before it sends. If you would rather
+decide in your own backend, skip the tool and act on `call.processed`.
+
+---
+
+## Example: WhatsApp follow-up
+
+An order confirmation agent ends some calls with a WhatsApp message. The
+approved templates live in your messaging system, and each brand you serve has
+its own set, so the agent reads the list for the call's brand after every call.
+
+Store the key for your template API once:
+
+```bash
+curl -X PUT https://sandbox.voice.miraiminds.co/v2/secrets/templates_api_key \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "value": "YOUR_TEMPLATE_API_KEY" }'
+```
+
+Then set `analysis` on the agent:
+
+<Tabs>
+  <Tab title="cURL">
+    ```bash
+    curl -X PATCH https://sandbox.voice.miraiminds.co/v2/agents/agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ \
+      -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "analysis": {
+          "enabled": true,
+          "prompt": "Summarise the call in two sentences: what the customer wanted and what was agreed.",
+          "success_criteria": "The customer confirmed the order or chose a payment method.",
+          "templates": {
+            "instructions": "Pick the WhatsApp message to send after this call. Choose none if the customer declined, asked not to be contacted, or the call ended before anything was agreed.",
+            "fetch": {
+              "method": "POST",
+              "url": "https://api.example.com/message-templates",
+              "headers": { "Authorization": "Bearer {{ secrets.templates_api_key }}" },
+              "body": { "brand_id": "{{ call.metadata.brand_id }}", "channel": "whatsapp" },
+              "items_path": "data.templates"
+            }
+          }
+        }
+      }'
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    import os, httpx
+
+    API = "https://sandbox.voice.miraiminds.co"
+    auth = {"Authorization": f"Bearer {os.environ['MIRAI_API_KEY']}"}
+
+    agent = httpx.patch(
+        f"{API}/v2/agents/agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ",
+        headers=auth,
+        json={
+            "analysis": {
+                "enabled": True,
+                "prompt": "Summarise the call in two sentences: what the customer wanted and what was agreed.",
+                "success_criteria": "The customer confirmed the order or chose a payment method.",
+                "templates": {
+                    "instructions": (
+                        "Pick the WhatsApp message to send after this call. Choose none if the "
+                        "customer declined, asked not to be contacted, or the call ended before "
+                        "anything was agreed."
+                    ),
+                    "fetch": {
+                        "method": "POST",
+                        "url": "https://api.example.com/message-templates",
+                        "headers": {"Authorization": "Bearer {{ secrets.templates_api_key }}"},
+                        "body": {"brand_id": "{{ call.metadata.brand_id }}", "channel": "whatsapp"},
+                        "items_path": "data.templates",
+                    },
+                },
+            }
+        },
+        timeout=30,
+    ).raise_for_status().json()
+    ```
+  </Tab>
+  <Tab title="Node.js">
+    ```javascript
+    const API = "https://sandbox.voice.miraiminds.co";
+    const auth = { Authorization: `Bearer ${process.env.MIRAI_API_KEY}` };
+
+    const res = await fetch(`${API}/v2/agents/agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ`, {
+      method: "PATCH",
+      headers: { ...auth, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        analysis: {
+          enabled: true,
+          prompt: "Summarise the call in two sentences: what the customer wanted and what was agreed.",
+          success_criteria: "The customer confirmed the order or chose a payment method.",
+          templates: {
+            instructions:
+              "Pick the WhatsApp message to send after this call. Choose none if the customer declined, " +
+              "asked not to be contacted, or the call ended before anything was agreed.",
+            fetch: {
+              method: "POST",
+              url: "https://api.example.com/message-templates",
+              headers: { Authorization: "Bearer {{ secrets.templates_api_key }}" },
+              body: { brand_id: "{{ call.metadata.brand_id }}", channel: "whatsapp" },
+              items_path: "data.templates",
+            },
+          },
+        },
+      }),
+    });
+    if (!res.ok) throw new Error(JSON.stringify(await res.json()));
+    ```
+  </Tab>
+</Tabs>
+
+Place each call with the brand in its [`metadata`](/v2/calls#metadata), for
+example `"metadata": { "brand_id": "brand_42" }`. After the call, we send your
+template API:
+
+```http
+POST https://api.example.com/message-templates
+Authorization: Bearer YOUR_TEMPLATE_API_KEY
+X-Mirai-Call-Id: call_01K8Q2M4Q6S8T0V2X4Z6A8C0EG
+Content-Type: application/json
+
+{ "brand_id": "brand_42", "channel": "whatsapp" }
+```
+
+and it answers with that brand's approved templates:
+
+```json
+{
+  "data": {
+    "templates": [
+      {
+        "name": "payment_link_hi",
+        "language": "hi",
+        "description": "Sends the payment link. Use when the customer agreed to pay online.",
+        "variables": [
+          { "key": "1", "description": "Customer first name" },
+          { "key": "2", "description": "Order amount in rupees, digits only" }
+        ]
+      },
+      {
+        "name": "cod_confirmed_hi",
+        "language": "hi",
+        "description": "Confirms cash on delivery. Use when the customer chose to pay on delivery.",
+        "variables": [{ "key": "1", "description": "Customer first name" }]
+      },
+      {
+        "name": "callback_time_hi",
+        "language": "hi",
+        "description": "Confirms when we will call back. Use when the customer asked to be called later.",
+        "variables": [
+          { "key": "1", "description": "Customer first name" },
+          { "key": "2", "description": "Day and time the customer asked for, e.g. Saturday 11 am" }
+        ]
+      }
+    ]
+  }
+}
+```
+
+The customer agreed to pay online, so `call.processed` carries:
+
+```json title="data.call.analysis.template"
+{
+  "status": "selected",
+  "name": "payment_link_hi",
+  "language": "hi",
+  "variables": { "1": "Rahul", "2": "1499" },
+  "missing": [],
+  "reason": "The customer agreed to pay online and asked for the link on WhatsApp."
+}
+```
+
+Your webhook handler, or a [post-call tool](#send-the-message-from-a-post-call-tool),
+sends `payment_link_hi` to `data.call.to` with those two values and adds the
+payment link itself.
+
+## Example: SMS from a fixed list
+
+An EMI reminder agent ends calls with one of three registered SMS templates.
+SMS templates registered with Indian operators (DLT) mark each slot as
+`{#var#}` and change rarely, so the list lives on the agent. Number the slots
+in the order they appear in the text and describe each one, with the format
+your template needs.
+
+```json
+{
+  "analysis": {
+    "enabled": true,
+    "prompt": "Summarise the call: did the customer pay, promise to pay, or dispute the EMI?",
+    "success_criteria": "The customer paid or gave a date to pay.",
+    "templates": {
+      "instructions": "Choose the SMS to send after this EMI reminder call. Use emi_paid only when the customer said the payment is already made. Choose none if the customer disputed the loan or asked us not to message them.",
+      "items": [
+        {
+          "name": "emi_paid",
+          "description": "Text: Dear {#var#}, thank you for your EMI payment of Rs {#var#}. -ACME FIN. Use when the customer says the EMI is already paid.",
+          "variables": [
+            { "key": "1", "description": "Customer first name" },
+            { "key": "2", "description": "Amount paid in rupees, digits only" }
+          ]
+        },
+        {
+          "name": "emi_promise_to_pay",
+          "description": "Text: Dear {#var#}, as discussed, your EMI of Rs {#var#} will be paid on {#var#}. -ACME FIN. Use when the customer promises to pay on a date.",
+          "variables": [
+            { "key": "1", "description": "Customer first name" },
+            { "key": "2", "description": "EMI amount in rupees, digits only" },
+            { "key": "3", "description": "The date the customer promised, as DD-MM-YYYY" }
+          ]
+        },
+        {
+          "name": "callback_scheduled",
+          "description": "Text: Dear {#var#}, we will call you again on {#var#} as requested. -ACME FIN. Use when the customer asks to be called at another time.",
+          "variables": [
+            { "key": "1", "description": "Customer first name" },
+            { "key": "2", "description": "Day and time the customer asked for" }
+          ]
+        }
+      ]
+    }
+  }
+}
+```
+
+The customer said they would pay "next week" without naming a day:
+
+```json title="data.call.analysis.template"
+{
+  "status": "selected",
+  "name": "emi_promise_to_pay",
+  "variables": { "1": "Rohit", "2": "4500" },
+  "missing": ["3"],
+  "reason": "The customer promised to pay next week but did not give a date."
+}
+```
+
+Slot `3` is in `missing` because no date was agreed. Your system can hold the
+SMS and schedule a call back, or send another template that needs no date.
+
+---
+
+## Errors
+
+A problem in `analysis.templates` is a `400 invalid_request` when you save the
+agent, and the `message` names the field. The common ones:
+
+| Cause | Example `message` |
+| :--- | :--- |
+| `templates` without `analysis.enabled: true` | `analysis.templates requires analysis.enabled: true; templates are chosen by the post-call analysis` |
+| Both `items` and `fetch`, or neither | `analysis.templates must set exactly one of items or fetch, not both` |
+| Too many templates, a name missing or used twice, a field too long | `analysis.templates.items[1].name "emi_paid" is already used by analysis.templates.items[0]; template names are unique` |
+| A slot key missing or used twice in a template | `analysis.templates.items[0].variables[1].key "1" is already used by analysis.templates.items[0].variables[0]; keys are unique per template` |
+| A `fetch` that is not `https` on port 443, a private address, `PUT`, or a `GET` with a body | `analysis.templates.fetch.method must be GET or POST, got "PUT"` |
+| A `tools.*` placeholder in the fetch | `… is not available to a catalog fetch, which runs before the post-call tools; use vars, call, now, analysis or secrets` |
+| A secret that does not exist in the workspace | `analysis.templates.fetch.headers["Authorization"]: secret "templates_api_key" does not exist in this workspace; …` |
+| `"templates": null` | `analysis.templates must not be null`. To remove the templates, send `analysis` without `templates`. |
+
+Unknown fields inside `templates`, a template or a slot are refused too.
+Failures after the call never produce an error response. They show up as
+`template.status: "failed"` with the codes [above](#the-result-analysis-template).
