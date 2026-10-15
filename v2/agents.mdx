@@ -65,6 +65,7 @@ only `pre_call` and `post_call` tools are allowed. See
 | `language` | string | yes | BCP-47 conversation language, e.g. `hi-IN`, `en-IN`. Drives ASR and the model's default output language. |
 | `max_duration_secs` | integer | no | Hard cap. When it is reached, the call ends with `ended_reason: exceeded-max-duration`. Minimum `30`, maximum `1800`, default `300`. |
 | `tools` | array | no | Tool definitions for this agent. See [Tools](/v2/tools). PATCH replaces the full list. |
+| `analysis` | object | no | What to work out after each call: a summary, a success verdict, extracted fields and the follow-up message to send. See [Analysis](#analysis). PATCH replaces the whole object. |
 | `emit_processed_webhook` | boolean | no | Defaults to `true`. Set `false` to suppress `call.processed` while keeping analysis and post-call tools enabled. |
 | `end_call` | object | no | See [Ending a call](#ending-a-call). |
 | `voicemail` | object | no | See [Voicemail](#voicemail). |
@@ -73,6 +74,40 @@ only `pre_call` and `post_call` tools are allowed. See
 | `flow` | object \| null | no | A node graph. Makes this a [node-based agent](/v2/node-agents). Present on the agent object only when set. PATCH replaces the whole graph; `null` removes it. |
 
 Server-set and read-only: `id`, `object`, `created_at`, `updated_at`.
+
+### Analysis
+
+`analysis` reads each finished call once more, after the hangup, so it never
+slows the conversation. Turn it on with `"enabled": true` and describe what you
+want in `prompt`, `success_criteria` and `output_schema`. Add `templates` and
+the agent also picks the message template to send next, such as a WhatsApp or
+SMS template, and fills in its variables from the conversation. See
+[Call analysis](/v2/analysis) for every field, the result and two worked
+examples.
+
+```json
+{
+  "analysis": {
+    "enabled": true,
+    "prompt": "Summarise the call in two sentences: what the customer wanted and what was agreed.",
+    "success_criteria": "The customer confirmed the order or chose a payment method.",
+    "templates": {
+      "instructions": "Pick the WhatsApp message to send. Choose none if the customer declined.",
+      "items": [
+        {
+          "name": "payment_link_hi",
+          "language": "hi",
+          "description": "Sends the payment link when the customer agreed to pay online.",
+          "variables": [
+            { "key": "1", "description": "Customer first name" },
+            { "key": "2", "description": "Order amount in rupees, digits only" }
+          ]
+        }
+      ]
+    }
+  }
+}
+```
 
 ### Calls from
 
@@ -389,7 +424,7 @@ PATCH /v2/agents/{id}
 ```
 
 Send only the fields you are changing. Nested objects such as `voice`,
-`end_call`, `voicemail`, `background_sound` and `tools` are replaced wholesale,
+`end_call`, `voicemail`, `background_sound`, `analysis` and `tools` are replaced wholesale,
 so to change `end_call.message`, send the whole `end_call` object. `behavior`
 is the one exception: it is merged field by field, as described in
 [Behavior](#behavior). `flow` is replaced wholesale too: send the whole graph,

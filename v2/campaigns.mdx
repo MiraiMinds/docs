@@ -13,6 +13,10 @@ dialling. It paces itself, waits through the night, retries calls that did not
 connect, skips numbers on your [do-not-call list](/v2/dnc), pauses itself when
 the money runs out, and gives you a per-contact report at the end.
 
+A campaign can also stay open. With [`always_on`](#always-on-campaigns) it keeps
+running after its list is done, and you add numbers whenever your system has
+them.
+
 Base URL `https://sandbox.voice.miraiminds.co`.
 
 <Note>
@@ -44,6 +48,7 @@ rate.
   "budget_paise": 50000,
   "spent_paise": 12900,
   "webhook_url": "https://example.com/mirai/webhook",
+  "always_on": false,
   "created_at": "2026-08-10T09:21:44Z",
   "updated_at": "2026-08-10T11:04:02Z",
   "counters": { "pending": 812, "dialing": 2, "completed": 174, "no_answer": 9, "suppressed": 3 }
@@ -68,6 +73,7 @@ rate.
 | `budget_paise` | integer \| null | Spend cap in **paise**. `null` means no cap. |
 | `spent_paise` | integer | Billed so far, in paise. |
 | `webhook_url` | string | Receives both this campaign's `campaign.*` events and every child call's `call.*` events. |
+| `always_on` | boolean | `true` keeps the campaign running after everyone on its list has been called, so contacts added later are called too. Always present. See [always-on campaigns](#always-on-campaigns). |
 | `counters` | object | Contacts by [status](#contact-statuses). Present on `GET /v2/campaigns/{id}`, omitted from list pages. |
 
 <Warning>
@@ -90,7 +96,8 @@ stateDiagram-v2
     play --> paused: budget gate
     paused --> play: POST /resume
     paused --> play: POST /start
-    play --> completed: nothing left to dial
+    play --> completed: nothing left to dial (not always_on)
+    play --> completed: end_date passed
     play --> stopped: POST /stop
     paused --> stopped: POST /stop
     completed --> [*]
@@ -103,7 +110,7 @@ stateDiagram-v2
 | `play` | ✅ | Running, though it may be *asleep*. Outside the calling window the status is still `play` while the dialler waits for the window to open. |
 | `paused` | ❌ | Reversible. New calls stop; **calls already in progress are not hung up.** |
 | `stopped` | ❌ | Terminal, set by you. Live calls are aborted and pending contacts are marked `aborted`. |
-| `completed` | ❌ | Terminal, set by us when every contact has reached a final state or the date range has run out. |
+| `completed` | ❌ | Terminal, set by us when every contact has reached a final state or the date range has run out. An [always-on](#always-on-campaigns) campaign completes only when its date range runs out. |
 
 Only `draft` and `paused` campaigns can be edited or started. `stopped` and
 `completed` campaigns never dial again, and they refuse new contacts with `409`
@@ -245,6 +252,180 @@ duplicated CSV or a column shifted by one.
 
 ---
 
+## Always-on campaigns
+
+An ordinary campaign completes once every contact has reached a final state,
+and from then on it refuses new contacts. Set `always_on: true` and the
+campaign stays open instead. When it has called everyone on its list it stays
+`play` and waits. Contacts you add later are called under the same rules as
+the first ones: inside the calling window, within `max_concurrent`, and retried
+up to `retry_count` times.
+
+Use it to run a queue. Keep one open campaign for an agent and add each number
+as your system produces it, such as a new order or a new lead, instead of
+placing single calls. Every number then gets calling hours, pacing and retries,
+which [`POST /v2/calls`](/v2/calls#create-a-call) does not do.
+
+You can set `always_on`:
+
+- when you create the campaign, or on a copy made with
+  `POST /v2/campaigns/{id}/duplicate`, which keeps the source's value unless you
+  send another;
+- with [`PATCH`](#update-a-campaign) while the campaign is `draft` or `paused`.
+  On a running campaign the change is refused with `409 conflict`, so pause it,
+  patch it and resume it.
+
+It is returned on the campaign object, on list pages, in the add-contacts
+response and as `data.campaign.always_on` on every
+[campaign webhook](#webhooks).
+
+An always-on campaign ends when you [stop](#stop-a-campaign) it, or when its
+`end_date` is behind it. Then it completes and sends `campaign.completed` as
+usual. Set `end_date` as far ahead as you want the campaign to stay open. To
+move it later, pause the campaign, `PATCH` the new `end_date` and resume.
+Running out of contacts never completes it and sends no event.
+
+The money rules are the same as for any campaign. The wallet check pauses it
+with `insufficient_balance`, and `budget_paise` pauses it with
+`budget_exhausted`. On an open campaign the budget counts everything it has
+ever spent, so treat it as a ceiling you raise from time to time, or leave it
+unset and rely on the wallet.
+
+A contact added while the campaign is waiting is called straight away when the
+calling window is open, and when the window next opens otherwise. If that
+wake-up is ever lost, the campaign looks at its list again within five minutes.
+
+<Warning>
+**A number is in a campaign once.** Contacts are deduplicated on `phone` for
+the whole life of the campaign. Adding a number that is already in it counts
+it in `contacts_duplicate`: it is not called again and its `variables` are not
+updated. To call it again with the details it already has, use
+`POST /v2/campaigns/{id}/contacts/{contact_id}/retry`. To call it with new
+details, place a [single call](/v2/calls#create-a-call) or add it to another
+campaign.
+</Warning>
+
+### Example: one open campaign, numbers added as they come
+
+Create the campaign once and start it:
+
+```bash
+curl -X POST https://sandbox.voice.miraiminds.co/v2/campaigns \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Order confirmations (open)",
+    "agent_id": "agt_01K7Q9F3K7M2N5P9R4T6V8W0XZ",
+    "timezone": "Asia/Kolkata",
+    "start_date": "2026-10-15",
+    "end_date": "2027-03-31",
+    "slots": [{ "start": "10:00", "end": "19:00" }],
+    "max_concurrent": 5,
+    "retry_count": 2,
+    "re_attempt_period_secs": 3600,
+    "always_on": true,
+    "webhook_url": "https://example.com/mirai/webhook"
+  }'
+
+curl -X POST https://sandbox.voice.miraiminds.co/v2/campaigns/cmp_01K8QAC5N9P4R7S3T6V8W2X4YB/start \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY"
+```
+
+Then add each new order as it is placed:
+
+<Tabs>
+  <Tab title="cURL">
+    ```bash
+    curl -X POST https://sandbox.voice.miraiminds.co/v2/campaigns/cmp_01K8QAC5N9P4R7S3T6V8W2X4YB/contacts \
+      -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "contacts": [
+          { "id": "order-8842", "phone": "+919876543210",
+            "variables": { "customer_name": "Rahul", "order_id": "8842" },
+            "metadata": { "order_id": "8842" } }
+        ]
+      }'
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    import os, httpx
+
+    API = "https://sandbox.voice.miraiminds.co"
+    auth = {"Authorization": f"Bearer {os.environ['MIRAI_API_KEY']}"}
+    CAMPAIGN = "cmp_01K8QAC5N9P4R7S3T6V8W2X4YB"
+
+
+    def queue_confirmation_call(order):
+        r = httpx.post(
+            f"{API}/v2/campaigns/{CAMPAIGN}/contacts",
+            headers=auth,
+            json={"contacts": [{
+                "id": f"order-{order.id}",
+                "phone": order.phone,  # E.164, e.g. +919876543210
+                "variables": {"customer_name": order.first_name, "order_id": str(order.id)},
+                "metadata": {"order_id": str(order.id)},
+            }]},
+            timeout=30,
+        )
+        if r.status_code == 409:
+            raise RuntimeError("campaign has finished; create a new one")  # stopped or end_date passed
+        added = r.raise_for_status().json()
+        if added["contacts_rejected"]:
+            raise ValueError(added["contacts_rejected"][0]["reason"])
+        return added["contacts_accepted"] == 1  # False: this number is already in the campaign
+    ```
+  </Tab>
+  <Tab title="Node.js">
+    ```javascript
+    const API = "https://sandbox.voice.miraiminds.co";
+    const auth = { Authorization: `Bearer ${process.env.MIRAI_API_KEY}` };
+    const CAMPAIGN = "cmp_01K8QAC5N9P4R7S3T6V8W2X4YB";
+
+    async function queueConfirmationCall(order) {
+      const res = await fetch(`${API}/v2/campaigns/${CAMPAIGN}/contacts`, {
+        method: "POST",
+        headers: { ...auth, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contacts: [{
+            id: `order-${order.id}`,
+            phone: order.phone, // E.164, e.g. +919876543210
+            variables: { customer_name: order.firstName, order_id: String(order.id) },
+            metadata: { order_id: String(order.id) },
+          }],
+        }),
+      });
+      if (res.status === 409) throw new Error("campaign has finished; create a new one");
+      const added = await res.json();
+      if (!res.ok) throw new Error(`${added.error.code}: ${added.error.message}`);
+      if (added.contacts_rejected.length) throw new Error(added.contacts_rejected[0].reason);
+      return added.contacts_accepted === 1; // false: this number is already in the campaign
+    }
+    ```
+  </Tab>
+</Tabs>
+
+```json title="200 OK"
+{
+  "id": "cmp_01K8QAC5N9P4R7S3T6V8W2X4YB",
+  "object": "campaign",
+  "status": "play",
+  "always_on": true,
+  "contacts_accepted": 1,
+  "contacts_duplicate": 0,
+  "contacts_rejected": []
+}
+```
+
+`contacts_accepted: 1` means the number is in line to be called, unless it is
+on your [do-not-call list](/v2/dnc) when its turn comes. Each call sends the
+ordinary `call.*` webhooks to the campaign's `webhook_url` with `order_id` in
+`data.call.metadata`, and [`GET /v2/campaigns/{id}/contacts`](#list-contacts)
+shows where every number is, attempts included.
+
+---
+
 ## Create a campaign
 
 ```http
@@ -269,6 +450,7 @@ POST /v2/campaigns
 | `webhook_url` | string | no | HTTPS. Gets `campaign.*` **and** `call.*` events, and the `phone_number.*` and `phone_pool.*` events for numbers and pools the campaign calls from. |
 | `phone_number_id` | string \| null | no | One of your own [phone numbers](/v2/phone-numbers) to call from. `null` clears it. |
 | `pool_id` | string \| null | no | A [phone pool](/v2/phone-numbers) to call from, spreading calls across its numbers at its pace. Exclusive with `phone_number_id` and `caller_ids`. `null` clears it. The campaign object returns `pool_id` and a `calls_from` object that names where its number comes from. |
+| `always_on` | boolean | no | Default `false`. `true` keeps the campaign open after its list is done, so you can keep adding contacts. See [always-on campaigns](#always-on-campaigns). |
 | `final_results` | boolean | no | Default `true`. Each call ends with one [`call.processed`](/v2/webhooks#final-results) carrying the transcript, the after-call results and the contact's `metadata`. `false` sends the shorter events only. Change it while the campaign is a draft or paused. |
 | `contacts` | array | no | Up to **1000** rows per request. `{phone, variables?, id?}`. Add more later. |
 
@@ -473,8 +655,8 @@ PATCH /v2/campaigns/{id}
 While the campaign is `draft` or `paused` you can change: `name`, `slots`,
 `start_date`, `end_date`, `max_concurrent`, `retry_count`,
 `re_attempt_period_secs`, `max_duration_secs`, `budget_paise`, `webhook_url`,
-`skip_called_before` and `final_results`. Not patchable: `agent_id`, `tier`,
-`timezone`.
+`skip_called_before`, `final_results` and `always_on`. Not patchable:
+`agent_id`, `tier`, `timezone`.
 
 While it is running, only the pacing can change: `max_concurrent` and `slots`.
 They take effect straight away. Anything else returns `409 conflict`, because
@@ -501,8 +683,9 @@ POST /v2/campaigns/{id}/contacts
 ```
 
 Up to **1000 rows per request**. For a larger list, call it repeatedly. A
-running campaign accepts new contacts and picks them up on its next tick,
-because the list lives in a table rather than in the dialler.
+`draft`, `play` or `paused` campaign accepts new contacts. When a running
+campaign had nothing left to dial, the add wakes it, so the new contacts are
+called straight away if the calling window is open.
 
 ```bash
 curl -X POST https://sandbox.voice.miraiminds.co/v2/campaigns/cmp_01K7QAC5N9P4R7S3T6V8W2X4YB/contacts \
@@ -535,6 +718,13 @@ client handles both routes that add contacts.
 
 `409 conflict` if the campaign is `stopped` or `completed`. Nothing would ever
 dial those rows, so we refuse them instead of accepting them silently.
+
+The status check runs in the same database transaction as the insert, under a
+lock the campaign also takes when it completes. A campaign that completes at
+the moment you add contacts therefore does one of two things: it counts your
+new contacts and calls them, or it completes first and your request gets
+`409 conflict` with nothing stored. A `200` never leaves contacts on a campaign
+that has finished.
 
 ---
 
@@ -809,7 +999,7 @@ signed with the same workspace secret and verified by the same code path.
 | `campaign.started` | The first `POST /start` takes effect. Once per campaign, never on an internal restart. |
 | `campaign.paused` | You paused it, or the money gate did. Read `data.campaign.pause_reason`. |
 | `campaign.resumed` | Dialling resumed. |
-| `campaign.completed` | Every contact reached a final state, or the date range ran out. |
+| `campaign.completed` | Every contact reached a final state, or the date range ran out. An always-on campaign sends it only when the date range runs out. |
 | `campaign.stopped` | You stopped it. |
 
 ```json title="POST https://example.com/mirai/webhook"
@@ -825,7 +1015,8 @@ signed with the same workspace secret and verified by the same code path.
       "status": "paused",
       "pause_reason": "insufficient_balance",
       "counters": { "pending": 612, "completed": 174, "no_answer": 9 },
-      "dialed": 216
+      "dialed": 216,
+      "always_on": false
     }
   }
 }
@@ -833,7 +1024,7 @@ signed with the same workspace secret and verified by the same code path.
 
 Campaign events use the same envelope as call events
 (`{id, type, created_at, data}`), with `data.campaign` where `data.call` would
-be.
+be. `data.campaign.always_on` is on every campaign event.
 
 Every `call.*` event of a campaign call names the campaign and the contact in
 `data.call.campaign_id` and `data.call.contact_id`, and carries the contact's

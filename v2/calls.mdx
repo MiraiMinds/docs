@@ -78,7 +78,7 @@ a key from a workspace that has not gone live is refused with
 | `pool_id` | string | The [phone pool](/v2/phone-numbers) that picked the number. Only when a pool did, and then `calls_from_source` is `pool`. |
 | `campaign_id` | string | The [campaign](/v2/campaigns) that placed the call. Only on campaign calls. |
 | `contact_id` | string | The campaign contact the call was to: the `id` you sent with the contact, or the one we minted. Only on campaign calls. |
-| `analysis` | object \| null | Post-call summary, when the agent was created with `analysis.enabled`. `null` otherwise. |
+| `analysis` | object \| null | The [post-call analysis](/v2/analysis#where-the-result-appears) when the agent has `analysis.enabled`: summary, `success`, extracted `data` and, with templates, the chosen follow-up message in `analysis.template`. `null` otherwise. |
 
 {/* FLOW-OUTCOME */}
 
