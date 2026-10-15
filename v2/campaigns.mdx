@@ -113,13 +113,14 @@ because those rows would never ring.
 
 `pause_reason` tells you whether the operator paused the campaign or we paused
 it for them. A pause you asked for has no reason (`null`). The money gate sets
-the two other reasons below.
+the next two reasons below, and a number or pool that cannot call sets the last.
 
 | `pause_reason` | Set when | What to do |
 | :--- | :--- | :--- |
 | `null` | You called [`POST /pause`](#pause-a-campaign). | Resume when you are ready. |
 | `insufficient_balance` | The wallet cannot cover another minute at this campaign's tier. | [Top up](/v2/wallet#top-up), then `POST /start` or `/resume`. |
 | `budget_exhausted` | `spent_paise` has reached `budget_paise`. | Raise `budget_paise` with `PATCH`, then resume. |
+| `calls_from_unavailable: …` | The pool or number the campaign calls from can no longer place calls. The reason names it. | Add a ready number to the pool, or [choose another](/v2/phone-numbers#point-a-call-a-campaign-or-an-agent-at-a-pool), then resume. |
 
 <Note>
 Being outside the calling window is **not** a pause. The campaign stays `play`
@@ -265,7 +266,9 @@ POST /v2/campaigns
 | `re_attempt_period_secs` | integer | no | 60–86400. Default `900`. |
 | `max_duration_secs` | integer | no | 30–1800. Defaults to the agent's. |
 | `budget_paise` | integer | no | Positive paise. Omit for no cap. |
-| `webhook_url` | string | no | HTTPS. Gets `campaign.*` **and** `call.*` events. |
+| `webhook_url` | string | no | HTTPS. Gets `campaign.*` **and** `call.*` events, and the `phone_number.*` and `phone_pool.*` events for numbers and pools the campaign calls from. |
+| `phone_number_id` | string \| null | no | One of your own [phone numbers](/v2/phone-numbers) to call from. `null` clears it. |
+| `pool_id` | string \| null | no | A [phone pool](/v2/phone-numbers) to call from, spreading calls across its numbers at its pace. Exclusive with `phone_number_id` and `caller_ids`. `null` clears it. The campaign object returns `pool_id` and a `calls_from` object that names where its number comes from. |
 | `final_results` | boolean | no | Default `true`. Each call ends with one [`call.processed`](/v2/webhooks#final-results) carrying the transcript, the after-call results and the contact's `metadata`. `false` sends the shorter events only. Change it while the campaign is a draft or paused. |
 | `contacts` | array | no | Up to **1000** rows per request. `{phone, variables?, id?}`. Add more later. |
 
@@ -394,7 +397,8 @@ declare rejects the row. Send those extra columns as `metadata` instead.
 | :--- | :--- | :--- |
 | `400` | `invalid_request` | Missing `name`/`agent_id`/`timezone`/dates/`slots`, a knob out of range, a bad window, or more than 1000 contacts. |
 | `400` | `invalid_flow` | `agent_id` is a [node-based agent](/v2/node-agents) and your tier's model cannot run flows. Checked again at start and resume. |
-| `404` | `not_found` | `agent_id` does not exist in your workspace. We check this at create time, so a typo fails now instead of failing every contact tomorrow morning. |
+| `404` | `not_found` | `agent_id` does not exist in your workspace. We check this at create time, so a typo fails now instead of failing every contact tomorrow morning. The same code answers a `pool_id` or `phone_number_id` that is not yours. |
+| `409` | `pool_unavailable`, `number_retired` | The pool has no number that can call, or the number is retired. See [phone numbers and pools](/v2/phone-numbers#errors). |
 | `501` | `tier_unavailable` | `tier` names a tier that is not enabled on this deployment. |
 | `503` | `campaigns_unavailable` | Campaigns are not enabled for your workspace. Your request is fine; ask your Mirai contact. |
 
@@ -628,6 +632,7 @@ it as a floor on how far you get, though not a guaranteed one.
 | Status | `error.code` | Cause |
 | :--- | :--- | :--- |
 | `409` | `conflict` | The campaign is already `play`, or is `stopped`/`completed`. |
+| `409` | `pool_unavailable`, `number_retired` | The pool it calls from has no number that can call, or its number is retired. See [phone numbers and pools](/v2/phone-numbers#errors). |
 | `409` | `window_closed` | The campaign's calling window can never open again: today is past the last slot and `end_date` has no later opening. Extend `end_date` or widen `slots` with [`PATCH`](#update-a-campaign), then start again. |
 | `429` | `rate_limited` | Your workspace queue is full (500 calls accepted and not yet ended). Honour `Retry-After`. |
 | `503` | `fleet_offline` | Speech capacity is offline. `Retry-After: 300`. Nothing is charged and the campaign stays where it was. |

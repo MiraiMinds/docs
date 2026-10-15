@@ -95,6 +95,12 @@ same envelope, with `data.campaign` in place of `data.call`.
 A campaign's calls emit the ordinary `call.*` events as well, to the same URL.
 For the payload, see [Webhooks](/v2/campaigns#webhooks) on the Campaigns page.
 
+A campaign's URL also receives `phone_number.rested`, `phone_number.resumed`,
+`phone_number.cooling`, `phone_number.alert` and `phone_pool.degraded` for the
+numbers and pools it calls from. They carry `data.phone_number` or
+`data.phone_pool` instead of `data.call`. See
+[Phone numbers and pools](/v2/phone-numbers#webhook-events).
+
 ```mermaid
 sequenceDiagram
     participant You

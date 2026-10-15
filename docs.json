@@ -46,6 +46,7 @@
               "v2/web-calls",
               "v2/realtime",
               "v2/campaigns",
+              "v2/phone-numbers",
               "general/campaign",
               "v2/dnc",
               "v2/webhooks"
@@ -117,7 +118,8 @@
           {
             "group": "Phone calling",
             "pages": [
-              "cookbooks/inbound-calling"
+              "cookbooks/inbound-calling",
+              "cookbooks/run-a-campaign-from-your-own-numbers"
             ]
           },
           {
