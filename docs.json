@@ -46,6 +46,7 @@
               "v2/web-calls",
               "v2/realtime",
               "v2/campaigns",
+              "general/campaign",
               "v2/dnc",
               "v2/webhooks"
             ]
@@ -141,7 +142,6 @@
             "pages": [
               "general/overview",
               "v2/migration",
-              "general/campaign",
               "general/faq"
             ]
           },

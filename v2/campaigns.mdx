@@ -266,6 +266,7 @@ POST /v2/campaigns
 | `max_duration_secs` | integer | no | 30–1800. Defaults to the agent's. |
 | `budget_paise` | integer | no | Positive paise. Omit for no cap. |
 | `webhook_url` | string | no | HTTPS. Gets `campaign.*` **and** `call.*` events. |
+| `final_results` | boolean | no | Default `true`. Each call ends with one [`call.processed`](/v2/webhooks#final-results) carrying the transcript, the after-call results and the contact's `metadata`. `false` sends the shorter events only. Change it while the campaign is a draft or paused. |
 | `contacts` | array | no | Up to **1000** rows per request. `{phone, variables?, id?}`. Add more later. |
 
 ```bash
@@ -362,6 +363,31 @@ flat string map, 32 keys, 512 characters per value) and fill the same
 `{{placeholders}}` in the agent's prompt. `id` is your own key for the row. If
 you omit it, we mint one.
 
+### Your own fields: `metadata`
+
+Most lists carry more than the agent needs: a CRM lead id, a branch, where the
+lead came from. Put those in `metadata`, not `variables`:
+
+```json
+{ "id": "cust-1001", "phone": "+919876543210",
+  "variables": { "customer_name": "Rohit Sharma", "order_id": "AC-88213" },
+  "metadata": { "crm_id": "L-17", "branch": "Pune" } }
+```
+
+- The agent never sees it. It is not a variable and is not in the prompt.
+- It stays with the contact: [List contacts](#list-contacts) returns it.
+- Every call to that contact carries it as the call's
+  [`metadata`](/v2/calls#metadata), so `data.call.metadata` in each `call.*`
+  webhook tells you which of your records the call was for.
+- It follows the same rules as call metadata: up to 16 keys, string values of
+  up to 256 characters, 4 KB in total. A row that breaks them is rejected by
+  index like any other bad row.
+
+<Note>
+If the agent declares its variables (`input_schema`), a variable it does not
+declare rejects the row. Send those extra columns as `metadata` instead.
+</Note>
+
 ### Errors
 
 | Status | `error.code` | Cause |
@@ -440,15 +466,18 @@ responses are identical on purpose.
 PATCH /v2/campaigns/{id}
 ```
 
-Editable while `draft` or `paused` only. Any other status returns
-`409 conflict`, because changing the slots, the retry policy or the budget under
-a live dialler would leave the campaign's own report describing settings that
-were never in force for half of its calls. To change a running campaign, pause
-it, patch it and then resume it.
+While the campaign is `draft` or `paused` you can change: `name`, `slots`,
+`start_date`, `end_date`, `max_concurrent`, `retry_count`,
+`re_attempt_period_secs`, `max_duration_secs`, `budget_paise`, `webhook_url`,
+`skip_called_before` and `final_results`. Not patchable: `agent_id`, `tier`,
+`timezone`.
 
-Patchable: `name`, `slots`, `start_date`, `end_date`, `max_concurrent`,
-`retry_count`, `re_attempt_period_secs`, `max_duration_secs`, `budget_paise`,
-`webhook_url`. Not patchable: `agent_id`, `tier`, `timezone`.
+While it is running, only the pacing can change: `max_concurrent` and `slots`.
+They take effect straight away. Anything else returns `409 conflict`, because
+changing the retry policy or the budget under a live dialler would leave the
+campaign's own report describing settings that were never in force for half of
+its calls. Pause it, patch it, then resume it. A finished campaign can't be
+edited.
 
 ```bash
 curl -X PATCH https://sandbox.voice.miraiminds.co/v2/campaigns/cmp_01K7QAC5N9P4R7S3T6V8W2X4YB \
@@ -478,7 +507,8 @@ curl -X POST https://sandbox.voice.miraiminds.co/v2/campaigns/cmp_01K7QAC5N9P4R7
   -d '{
     "contacts": [
       { "id": "cust-2001", "phone": "+919812345678",
-        "variables": { "customer_name": "Vikram Rao", "order_id": "AC-88224" } },
+        "variables": { "customer_name": "Vikram Rao", "order_id": "AC-88224" },
+        "metadata": { "crm_id": "L-2201" } },
       { "id": "cust-2002", "phone": "+919833221100",
         "variables": { "customer_name": "Meera Nair", "order_id": "AC-88231" } }
     ]
@@ -532,6 +562,7 @@ curl -G https://sandbox.voice.miraiminds.co/v2/campaigns/cmp_01K7QAC5N9P4R7S3T6V
       "status": "exhausted",
       "attempts": 2,
       "variables": { "customer_name": "Anita Desai", "order_id": "AC-88219" },
+      "metadata": { "crm_id": "L-1002" },
       "last_call_id": "call_01K7QB4M8N3P6R2S5T7V9W1YA",
       "last_status": "no_answer",
       "eligible_at": "2026-08-11T11:19:02Z",
@@ -544,7 +575,8 @@ curl -G https://sandbox.voice.miraiminds.co/v2/campaigns/cmp_01K7QAC5N9P4R7S3T6V
 ```
 
 `last_call_id` is an ordinary `call_` id: fetch it from
-[`GET /v2/calls/{id}`](/v2/calls#get-a-call) for the full outcome.
+[`GET /v2/calls/{id}`](/v2/calls#get-a-call) for the full outcome. A contact
+without [`metadata`](#your-own-fields-metadata) has no `metadata` field.
 
 ---
 
@@ -796,7 +828,16 @@ signed with the same workspace secret and verified by the same code path.
 
 Campaign events use the same envelope as call events
 (`{id, type, created_at, data}`), with `data.campaign` where `data.call` would
-be. Verification, retries and replay protection are identical; see
+be.
+
+Every `call.*` event of a campaign call names the campaign and the contact in
+`data.call.campaign_id` and `data.call.contact_id`, and carries the contact's
+[`metadata`](#your-own-fields-metadata) in `data.call.metadata`. With
+`final_results` on (the default), each call also ends with one
+[`call.processed`](/v2/webhooks#final-results) that has the transcript and the
+after-call results, so you don't need to fetch anything. An agent with
+`emit_processed_webhook: false` sends no `call.processed`, whatever the
+campaign says. Verification, retries and replay protection are identical; see
 [Webhooks](/v2/webhooks#signature-verification).
 
 <Tip>

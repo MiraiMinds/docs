@@ -209,7 +209,8 @@ never billed.
 Create a call with `final_results: true` to receive one `call.processed` event
 with everything about the finished call: the call object, the transcript, and
 the status of analysis and post-call tools. Start processing a conversation
-when this event arrives.
+when this event arrives. [Campaign](/v2/campaigns#webhooks) calls send it by
+default.
 
 ```json title="call.processed with final_results: true"
 {
