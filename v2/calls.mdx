@@ -65,11 +65,14 @@ a key from a workspace that has not gone live is refused with
 | `ended_at` | string \| null | RFC 3339, UTC. |
 | `duration_secs` | integer \| null | Billable seconds of live media. `0` for calls that never connected, `null` while running. |
 | `cost.amount_inr` | number | Total rupees charged. `0` until the call is billed and for outcomes that are free. |
+| `cost.per_min_inr` | number | The all-in per-minute rate this call is billed at. |
+| `cost.billing_block_secs` | integer | The voice billing block in seconds: 10. |
 | `cost.voice_per_min_inr` | number | Voice AI rate quoted for this call, when a pricing snapshot is available. |
 | `cost.insights_per_min_inr` | number | T1 insights rate when enabled; absent when no insights charge applies. |
 | `cost.telco_per_min_inr` | number | Managed provider rate; absent for BYO telco, WhatsApp and browser calls. |
 | `cost.telco_provider` | string | The managed provider, when a provider charge applies. |
 | `cost.telco_billing_block_secs` | integer | The provider's billing block, which can differ from the voice AI block. |
+| `cost_inr` | number \| null | The same total as `cost.amount_inr`, kept for older integrations. `null` until the call is billed and on free calls. Use `cost.amount_inr` in new code. |
 | `recording_available` | boolean | Whether [`GET /recording`](#get-the-recording) will return audio. |
 | `transcript_available` | boolean | Whether [`GET /transcript`](#get-the-transcript) will return turns. |
 | `transcript_status` | enum | `pending` while the call runs and until its transcript is stored; `ready` when [`GET /transcript`](#get-the-transcript) returns turns; `empty` when nobody spoke; `failed` when the transcript could not be stored. |
@@ -172,7 +175,7 @@ for control flow; use `ended_reason` for analytics and support.
 | `customer-busy` | `busy` | Line busy. |
 | `voicemail` | `voicemail` | An answering machine answered. Detecting the machine is what sets the status, so this reason and that status always appear together. |
 | `silence-timed-out` | `completed` | Media was live but nobody ever spoke. Billable, because the agent ran. |
-| `idle-timed-out` | `completed` | The agent re-prompted its configured number of times and the caller never came back. Billable. |
+| `idle-timed-out` | `completed` | The caller went quiet. The agent checked in once after about 10 seconds, then said goodbye. Billable. |
 | `no-media` | `failed` | The call was placed but audio never flowed. See the note below. Not billed. |
 | `aborted-by-api` | `aborted` | You called [`POST /abort`](#abort-a-call). An abort produces this reason and no other. |
 | `api-ended-call` | `completed` | You sent a [`close` control](/v2/web-calls#live-control): the agent said goodbye and the call ended. Billable. |
@@ -732,6 +735,8 @@ curl -G https://sandbox.voice.miraiminds.co/v2/calls \
 ```
 
 Results are newest first by `created_at`, inbound and outbound calls together.
+Each call in the list gives its total as `cost_inr`. For the full `cost` block
+with its rates, read the call with [`GET /v2/calls/{id}`](#get-a-call).
 `next_cursor` is an opaque string; send it back as `cursor` unchanged. See
 [pagination](/v2/overview#pagination).
 

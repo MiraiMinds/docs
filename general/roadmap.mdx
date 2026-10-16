@@ -16,14 +16,14 @@ row on this page, confirm it with your account contact.
 | [Campaigns](/v2/campaigns) — server-side dialler with windows, retries, budgets and a report | August 2026 | ✅ **live** |
 | [Transcripts + recordings](/v2/calls#get-the-transcript) in the v2 API | August 2026 | rolling out |
 | [New voices](#new-voices) — fresh additions to the catalogue | monthly, from August 2026 | ongoing |
-| [Model APIs](#model-apis) — ASR, TTS and LLM as standalone endpoints | September 2026 | in development |
-| [Six new TTS languages](#new-tts-languages) — Telugu, Tamil, Marathi, Kannada, Gujarati, Bengali | September – October 2026 | in development |
+| [Model APIs](#model-apis) — ASR, TTS and LLM as standalone endpoints | September 2026 | [text to speech](/v2/tts-quickstart) and [offline transcription](/v2/transcriptions) ✅ **live**; the rest in development |
+| [New TTS languages](#new-tts-languages) — Gujarati, then Telugu, Tamil, Marathi, Kannada and Bengali | September – October 2026 | Gujarati in **beta**; the other five in development |
 | [Next-generation TTS](#next-generation-tts) — the voice engine behind every tier, upgraded | October 2026 | in development |
 | [Node-based agents](/v2/node-agents) on every tier — phone calls, browser calls and campaigns, built through the API | September 2026 | ✅ **live**, including creation in Agent Studio from a description or call recordings |
 | [Orchestration platform](#orchestration-platform) — visual node-graph builder for your team | Q4 2026 | design |
 | [Email + channel integrations](#channels) — email follow-ups from call outcomes | Q4 2026 | design |
 | Self-serve Go live and wallet top-ups — from the console | September 2026 | ✅ **live** |
-| Self-serve signup | Q4 2026 | design |
+| Self-serve signup — open the [console](https://sandbox.voice.miraiminds.co) and sign in with your work email | Q4 2026 | ✅ **live** |
 
 ## Post-call analytics everywhere
 
@@ -43,19 +43,20 @@ A call that ends this way will report
 
 ## Model APIs
 
-Model APIs will expose the ASR, TTS and LLM that power the call path as
-standalone endpoints, for teams that want the models without the telephony.
-They will cover streaming ASR tuned for Indian telephone audio, the TTS voice
-catalogue and the call-tuned LLM, each behind the same `sk_live_` auth as the
-rest of v2.
+The models behind our calls also work on their own, for teams that want them
+without the telephony. [Text to speech](/v2/tts-quickstart) and
+[offline transcription](/v2/transcriptions) are live today. Streaming speech
+recognition tuned for Indian phone audio comes next, then the call-tuned LLM.
+Each one takes the same `sk_live_` key as the rest of v2.
 
 ## New TTS languages
 
-Six languages join the voice engine over the next two months: Telugu, Tamil,
-Marathi, Kannada, Gujarati and Bengali. Together they are the mother tongue of
-429 million people, most of whom cannot be reached in Hindi at all. We announce
-the date for each language as it clears evaluation. The
-[language roadmap](/v2/tts-languages) has the full story and the data.
+Gujarati is on the speech endpoint today, in beta. Five more languages follow
+over the next two months: Telugu, Tamil, Marathi, Kannada and Bengali. With
+Gujarati, these six are the mother tongue of 429 million people, and most of
+them can't be reached in Hindi at all. We announce each date as the language
+clears evaluation. The [language roadmap](/v2/tts-languages) has the full story
+and the data.
 
 ## Next-generation TTS
 

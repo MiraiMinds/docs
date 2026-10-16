@@ -27,12 +27,11 @@ Every event has the same shape.
       "agent_id": "agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ",
       "to": "+919876543210",
       "status": "completed",
-      "tier": "t3",
       "ended_reason": "assistant-ended-call",
       "started_at": "2026-07-26T09:15:02Z",
       "ended_at": "2026-07-26T09:16:38Z",
       "duration_secs": 96,
-      "cost_inr": 5
+      "cost": { "amount_inr": 5, "per_min_inr": 3, "billing_block_secs": 10 }
     }
   }
 }
@@ -43,7 +42,7 @@ Every event has the same shape.
 | `id` | `evt_<ulid>`. Unique per delivery attempt group: retries of the same event reuse it. [Dedupe on this](#idempotency). |
 | `type` | See [event types](#event-types). |
 | `created_at` | When the event was generated, not when it was delivered. |
-| `data.call` | The [call object](/v2/calls#the-call-object), exactly as `GET /v2/calls/{id}` would return it at that moment. On a `campaign.*` event this is `data.campaign` instead. |
+| `data.call` | The [call object](/v2/calls#the-call-object) as it stands at that moment, with its money in `cost`. A few fields come only when you read the call: `tier`, `cost_inr`, `recording_available` and `transcript_available`. On a `campaign.*` event this is `data.campaign` instead. |
 | `data.call.metadata` | The [`metadata`](/v2/calls#metadata) you set when creating the call, unchanged, on every event for that call. Absent when the call has none. |
 | `data.wallet` | Your wallet balance right after the call was billed. Only on the four terminal events. See [wallet balance](#wallet-balance-on-call-ending-events). |
 
@@ -136,12 +135,11 @@ worth retrying the next day, while a `failed` is worth paging someone about.
       "agent_id": "agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ",
       "to": "+919876543211",
       "status": "no_answer",
-      "tier": "t3",
       "ended_reason": "customer-did-not-answer",
       "started_at": null,
       "ended_at": "2026-07-26T09:15:44Z",
       "duration_secs": 0,
-      "cost_inr": null
+      "cost": { "amount_inr": 0, "per_min_inr": 3, "billing_block_secs": 10 }
     }
   }
 }
@@ -161,12 +159,11 @@ worth retrying the next day, while a `failed` is worth paging someone about.
       "agent_id": "agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ",
       "to": "+919876543212",
       "status": "voicemail",
-      "tier": "t3",
       "ended_reason": "voicemail",
       "started_at": "2026-07-26T09:18:02Z",
       "ended_at": "2026-07-26T09:18:20Z",
       "duration_secs": 18,
-      "cost_inr": 1
+      "cost": { "amount_inr": 1, "per_min_inr": 3, "billing_block_secs": 10 }
     }
   }
 }
@@ -194,12 +191,11 @@ bills as two 10-second blocks: ₹1.00 on T3. See
       "agent_id": "agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ",
       "to": "+919876543213",
       "status": "aborted",
-      "tier": "t3",
       "ended_reason": "aborted-by-api",
       "started_at": null,
       "ended_at": "2026-07-26T09:14:51Z",
       "duration_secs": 0,
-      "cost_inr": null
+      "cost": { "amount_inr": 0, "per_min_inr": 3, "billing_block_secs": 10 }
     }
   }
 }
@@ -227,12 +223,11 @@ without polling the wallet.
       "agent_id": "agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ",
       "to": "+919876543210",
       "status": "completed",
-      "tier": "t3",
       "ended_reason": "customer-ended-call",
       "started_at": "2026-10-15T10:00:16Z",
       "ended_at": "2026-10-15T10:01:52Z",
       "duration_secs": 96,
-      "cost": { "amount_inr": 5, "per_min_inr": 3 }
+      "cost": { "amount_inr": 5, "per_min_inr": 3, "billing_block_secs": 10 }
     },
     "wallet": { "balance_inr": 18432.5 }
   }
@@ -277,17 +272,13 @@ default.
       "object": "call",
       "agent_id": "agt_01K7Q9F3K7M2N5P9R4T6V8W0XZ",
       "status": "completed",
-      "tier": "t3",
       "ended_reason": "time-limit-close",
       "started_at": "2026-09-27T10:00:04Z",
       "ended_at": "2026-09-27T10:09:34Z",
       "duration_secs": 570,
-      "cost_inr": 28.5,
-      "recording_available": false,
-      "transcript_available": true,
+      "cost": { "amount_inr": 28.5, "per_min_inr": 3, "billing_block_secs": 10 },
       "transcript_status": "ready",
-      "metadata": { "session_id": "sess_8f2c41", "user_id": "usr_1042" },
-      "analysis": null
+      "metadata": { "session_id": "sess_8f2c41", "user_id": "usr_1042" }
     },
     "processing": {
       "transcript": "ready",

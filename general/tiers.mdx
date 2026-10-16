@@ -86,12 +86,13 @@ Every tier: All models and features. Single-prompt and node-based agents. Bring 
 ### Metering
 
 `duration_secs` on the [call object](/v2/calls#the-call-object) is the true
-media duration in seconds. Voice AI and T1 insights use the duration rounded
-**up** to the next 10 seconds — never less than one block. Managed provider
-calling uses the provider's configured billing block. Voice AI and enabled
-insights are combined before rounding to the paisa; the provider charge is
-rounded separately and added to the call total. A call that never connected is
-not billed at all — see the table below.
+media duration in seconds. Voice AI and T1 insights round it **up** to the
+next 10 seconds, with a one-block minimum. T1 Mirai phone calling uses the same
+10-second blocks. If your existing agreement has its own provider rates, that
+provider's billing block applies instead. Voice AI and insights are added
+together, then rounded to the paisa. The phone calling charge is rounded on its
+own and added to the total. A call that never connected costs nothing; see the
+table below.
 
 ```python
 def cost_paise(duration_secs: int, rate_paise_per_min: int) -> int:
@@ -101,9 +102,10 @@ def cost_paise(duration_secs: int, rate_paise_per_min: int) -> int:
 cost_paise(96, 300)  # 100 billed seconds on T3 -> 500 paise, ₹5.00
 ```
 
-You never have to compute this — `cost_inr` on the call object and the
-debit row in the [ledger](/v2/wallet#list-transactions) are authoritative. Use
-the formula to forecast, not to reconcile.
+You never have to work this out yourself. `cost.amount_inr` on the
+[call object](/v2/calls#the-call-object) and the debit row in the
+[ledger](/v2/wallet#list-transactions) are the real figures. Use the formula to
+forecast, not to reconcile.
 
 ### What is and is not billable
 
@@ -256,8 +258,8 @@ Confirm that email from the message we send, and your sandbox workspace gets
 its ₹200 of starter credit. Every call and campaign in it is billed at T5, ₹5
 a minute, whatever tier your key carries or your request sends.
 
-The call object reports the `tier` it ran at alongside `cost_inr`, so you can
-always see which rate card a given call was billed under. A
+When you read a call, it shows the `tier` it ran at next to its `cost`, so you
+can always see which rate card it was billed under. A
 [campaign](/v2/campaigns) takes its tier at create time, and every call it
 places inherits it.
 

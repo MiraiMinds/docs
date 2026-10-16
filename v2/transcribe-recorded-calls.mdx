@@ -266,7 +266,7 @@ mobile app.
 | `413 request_too_large` | The file is over 45 MB, or the file at `url` is over 200 MB. | Send a large file by link, or compress it to a mono MP3. |
 | `400` with "the recording url answered HTTP 403" | The link has expired or is private. | Send a fresh pre-signed link. We fetch it as soon as the request arrives. |
 | `429 at_capacity` | Your workspace already has 20 unfinished jobs. | Wait for `Retry-After`, or queue uploads on your side. |
-| The job fails with `transcription_failed` | The file is not audio, is damaged, or has no speech. | Check that it plays. WAV and MP3 work everywhere. |
+| The job fails with `transcription_failed` | The file is not audio, is damaged or has no speech. It can also be a failure on our side. | Check that it plays, then send it again. WAV and MP3 work everywhere. The failed job is free. |
 | The job fails with `engine_restarted`, `job_lost`, `timed_out` or `submit_interrupted` | Something went wrong on our side. | Send the recording again. The failed job is free. |
 | Names and brands are misspelled | No `vocabulary` or `context` was sent. | Add the names to `vocabulary`, and a line of `context`. |
 | Agent and Customer are the wrong way round | Roles are worked out from what each person says, and can be wrong. | Group lines by `speaker_id` and let a person rename speakers. |
