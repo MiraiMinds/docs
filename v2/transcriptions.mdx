@@ -197,6 +197,7 @@ with `timed_out`.
 | :--- | :--- | :--- |
 | `transcription_failed` | the recording could not be transcribed; check that it is an audio file with speech (WAV or MP3 work everywhere) | Check that the file plays and has speech in it. |
 | `audio_too_long` | the recording is longer than 120 minutes, the most one job takes | Split the recording. |
+| `upstream_unavailable` | transcription failed because of a problem on our side, not with the recording; submit it again in a few minutes | Send it again in a few minutes. The file was fine. |
 | `engine_restarted` | transcription restarted while working on this recording; submit it again | Send it again. |
 | `job_lost` | this job is no longer available on the transcription service; submit the recording again | Send it again. |
 | `timed_out` | this job did not finish in time; submit the recording again | Send it again. |
