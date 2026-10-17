@@ -210,7 +210,7 @@ session sttws_01K7C2M3Q4R7T9V2X5Y8A1B4C7
    … નમસ્તે મારે
    … નમસ્તે મારે કાલે સાંજે
 final: નમસ્તે મારે કાલે સાંજે પાંચ વાગ્યાની appointment બુક કરવી છે
-5 s billed, 5 paise
+5 s billed, 3 paise
 ```
 
 A partial can rewrite words it sent earlier, so replace what you show with each
@@ -261,12 +261,12 @@ losing what the caller said. See [Pipecat](/v2/pipecat#transcribe-with-miraistts
 
 ## Billing
 
-**₹30 per hour of audio**, on HTTP and on the socket. That is 0.83 paise a
+**₹18 per hour of audio**, on HTTP and on the socket. That is 0.5 paise a
 second.
 
 We charge on the seconds of audio we received, rounded up to the next second,
 with a minimum of 1 second, and round the price up to the next paisa. A
-20-second clip costs 17 paise; a 3-minute call streamed in full costs ₹1.50.
+20-second clip costs 10 paise; a 3-minute call streamed in full costs ₹0.90.
 
 - **HTTP:** charged once the transcript is written. A request that fails or
   times out is not charged.
@@ -291,7 +291,7 @@ from:
   "id": "txn_01K7C2M9W3X5Y7Z9A2B4C6D8E0",
   "object": "wallet_transaction",
   "type": "debit",
-  "amount_inr": 0.35,
+  "amount_inr": 0.21,
   "balance_after_inr": 498.12,
   "call_id": null,
   "kind": "stt",
@@ -308,8 +308,9 @@ from:
 | `reference` | The `id` of the row in your [request log](#your-request-log). For an HTTP request, that is its `X-Request-Id`. |
 | `quantity` | Seconds billed. |
 
-[Offline transcription](/v2/transcribe-recorded-calls#pricing) of recordings
-is priced separately, at ₹18 per hour.
+Live and offline transcription cost the same: [offline
+transcription](/v2/transcribe-recorded-calls#pricing) of recordings is ₹18 per
+hour too, charged once when the job completes.
 
 ## Limits
 
@@ -357,7 +358,7 @@ curl "https://sandbox.voice.miraiminds.co/v2/stt/requests?limit=50" \
       "billed_seconds": 42,
       "utterances": 7,
       "status": "completed",
-      "cost_inr": 0.35,
+      "cost_inr": 0.21,
       "error_code": null
     },
     {
@@ -377,7 +378,7 @@ curl "https://sandbox.voice.miraiminds.co/v2/stt/requests?limit=50" \
       "billed_seconds": 20,
       "utterances": 3,
       "status": "completed",
-      "cost_inr": 0.17,
+      "cost_inr": 0.1,
       "error_code": null
     }
   ],
