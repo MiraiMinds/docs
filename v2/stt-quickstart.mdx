@@ -69,9 +69,10 @@ Send the audio as a multipart form:
 
 The answer arrives once the whole clip is transcribed. HTTP sends no partial
 transcripts; for text while someone is still speaking, use the
-[socket](#3-stream-it). We wait up to 30 seconds plus half the clip's length
-for the transcript (90 seconds for a 120-second clip), so give your client a
-timeout of 120 seconds.
+[socket](#3-stream-it). We cut a long clip into turns ourselves, so a
+120-second file still comes back as one `text`. We wait up to 30 seconds plus
+half the clip's length for the transcript (90 seconds for a 120-second clip),
+so give your client a timeout of 120 seconds.
 
 | Field | Values | Default |
 | :--- | :--- | :--- |
@@ -148,7 +149,7 @@ messages, closes the utterance with `speech_end`, and ends the session with
 """Stream a WAV file to Mira STT at real-time pace and print the transcript.
 
     export MIRA_API_KEY=sk_live_...
-    python stream.py hello.wav      # 16-bit mono WAV at 16 kHz, under 60 seconds
+    python stream.py hello.wav      # 16-bit mono WAV at 16 kHz, under 25 seconds
 """
 import asyncio
 import base64
@@ -218,9 +219,11 @@ new partial instead of appending to it. To make a test file,
 `websockets` older than 14, pass `extra_headers=` instead of
 `additional_headers=`.
 
-One utterance can run for up to 60 seconds. For longer audio, send
-`speech_start` and `speech_end` around each stretch of speech, or connect with
-`endpointing=vad` and we find the utterances for you. The
+The script sends the file as one utterance. With manual endpointing, one
+utterance can run for at most 60 seconds: past that you get a fatal
+`utterance_too_long`, the socket closes with 1011, and that utterance gets no
+final. For longer audio, send `speech_end` at a pause at least every 25
+seconds, or connect with `endpointing=vad` and we cut the utterances for you. The
 [WebSocket reference](/v2/speech-to-text) has every message and event, both
 endpointing modes, phone audio and the close codes. A browser connects with a
 short-lived [stream token](/v2/speech-compatibility#browser-stream-tokens)

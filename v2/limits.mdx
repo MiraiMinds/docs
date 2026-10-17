@@ -172,8 +172,8 @@ before the upgrade. The limit is raised on request, with no change to your code.
 | Sessions at once | 10 per workspace, HTTP and socket together |
 | One HTTP clip | 25 MB (over it, `413 request_too_large`) and 120 seconds of audio (over it, `413 audio_too_long`). Send longer recordings to [offline transcription](/v2/transcriptions). |
 | Stream token | Valid for 60 seconds, opens one socket. Up to 20 per mint request. |
-| One audio message on the socket | 128,000 bytes of audio (4 seconds of 16 kHz PCM) |
-| One utterance on the socket | 60 seconds |
+| One `audio_input` on the socket | 128,000 bytes of raw audio, counted before base64 (4 seconds of 16 kHz PCM). Over it, a fatal `audio_too_large` and close code 1011. |
+| One utterance on the socket | 60 seconds with manual endpointing. Over it, a fatal `utterance_too_long`, close code 1011, and no final for that utterance. Send `speech_end` at a pause at least every 25 seconds. With `vad` endpointing we cut long speech for you. |
 | Utterances waiting for a final | 8 |
 | Idle socket | Closed after 120 seconds with no message from you. `ping` keeps it open. |
 | Session length on the socket | 1 hour |

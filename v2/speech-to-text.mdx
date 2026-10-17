@@ -167,12 +167,20 @@ about half a second of the audio from before `speech_start`: send
 outside an utterance is billed but not transcribed. `flush` does the same as
 `speech_end`.
 
+One utterance can last at most 60 seconds. Past that, you get a fatal
+`utterance_too_long` error, the socket closes with 1011, and that utterance
+gets no final. Someone who talks for a long time without a pause your VAD
+catches can reach it, so send `speech_end` at a pause at least every 25
+seconds, then `speech_start` for the next utterance.
+
 ### VAD
 
 We detect speech in your audio for you. You send audio continuously, and we send
 `vad.speech_start` when speech begins and `vad.speech_end` once the caller has
 been quiet for `silence_duration_ms` (1 second by default), then the final.
-Use `vad.speech_start` to detect barge-in.
+Use `vad.speech_start` to detect barge-in. Long speech with no pause is cut
+into utterances for you, so the 60-second utterance limit never ends a `vad`
+session.
 
 The final can only start after that silence, so with the defaults it arrives
 at least a second after the caller stops. A lower `silence_duration_ms` gives
@@ -195,8 +203,10 @@ our side, and upsampling adds nothing the model can use. Send 16 kHz when your
 source is wideband, such as a browser microphone.
 
 Audio goes in JSON text frames, base64-encoded, in whole samples (an even
-number of bytes for `linear16`). One message can carry up to 128,000 bytes of
-audio before encoding. Send audio at the pace it is captured. A file can be
+number of bytes for `linear16`). Each `audio_input` carries at most 128,000
+bytes of raw audio, counted before base64: 4 seconds of 16 kHz PCM, or 16
+seconds of 8 kHz μ-law. A bigger one is a fatal `audio_too_large`, and the
+socket closes with 1011. Send audio at the pace it is captured. A file can be
 sent faster than real time, but a live call should stream as it happens so
 partials and finals stay in step with the speaker.
 
@@ -402,8 +412,8 @@ session ends, and the session appears in your
 | `invalid_message` | no | A binary frame, or a text frame that is not a JSON object. | Send JSON text frames. |
 | `invalid_audio` | no | `audio` was not base64, or was not whole samples. | Send whole samples, base64-encoded. |
 | `invalid_event` | no | An unknown `event`, `speech_start`/`speech_end`/`flush` with `vad` endpointing, or `speech_start` while an utterance is open. | Send `speech_end` before the next `speech_start`. |
-| `audio_too_large` | yes | One message carried more than 128,000 bytes of audio. | Send smaller chunks. |
-| `utterance_too_long` | yes | An utterance ran past 60 seconds. | End utterances sooner, or use `vad`. |
+| `audio_too_large` | yes | One `audio_input` carried more than 128,000 bytes of raw audio, counted before base64. The socket closes with 1011. | Send smaller chunks, 20 to 100 ms each. |
+| `utterance_too_long` | yes | With manual endpointing, an utterance ran past 60 seconds. It gets no final, and the socket closes with 1011. | Send `speech_end` at a pause at least every 25 seconds, or use `vad`. |
 | `overloaded` | yes | Eight utterances were waiting for their finals, or the recogniser fell behind. | Reconnect. If it repeats, tell us. |
 | `backend_error` | yes | The recogniser failed on an utterance. | Reconnect and send that utterance again. |
 | `idle_timeout` | yes | No message from you for 120 seconds. The recogniser may report the same thing as `inactivity_timeout`. | Keep audio flowing, or send `ping` during long silences. |
@@ -431,7 +441,7 @@ longer than an hour, open a new socket before the limit.
 | 1000 | `session.end` was delivered: you sent `end`, or the session reached its 1-hour limit (`max_duration`). |
 | 1001 | `server_shutdown`: our API server is restarting. Reconnect. |
 | 1008 | `idle_timeout`, or `insufficient_balance`. |
-| 1011 | The recogniser failed or could not be reached (`engine_unavailable`), or did not finish within 5 seconds of being asked to. |
+| 1011 | An utterance ran past 60 seconds (`utterance_too_long`), one message carried too much audio (`audio_too_large`), the recogniser failed or could not be reached (`engine_unavailable`), or it did not finish within 5 seconds of being asked to. |
 
 The close frame's reason text names the cause.
 
@@ -440,8 +450,8 @@ The close frame's reason text names the cause.
 | Limit | Value | Over the limit |
 | :--- | :--- | :--- |
 | Sessions at once | **10 per workspace**, counting open sockets and HTTP requests in flight together | `429 at_capacity` before the upgrade, with `Retry-After`. |
-| One audio message | 128,000 bytes of audio (4 seconds of 16 kHz PCM) | Fatal `audio_too_large`. |
-| One utterance | 60 seconds | Fatal `utterance_too_long`. |
+| One `audio_input` | 128,000 bytes of raw audio before base64 (4 seconds of 16 kHz PCM) | Fatal `audio_too_large`; the socket closes with 1011. |
+| One utterance, manual endpointing | 60 seconds. Send `speech_end` at a pause at least every 25 seconds. With `vad`, we cut long speech for you. | Fatal `utterance_too_long`, no final for that utterance; the socket closes with 1011. |
 | Utterances waiting for a final | 8 | Fatal `overloaded`. |
 | Idle socket | 120 seconds with no message from you | Fatal `idle_timeout`; the socket closes with 1008. |
 | Session length | 1 hour | `session.draining` with `max_duration`, then the last final and `session.end`. |
