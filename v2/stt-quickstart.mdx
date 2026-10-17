@@ -69,15 +69,20 @@ Send the audio as a multipart form:
 
 The answer arrives once the whole clip is transcribed. HTTP sends no partial
 transcripts; for text while someone is still speaking, use the
-[socket](#3-stream-it).
+[socket](#3-stream-it). We wait up to 30 seconds plus half the clip's length
+for the transcript (90 seconds for a 120-second clip), so give your client a
+timeout of 120 seconds.
 
 | Field | Values | Default |
 | :--- | :--- | :--- |
 | `file` | The audio, up to 25 MB and 120 seconds. WAV, raw PCM, μ-law or A-law, or a compressed format such as MP3, M4A, OGG/Opus or FLAC, which we convert. Stereo is mixed down to mono. | Required |
-| `model` | `mira-stt` | |
+| `model` | `mira-stt` | `mira-stt` |
 | `language` | One of the [ten languages](/v2/stt-languages), as `gu-IN` or `gu`, in any case. There is no automatic detection, so name the language you expect. | `hi-IN` |
 | `response_format` | `json`, `verbose_json` or `text`. See below. | `json` |
 | `encoding`, `sample_rate` | Only for raw audio with no header: `linear16`, `mulaw` or `alaw`, at `8000` or `16000`. Leave them out for WAV and compressed files. | |
+
+OpenAI's `prompt`, `temperature` and `timestamp_granularities` are accepted and
+ignored, so an OpenAI client that sends them works unchanged.
 
 ```bash title="8 kHz μ-law straight off a phone line"
 curl https://sandbox.voice.miraiminds.co/v1/audio/transcriptions \
@@ -92,9 +97,10 @@ curl https://sandbox.voice.miraiminds.co/v1/audio/transcriptions \
 ### Response formats
 
 `json`, the default, is the text alone. `text` is the same text as a plain
-body, with no JSON around it. `verbose_json` adds the language, the audio's
-length in seconds, and one segment for each utterance we found, with where it
-starts and ends in the clip:
+body (`text/plain; charset=utf-8`), with no JSON around it. `verbose_json` adds
+the language as its full code, such as `gu-IN` even when you sent `gu`, the
+audio's length in seconds, and one segment for each utterance we found, with
+where it starts and ends in the clip. `srt` and `vtt` are not offered.
 
 ```json title="verbose_json"
 {
@@ -288,14 +294,14 @@ from:
   "kind": "stt",
   "reference": "stt_01K7C2M3Q4R7T9V2X5Y8A1B4C7-1",
   "quantity": 42,
-  "description": "Speech to text (streaming) · 42s of audio",
+  "description": "Live transcription · 42s of audio",
   "created_at": "2026-10-12T05:31:00Z"
 }
 ```
 
 | Field | Meaning |
 | :--- | :--- |
-| `kind` | `stt`. Classify rows by this field, never by reading `description`. |
+| `kind` | `stt`, for both transports. Classify rows by this field, never by reading `description`, which starts with Transcription for an HTTP request and Live transcription for a socket session. |
 | `reference` | The `id` of the row in your [request log](#your-request-log). For an HTTP request, that is its `X-Request-Id`. |
 | `quantity` | Seconds billed. |
 
@@ -307,7 +313,7 @@ is priced separately, at ₹18 per hour.
 | Limit | Default | Over the limit |
 | :--- | :--- | :--- |
 | Sessions at once | **10 per workspace**, counting HTTP requests in flight and open sockets together | `429 at_capacity` with `Retry-After`. |
-| One HTTP clip | **25 MB and 120 seconds** of audio | `413 audio_too_long`. Send longer recordings to [offline transcription](/v2/transcriptions). |
+| One HTTP clip | **25 MB and 120 seconds** of audio | Over 25 MB, `413 request_too_large`. Over 120 seconds, `413 audio_too_long`. Send longer recordings to [offline transcription](/v2/transcriptions). |
 | Request rate | Per key (see [Limits](/v2/limits)) | `429 rate_limited` with `Retry-After`. Opening a socket counts as a request. |
 
 We refuse a request over the session limit instead of queueing it. Honour
@@ -350,6 +356,26 @@ curl "https://sandbox.voice.miraiminds.co/v2/stt/requests?limit=50" \
       "status": "completed",
       "cost_inr": 0.35,
       "error_code": null
+    },
+    {
+      "id": "stt_01K7C3A1B2C3D4E5F6G7H8J9K0",
+      "object": "stt_request",
+      "via": "http",
+      "session_id": "stt_01K7C3A1B2C3D4E5F6G7H8J9K0",
+      "seq": 0,
+      "created_at": "2026-10-12T05:28:40Z",
+      "ended_at": "2026-10-12T05:28:43Z",
+      "language": "gu-IN",
+      "model": "mira-stt:v5-realtime",
+      "encoding": "linear16",
+      "sample_rate": 16000,
+      "endpointing": "manual",
+      "audio_seconds": 19.42,
+      "billed_seconds": 20,
+      "utterances": 3,
+      "status": "completed",
+      "cost_inr": 0.17,
+      "error_code": null
     }
   ],
   "has_more": false,
@@ -371,10 +397,11 @@ Rows come newest first, and only from your own workspace:
 
 | Field | Meaning |
 | :--- | :--- |
-| `via` | `http` for a clip sent to `POST /v1/audio/transcriptions`, `ws` for a socket session. |
-| `id` | The row. A socket session's rows are `stt_` and the session's ULID, then `-1`, `-2` and so on, one for each part of a session charged in parts. Every row of a session has the same `session_id`. |
-| `seq` | Which part of the session this row is, from 1. |
+| `via` | `http` for a clip sent to `POST /v1/audio/transcriptions`, `ws` for a socket session. `edge` is also a socket session, served from an edge server; no edge serves speech to text today. |
+| `id` | The row. An HTTP request has one row, whose `id` is its `X-Request-Id`. A socket session's rows are `stt_` and the session's ULID, then `-1`, `-2` and so on, one for each part of a session charged in parts. |
+| `session_id`, `seq` | For a socket, the session and which part of it this row is, from 1; every row of a session has the same `session_id`. For an HTTP request, `session_id` is the row's own `id` and `seq` is `0`. |
 | `created_at`, `ended_at` | When the request or part started and ended. |
+| `encoding`, `sample_rate`, `endpointing` | How the audio reached the recogniser. A socket shows what you connected with. An HTTP request shows `linear16`, `16000` and `manual` whatever you uploaded, because we convert the file first. |
 | `model` | The build that listened. |
 | `audio_seconds` | The audio received, exactly. |
 | `billed_seconds` | The seconds charged. |
@@ -392,16 +419,18 @@ the API:
 
 | Status | `code` | Cause |
 | :--- | :--- | :--- |
-| 400 | `invalid_config` | A field is missing or out of range: no `file`, a `language` outside the [ten](/v2/stt-languages) (including `auto`), an unknown `response_format`, or `encoding` and `sample_rate` that don't fit. The message names the field. |
+| 400 | `invalid_request` | No `file` in the form. |
+| 400 | `invalid_config` | A field is out of range: a `language` outside the [ten](/v2/stt-languages) (including `auto`), a `response_format` other than `json`, `verbose_json` or `text` (such as `srt` or `vtt`), or `encoding` and `sample_rate` that don't fit. The message names the field. |
 | 401 | `unauthorized` | Missing or unknown key. Check the `Authorization: Bearer sk_live_…` header. |
 | 402 | `insufficient_balance` | Your wallet is empty. Nothing was transcribed and nothing was charged. |
 | 404 | `model_not_found` | `model` is not `mira-stt` or one of its [other names](/v2/speech-compatibility#other-model-names). |
-| 413 | `audio_too_long` | The clip is over 25 MB or 120 seconds. Send it to [offline transcription](/v2/transcriptions), which takes recordings of up to two hours. |
+| 413 | `request_too_large` | The upload is over 25 MB. Nothing was charged. |
+| 413 | `audio_too_long` | The clip is longer than 120 seconds. Send it to [offline transcription](/v2/transcriptions), which takes recordings of up to two hours. |
 | 415 | `unsupported_media` | We could not decode the file. Send WAV or a common compressed format, or raw audio with `encoding` and `sample_rate`. |
 | 429 | `at_capacity` | Your workspace already has 10 sessions running, or the service is at its own ceiling. Honour `Retry-After`. |
 | 429 | `rate_limited` | Per-key request rate. Honour `Retry-After`, and see [Limits](/v2/limits). |
 | 503 | `unavailable` | The recogniser is briefly unreachable or restarting. Nothing was charged. Honour `Retry-After`. |
-| 504 | `upstream_timeout` | The transcript did not arrive in time. Nothing was charged. Retry, or send a long clip to offline transcription. |
+| 504 | `upstream_timeout` | The transcript did not arrive within 30 seconds plus half the clip's length. Nothing was charged. Retry, or send a long clip to offline transcription. |
 
 The socket refuses a connection with the same codes before the upgrade, and an
 open session reports errors as `error` events. Both are listed in the

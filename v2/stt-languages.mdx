@@ -9,7 +9,7 @@ Mira STT transcribes ten languages, on HTTP and on the socket alike:
 | Code | Language | Status |
 | :--- | :--- | :--- |
 | `hi-IN` | Hindi, including Hinglish | Production |
-| `en-IN` | English (Indian) | Production |
+| `en-IN` | English (Indian), for speech that is English throughout | Beta |
 | `gu-IN` | Gujarati | Beta |
 | `mr-IN` | Marathi | Preview |
 | `pa-IN` | Punjabi | Preview |
@@ -22,8 +22,10 @@ Mira STT transcribes ten languages, on HTTP and on the socket alike:
 ## What the status means
 
 - **Production** is what our own voice agents listen with on live calls.
+  Hindi is production, and so is the English mixed into it (Hinglish).
 - **Beta** is good enough to build against. Try it on your own audio before you
-  put it in front of customers, and tell us what you hear.
+  put it in front of customers, and tell us what you hear. English-only speech
+  is in beta while we measure it.
 - **Preview** is accepted and transcribed today, and we have not yet published
   accuracy for it. Measured numbers are published here as each language clears
   our evaluation. Test on recordings from your own callers before you rely on
@@ -70,7 +72,8 @@ said. Nothing is translated, and the rest stays in the language's own script:
 નમસ્તે મારે કાલે સાંજે પાંચ વાગ્યાની appointment બુક કરવી છે
 ```
 
-Use `en-IN` when the speaker talks English throughout.
+English inside Hindi or Gujarati is part of that language, so you don't need
+`en-IN` for it. Use `en-IN` when the speaker talks English throughout.
 
 ## When to use offline transcription instead
 
