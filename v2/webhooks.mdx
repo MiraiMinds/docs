@@ -1,6 +1,7 @@
 ---
-title: Webhooks
-description: The signed lifecycle events we send, how to verify their signatures, and how retries and idempotency work.
+title: "Webhooks: signed call events"
+sidebarTitle: "Webhooks"
+description: "Get a signed event each time a call moves on: event types, payloads, final results with the transcript, signature checks, retries and dedupe."
 ---
 
 
@@ -27,12 +28,11 @@ Every event has the same shape.
       "agent_id": "agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ",
       "to": "+919876543210",
       "status": "completed",
-      "tier": "t3",
       "ended_reason": "assistant-ended-call",
       "started_at": "2026-07-26T09:15:02Z",
       "ended_at": "2026-07-26T09:16:38Z",
       "duration_secs": 96,
-      "cost_inr": 5
+      "cost": { "amount_inr": 5, "per_min_inr": 3, "billing_block_secs": 10 }
     }
   }
 }
@@ -43,8 +43,9 @@ Every event has the same shape.
 | `id` | `evt_<ulid>`. Unique per delivery attempt group: retries of the same event reuse it. [Dedupe on this](#idempotency). |
 | `type` | See [event types](#event-types). |
 | `created_at` | When the event was generated, not when it was delivered. |
-| `data.call` | The [call object](/v2/calls#the-call-object), exactly as `GET /v2/calls/{id}` would return it at that moment. On a `campaign.*` event this is `data.campaign` instead. |
+| `data.call` | The [call object](/v2/calls#the-call-object) as it stands at that moment, with its money in `cost`. A few fields come only when you read the call: `tier`, `cost_inr`, `recording_available` and `transcript_available`. On a `campaign.*` event this is `data.campaign` instead. |
 | `data.call.metadata` | The [`metadata`](/v2/calls#metadata) you set when creating the call, unchanged, on every event for that call. Absent when the call has none. |
+| `data.wallet` | Your wallet balance right after the call was billed. Only on the four terminal events. See [wallet balance](#wallet-balance-on-call-ending-events). |
 
 Treat the envelope as **additive**: new fields appear without a version bump.
 Ignore what you do not recognise.
@@ -89,11 +90,17 @@ same envelope, with `data.campaign` in place of `data.call`.
 | `campaign.started` | The first `POST /start` takes effect. Once per campaign. |
 | `campaign.paused` | You paused it, or the money gate did. Read `data.campaign.pause_reason`. |
 | `campaign.resumed` | Dialling resumed. |
-| `campaign.completed` | Every contact reached a final state, or the date range ran out. |
+| `campaign.completed` | Every contact reached a final state, or the date range ran out. An [always-on](/v2/campaigns#always-on-campaigns) campaign sends it only when the date range runs out. |
 | `campaign.stopped` | You stopped it. |
 
 A campaign's calls emit the ordinary `call.*` events as well, to the same URL.
 For the payload, see [Webhooks](/v2/campaigns#webhooks) on the Campaigns page.
+
+A campaign's URL also receives `phone_number.rested`, `phone_number.resumed`,
+`phone_number.cooling`, `phone_number.alert` and `phone_pool.degraded` for the
+numbers and pools it calls from. They carry `data.phone_number` or
+`data.phone_pool` instead of `data.call`. See
+[Phone numbers and pools](/v2/phone-numbers#webhook-events).
 
 ```mermaid
 sequenceDiagram
@@ -129,12 +136,11 @@ worth retrying the next day, while a `failed` is worth paging someone about.
       "agent_id": "agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ",
       "to": "+919876543211",
       "status": "no_answer",
-      "tier": "t3",
       "ended_reason": "customer-did-not-answer",
       "started_at": null,
       "ended_at": "2026-07-26T09:15:44Z",
       "duration_secs": 0,
-      "cost_inr": null
+      "cost": { "amount_inr": 0, "per_min_inr": 3, "billing_block_secs": 10 }
     }
   }
 }
@@ -154,12 +160,11 @@ worth retrying the next day, while a `failed` is worth paging someone about.
       "agent_id": "agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ",
       "to": "+919876543212",
       "status": "voicemail",
-      "tier": "t3",
       "ended_reason": "voicemail",
       "started_at": "2026-07-26T09:18:02Z",
       "ended_at": "2026-07-26T09:18:20Z",
       "duration_secs": 18,
-      "cost_inr": 1
+      "cost": { "amount_inr": 1, "per_min_inr": 3, "billing_block_secs": 10 }
     }
   }
 }
@@ -187,12 +192,11 @@ bills as two 10-second blocks: ₹1.00 on T3. See
       "agent_id": "agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ",
       "to": "+919876543213",
       "status": "aborted",
-      "tier": "t3",
       "ended_reason": "aborted-by-api",
       "started_at": null,
       "ended_at": "2026-07-26T09:14:51Z",
       "duration_secs": 0,
-      "cost_inr": null
+      "cost": { "amount_inr": 0, "per_min_inr": 3, "billing_block_secs": 10 }
     }
   }
 }
@@ -202,6 +206,52 @@ bills as two 10-second blocks: ₹1.00 on T3. See
 cancelled the call in the queue, mid-ring or mid-conversation. Aborted calls are
 never billed.
 
+### Wallet balance on call-ending events
+
+`call.completed`, `call.failed`, `call.voicemail` and `call.aborted` carry your
+wallet balance beside the call, so you can top up or hold back new calls
+without polling the wallet.
+
+```json title="call.completed with data.wallet"
+{
+  "id": "evt_01K8Q2N6S8U0W2Y4A6C8E0G2J4",
+  "type": "call.completed",
+  "created_at": "2026-10-15T10:01:52Z",
+  "data": {
+    "call": {
+      "id": "call_01K8Q2M4Q6S8T0V2X4Z6A8C0EG",
+      "object": "call",
+      "agent_id": "agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ",
+      "to": "+919876543210",
+      "status": "completed",
+      "ended_reason": "customer-ended-call",
+      "started_at": "2026-10-15T10:00:16Z",
+      "ended_at": "2026-10-15T10:01:52Z",
+      "duration_secs": 96,
+      "cost": { "amount_inr": 5, "per_min_inr": 3, "billing_block_secs": 10 }
+    },
+    "wallet": { "balance_inr": 18432.5 }
+  }
+}
+```
+
+`data.wallet.balance_inr` is the workspace balance in rupees, read right after
+this call was billed. It is the number [`GET /v2/wallet`](/v2/wallet#get-balance)
+would have answered at that moment. A call that cost nothing, such as a
+`no_answer` or a `busy`, still reports the balance.
+
+Calls end and are billed side by side, so the balance is a snapshot. A later
+event can show a lower balance than one that arrived before it, and
+[retries](#retries) can deliver events out of order. Compare each value with
+your own threshold instead of with the previous event, and read
+`GET /v2/wallet` when you need the current figure.
+
+`data.wallet` is left out when we could not read the balance, for example when
+the call's billing could not be recorded. We never send `0` in place of a
+number we do not know, so treat a missing `wallet` as unknown. It appears only on
+the four terminal events, never on `call.queued`, `call.started`,
+`call.processed` or campaign events, and it is not part of the call object.
+
 ---
 
 ## Final results
@@ -209,7 +259,8 @@ never billed.
 Create a call with `final_results: true` to receive one `call.processed` event
 with everything about the finished call: the call object, the transcript, and
 the status of analysis and post-call tools. Start processing a conversation
-when this event arrives.
+when this event arrives. [Campaign](/v2/campaigns#webhooks) calls send it by
+default.
 
 ```json title="call.processed with final_results: true"
 {
@@ -222,17 +273,13 @@ when this event arrives.
       "object": "call",
       "agent_id": "agt_01K7Q9F3K7M2N5P9R4T6V8W0XZ",
       "status": "completed",
-      "tier": "t3",
       "ended_reason": "time-limit-close",
       "started_at": "2026-09-27T10:00:04Z",
       "ended_at": "2026-09-27T10:09:34Z",
       "duration_secs": 570,
-      "cost_inr": 28.5,
-      "recording_available": false,
-      "transcript_available": true,
+      "cost": { "amount_inr": 28.5, "per_min_inr": 3, "billing_block_secs": 10 },
       "transcript_status": "ready",
-      "metadata": { "session_id": "sess_8f2c41", "user_id": "usr_1042" },
-      "analysis": null
+      "metadata": { "session_id": "sess_8f2c41", "user_id": "usr_1042" }
     },
     "processing": {
       "transcript": "ready",
@@ -273,6 +320,40 @@ when this event arrives.
 `analysis` is `done`, `failed`, `skipped` or `not_enabled`. `post_call_tools` is
 `done`, `partial` or `failed` when the agent has post-call tools. See
 [Tools: call.processed](/v2/tools#receive-call-processed).
+
+**Analysis and the follow-up message.** When the agent has
+[analysis](/v2/analysis) enabled, `data.call.analysis` holds the summary,
+`success` and your extracted `data`. If the agent also has
+[`analysis.templates`](/v2/analysis#pick-a-follow-up-message), it holds the
+template chosen for the follow-up message:
+
+```json title="data.call.analysis on call.processed"
+{
+  "status": "done",
+  "state": "completed",
+  "generation": 1,
+  "agent_revision": 4,
+  "completed_at": "2026-10-15T10:02:41Z",
+  "summary": "The customer agreed to pay ₹1,499 online and asked for the link on WhatsApp.",
+  "success": true,
+  "data": { "payment_method": "online" },
+  "template": {
+    "status": "selected",
+    "name": "payment_link_hi",
+    "language": "hi",
+    "variables": { "1": "Rahul", "2": "1499" },
+    "missing": [],
+    "reason": "The customer agreed to pay online and asked for the link on WhatsApp."
+  }
+}
+```
+
+`template.status` is `selected`, `none` or `failed`. A failed choice never
+fails the analysis: `analysis.status` stays `done` and the summary still
+arrives. Check `template.missing` before you send. See
+[the result](/v2/analysis#the-result-analysis-template) for every field and
+error code. Choosing the template happens before this event is sent, so it adds
+the time of one model call, plus your template fetch when you use one.
 
 {/* FLOW-OUTCOME */}
 
@@ -322,6 +403,8 @@ set `final_results`.
 | :--- | :--- |
 | Know the conversation ended | The terminal event: `call.completed`, `call.failed`, `call.aborted` (or `call.voicemail` on phone calls). It arrives promptly and is never delayed by processing. |
 | Process the transcript now | `call.processed` from a call created with `final_results: true`, when `data.transcript.status` is `ready`. On `fetch_required`, fetch the transcript instead. |
+| Send the follow-up message | `call.processed`, at `data.call.analysis.template`, when the agent has [analysis templates](/v2/analysis#pick-a-follow-up-message). |
+| Watch your balance | `data.wallet.balance_inr` on the terminal event. |
 
 For the whole browser-call flow, see
 [Ending and results](/v2/web-calls#ending-and-results) on the Browser calls page.

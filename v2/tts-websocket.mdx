@@ -1,12 +1,12 @@
 ---
 title: "Streaming text to speech (WebSocket)"
-description: Keep one WebSocket open for a whole call, send text as your LLM writes it, and get audio back sentence by sentence, with barge-in and phone-ready formats.
+description: "Stream Hindi speech over one WebSocket per call. Send text as your LLM writes it and get audio back sentence by sentence, with barge-in."
 ---
 
 The streaming endpoint carries a whole conversation on one connection. You
 send text as your language model writes it, a token or a sentence at a time.
 We cut it into sentences, synthesise them in order and send the audio back on
-the same socket. Voices, output formats and the price are the same as on
+the same socket. Voices and output formats are the same as on
 [`POST /v1/audio/speech`](/v2/tts-quickstart).
 
 ## When to use it
@@ -15,14 +15,13 @@ Use the WebSocket for live conversations: voice agents on the phone or in a
 browser, anything where a model writes the reply while someone waits for it.
 Compared with one HTTP request per sentence, it changes four things:
 
-- You pay for the connection once per call. A new HTTPS connection needs a TCP
+- You set up the connection once per call. A new HTTPS connection needs a TCP
   and TLS handshake, which takes 0.4 to 1 second from India and sometimes
   longer when a connection attempt has to be retried.
 - You can send tokens as they arrive. We find the sentence ends.
 - The next sentence is synthesised while the current one plays, so there is no
   pause between sentences.
-- Barge-in is one message. The sentence that was playing stops at once and is
-  not charged.
+- Barge-in is one message. The sentence that was playing stops at once.
 
 When your workspace is at its concurrency limit, a sentence on a socket waits
 up to 3 seconds for a free slot. An HTTP request gets a `429` straight away.
@@ -109,11 +108,11 @@ hands the page only the token.
 in the [browser example](#browser-example). A token:
 
 - lasts 60 seconds and opens one socket;
-- bills the workspace of the key that minted it, under that key's rate limit;
+- acts for the workspace of the key that minted it, under that key's rate limit;
 - stops working if that key is revoked.
 
 <Warning>
-A socket opened with a token can synthesise speech on your wallet until it
+A socket opened with a token can synthesise speech for your workspace until it
 closes, for up to an hour. Mint tokens only for users you have signed in, one
 per connection, right before the page connects, and rate-limit the route that
 mints them.
@@ -128,10 +127,10 @@ gets an ordinary HTTP response with the usual [error envelope](/v2/errors):
 | :--- | :--- | :--- | :--- |
 | 401 | `unauthorized` | No credentials, an unknown key, or an API key in the URL. | Send the key in the `Authorization` header, or use a stream token. |
 | 401 | `invalid_token` | The stream token is unknown, expired or already used. | Mint a new token. Each one opens one socket. |
-| 402 | `insufficient_balance` | Your wallet is empty. | [Top up](/v2/wallet#top-up). |
+| 402 | `insufficient_balance` | Your wallet balance is too low to open a socket. | [Top up](/v2/wallet#top-up). |
 | 403 | `forbidden` | The key, or the key that minted the token, was revoked. | Use a current key. |
 | 426 | `upgrade_required` | A plain HTTP request reached the endpoint. | Connect with a WebSocket client (`wss://`). |
-| 429 | `at_capacity` | Your workspace already has 20 sockets open, or the service is at its own ceiling. `Retry-After: 5`. | Reuse one socket per call and close the ones you are done with. |
+| 429 | `at_capacity` | Your workspace already has 200 sockets open, or the service is at its own ceiling. `Retry-After: 5`. | Reuse one socket per call and close the ones you are done with. |
 | 429 | `rate_limited` | Your key's request rate. | Honour `Retry-After`. |
 | 503 | `unavailable` | The server is restarting. `Retry-After: 2`. | Reconnect in a moment. |
 
@@ -224,16 +223,16 @@ its leading space runs into the word before it.
 
 | `type` | Fields | When |
 | :--- | :--- | :--- |
-| `session.ready` | `session_id`, `model`, `voice`, `response_format`, `sample_rate`, `encoding`, `audio_transport`, `limits` | First message after you connect. |
+| `session.ready` | `session_id`, `model`, `voice`, `response_format`, `sample_rate`, `encoding`, `audio_transport`, `limits`, `billing` | First message after you connect. `billing` says how this socket is metered for your workspace. |
 | `session.updated` | Same as `session.ready` | After a valid `session.update`. |
 | `audio.start` | `context_id`, `request_id`, `text`, `response_format`, `sample_rate`, `encoding` | Before a sentence's first audio. `text` is the sentence. |
 | binary frame | Raw audio | Each piece of audio, with `audio_transport: binary`. |
 | `audio.chunk` | `context_id`, `request_id`, `data` (base64) | Each piece of audio, with `audio_transport: base64`. |
-| `audio.done` | `context_id`, `request_id`, `chars_billed`, `cost_paise`, `bytes`, `first_byte_ms` | The sentence was delivered in full. This is when it is charged. |
+| `audio.done` | `context_id`, `request_id`, `chars_billed`, `cost_paise`, `bytes`, `first_byte_ms` | The sentence was delivered in full. `chars_billed` and `cost_paise` are 0 unless your workspace is metered per character. |
 | `context.done` | `context_id` | A flush completed: everything sent for the context up to that flush has been spoken or has failed. |
 | `context.cancelled` | `context_id` | Your `cancel` took effect. Nothing more for this context follows. |
 | `error` | `code`, `message`, optional `context_id`, `request_id`, `retry_after_secs` | A sentence failed or a message was refused. See [Errors](#errors-on-an-open-socket). |
-| `session.closed` | `reason` | We are about to close the socket. See [Closing](#closing). |
+| `session.closed` | `reason`, and `billed_seconds` and `cost_paise` on a socket metered by connected time | We are about to close the socket. See [Closing](#closing). |
 
 ```json title="session.ready"
 {
@@ -260,8 +259,8 @@ its leading space runs into the word before it.
   "type": "audio.done",
   "context_id": "turn-1",
   "request_id": "tts_01K6Z8N0B2D4F6H8K0M2P4R6T8",
-  "chars_billed": 41,
-  "cost_paise": 8,
+  "chars_billed": 0,
+  "cost_paise": 0,
   "bytes": 19840,
   "first_byte_ms": 212
 }
@@ -298,8 +297,7 @@ token or a flush. A full stop after an abbreviation such as `Rs.`, `Dr.`,
 `Mr.` or `e.g.`, or after a single initial, does not end a sentence. A sentence
 shorter than two words joins the next one, so "Okay." is not sent on its own.
 
-Lengths are counted in Unicode code points, which is also how characters are
-billed.
+Lengths are counted in Unicode code points.
 
 ## Ordering
 
@@ -328,8 +326,8 @@ When the caller starts talking over your voice agent:
 4. Use a new `context_id` for the next reply.
 
 On our side, `cancel` discards the context's unsent text and its queued
-sentences, and stops the sentence being synthesised straight away. None of it
-is charged. You always get `context.cancelled`, even if the context had already
+sentences, and stops the sentence being synthesised straight away. You always
+get `context.cancelled`, even if the context had already
 finished, so you never need to know whether you were too late.
 
 ## When your workspace is busy
@@ -349,35 +347,20 @@ If you run many calls at once, ask your Mirai contact for a higher limit. Ask
 for a little more than your peak number of simultaneous calls, because each
 call starts its next sentence shortly before the current one finishes.
 
-## Billing
-
-The socket costs the same as the [HTTP endpoint](/v2/tts-quickstart#billing),
-per character of text spoken:
-
-- A sentence is charged when its `audio.done` is sent, and `cost_paise` in that
-  event is exactly what was debited.
-- A sentence that is cancelled, fails, or is still undelivered when the socket
-  closes is not charged.
-- Fractions of a paisa carry over from one sentence to the next, so the total
-  for a socket is its characters times the rate, rounded up once. A streamed
-  reply never costs more than sending the same text in one HTTP request, and
-  the spaces between sentences are not billed.
-- Because of that carry, some sentences cost 0 paise. They appear in your
-  request log but get no wallet row.
+## Request log
 
 Every sentence has its own row in your
 [request log](/v2/tts-quickstart#your-request-log), with `transport` set to
-`websocket`. Its `request_id` is the row's `id` and the `reference` on its
-[wallet row](/v2/wallet#a-text-to-speech-row). Before each sentence we check
-that your wallet can cover it. If it cannot, that sentence fails with
-`insufficient_balance`.
+`websocket`. Its `request_id` is the row's `id`. If your wallet balance runs
+out, a sentence fails with `insufficient_balance`, or the socket closes with
+that reason (see [Closing](#closing)).
 
 ## Limits
 
 | Limit | Value | Over the limit |
 | :--- | :--- | :--- |
 | Open sockets | **200 per workspace** | `429 at_capacity` before the upgrade, with `Retry-After: 5`. |
-| Sentences being synthesised | Your workspace's TTS limit, **10** unless it has been set otherwise, shared with HTTP requests | The sentence waits up to 3 seconds, then `error` `at_capacity`. |
+| Sentences being synthesised | Your workspace's [TTS concurrency limit](/v2/limits#text-to-speech), shared with HTTP requests | The sentence waits up to 3 seconds, then `error` `at_capacity`. |
 | One message | 64 KB | The socket is closed. |
 | Text waiting to be spoken | 10,000 characters per socket | `error` `queue_full`. |
 | Open contexts | 64 per socket | `error` `too_many_contexts`. |
@@ -410,8 +393,8 @@ the next sentence goes ahead.
 | `too_many_contexts` | 64 contexts are open. | Flush or cancel the ones you are done with. |
 | `session_closing` | You sent text after `close`. | Open a new socket. |
 | `at_capacity` | No synthesis slot freed within 3 seconds. Carries `retry_after_secs`. | Send the text again after that delay. |
-| `insufficient_balance` | Your wallet cannot cover this sentence. | [Top up](/v2/wallet#top-up). |
-| `upstream_error`, `first_byte_timeout`, `total_timeout` | The speech engine failed or stalled on this sentence. It was not charged. | Send the text again. |
+| `insufficient_balance` | Your wallet balance is too low. | [Top up](/v2/wallet#top-up). |
+| `upstream_error`, `first_byte_timeout`, `total_timeout` | The speech engine failed or stalled on this sentence. | Send the text again. |
 | `fleet_offline` | No speech capacity is online. | Retry after `retry_after_secs`. |
 
 ## Closing
@@ -426,8 +409,10 @@ send `session.closed` with a reason, then close it:
 | `idle_timeout` | 1000 | Nothing from you and nothing playing for 120 seconds. |
 | `max_duration` | 1000 | The socket reached its 1-hour limit. |
 | `server_shutdown` | 1001 | We are restarting. Reconnect, and send again any text whose `audio.done` you had not received. |
+| `insufficient_balance` | 1008 | Your wallet balance ran out. Top up, then open a new socket. |
 
-A sentence that was not delivered when a socket closed is not charged.
+Text that was not delivered when a socket closed is dropped. Send it again on a
+new socket.
 
 ## Python example
 
@@ -481,7 +466,7 @@ async def main():
                 if event["type"] == "audio.start":
                     print("speaking:", event["text"])
                 elif event["type"] == "audio.done":
-                    print(f"  delivered: {event['chars_billed']} characters, {event['cost_paise']} paise")
+                    print(f"  delivered: {event['bytes']} bytes, first audio after {event['first_byte_ms']} ms")
                 elif event["type"] == "error":
                     print("error:", event["code"], event["message"])
                 elif event["type"] == "context.done" and event["context_id"] == "turn-1":
@@ -677,7 +662,7 @@ reconnect, for example after the socket has been idle for two minutes.
 
 <CardGroup cols={2}>
   <Card title="TTS quickstart" icon="bolt" href="/v2/tts-quickstart">
-    The HTTP endpoint, output formats, billing and the request log.
+    The HTTP endpoint, output formats and the request log.
   </Card>
   <Card title="Pipecat" icon="python" href="/v2/pipecat">
     `MiraiTTSService` and the recommended phone setup.

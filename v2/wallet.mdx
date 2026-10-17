@@ -1,6 +1,7 @@
 ---
-title: Wallet
-description: Check your prepaid balance and read the transaction ledger.
+title: "Wallet API: balance and transactions"
+sidebarTitle: "Wallet"
+description: "Check your prepaid balance, read every credit and debit in the ledger, top up, and handle a 402 when the balance runs out."
 ---
 
 
@@ -219,7 +220,7 @@ Reconcile against `call_id`: every billable call produces exactly one debit row.
 reconciles against your [request log](/v2/tts-quickstart#your-request-log) the
 way a call row reconciles against `call_id`.
 
-On a [WebSocket stream](/v2/tts-websocket#billing), each spoken sentence is its
+On a [WebSocket stream](/v2/tts-websocket#request-log), each spoken sentence is its
 own row, and `reference` is the `request_id` from that sentence's `audio.done`
 event. Fractions of a paisa carry over between sentences on a socket, so a
 sentence whose share rounds to nothing has a request-log row but no wallet

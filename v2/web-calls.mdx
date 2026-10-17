@@ -1,6 +1,7 @@
 ---
-title: Browser calls
-description: Run a voice conversation in your user's browser. You create the call on your server, stream audio and live text in the page, steer or close the call, and receive the final transcript.
+title: "Browser voice calls"
+sidebarTitle: "Browser calls"
+description: "Run a voice agent in your user's browser. Create the call on your server, stream audio and live captions, steer or close it, and get the transcript."
 ---
 
 
@@ -1013,8 +1014,9 @@ webhook and the [final transcript](#ending-and-results).
 </Accordion>
 
 <Accordion title="How long can the prompt be?">
-An agent's `system_prompt` holds up to **8,000 characters**. There is no
-per-call system prompt. Per call, you can set the opening line with
+An agent's `system_prompt` holds up to **12,000 characters**, and so does a
+call's own [`system_prompt`](/v2/calls#per-call-prompt), which replaces the
+agent's for that call. Per call, you can also set the opening line with
 `first_message` (up to 500 characters), pass data into the prompt with
 `variables`, and direct the agent mid-call with an
 [`instruction`](#live-control).

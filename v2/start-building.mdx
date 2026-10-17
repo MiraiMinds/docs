@@ -1,6 +1,7 @@
 ---
-title: Start building
-description: Go from a secret key to a running campaign in ten minutes, with every request ready to copy and paste.
+title: "Start building: from API key to first campaign"
+sidebarTitle: "Start building"
+description: "Go from a secret key to a running campaign in ten minutes. Every request is ready to copy, and the go-live checklist is at the end."
 ---
 
 
@@ -39,7 +40,7 @@ curl https://sandbox.voice.miraiminds.co/v2/wallet \
 ```
 
 ```json title="200 OK"
-{ "balance_inr": 500, "currency": "INR", "updated_at": "2026-08-10T09:12:44Z" }
+{ "balance_inr": 200, "currency": "INR", "updated_at": "2026-08-10T09:12:44Z" }
 ```
 
 A `401` here is almost always a trailing newline from `cat`-ing a key file.
@@ -47,8 +48,8 @@ Paste the key; do not pipe it.
 
 That balance is real money, and it pays for the calls below. We bill
 **in 10-second blocks, rounded up, with a one-block minimum**, at your plan's
-[tier](/general/tiers). The examples below ran on T3, which costs ₹3 a minute
-or ₹0.50 a block.
+[tier](/general/tiers). The examples below ran on T5, where every new
+workspace starts. That is ₹5 a minute, or ₹0.84 a block.
 
 </Step>
 
@@ -163,7 +164,7 @@ curl https://sandbox.voice.miraiminds.co/v2/calls/call_01K7QB4M8N3P6R2S5T7V9W1YA
   "ended_reason": "assistant-ended-call",
   "duration_secs": 96,
   "tier": "t5",
-  "cost_inr": 8.34
+  "cost": { "amount_inr": 8.34, "per_min_inr": 5, "billing_block_secs": 10 }
 }
 ```
 
@@ -260,7 +261,7 @@ curl -X POST https://sandbox.voice.miraiminds.co/v2/campaigns \
   "id": "cmp_01K7QAC5N9P4R7S3T6V8W2X4YB",
   "object": "campaign",
   "status": "draft",
-  "tier": "t3",
+  "tier": "t5",
   "contacts_accepted": 2,
   "contacts_duplicate": 0,
   "contacts_rejected": []
@@ -285,6 +286,10 @@ curl -X POST https://sandbox.voice.miraiminds.co/v2/campaigns/cmp_01K7QAC5N9P4R7
 waits in `play` until the window opens. That is expected, and the campaign is
 not stuck. [Campaigns](/v2/campaigns) has the full semantics.
 
+Use your own dates, from today onward. If no slot can open again on or before
+`end_date`, start answers [`409 window_closed`](/v2/campaigns#calling-window)
+instead of `202`.
+
 </Step>
 
 <Step title="Read the report (1 minute)">
@@ -303,8 +308,8 @@ curl https://sandbox.voice.miraiminds.co/v2/campaigns/cmp_01K7QAC5N9P4R7S3T6V8W2
   "dialed": 2,
   "attempts": 3,
   "connected": 1,
-  "spent_paise": 600,
-  "spent_inr": 6,
+  "spent_paise": 1000,
+  "spent_inr": 10,
   "budget_paise": 30000
 }
 ```

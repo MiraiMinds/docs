@@ -1,6 +1,7 @@
 ---
-title: Node-based agents
-description: Build an agent as a graph of steps, each with its own instructions, and let the model move between them. This page covers drafting a flow from a brief or from call recordings, the graph schema, a worked example, editing, versions, limits and errors.
+title: "Node-based voice agents (flows)"
+sidebarTitle: "Node-based agents"
+description: "Build a voice agent as a graph of steps. Draft the flow from a brief or from real call recordings, then edit it, version it and test it."
 ---
 
 
@@ -24,7 +25,7 @@ Base URL `https://sandbox.voice.miraiminds.co`. All endpoints require
 | :--- | :--- |
 | The call does one job, start to finish. | The call has distinct phases, each with its own rules: confirm who you are speaking to, then explain, then agree a next step. |
 | The script is linear. | The call branches: wrong person, reschedule, refusal, a question you must hand off. |
-| The instructions fit in 8,000 characters. | Each step needs long instructions. Every node takes up to 12,000 characters, and only the current node's are in play. |
+| The instructions fit in 12,000 characters. | Each step needs long instructions. Every node takes up to 12,000 characters, and only the current node's are in play. |
 | You need to fetch or send data mid-call with [on-call tools](/v2/tools). | You want to know which step each call reached, and what the caller said at each step. |
 
 A flow can run [tools](/v2/tools) before, during, and after a call. Each start
@@ -1643,6 +1644,7 @@ model.
 | Text chat | Not supported. A call with `channel: "text"` is refused with `409 flow_agent_voice_only`. |
 | `variables` | Fill the node prompts, greetings and extraction prompts. See [variables in node text](#variables-in-node-text). |
 | `first_message` | Refused with `409 flow_first_message_unsupported`. The start node's greeting opens the call; personalise it with `variables`. |
+| `system_prompt` | Refused with `409 flow_system_prompt_unsupported`. The nodes' prompts run the call; personalise them with `variables`. |
 | `agent_revision` | Runs that saved revision's graph. |
 | `timing`, live control | Work as on any call. See [Browser calls](/v2/web-calls#timing-policy). |
 
@@ -1709,6 +1711,7 @@ Everything else uses the [standard error envelope](/v2/errors):
 | `409` | `conflict` | `if_revision` is not the agent's current revision. Read the agent again. |
 | `409` | `flow_agent_voice_only` | A text chat call with a node-based agent. Flows run on phone and browser calls. |
 | `409` | `flow_first_message_unsupported` | A per-call `first_message` for a node-based agent. Change the start node's `greeting` instead. |
+| `409` | `flow_system_prompt_unsupported` | A per-call `system_prompt` for a node-based agent. Change the node prompts instead. |
 
 ## Design tips
 
@@ -1764,6 +1767,7 @@ Everything else uses the [standard error envelope](/v2/errors):
 | `invalid_flow`: `cannot be reached from the start node` | No transition enters the node | Add a transition into it, or remove it. |
 | `invalid_flow` at `flow`, naming the model | Your tier's model writes tool calls as text | Contact support. Flows need a model with native tool calls. |
 | `409 flow_first_message_unsupported` | The call sent `first_message` | Remove it. Personalise the start node's `greeting` with `variables`. |
+| `409 flow_system_prompt_unsupported` | The call sent `system_prompt` | Remove it. Personalise the node prompts with `variables`. |
 | `409 conflict` on `PUT /flow` | The agent was saved since you read it | `GET /v2/agents/{id}/flow` again, reapply your edit, and save with the new `agent_revision`. |
 | `404 not_found` on `GET /flow` | The agent is a single-prompt agent | `PUT /v2/agents/{id}/flow` to add a graph. |
 

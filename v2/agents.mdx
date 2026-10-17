@@ -1,6 +1,7 @@
 ---
-title: Agents
-description: Create, read, update and delete the reusable configuration a call runs.
+title: "Agents API: create and manage voice agents"
+sidebarTitle: "Agents"
+description: "Create, read, update and delete voice agents: the prompt, opening line, voice and tools a call runs with. You can also read an agent's logs."
 ---
 
 
@@ -65,6 +66,7 @@ only `pre_call` and `post_call` tools are allowed. See
 | `language` | string | yes | BCP-47 conversation language, e.g. `hi-IN`, `en-IN`. Drives ASR and the model's default output language. |
 | `max_duration_secs` | integer | no | Hard cap. When it is reached, the call ends with `ended_reason: exceeded-max-duration`. Minimum `30`, maximum `1800`, default `300`. |
 | `tools` | array | no | Tool definitions for this agent. See [Tools](/v2/tools). PATCH replaces the full list. |
+| `analysis` | object | no | What to work out after each call: a summary, a success verdict, extracted fields and the follow-up message to send. See [Analysis](#analysis). PATCH replaces the whole object. |
 | `emit_processed_webhook` | boolean | no | Defaults to `true`. Set `false` to suppress `call.processed` while keeping analysis and post-call tools enabled. |
 | `end_call` | object | no | See [Ending a call](#ending-a-call). |
 | `voicemail` | object | no | See [Voicemail](#voicemail). |
@@ -73,6 +75,44 @@ only `pre_call` and `post_call` tools are allowed. See
 | `flow` | object \| null | no | A node graph. Makes this a [node-based agent](/v2/node-agents). Present on the agent object only when set. PATCH replaces the whole graph; `null` removes it. |
 
 Server-set and read-only: `id`, `object`, `created_at`, `updated_at`.
+
+### Analysis
+
+`analysis` reads each finished call once more, after the hangup, so it never
+slows the conversation. Turn it on with `"enabled": true` and describe what you
+want in `prompt`, `success_criteria` and `output_schema`. Add `templates` and
+the agent also picks the message template to send next, such as a WhatsApp or
+SMS template, and fills in its variables from the conversation. See
+[Call analysis](/v2/analysis) for every field, the result and two worked
+examples.
+
+```json
+{
+  "analysis": {
+    "enabled": true,
+    "prompt": "Summarise the call in two sentences: what the customer wanted and what was agreed.",
+    "success_criteria": "The customer confirmed the order or chose a payment method.",
+    "templates": {
+      "instructions": "Pick the WhatsApp message to send. Choose none if the customer declined.",
+      "items": [
+        {
+          "name": "payment_link_hi",
+          "language": "hi",
+          "description": "Sends the payment link when the customer agreed to pay online.",
+          "variables": [
+            { "key": "1", "description": "Customer first name" },
+            { "key": "2", "description": "Order amount in rupees, digits only" }
+          ]
+        }
+      ]
+    }
+  }
+}
+```
+
+### Calls from
+
+`calls_from` sets the number the agent's outbound calls and campaigns ring from when they do not choose one. Send `{ "pool_id": "pool_…" }` for a [phone pool](/v2/phone-numbers), or `{ "phone_number_id": "phn_…" }` for one of your numbers, never both. `null` unsets it. See [phone numbers and pools](/v2/phone-numbers#which-number-a-call-comes-from) for the order a call's number is chosen in.
 
 ### Voice
 
@@ -385,7 +425,7 @@ PATCH /v2/agents/{id}
 ```
 
 Send only the fields you are changing. Nested objects such as `voice`,
-`end_call`, `voicemail`, `background_sound` and `tools` are replaced wholesale,
+`end_call`, `voicemail`, `background_sound`, `analysis` and `tools` are replaced wholesale,
 so to change `end_call.message`, send the whole `end_call` object. `behavior`
 is the one exception: it is merged field by field, as described in
 [Behavior](#behavior). `flow` is replaced wholesale too: send the whole graph,
@@ -453,6 +493,147 @@ curl -X DELETE https://sandbox.voice.miraiminds.co/v2/agents/agt_01JZQ8F3K7M2N5P
 The delete is soft: the agent stops appearing in `GET /v2/agents` and can no
 longer be used for new calls, but historical calls keep resolving their
 `agent_id`. Calls already in flight are not affected.
+
+---
+
+## Read an agent's logs
+
+```http
+GET /v2/agents/{id}/logs?part=&level=&call_id=&name=&since=&until=&limit=&cursor=
+```
+
+Everything that happened on this agent's calls, newest first. One row per
+event: a tool run, a tool the model asked for that the agent doesn't have, the
+variables a call received, the post-call analysis, and each call starting and
+ending. It's the same list the console shows in Agent Studio under **Logs**, so
+you can debug from code or from the console and see the same rows.
+
+| Query param | Description |
+| :--- | :--- |
+| `part` | Optional. One of `prompt`, `tools`, `variables`, `results`, `calls`. Leave it out for every part. |
+| `level` | Optional. `error`, `warning` or `info`. `errors`, `warnings` and `all` also work. |
+| `call_id` | Optional. Only this call's rows. |
+| `name` | Optional. Only rows about one tool, variable or result field. `calls` rows have no name, so a named query never returns them. |
+| `since`, `until` | Optional. RFC 3339 bounds on the row time. `until` defaults to now and `since` to 7 days before `until`. They can be at most 90 days apart. Escape a `+` offset as `%2B`. |
+| `limit` | Optional. 1–200, default 50. |
+| `cursor` | Optional. The `next_cursor` from the previous page. |
+
+```bash
+curl -G https://sandbox.voice.miraiminds.co/v2/agents/agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ/logs \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+  --data-urlencode "level=error" \
+  --data-urlencode "limit=20"
+```
+
+```json title="200 OK"
+{
+  "data": [
+    {
+      "ts": "2026-10-15T09:41:07.412000Z",
+      "call_id": "call_01JZR4M8T2K9P3Q7V5W1X6Y0AB",
+      "part": "tools",
+      "level": "error",
+      "event": "tool_run",
+      "name": "create_complaint",
+      "summary": "create_complaint · transform failed · HTTP 200 · 1.2 s · function not defined: json/0",
+      "detail": {
+        "tool": "create_complaint",
+        "phase": "on_call",
+        "kind": "http",
+        "status": "transform_failed",
+        "error": "transform_failed",
+        "http_status": 200,
+        "ms": 1200,
+        "attempt": 1
+      }
+    },
+    {
+      "ts": "2026-10-15T09:40:51.118000Z",
+      "call_id": "call_01JZR4M8T2K9P3Q7V5W1X6Y0AB",
+      "part": "prompt",
+      "level": "warning",
+      "event": "tool_missing",
+      "name": "get_complaint_status",
+      "summary": "get_complaint_status · not a tool on this agent · turn 4",
+      "detail": {
+        "name": "get_complaint_status",
+        "turn": 4,
+        "advertised": ["create_complaint"]
+      }
+    }
+  ],
+  "has_more": true,
+  "next_cursor": "MjAyNi0xMC0xNVQwOTo0MDo1MS4xMTgwMDBafjQ1"
+}
+```
+
+| Field | Type | Description |
+| :--- | :--- | :--- |
+| `ts` | string | When it happened, in UTC. |
+| `call_id` | string | The call it happened on. Open it with [`GET /v2/calls/{id}`](/v2/calls#get-a-call). |
+| `part` | string | The part of the agent it's about: `prompt`, `tools`, `variables`, `results` or `calls`. |
+| `level` | string | `error`, `warning` or `info`. |
+| `event` | string | What happened. See the table below. |
+| `name` | string | The tool, variable or result field it's about. Empty on `calls` rows. |
+| `summary` | string | One line that says what happened, so you rarely need `detail`. |
+| `detail` | object | The full record. Its fields depend on `event`. |
+
+| `part` | `event` | Levels |
+| :--- | :--- | :--- |
+| `tools` | `tool_run` | `info` when the tool ran, was skipped by its condition, is turned off, or the call ended while it ran. `error` for anything else: a timeout, an HTTP error, a failed transform. |
+| `prompt` | `tool_missing` | `warning`. The model asked for a tool this agent doesn't have. The call carried on without it. Usually the prompt names a tool you haven't added. |
+| `variables` | `received` | `info`. The variables a call started with, after defaults. |
+| `results` | `analysis_done`, `analysis_failed` | `info` when the analysis finished. `warning` when it finished but took more than 10 seconds to arrive. `error` when it failed. |
+| `calls` | `created`, `ended` | `ended` is `info` for a normal ending, `warning` when the caller never spoke, and `error` when the call failed for a technical reason. |
+
+Page with `next_cursor` until `has_more` is `false`. See
+[pagination](/v2/overview#pagination).
+
+A `variables` row's `detail` holds the values the call received, such as a
+customer's name or order number. Treat logs like the call data they come from,
+and keep your API key on your server.
+
+<Note>
+Rows about variables and results start from calls made on 14 October 2026.
+Rows about tools the model asked for but the agent doesn't have start from
+15 October 2026.
+</Note>
+
+### Count errors and warnings
+
+```http
+GET /v2/agents/{id}/logs/summary?since=&until=
+```
+
+How many errors and warnings each part had. Without `since` it counts the last
+24 hours. These are the counts on Agent Studio's section labels.
+
+```bash
+curl https://sandbox.voice.miraiminds.co/v2/agents/agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ/logs/summary \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY"
+```
+
+```json title="200 OK"
+{
+  "since": "2026-10-14T09:45:00.000000Z",
+  "until": "2026-10-15T09:45:00.000000Z",
+  "parts": {
+    "prompt":    { "errors": 0, "warnings": 3 },
+    "tools":     { "errors": 7, "warnings": 0 },
+    "variables": { "errors": 0, "warnings": 0 },
+    "results":   { "errors": 0, "warnings": 1 },
+    "calls":     { "errors": 1, "warnings": 2 }
+  }
+}
+```
+
+Every part is always present, even when both counts are zero.
+
+| Status | Code | When |
+| :--- | :--- | :--- |
+| `400` | `invalid_request` | A query param is out of range: an unknown `part` or `level`, a `limit` outside 1–200, a bad timestamp, `since` not before `until`, a window over 90 days, or a cursor from somewhere else. |
+| `404` | `not_found` | No agent with this ID in your workspace. |
+| `500` | `internal` | We couldn't read the logs just now. Try again. Don't read it as an empty log. |
 
 ---
 

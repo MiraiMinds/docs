@@ -1,6 +1,7 @@
 ---
-title: Tools
-description: Connect your APIs before, during, and after a call. Mix synchronous and background tools, use conditions and secrets, and inspect every result.
+title: "Tools: connect your APIs to a voice agent"
+sidebarTitle: "Tools"
+description: "Call your own APIs before, during and after a call. Covers sync and background tools, conditions, workspace secrets, callbacks and tool results."
 ---
 
 Use tools to look up customer information, check an order, book an appointment,
@@ -446,7 +447,7 @@ model arguments are not available when the initial tool list is chosen.
 | `now.*` | Date, time, weekday, greeting, and timezone. Uses the call's timezone, defaulting to `Asia/Kolkata`. |
 | `tools.<name>.*` | Results from earlier tools in the same pre-call or post-call phase. |
 | `args.*` | Model-supplied arguments for an on-call request. |
-| `analysis.*` | Post-call `status`, `summary`, `success`, and `data.*` when analysis is enabled. |
+| `analysis.*` | Post-call `status`, `summary`, `success`, and `data.*` when analysis is enabled, and `template.*` when the agent has [analysis templates](/v2/analysis#send-the-message-from-a-post-call-tool). |
 | `secrets.*` | Stored workspace secrets, in request templates only. Never in conditions. |
 
 Write `{{ vars.customer_id }}` to insert text. Inside `request.body`, an entire
@@ -520,8 +521,9 @@ it, remove references from your agents first, then call
 ```
 
 Post-call tools run after settlement. Their failure does not change call status
-or billing. If your agent has analysis enabled, a post-call tool can also read
-`analysis.summary`, `analysis.success`, and `analysis.data.*`. Use a condition on
+or billing. If your agent has [analysis](/v2/analysis) enabled, a post-call tool can also read
+`analysis.summary`, `analysis.success`, `analysis.data.*` and, with templates,
+`analysis.template.*`. Use a condition on
 `analysis.status` or `analysis.success` when the request requires a successful
 analysis result.
 

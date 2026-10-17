@@ -1,6 +1,6 @@
 ---
 title: Limits & compliance
-description: Rate limits, concurrency, payload ceilings, and the India calling-window and DNC rules you are responsible for.
+description: "Rate limits, concurrency, payload sizes, timeouts and data retention, plus the India calling-hours, DND and consent rules you're responsible for."
 ---
 
 Two kinds of limit apply to you: our technical limits, which we enforce, and
@@ -185,7 +185,7 @@ to an open session.
 | Thing | Limit |
 | :--- | :--- |
 | Request body | 1 MB |
-| `system_prompt` | 8,000 characters, on the agent. There is no per-call system prompt. |
+| `system_prompt` | 12,000 characters, on the agent or [per call](/v2/calls#per-call-prompt) |
 | `first_message` | 500 characters, on the agent or per call |
 | `variables` | 32 keys, 512 characters per value |
 | `metadata` | 16 keys; key 1–40 characters (ASCII letters, digits, `_` `.` `:` `-`; starts with a letter, digit or `_`); value 256 characters; 4 KB serialized |

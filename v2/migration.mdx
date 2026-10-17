@@ -1,33 +1,36 @@
 ---
-title: Migrating from v1
-description: How each v1 endpoint and field maps to the v2 API, and what has no v2 equivalent yet.
+title: "Migrating from the v1 API to v2"
+sidebarTitle: "Migrating from v1"
+description: How each v1 endpoint, field and webhook maps to the v2 API, and how to move a live integration across.
 ---
 
 
-**You do not have to migrate.** [v1](/v1/overview) is stable, hosted separately at
-`api.voice-agents.miraiminds.co`, and is not going away. Nothing in your
-integration changes because v2 exists.
+[v1](/v1/overview) still runs for the integrations already on it, hosted
+separately at `api.voice-agents.miraiminds.co`. New features ship on v2 only,
+and we are moving v1 integrations to v2 one at a time. Your Mirai contact
+agrees the switch-over date with you.
 
-Migrate when you want one of these:
+What you get on v2:
 
 - `GET` on a call. In v1, webhooks are the only way to learn a call's status.
-- Wallet balance and ledger over the API.
-- One auth header instead of three.
-- Idempotent call creation.
-- The published tier rate card.
-- **[Campaigns](/v2/campaigns)**: a server-side dialler with calling windows,
-  retries, budgets, do-not-call suppression and a per-contact report.
+- [Campaigns](/v2/campaigns), a server-side dialler with calling windows,
+  retries, budgets, do-not-call suppression and a per-contact report. An
+  [always-on campaign](/v2/campaigns#always-on-campaigns) is the v1 call queue.
+- [Call analysis](/v2/analysis) on the call, on its own endpoint and in a
+  webhook, including the follow-up message template.
+- Your wallet balance over the API and on every call-ending webhook.
+- Idempotent call creation and a published rate card.
+- [Tools](/v2/tools) before, during and after a call. Recreate each tool
+  definition on your v2 agent; v1 tool IDs do not transfer.
 
-You can migrate function calling to [v2 tools](/v2/tools), including background
-on-call requests and post-call actions. Recreate each tool definition on your
-v2 agent; v1 tool IDs do not transfer. Review each remaining capability before
-cutover, and keep your v1 integration active until its replacement is tested.
+Keep your v1 integration running until each part has its v2 replacement
+tested.
 
 ## Hosts
 
 | | v1 | v2 |
 | :--- | :--- | :--- |
-| Base URL | `https://api.voice-agents.miraiminds.co` | `https://sandbox.voice.miraiminds.co` |
+| Base URL | `https://api.voice-agents.miraiminds.co` | `https://sandbox.voice.miraiminds.co`, and `https://prod.voice.miraiminds.co` once your company has [gone live](/general/tiers#your-plan) |
 | Path prefix | mixed `/v1/…` and `/v2/…` | `/v2/…` throughout |
 
 <Warning>
@@ -46,8 +49,18 @@ the **host** to tell the two apart.
 | `x-private-key: sk_…` | `Authorization: Bearer sk_live_…` |
 | `workspace: 6690a1b2c3d4e5f600000002` | — (the key is workspace-scoped) |
 
-v2 replaces the three headers with one. The key carries the workspace, so you
-cannot reach the wrong workspace by accident with valid credentials.
+v2 takes one header. The key carries the workspace, so valid credentials cannot
+reach the wrong workspace by accident. Create a key, and get the workspace's
+webhook secret, in the [console](https://sandbox.voice.miraiminds.co) under
+**Developers**. See [Start building](/v2/start-building).
+
+<Note>
+The v2 API also accepts a v1 key pair, sent as the same `x-public-key` and
+`x-private-key` headers, once we have linked that pair to your v2 workspace.
+Ask your Mirai contact before you rely on it. The `workspace` header is not
+read. A linked pair is a bridge for the move: v2 keys are the ones you can
+create, rotate and revoke in the console, so switch to one when you can.
+</Note>
 
 ## Endpoints
 
@@ -59,7 +72,7 @@ cannot reach the wrong workspace by accident with valid credentials.
 | `GET /v1/admin/assistant/list` | [`GET /v2/agents`](/v2/agents#list-agents) | Now cursor-paginated. |
 | `PUT /v1/admin/assistant/update/{id}` | [`PATCH /v2/agents/{id}`](/v2/agents#update-an-agent) | `PATCH`, with partial updates. |
 | — | [`DELETE /v2/agents/{id}`](/v2/agents#delete-an-agent) | New. Soft delete. |
-| `POST /v2/call/initiate` | [`POST /v2/calls`](/v2/calls#create-a-call) | `200` becomes `202`. |
+| `POST /v2/call/initiate` | [`POST /v2/calls`](/v2/calls#create-a-call) | `200` becomes `202`. For calling hours and retries, add the number to an [always-on campaign](#retries-calling-hours-and-concurrency) instead. |
 | — | [`GET /v2/calls/{id}`](/v2/calls#get-a-call) | **New.** v1 had no call read. |
 | — | [`GET /v2/calls`](/v2/calls#list-calls) | **New.** |
 | `POST /v2/call/abort` with `{callId}` in body | [`POST /v2/calls/{id}/abort`](/v2/calls#abort-a-call) | ID moves into the path. |
@@ -71,7 +84,8 @@ cannot reach the wrong workspace by accident with valid credentials.
 | [`GET /v1/admin/voice-gallery`](/v1/assistants#voice-gallery) | — | Still v1. v2 `voice_id` values come from this same catalogue. See [Voices](/v2/voices). |
 | — | [`GET /v2/calls/{id}/transcript`](/v2/calls#get-the-transcript) | **New.** Turn-by-turn, as spoken. |
 | — | [`GET /v2/calls/{id}/recording`](/v2/calls#get-the-recording) | **New.** `302` to a 15-minute signed URL. This is the v2 equivalent of v1's `recordingUrl`. |
-| `callSettings.slots` + your own dialler | [`POST /v2/campaigns`](/v2/campaigns#create-a-campaign) and the rest of `/v2/campaigns/*` | **New.** The calling window, retries and pacing that lived in v1's assistant config now have a resource of their own. |
+| — | [`GET /v2/calls/{id}/analysis`](/v2/analysis#where-the-result-appears) | **New.** The post-call analysis, including the chosen message template. |
+| `callSettings` + your own dialler | [`POST /v2/campaigns`](/v2/campaigns#create-a-campaign) and the rest of `/v2/campaigns/*` | **New.** The calling window, retries and pacing that lived in v1's assistant config now have a resource of their own. |
 | — | [`POST /v2/dnc`](/v2/dnc#add-a-number) | **New.** A workspace suppression list that we check at dial time. |
 | — | [`GET /v2/wallet`](/v2/wallet#get-balance) | **New.** |
 | — | [`GET /v2/wallet/transactions`](/v2/wallet#list-transactions) | **New.** |
@@ -91,25 +105,33 @@ cannot reach the wrong workspace by accident with valid credentials.
 | `variant.type` / `variant.config` | — (no variants; one shape) |
 | `variant.config.inputSchema` | — (declare nothing; just pass `variables`) |
 | `agent.tools` | [`tools`](/v2/tools) (full definitions, not v1 tool IDs) |
-| `telephony.inbound` / `telephony.outbound` | Assign `agent_id` on a v2 phone number for inbound; set `phone_number_id` when creating an outgoing call. See [inbound calling](/cookbooks/inbound-calling). |
-| `callSettings.slots` (calling window) | `slots` + `timezone` on a [campaign](/v2/campaigns#calling-window) (or [your scheduler](/v2/limits#calling-window) for single calls) |
-| `callSettings.concurrentCallCount` | `max_concurrent` on a [campaign](/v2/campaigns); the workspace ceiling is provisioned per key, see [Limits](/v2/limits) |
-| `callSettings.retryProtocol` | `retry_count` + `re_attempt_period_secs` on a [campaign](/v2/campaigns#retries) |
-| `analysisPlan` | — (post-call analysis is part of every tier; its v2 surface is on the [roadmap](/general/roadmap)) |
+| `preCall.apiPlan` | A [`pre_call` tool](/v2/tools#before-a-call-fetch-context-or-skip-dialing) |
+| `telephony.inbound` / `telephony.outbound` | Assign `agent_id` on a v2 phone number for inbound; set the agent's [`calls_from`](/v2/agents#calls-from) or the call's `phone_number_id` for outbound. See [inbound calling](/cookbooks/inbound-calling). |
+| `callSettings.slots`, `concurrentCallCount`, `retryProtocol` | Settings of a [campaign](#retries-calling-hours-and-concurrency) |
+| `analysisPlan.summaryPlan` | [`analysis.prompt`](/v2/analysis#turn-it-on) |
+| `analysisPlan.successCriteriaPlan` | `analysis.success_criteria` |
+| `analysisPlan.callInsightPlan` | `analysis.output_schema` (a JSON Schema of the fields to extract) |
+| `analysisPlan.templatePlan` | [`analysis.templates`](#message-templates-after-the-call) |
+
+Set `analysis.enabled: true` to run the analysis at all. It is set per agent
+and reads every call of that agent that connected.
 
 ### Placing a call
 
-| v1 | v2 |
-| :--- | :--- |
-| `phoneNumber` | `to` |
-| `assistant` | `agent_id` |
-| `callbackUrl` | `webhook_url` |
-| `payload` (variant-shaped object) | `variables` (flat string map) |
-| `metadata` (echoed in webhooks) | — no equivalent; put correlation keys in `variables` or key off `call.id` |
-| `priority` | — (use `tier`) |
-| — | `max_duration_secs` per-call override |
-| — | `tier` |
-| — | `Idempotency-Key` header |
+| v1 `POST /v2/call/initiate` | v2 `POST /v2/calls` | What changes |
+| :--- | :--- | :--- |
+| `phoneNumber` | `to` | Must be E.164: `+`, the country code and the number, 8 to 15 digits, such as `+919876543210`. Anything else is `400 invalid_request`. v1 only recommended it. |
+| `assistant` | `agent_id` | An `agt_…` ID. |
+| `callbackUrl` | `webhook_url` | HTTPS. Applies to this call only. A campaign has its own `webhook_url`. |
+| `payload` | `variables` | A flat map of strings, at most 32 keys and 512 characters per value. Flatten nested v1 payloads into keys of their own, such as `customer_first_name`, and use the same names in your prompt's `{{placeholders}}`. |
+| `metadata` | `metadata` | Returned on the call and on every webhook as `data.call.metadata`. At most 16 keys of 1 to 40 characters (letters, digits, `_ . : -`), string values of up to 256 characters, 4 KB in all. A nested object is refused, so flatten it. The agent never sees it. |
+| `priority` | — | No equivalent. |
+| `systemPrompt` (web calls) | `system_prompt` | The prompt for this call only, on phone and browser calls. |
+| — | `first_message` | The opening line for this call only. |
+| — | `max_duration_secs` | Overrides the agent's cap for this call. |
+| — | `phone_number_id` / `pool_id` | Ring from one of your own numbers or a pool. |
+| — | `final_results` | One `call.processed` with the transcript after the call. |
+| — | `Idempotency-Key` header | A retried request never places a second call. |
 
 ```diff title="v1 → v2 call request"
 -POST https://api.voice-agents.miraiminds.co/v2/call/initiate
@@ -124,11 +146,13 @@ cannot reach the wrong workspace by accident with valid credentials.
 -  "phoneNumber": "+919876543210",
 -  "assistant": "68c128a658cd7d0668bce78d",
 -  "callbackUrl": "https://example.com/mirai/webhook",
--  "payload": { "customerName": "Rahul", "orderId": "8842" }
+-  "payload": { "customer": { "firstName": "Rahul" }, "orderId": "8842" },
+-  "metadata": { "internalOrderId": "8842" }
 +  "to": "+919876543210",
 +  "agent_id": "agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ",
 +  "webhook_url": "https://example.com/mirai/webhook",
-+  "variables": { "customer_name": "Rahul", "order_id": "8842" }
++  "variables": { "customer_first_name": "Rahul", "order_id": "8842" },
++  "metadata": { "internal_order_id": "8842" }
  }
 ```
 
@@ -138,6 +162,35 @@ cannot reach the wrong workspace by accident with valid credentials.
 +202 Accepted
 +{ "id": "call_01JZQ9B4M8N3P6R2S5T7V9W1YA", "status": "queued" }
 ```
+
+### Retries, calling hours and concurrency
+
+In v1, every call you placed joined a queue on the assistant, which applied its
+calling slots, its concurrency limit and its retry protocol. `POST /v2/calls`
+places one attempt now: no calling window, no redial.
+
+To keep v1's behaviour, create one campaign for the agent with
+`"always_on": true`, start it, and add each number to it with
+[`POST /v2/campaigns/{id}/contacts`](/v2/campaigns#add-contacts) where you used
+to call `POST /v2/call/initiate`. The campaign calls each number inside its
+window, within its concurrency, and retries the ones that did not connect. It
+stays open after the list is done. See
+[always-on campaigns](/v2/campaigns#always-on-campaigns) for a worked example.
+
+| v1 assistant `callSettings` | v2 campaign |
+| :--- | :--- |
+| `slots: [{ startTime, endTime }]` | `slots: [{ start, end }]`, plus `timezone` and `start_date` / `end_date` |
+| `concurrentCallCount` | `max_concurrent` (1 to 50) |
+| `retryProtocol.maxAttemptsNoPickup` | `retry_count` (0 to 5). Retries `no_answer`, `busy` and `failed`. |
+| `retryProtocol.reAttemptPeriod` | `re_attempt_period_secs` (60 to 86,400) |
+| `retryProtocol.maxAttemptsLowEngagement` | No equivalent. Calls that reached someone (`completed`, `voicemail`, `timeout`) are never redialled. |
+| `retryProtocol.maxRescheduleCount` | The agent's [callback tool](/v2/tools#schedule-a-callback) |
+| a call's `payload` and `metadata` | the contact's `variables` and `metadata`, with the same limits as a call |
+
+Two differences to plan for. A campaign holds each phone number once, so adding
+a number already in it is counted as a duplicate and not called again. And an
+add to a campaign that has been stopped, or whose `end_date` has passed, gets
+`409 conflict`. Any `200` means the numbers are in line to be called.
 
 ## Statuses
 
@@ -164,16 +217,64 @@ snake_case and separates `status` from `ended_reason`.
 | :--- | :--- | :--- |
 | Signature header | `x-signature` (bare hex) + `x-public-key` | `X-Mirai-Signature: t=…,v1=…` |
 | Signed material | raw body | `"<t>.<raw_body>"` |
-| Replay protection | none | 5-minute timestamp window |
-| Secret | organization private key | per-workspace `whsec_…` |
+| Secret | organization private key | the workspace's `whsec_…` |
+| Replay protection | none | reject deliveries more than 300 seconds old |
 | Event ID | none | `id: evt_<ulid>`, dedupe on it |
-| Envelope | `{ event: { type, data } }` | `{ id, type, created_at, data }` |
-| Event count | 15 types incl. `call.initiate`, `call.ended`, `end-of-call`, `action` | 6 call types + 5 [`campaign.*`](/v2/campaigns#webhooks) types |
-| Retries | — | 1s / 10s / 60s / 5m / 30m, then DLQ |
+| Envelope | `{ metadata, event: { type, data } }` | `{ id, type, created_at, data }` |
+| Retries | — | six attempts over about 36 minutes, then a dead-letter queue we can replay |
+
+Point a **new** route at the v2 scheme. The two signatures are not
+interchangeable, and you need both routes while calls run on both versions.
+[Signature verification](/v2/webhooks#signature-verification) has the code and
+a test vector.
+
+### Events
+
+| v1 event | v2 event |
+| :--- | :--- |
+| `call.initiate` | `call.queued`, which is opt-in: ask your Mirai contact |
+| `call.in-progress` | `call.started` |
+| `call.ended` | No separate event. The terminal event follows the hangup. |
+| `call.completed` | `call.completed` |
+| `call.timeout` | `call.failed` with `data.call.status: "timeout"` |
+| `call.failed`, `call.busy`, `call.no-answer` | `call.failed` with `data.call.status` `failed`, `busy` or `no_answer` |
+| `call.validation-failed` | No event: `POST /v2/calls` answers `400 invalid_request` |
+| `call.skip` | No event: the campaign contact's status becomes `suppressed` |
+| `call.rescheduled` | No event: the campaign contact goes back to `pending` for its retry |
+| `call.aborted` | `call.aborted` |
+| — | `call.voicemail` (**new**) |
+| `end-of-call` | `call.processed`, with the analysis at `data.call.analysis` |
+| `call.lifecycle-ended` | For a single call, the terminal event is the last word. In a campaign, read the contact's [status](/v2/campaigns#contact-statuses): `exhausted` means its retries ran out. |
+| `action` | No event. Extract the fields with `analysis.output_schema`, choose a message with `analysis.templates`, or act from a [post-call tool](/v2/tools#after-a-call-send-the-outcome-to-your-crm). |
+
+Exactly one terminal event fires per call: `call.completed`, `call.voicemail`,
+`call.failed` or `call.aborted`. Campaigns add `campaign.*` events. See
+[event types](/v2/webhooks#event-types).
+
+### Fields
+
+| v1 | v2 |
+| :--- | :--- |
+| `metadata` (top level) | `data.call.metadata` |
+| `event.type` | `type` |
+| `event.data.call.id` | `data.call.id` (`call_…`) |
+| `event.data.call.status` | `data.call.status` (see [Statuses](#statuses)) |
+| `startedAt` / `endedAt` | `data.call.started_at` / `data.call.ended_at` |
+| `durationSeconds` | `data.call.duration_secs` |
+| `recordingUrl` | [`GET /v2/calls/{id}/recording`](/v2/calls#get-the-recording), an authenticated request that redirects to a 15-minute signed URL |
+| `detailUrl` | — |
+| `analysis.summary` | `data.call.analysis.summary` on `call.processed` |
+| `analysis.success` | `data.call.analysis.success` |
+| `analysis.insights` | `data.call.analysis.data`, in the shape of your `output_schema` |
+| `analysis.insights.template` | `data.call.analysis.template`. See [below](#message-templates-after-the-call). |
+| `analysis.requiredActions` | — |
+| `credits.used` | `data.call.cost.amount_inr`, in rupees |
+| `credits.available` | `data.wallet.balance_inr` on the terminal event, in rupees. See [wallet balance](/v2/webhooks#wallet-balance-on-call-ending-events). |
+| `report.reAttemptCount` | `attempts` on the [campaign contact](/v2/campaigns#list-contacts) |
 
 ```diff title="v1 → v2 webhook body"
  {
--  "metadata": { "orderId": "8842" },
+-  "metadata": { "internalOrderId": "8842" },
 -  "event": {
 -    "type": "call.completed",
 -    "data": {
@@ -193,32 +294,67 @@ snake_case and separates `status` from `ended_reason`.
 +    "call": {
 +      "id": "call_01JZQ9B4M8N3P6R2S5T7V9W1YA",
 +      "status": "completed",
-+      "tier": "t3",
 +      "ended_reason": "assistant-ended-call",
 +      "duration_secs": 96,
-+      "cost_inr": 5
-+    }
++      "cost": { "amount_inr": 5, "per_min_inr": 3, "billing_block_secs": 10 },
++      "metadata": { "internal_order_id": "8842" }
++    },
++    "wallet": { "balance_inr": 18432.5 }
 +  }
  }
 ```
 
-Watch for these differences when you port a webhook handler:
+Money is in rupees on v2, not credits: `cost.amount_inr` is what this call
+cost and `wallet.balance_inr` is what is left after it. The balance is a
+snapshot taken when the call was billed, and it is left out when we could not
+read it.
 
-- **`metadata` is gone.** v1 echoed an arbitrary object back on every event. In
-  v2, correlate on `data.call.id`: store the `call_id` we return from
-  `POST /v2/calls` against your own record.
-- **`recordingUrl` is not on the event.** You fetch the audio with a separate,
-  authenticated request to
-  [`GET /v2/calls/{id}/recording`](/v2/calls#get-the-recording), which
-  redirects to a 15-minute signed URL. A permanent link in a webhook body would
-  let anybody who ever saw that body fetch the recording.
-- **`credits` becomes `cost`** on the call itself, in rupees rather than credit
-  units, and the running balance moves to [`GET /v2/wallet`](/v2/wallet).
-- **No `end-of-call` analysis event yet.** Post-call analytics (an AI summary
-  and a QA score on every call) is [part of every tier](/general/tiers#one-stack-on-every-tier),
-  and its v2 API surface is rolling out. See the
-  [roadmap](/general/roadmap). Until it lands, v1's `analysisPlan` is the only
-  API surface for post-call analysis.
+The analysis moves from `end-of-call` to `call.processed`, which follows the
+terminal event once the analysis and any post-call tools have finished. Turn
+on `final_results` to get the transcript in the same event.
+
+## Message templates after the call
+
+If your v1 assistant chose a message template after each call
+(`analysisPlan.templatePlan`, with the result at `analysis.insights.template`),
+use [`analysis.templates`](/v2/analysis#pick-a-follow-up-message) on the v2
+agent. v1 sent `{"assistantId": "<id>"}` to your URL and read the `Data` list
+from the answer. A `fetch` can send exactly the same request, so your template
+endpoint keeps working unchanged:
+
+```json
+{
+  "analysis": {
+    "enabled": true,
+    "templates": {
+      "instructions": "Pick the WhatsApp message to send after this call. Choose none if the customer declined.",
+      "fetch": {
+        "method": "POST",
+        "url": "https://api.example.com/templates",
+        "body": { "assistantId": "68c128a658cd7d0668bce78d" },
+        "items_path": "Data"
+      }
+    }
+  }
+}
+```
+
+v1 called your endpoint without credentials. On v2 you can add a header with a
+[workspace secret](/v2/tools#store-credentials-as-workspace-secrets), such as
+`"headers": { "Authorization": "Bearer {{ secrets.templates_key }}" }`, and
+check it on your side.
+
+| v1 `analysis.insights.template` | v2 `analysis.template` |
+| :--- | :--- |
+| `name`, or `NONE` when nothing fits | `status: "selected"` with `name`, or `status: "none"` |
+| `language` | `language` |
+| `variables` with `""` for anything unknown | `variables` holds only filled slots. Unknown slots are listed in `missing`. |
+| Failures dropped silently | `status: "failed"` with `error.code`. The rest of the analysis still arrives. |
+| — | `reason`, one sentence on the choice |
+| In `end-of-call` | In `call.processed`, on the call and at `GET /v2/calls/{id}/analysis` |
+
+Before you send a template, check that `missing` is empty, or fill those slots
+yourself.
 
 ## Errors
 
@@ -231,16 +367,23 @@ Watch for these differences when you port a webhook handler:
 v1's success responses wrap the payload in `{ status_code, message, data }`. v2
 returns the resource itself. See the [error reference](/v2/errors).
 
-## A migration that fits in an afternoon
+## A migration plan
 
-1. Get a v2 key. Keep your v1 credentials, because you will run both for a while.
+1. Get a v2 key and the webhook secret from **Developers** in the console. Keep
+   your v1 credentials, because you will run both for a while.
 2. Recreate your assistants as [agents](/v2/agents). Move the opening line out
-   of `systemPrompt` into `first_message`; rename your `payload` keys to the
-   `variables` keys your prompt references.
-3. Point a **new** webhook route at the v2 [signature scheme](/v2/webhooks#signature-verification).
-   Do not modify the v1 route. The two schemes are incompatible, and you need
-   both live during cutover.
-4. Switch one low-volume campaign to `POST /v2/calls`. Compare outcomes against
-   the same campaign's v1 numbers for a day.
-5. Recreate and test your [tools](/v2/tools) on the v2 agent, then migrate the
-   remaining calls. Check support for other capabilities before moving them.
+   of `systemPrompt` into `first_message`, rename your `payload` keys to flat
+   `variables` keys your prompt references, and move `analysisPlan` to
+   [`analysis`](/v2/analysis), templates included.
+3. Point a **new** webhook route at the v2
+   [signature scheme](/v2/webhooks#signature-verification) and the v2 event
+   names. Do not modify the v1 route.
+4. Decide how calls are placed. For calls that need calling hours and retries,
+   create an [always-on campaign](/v2/campaigns#always-on-campaigns) per agent
+   and add numbers to it. For a call that must ring now, use `POST /v2/calls`
+   with an `Idempotency-Key`.
+5. Switch one low-volume flow to v2 and compare its outcomes with the same flow
+   on v1 for a day.
+6. Recreate and test your [tools](/v2/tools) on the v2 agent, then move the
+   remaining calls. Check support for other capabilities, such as the
+   knowledge base, before moving the assistants that use them.

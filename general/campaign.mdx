@@ -1,218 +1,265 @@
 ---
-title: Campaign Management
-description: Create and manage voice campaigns from a CSV file or through the API.
+title: Campaigns in the console
+sidebarTitle: Campaigns in the console
+description: Call a whole list with one of your agents from the console. Pick the agent, set the calling hours, upload your list and press Start.
 ---
 
 <Note>
-**This documents the v1 product.** It is kept for integrations already running
-on it. If you are building something new, start with the
-[Quickstart](/v2/quickstart).
+This guide follows the **Campaigns** page in the console. To run campaigns from
+your own code, use the [Campaigns API](/v2/campaigns).
 </Note>
 
 ## Overview
 
-A voice campaign places automated outbound calls to a list of contacts. You can load the contacts by uploading a CSV file, or send them from your existing systems through the API.
+A campaign calls a list of people with one of your agents. You choose when it
+may call, upload the list and press **Start**. It works through the list inside
+your calling hours, tries again when nobody picks up, and shows you each result
+as it comes in. The example on this page is a round of
+[payment reminders](https://voice.miraiminds.co/use-cases/payment-reminders).
 
 <CardGroup cols={2}>
-  <Card title="CSV Data Upload" icon="document">
-    Upload a contact list in our CSV template to set up a campaign quickly.
+  <Card title="Your own list" icon="file-csv">
+    Upload the export you already have. The console matches its columns to your
+    agent and shows you the rows it can't use before anything is created.
   </Card>
-  <Card title="API Integration" icon="puzzle">
-    Connect your existing systems through a webhook so contact data syncs
-    automatically.
+  <Card title="Calling hours" icon="clock">
+    Pick the first and last day and up to four calling windows a day. Nothing
+    is dialled outside them.
   </Card>
-  <Card title="Smart Scheduling" icon="calendar">
-    Set the dates, timezone and operating hours to reach more of your
-    contacts.
+  <Card title="Retries and limits" icon="repeat">
+    Choose how many calls run at once, how often to retry, the longest a call
+    may run and how much the campaign may spend.
   </Card>
-  <Card title="Call Management" icon="phone">
-    Set retry logic, call duration limits and inactivity periods.
+  <Card title="Results as they happen" icon="list-check">
+    Watch the counts move, play any call, and download every result as a
+    spreadsheet.
   </Card>
 </CardGroup>
 
-## Setup Guide
+## Before you start
 
-### Step 1: Access Campaign Creation
+- **Finish the agent first.** A campaign keeps the agent exactly as it is when
+  you create the campaign. Changes you make to the agent later don't reach it.
+- **Have your list ready** as a CSV file with a header row. An export from your
+  CRM or a spreadsheet is fine.
+- **Check your wallet.** You pay only for calls that are answered, by a person
+  or a voicemail. If the wallet runs out, the campaign pauses until you top up.
 
-1. **Navigate to Campaigns Page**
+## 1. Open Campaigns
 
-   Go to the **Campaigns** section in your Voice Agents dashboard.
+In the console, open **Campaigns** in the sidebar. Your campaigns are listed
+newest first, with a badge on any that are dialling, paused or still a draft.
+**How it works** plays a three-minute guide to this page.
 
-   ![Campaign dashboard](/images/campaign-integration/image_1.png)
+Press **New campaign**.
 
-2. **Create New Campaign**
+![The Campaigns page: four campaigns in a list, one dialling and one paused, with the How it works, Do-not-call list and New campaign buttons at the top right](/images/campaign-integration/campaign-list.png)
 
-   Click the **"Create Campaign"** button to start the setup process.
+## 2. Name it and pick the agent
 
-   ![Create campaign button](/images/campaign-integration/image_2.png)
+- **Name**: something you'll recognise later, like "EMI reminders · October".
+- **Agent**: the agent that speaks on every call.
+- **Calls come from**: the number people see when their phone rings. Pick one
+  of your own numbers (you add them under **Phone numbers**), or the Mirai
+  shared line. If you leave it alone, the campaign uses the agent's own number, or the shared line
+  when the agent doesn't set one. The line under the picker tells you which.
+- **Timezone**: the dates and calling hours are read in this timezone.
 
-### Step 2: Basic Campaign Configuration
+There is nothing to choose under **Rate**. The campaign is charged at your
+workspace's rate, the same as your other calls.
 
-3. **Enter Campaign Name**
+![The top of the New campaign form: Name, Agent, Calls come from set to the Mirai shared line, Timezone set to Asia/Kolkata, and the Rate line](/images/campaign-integration/new-campaign-basics.png)
 
-   Give the campaign a name that describes its purpose.
+## 3. Choose when to call
 
-   ![Campaign name field](/images/campaign-integration/image_3.png)
+Set the **First day** and the **Last day**. Then set the **Calling hours**. You
+start with one window. Press **Add a window** for another, up to four a day.
 
-4. **Select Voice Assistant**
+Nothing is dialled outside these windows. If you start the campaign at night,
+it waits for the next window. A retry that falls due outside the hours waits
+too.
 
-   Choose the voice assistant that will handle all calls for this campaign.
+![When to call: first and last day, and two calling windows, 10:00 AM to 1:00 PM and 4:00 PM to 7:00 PM](/images/campaign-integration/when-to-call.png)
 
-   ![Assistant selection](/images/campaign-integration/image_4.png)
+## 4. Set the pace, retries and limits
 
-5. **Configure Webhook Integration**
+- **Calls at once** is how many conversations run at the same time, from 1 to
+  50. When one ends, the next person on the list is called. Under the field the
+  form works out the pace for you: at 5 at once, about 450 attempts an hour. If
+  you call from your own number, it also tells you when that is more than one
+  number should carry, because a busy number is more likely to be marked as
+  spam.
+- **Retries** and **Retry after (minutes)** decide what happens when nobody
+  answers, the line is busy or the call fails. The campaign tries again after
+  that gap, inside your calling hours. A call answered by a person or a
+  voicemail is never retried.
+- **Skip numbers already reached in an earlier campaign** leaves out anyone who
+  answered, in person or by voicemail, in any of your earlier campaigns.
+  Numbers that only rang out are still called.
+- **Max call length (seconds)** ends a call that runs too long. Leave it empty
+  to use the agent's own limit.
+- **Budget (₹)** caps what this campaign can spend. When it is reached, the
+  campaign pauses. Leave it empty for no cap.
+- **Webhook URL** is optional. Add an `https://` address and we send each
+  call's events there. Every call ends with one event that carries the
+  transcript, the result and the contact's extra info, so your system doesn't
+  have to fetch anything. See [webhooks](/v2/campaigns#webhooks).
 
-   Enable webhook integration if you want to send contact data from your platform through the API. With it enabled, CSV upload is optional.
+![Pacing and retries: 5 calls at once with the pace line, 2 retries 60 minutes apart, the Skip numbers box ticked, a 300-second max call length, a ₹5,000 budget and a webhook URL](/images/campaign-integration/pacing-and-retries.png)
 
-   ![Webhook configuration](/images/campaign-integration/image_5.png)
+## 5. Add your contacts
 
-### Step 3: Data Management Setup
+### Download the template
 
-#### Option A: CSV Data Upload
+Under the upload, the form lists the columns your agent reads, each marked
+**Required** or **Optional**. Click **Download template** for a CSV with those
+columns and a second row that explains each one. You can leave that row in when
+you upload; it is skipped.
 
-6. **Download CSV Template**
+![The Contacts section: the file upload, and the EMI reminders agent's columns, phone, customer_name and emi_due required and due_date optional, with the Download template button](/images/campaign-integration/contacts-template.png)
 
-   Click **"Download CSV Template"** to get the correct format for your contact data.
+### Fill in your contacts
 
-   ![Download CSV template](/images/campaign-integration/image_6.png)
+One row per person, with the header row on top. Fill every required column.
+The phone number can be in any column, and a ten-digit Indian mobile number gets
+`+91` added for you. If you use Excel, format the phone column as Text before
+you type the numbers, so Excel doesn't change them.
 
-7. **Prepare Your Contact Data**
+### Upload the file, or the one you already have
 
-   Fill in the downloaded CSV template with your contacts. Complete every required field.
+Press **Choose File** and pick your file. You can also paste the rows into the
+box under it.
 
-8. **Upload CSV File**
+You don't have to start from the template. Upload your own export and open
+**Columns** in the preview: each column of your file can be the phone number,
+one of the agent's variables, extra info, or left out. We match them for you
+(a "Name" column for `customer_name`, for example), and you can change any
+match. Your changes are remembered for that agent in this browser, so next
+month's export from the same system is matched for you.
 
-   Upload the completed CSV file using the file upload interface.
+![Columns: Mobile is the phone number, Name fills customer_name, EMI Due fills emi_due, and Branch is extra info that isn't given to the agent](/images/campaign-integration/contacts-columns.png)
 
-   ![CSV upload interface](/images/campaign-integration/image_7.png)
+### Check the preview
 
-9. **Preview Contact Data**
+The preview shows how many numbers are ready, how many duplicates were removed,
+and the first rows as they will be sent. It lists every row that can't be used,
+with the line number and the reason. Those rows are left out and the rest go
+ahead. All of this happens before anything is created.
 
-   Check the uploaded data in the preview panel on the right before you continue.
+Extra info is kept with each contact: it shows in the contacts list, the CSV
+report and your webhooks, and the agent never sees it. Up to 16 columns can be
+extra info.
 
-   ![Data preview panel](/images/campaign-integration/image_8.png)
+![The preview: 6 numbers ready, 1 duplicate removed and 2 unusable rows with their reasons, above the Cancel and Create campaign buttons](/images/campaign-integration/contacts-preview.png)
 
-#### Option B: API Integration
+## 6. Create it, then start it
 
-With webhook integration enabled, your platform can send contact data directly through API calls, so you don't need to upload a CSV file by hand.
+Press **Create campaign**. The campaign is saved as a draft and its page opens.
+Nothing is dialled yet, so you can check it first.
 
-### Step 4: Schedule Configuration
+![The new campaign as a draft: 6 contacts, all waiting, with the Duplicate, Archive and Start buttons](/images/campaign-integration/campaign-draft.png)
 
-10. **Set Campaign Dates**
+When you're ready, press **Start**. The campaign dials only inside your calling
+hours. If your wallet covers only part of the list, the page tells you how many
+contacts it can pay for. The rest wait as pending, and they are called once you
+top up.
 
-    Set the campaign's start and end dates:
+<Tip>
+Start with ten or twenty people. Listen to the first calls, then raise the pace.
+</Tip>
 
-    - **Start Date**: Select when the campaign should begin
-    - **End Date**: Choose when the campaign should conclude
+## While it runs
 
-    ![Date selection interface](/images/campaign-integration/image_9.png)
+![A running campaign: 6 contacts, 1 connected, 1 not reached, 4 waiting and ₹11.08 spent, with each contact's status, tries, last call and result](/images/campaign-integration/campaign-running.png)
 
-11. **Configure Timezone**
+The numbers at the top count who was connected, who wasn't reached and who is
+still waiting, and what the campaign has spent so far. The bar under them splits
+the list by status.
 
-    Select the timezone for your campaign so that calls go out at the right local time.
+The **Contacts** tab has one row per person: status, tries, the last call and
+its length, and the result your agent collected. Your extra info shows under
+the name. Press the play button on a row to hear the recording and read the
+transcript. A contact waiting for a retry shows when it will be tried again.
 
-    ![Timezone configuration](/images/campaign-integration/image_10.png)
+You can search the list, filter it by status, or use **Filters** to find people
+by when they were last called, call length, result, tries, or any column from
+your upload. The **⋯** menu on a row lets you call that person again, add them
+to your do-not-call list, copy the number, or take someone who hasn't been
+called yet off the list.
 
-12. **Set Operating Hours**
+- **Pause** lets calls in progress finish and starts no new ones. Press
+  **Resume** to carry on.
+- The campaign also pauses itself when the wallet can't cover the next call, or
+  when it reaches its budget. The page says which. Top up, or raise the budget
+  under **Settings**, then press **Resume**.
+- **Stop** ends the campaign for good. Calls in progress finish, nobody else is
+  called, and a stopped campaign can't be resumed.
+- **Download CSV** gives you one row per contact: your own columns (extra info
+  included), the status and tries, and for the last call its length, how it
+  ended, its cost, the result, a summary, the transcript and a recording link.
 
-    Define your campaign's daily calling window:
+## Insights and settings
 
-    - **Start Time**: When calls can begin each day
-    - **End Time**: When calls should stop each day
+The **Insights** tab is the campaign's report. It fills in after the first
+calls. The strip at the top jumps between its pages, from the summary and the
+funnel to who to call back and when to dial next time. You can print it or save
+it as a PDF, or press **Share** for a link anyone can open without signing in.
+Recordings stay out of a shared report unless you tick **Include call
+recordings**.
 
-    ![Operating hours configuration](/images/campaign-integration/image_11.png)
+![The Insights tab of a finished campaign: Refresh, Print or PDF, Download CSV and Share above the strip of report pages, then the summary of EMI reminders · October with 41 conversations, 20 promised to pay (its most common result), ₹320.18 spent and 1h 00m of talk time](/images/campaign-integration/campaign-insights.png)
 
-### Step 5: Call Behavior Settings
+The **Settings** tab shows everything the campaign was set up with.
 
-13. **Configure Retry Logic**
+![The Settings tab: agent, rate, calling hours, dates, timezone, calls at once, retries, numbers reached before, max call length, budget, spent, webhook and created, with the Edit settings button](/images/campaign-integration/campaign-settings.png)
 
-    Set how the system handles unsuccessful call attempts:
+Press **Edit settings** to change them. What you can change depends on where the
+campaign is:
 
-    - **Retry Count**: Number of attempts to reach each contact
-    - **Re-Attempt Period**: Time interval between retry attempts
+- **Draft or paused**: everything except the agent, the timezone and the list.
+- **Dialling**: only calls at once and calling hours. They apply straight away.
+  Pause it to change the rest.
+- **Finished**: nothing. Duplicate it to run it again with other settings.
 
-    ![Retry configuration](/images/campaign-integration/image_12.png)
-    ![Re-Attempt Configuration](/images/campaign-integration/image_13.png)
+## Run it again
 
-14. **Set Call Duration Limits**
+- **Duplicate** copies the settings and the whole list into a new draft. Every
+  number starts fresh as pending. Change anything before you create the copy.
+- **New campaign from these**: on the **Contacts** tab, filter the list (for
+  example, everyone who wasn't reached), then press **New campaign from these**.
+  The new campaign gets just those people and the same settings.
+- **Archive** takes a campaign off your list. Its calls, results and report are
+  kept, and you can restore it at any time. A campaign can't be archived while
+  it is dialling.
+- The **Do-not-call list**, on the Campaigns page, holds numbers that no
+  campaign in your workspace will ever dial, whatever a new file says.
 
-    Configure call timing parameters:
+## Use the API instead
 
-    - **Maximum Call Duration**: Longest allowable call time
-    - **Inactivity Period**: How long to wait with no response before ending the call
+Everything on this page is also in the API. See [Campaigns](/v2/campaigns) to
+create a campaign with its contacts, add more contacts, start, pause, resume or
+stop it, and read the report.
 
-    ![Maximum call duration settings](/images/campaign-integration/image_14.png)
-    ![Inactivity period settings](/images/campaign-integration/image_15.png)
+To send extra info through the API, put it in each contact's `metadata`. See
+[Your own fields](/v2/campaigns#your-own-fields-metadata).
 
-### Step 6: Launch Campaign
+## If something goes wrong
 
-15. **Create**
+| What you see | What to do |
+| :--- | :--- |
+| "Nothing in your list fills `customer_name`" | Open **Columns** and pick the column that holds it, or add it to your file. The template has every column the agent needs. |
+| A row says "too short — add the country code" | Write the number with its country code, like `+919876543210`. Only Indian mobile numbers get `+91` added for you. |
+| A row says "`emi_due` is empty" | That agent needs the value on every row. Fill the cell, or the row is left out. |
+| A row says "`emi_due` must be a number" | Write a plain number, like `4200`, with no currency sign or text. |
+| Phone numbers look like `9.83E+09` | Excel changed them. Format the phone column as Text, then paste the numbers again. |
+| The campaign started but nothing is dialling | Check the dates and calling hours under **Settings**, in the campaign's timezone. It waits for the next window. |
+| The campaign paused by itself | Read the line under its name. Top up your wallet, or raise the budget, then press **Resume**. |
+| "Campaigns aren't switched on here yet" | Campaigns aren't turned on for your workspace. Ask us and we'll switch them on. |
 
-    When all the settings are done, click **"Create Campaign"**.
+## Good practice
 
-    ![Create campaign final step](/images/campaign-integration/image_16.png)
-
-16. **Handle Data Validation**
-
-    After clicking create, the system processes your data:
-
-    - **Valid Data**: Successfully stored and included in the campaign
-    - **Invalid/Missing Data**: Not stored but displayed in a validation modal
-
-    The modal lists any invalid or missing entries. You can download them, correct them and upload them again.
-
-### Step 7: Launch and Manage Campaign
-
-17. **Launch Your Campaign**
-
-    After you create the campaign, launch it from the campaign list. Click the **"Play"** button next to your campaign to start making calls.
-
-    ![Campaign list with play button](/images/campaign-integration/image_17.png)
-
-18. **Track Campaign Status**
-
-    The **Campaign Status** page shows how the campaign is progressing, including:
-
-    - Call completion rates
-    - Success/failure statistics
-    - Real-time campaign progress
-    - Contact attempt history
-
-    ![Campaign status tracking page](/images/campaign-integration/image_18.png)
-
-19. **Copy Webhook API Endpoint**
-
-    If you enabled webhook integration, click **"Copy Webhook"** to copy the endpoint URL that your platform sends data to through the API.
-
-    ![Copy webhook endpoint button](/images/campaign-integration/image_19.png)
-
-    Use this endpoint to programmatically add contacts to your campaign or trigger campaign events from your existing systems.
-
-## What's Next?
-
-Once your campaign is created and launched, you can:
-
-- Track call success rates and campaign progress
-- Pause, resume or modify running campaigns
-- Review detailed campaign analytics and outcomes
-- Download campaign performance reports
-
-## Best Practices
-
-### Data Preparation
-
-- Test your CSV data with a small sample before uploading large datasets
-- Format phone numbers correctly for the regions you are calling
-- Fill in all required fields to reduce validation errors
-
-### Campaign Optimization
-
-- Set reasonable retry limits to avoid overwhelming contacts
-- Configure appropriate operating hours to respect contact preferences
-- Monitor initial performance and adjust settings as needed
-
-### Compliance Considerations
-
-- Make sure you have proper consent to contact every number in your campaign
-- Respect do-not-call lists and opt-out requests
-- Follow local regulations for automated calling
+- Set a budget on every campaign. It limits the cost of a mistake in the list,
+  like a file uploaded twice.
+- Call only people who have agreed to hear from you, and keep your do-not-call
+  list up to date.
+- Follow the rules for automated calls in the places you call.

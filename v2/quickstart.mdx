@@ -1,12 +1,13 @@
 ---
-title: Quickstart
-description: Get a key, create an agent, place a real call and receive the webhook in five minutes.
+title: "Quickstart: your first AI phone call"
+sidebarTitle: "Quickstart"
+description: "Make your first AI phone call in five minutes. Get a key, create an agent, place a real call and verify the webhook, in cURL, Python or Node."
 ---
 
 
 In five minutes you send four requests and place one real phone call. Calls are
-billed at your plan's [tier](/general/tiers), and the example call below ran on
-T3.
+billed at your plan's [tier](/general/tiers). Every new workspace starts on T5,
+₹5 a minute, and the example call below ran there.
 
 <Note>
 If you are a partner, [**Start building**](/v2/start-building) is the longer
@@ -19,8 +20,16 @@ HTTPS URL for webhooks (ngrok is fine while you build).
 
 <Steps>
 <Step title="Create a key">
-Open the [console](https://sandbox.voice.miraiminds.co) and go to
-**Developers → Create key**. You get three things on the spot:
+Open the [sandbox](https://sandbox.voice.miraiminds.co). There is nothing to
+sign up for, and you can look around first. When you are ready, go to
+**Developers** and press **Create key**.
+
+The first time, the console asks for your work email. We send you an access
+code and a confirmation link. Open the link, press **Continue to your
+workspace**, then press **Create key** again. If we already gave you an access
+code, press **Have an access code?** and enter it instead of your email.
+
+You get three things on the spot:
 
 | | Looks like | Used for |
 | :--- | :--- | :--- |
@@ -36,6 +45,13 @@ You can rotate and revoke keys on the same page. Rotating issues the
 replacement before it revokes the old key, so there is never a moment when
 neither key works. Deploy the new key, then revoke the old one.
 
+Every request on this page goes to the sandbox at
+`https://sandbox.voice.miraiminds.co`. Once your company has
+[gone live](/general/tiers#your-plan), send the same requests to
+`https://prod.voice.miraiminds.co`. On the production address, a key from a
+workspace that has not gone live is refused with
+`403 production_workspace_required`.
+
 Check that it works:
 
 ```bash
@@ -44,7 +60,7 @@ curl https://sandbox.voice.miraiminds.co/v2/wallet \
 ```
 
 ```json
-{ "balance_inr": 500, "currency": "INR", "updated_at": "2026-07-26T09:12:44Z" }
+{ "balance_inr": 200, "currency": "INR", "updated_at": "2026-07-26T09:12:44Z" }
 ```
 </Step>
 
@@ -302,21 +318,23 @@ The final event for a connected call:
   "data": {
     "call": {
       "id": "call_01JZQ9B4M8N3P6R2S5T7V9W1YA",
+      "object": "call",
       "agent_id": "agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ",
       "to": "+919876543210",
       "status": "completed",
-      "tier": "t5",
       "ended_reason": "assistant-ended-call",
       "started_at": "2026-07-26T09:15:02Z",
       "ended_at": "2026-07-26T09:16:38Z",
       "duration_secs": 96,
-      "cost_inr": 8.34
-    }
+      "cost": { "amount_inr": 8.34, "per_min_inr": 5, "billing_block_secs": 10 }
+    },
+    "wallet": { "balance_inr": 191.66 }
   }
 }
 ```
 
-96 seconds is billed as 10 blocks of 10 seconds, which is ₹8.34 on T5, the sandbox rate.
+96 seconds is billed as 10 blocks of 10 seconds. On T5 that is ₹8.34, which
+leaves ₹191.66 of the starting ₹200.
 [Blocks are whole and rounded up](/general/tiers#metering), with a one-block
 minimum.
 </Step>

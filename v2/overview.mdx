@@ -1,6 +1,7 @@
 ---
-title: API overview
-description: A REST API for placing AI voice calls, with one auth header, predictable response envelopes and IDs that the server mints.
+title: "Voice agent API overview"
+sidebarTitle: "API overview"
+description: "How the voice agent API works: one auth header, money in rupees, pagination, idempotency keys, incoming calls, and what isn't built yet."
 ---
 
 
@@ -90,7 +91,7 @@ returns a list of field errors. See the full [error reference](/v2/errors).
 
 **Timestamps** are RFC 3339 in UTC: `2026-07-26T09:14:02Z`.
 
-**Money** is in INR. `cost_inr`, `balance_inr` and `amount_inr` are numbers,
+**Money** is in INR. `cost.amount_inr`, `balance_inr` and `amount_inr` are numbers,
 not strings. The one exception is [campaigns](/v2/campaigns), whose
 `budget_paise` and `spent_paise` are integer **paise** (100 paise = ₹1). No
 object mixes the two units.
@@ -102,7 +103,7 @@ object mixes the two units.
 List endpoints take `limit` and `cursor` and return a cursor-paginated envelope.
 
 ```bash
-curl "https://sandbox.voice.miraiminds.co/v2/calls?limit=50&cursor=call_01JZQ9B4M8N3P6R2S5T7V9W1YA" \
+curl "https://sandbox.voice.miraiminds.co/v2/calls?limit=50&cursor=MTc4NzIyMjg1Ni41NDU4MDc6Y2FsbF8wMUpaUTlCNE04TjNQNlIyUzVUN1Y5VzFZQQ" \
   -H "Authorization: Bearer sk_live_YOUR_API_KEY"
 ```
 
@@ -110,12 +111,17 @@ curl "https://sandbox.voice.miraiminds.co/v2/calls?limit=50&cursor=call_01JZQ9B4
 {
   "data": [ { "id": "call_01JZQ9B4M8N3P6R2S5T7V9W1YA", "…": "…" } ],
   "has_more": true,
-  "next_cursor": "call_01JZQ9B4M8N3P6R2S5T7V9W1YB"
+  "next_cursor": "MTc4NzIyMjcwMS4xMTgyMDQ6Y2FsbF8wMUpaUTlCNE04TjNQNlIyUzVUN1Y5VzFZQg"
 }
 ```
 
 Pass `next_cursor` back as `cursor` to get the following page. Stop when
 `has_more` is `false`. Default `limit` is 20, maximum 100.
+
+The cursor is an opaque string. Send it back exactly as you received it, and
+don't build or decode one yourself; its shape can change between releases.
+Lists are newest first by `created_at`. A call list shows inbound and
+outbound calls together in that order.
 
 ## Idempotency
 

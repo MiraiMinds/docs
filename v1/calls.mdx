@@ -1,5 +1,6 @@
 ---
-title: Calls
+title: "Calls (v1 API)"
+sidebarTitle: "Calls"
 description: Initiate outbound calls, start web calls, abort queued calls and update a queued call's payload.
 ---
 
@@ -156,7 +157,8 @@ Whatever you put here comes back on every event for that call:
 ```
 
 Use it to join the webhook to your own records without keeping a `callId` table.
-v2 dropped `metadata`, so correlate on `call.id` there.
+v2 keeps it as [`metadata`](/v2/calls#metadata), with flat string values, on
+the call and on every webhook.
 
 ## Initiate a web call
 

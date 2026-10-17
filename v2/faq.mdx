@@ -1,16 +1,33 @@
 ---
-title: FAQ
-description: Short answers to common developer questions about the Mirai Voice API.
+title: "Developer FAQ"
+sidebarTitle: "FAQ"
+description: "Quick answers about keys, calls, pricing, webhooks, limits and where your data runs, for developers building voice agents on Mirai Voice."
 ---
 
 ## Getting started
 
 **How do I get a key?**
 Create one in the [console](https://sandbox.voice.miraiminds.co) under
-**Developers → Create key**. You get a secret key, a webhook secret and a
-starting wallet balance immediately, and you can rotate or revoke the key on
-the same page. If you do not have console access yet,
-[talk to us](https://cal.com/srikrishna-pothel-y5vpeq).
+**Developers → Create key**. The first time, the console asks for your work
+email; confirm it from the mail, then press **Create key** again. You get a
+secret key, a webhook secret and a starting wallet balance immediately, and you
+can rotate or revoke the key on the same page.
+
+**Do I need an access code?**
+No. Open the [sandbox](https://sandbox.voice.miraiminds.co) and look around:
+the example agents, the playgrounds, **Developers** and **Billing** are all
+open. The first time you press something that runs the engine or creates
+something, such as **Test your agent**, **Create agent**, **Create key** or
+**Generate**, the console asks for your work email. We email you an access code,
+which signs you in from any browser, and a one-click confirmation link. Browser
+test calls and chat work straight away while you confirm. Confirming unlocks
+phone calls, API keys, campaigns, numbers and going live, and brings your
+starter credit to ₹200 on T5, ₹5 a minute, pay as you go.
+
+If you give the same email again later, we send a sign-in link to the sandbox
+you already have instead of starting a new one. If we gave you an access code,
+press **Have an access code?** in the console and enter it there. If you would
+rather set things up with our team, [talk to us](https://cal.com/srikrishna-pothel-y5vpeq).
 
 **Is there a sandbox or test key?**
 Not yet. There is no `sk_test_` and no simulated call. Every call is a real
@@ -100,14 +117,19 @@ costs you nothing, and it reduces early hang-ups.
 ## Billing
 
 **What does a call cost?**
-It depends on your plan. Every company starts on T5 at ₹5 a minute, pay as
-you go. A ₹50,000 monthly commitment brings T3 at ₹3 a minute, and ₹1,00,000
-brings T1 at ₹1 a minute for voice AI. On T1, call insights are on by default
-at ₹0.20 a minute and can be turned off in Billing. Managed phone calling adds
-your provider's configured cost; BYO telco, WhatsApp and browser calls have no
-Mirai telco charge. Voice is billed in 10-second blocks, rounded up, with a
-minimum of one block. On T3, a 96-second call costs ₹5.00 for voice and an
-8-second call costs ₹0.50 for voice. See [Billing & tiers](/general/tiers).
+Voice agents cost ₹1 a minute on the volume plan, or ₹5 a minute pay as you
+go. Every company starts on T5, the ₹5 plan. A ₹50,000 monthly commitment
+moves you to T3 at ₹3 a minute. A ₹1,00,000 commitment moves you to T1 at ₹1.
+
+T5 and T3 include Mirai phone calling and call insights. On T1, both are
+optional. Mirai phone calling adds ₹0.30 a minute, and only when we supply the
+phone line. Call insights add ₹0.20 a minute, and stay off until you turn them
+on in **Billing**. Calls on your own telco, WhatsApp or the browser carry no
+telco charge from us.
+
+Calls are billed in 10-second blocks, rounded up, with a one-block minimum. On
+T3, a 96-second call costs ₹5.00 and an 8-second call costs ₹0.50. See
+[Billing & tiers](/general/tiers).
 
 **Am I charged for calls that do not connect?**
 No. `no_answer`, `busy`, `failed` and `aborted` are free. `completed`,
