@@ -1,6 +1,7 @@
 ---
-title: API overview
-description: A REST API for placing AI voice calls, with one auth header, predictable response envelopes and IDs that the server mints.
+title: "Voice agent API overview"
+sidebarTitle: "API overview"
+description: "How the voice agent API works: one auth header, money in rupees, pagination, idempotency keys, incoming calls, and what isn't built yet."
 ---
 
 
@@ -90,7 +91,7 @@ returns a list of field errors. See the full [error reference](/v2/errors).
 
 **Timestamps** are RFC 3339 in UTC: `2026-07-26T09:14:02Z`.
 
-**Money** is in INR. `cost_inr`, `balance_inr` and `amount_inr` are numbers,
+**Money** is in INR. `cost.amount_inr`, `balance_inr` and `amount_inr` are numbers,
 not strings. The one exception is [campaigns](/v2/campaigns), whose
 `budget_paise` and `spent_paise` are integer **paise** (100 paise = ₹1). No
 object mixes the two units.

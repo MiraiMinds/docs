@@ -2,6 +2,7 @@
   "$schema": "https://mintlify.com/docs.json",
   "theme": "almond",
   "name": "Voice Infra",
+  "description": "Developer docs for Mirai Voice: AI voice agents that call in Hindi, English and Hinglish, plus Hindi text-to-speech and call transcription APIs.",
   "colors": {
     "primary": "#16A34A",
     "light": "#07C983",
@@ -250,6 +251,36 @@
     ]
   },
   "footer": {
-    "socials": {}
+    "socials": {
+      "website": "https://voice.miraiminds.co"
+    },
+    "links": [
+      {
+        "header": "Mirai Voice",
+        "items": [
+          {
+            "label": "Pricing",
+            "href": "https://voice.miraiminds.co/pricing"
+          },
+          {
+            "label": "Use cases",
+            "href": "https://voice.miraiminds.co/use-cases"
+          },
+          {
+            "label": "Mira TTS",
+            "href": "https://voice.miraiminds.co/models/text-to-speech"
+          }
+        ]
+      }
+    ]
+  },
+  "seo": {
+    "indexing": "navigable",
+    "organization": {
+      "id": "https://voice.miraiminds.co/#organization",
+      "name": "mirai minds",
+      "url": "https://voice.miraiminds.co",
+      "logo": "https://voice.miraiminds.co/icons/icon-512.png"
+    }
   }
 }

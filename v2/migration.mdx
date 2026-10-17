@@ -1,5 +1,6 @@
 ---
-title: Migrating from v1
+title: "Migrating from the v1 API to v2"
+sidebarTitle: "Migrating from v1"
 description: How each v1 endpoint, field and webhook maps to the v2 API, and how to move a live integration across.
 ---
 
@@ -293,10 +294,9 @@ Exactly one terminal event fires per call: `call.completed`, `call.voicemail`,
 +    "call": {
 +      "id": "call_01JZQ9B4M8N3P6R2S5T7V9W1YA",
 +      "status": "completed",
-+      "tier": "t3",
 +      "ended_reason": "assistant-ended-call",
 +      "duration_secs": 96,
-+      "cost": { "amount_inr": 5, "per_min_inr": 3 },
++      "cost": { "amount_inr": 5, "per_min_inr": 3, "billing_block_secs": 10 },
 +      "metadata": { "internal_order_id": "8842" }
 +    },
 +    "wallet": { "balance_inr": 18432.5 }

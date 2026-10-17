@@ -1,12 +1,13 @@
 ---
-title: Quickstart
-description: Get a key, create an agent, place a real call and receive the webhook in five minutes.
+title: "Quickstart: your first AI phone call"
+sidebarTitle: "Quickstart"
+description: "Make your first AI phone call in five minutes. Get a key, create an agent, place a real call and verify the webhook, in cURL, Python or Node."
 ---
 
 
 In five minutes you send four requests and place one real phone call. Calls are
-billed at your plan's [tier](/general/tiers), and the example call below ran on
-T3.
+billed at your plan's [tier](/general/tiers). Every new workspace starts on T5,
+₹5 a minute, and the example call below ran there.
 
 <Note>
 If you are a partner, [**Start building**](/v2/start-building) is the longer
@@ -59,7 +60,7 @@ curl https://sandbox.voice.miraiminds.co/v2/wallet \
 ```
 
 ```json
-{ "balance_inr": 500, "currency": "INR", "updated_at": "2026-07-26T09:12:44Z" }
+{ "balance_inr": 200, "currency": "INR", "updated_at": "2026-07-26T09:12:44Z" }
 ```
 </Step>
 
@@ -317,21 +318,23 @@ The final event for a connected call:
   "data": {
     "call": {
       "id": "call_01JZQ9B4M8N3P6R2S5T7V9W1YA",
+      "object": "call",
       "agent_id": "agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ",
       "to": "+919876543210",
       "status": "completed",
-      "tier": "t5",
       "ended_reason": "assistant-ended-call",
       "started_at": "2026-07-26T09:15:02Z",
       "ended_at": "2026-07-26T09:16:38Z",
       "duration_secs": 96,
-      "cost_inr": 8.34
-    }
+      "cost": { "amount_inr": 8.34, "per_min_inr": 5, "billing_block_secs": 10 }
+    },
+    "wallet": { "balance_inr": 191.66 }
   }
 }
 ```
 
-96 seconds is billed as 10 blocks of 10 seconds, which is ₹8.34 on T5, the sandbox rate.
+96 seconds is billed as 10 blocks of 10 seconds. On T5 that is ₹8.34, which
+leaves ₹191.66 of the starting ₹200.
 [Blocks are whole and rounded up](/general/tiers#metering), with a one-block
 minimum.
 </Step>
