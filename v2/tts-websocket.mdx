@@ -1,5 +1,6 @@
 ---
 title: "Streaming text to speech (WebSocket)"
+sidebarTitle: "TTS WebSocket"
 description: "Stream Hindi speech over one WebSocket per call. Send text as your LLM writes it and get audio back sentence by sentence, with barge-in."
 ---
 
@@ -41,9 +42,7 @@ barge-in, capacity retries and reconnects.
 wss://sandbox.voice.miraiminds.co/v1/audio/speech/stream
 ```
 
-`wss://sandbox.voice.miraiminds.co/v2/tts/stream` is the same endpoint, if you
-keep every URL under `/v2`. Open one socket per call and keep it until the
-call ends.
+Open one socket per call and keep it until the call ends.
 
 ### From your server
 
@@ -59,64 +58,11 @@ up in proxy and server logs.
 ### From a browser
 
 A browser cannot set headers on a WebSocket, and your API key must never reach
-a web page. Your backend mints a short-lived stream token with its key and
-hands the page only the token.
-
-<Tabs>
-  <Tab title="cURL">
-    ```bash
-    curl -X POST https://sandbox.voice.miraiminds.co/v2/tts/stream/tokens \
-      -H "Authorization: Bearer $MIRA_API_KEY"
-    ```
-  </Tab>
-  <Tab title="Python">
-    ```python
-    import os
-
-    import httpx
-
-    r = httpx.post(
-        "https://sandbox.voice.miraiminds.co/v2/tts/stream/tokens",
-        headers={"Authorization": f"Bearer {os.environ['MIRA_API_KEY']}"},
-    )
-    r.raise_for_status()
-    stream_url = "wss://sandbox.voice.miraiminds.co" + r.json()["url"]
-    ```
-  </Tab>
-  <Tab title="Node.js">
-    ```js
-    const r = await fetch("https://sandbox.voice.miraiminds.co/v2/tts/stream/tokens", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${process.env.MIRA_API_KEY}` },
-    });
-    if (!r.ok) throw new Error(`token mint failed: ${r.status}`);
-    const streamUrl = "wss://sandbox.voice.miraiminds.co" + (await r.json()).url;
-    ```
-  </Tab>
-</Tabs>
-
-```json title="201 Created"
-{
-  "object": "tts_stream_token",
-  "token": "Hq3x9Zt0bL7wKc2Vn5RdQe8yUf1aJm4sPo6iTg0hBkE",
-  "expires_at": "2026-10-07T05:31:00Z",
-  "url": "/v1/audio/speech/stream?token=Hq3x9Zt0bL7wKc2Vn5RdQe8yUf1aJm4sPo6iTg0hBkE"
-}
-```
-
-`url` is a path. The page connects to your API host followed by that path, as
-in the [browser example](#browser-example). A token:
-
-- lasts 60 seconds and opens one socket;
-- acts for the workspace of the key that minted it, under that key's rate limit;
-- stops working if that key is revoked.
-
-<Warning>
-A socket opened with a token can synthesise speech for your workspace until it
-closes, for up to an hour. Mint tokens only for users you have signed in, one
-per connection, right before the page connects, and rate-limit the route that
-mints them.
-</Warning>
+a web page. Your backend mints a short-lived token with
+`POST /v2/tts/stream/tokens` and hands the page only the token. See
+[Browser stream tokens](/v2/speech-compatibility#browser-stream-tokens) for
+the request, the response and the rules, and the
+[browser example](#browser-example) below for a page that uses one.
 
 ### When the connection is refused
 
@@ -550,7 +496,8 @@ voice agent keeps running. The same pacing is what `apply_output_lead` does in
 ## Browser example
 
 A page that speaks typed text, with a **Stop** button for barge-in. Your
-backend mints the token, so the API key stays on your server. `requireSignedIn`
+backend mints a [stream token](/v2/speech-compatibility#browser-stream-tokens),
+so the API key stays on your server. `requireSignedIn`
 stands in for your own sign-in check.
 
 ```js server.js

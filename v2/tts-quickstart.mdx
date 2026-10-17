@@ -24,7 +24,7 @@ console shows it only once. We store only its hash, so we cannot
 recover a lost key; you rotate it instead. The same key works for TTS and the
 rest of the [v2 API](/v2/overview), and draws on the same [wallet](/v2/wallet).
 
-## 2. First audio
+## 2. One request
 
 ```bash
 curl https://sandbox.voice.miraiminds.co/v1/audio/speech \
@@ -93,18 +93,10 @@ instead of 48 kHz, and an unsupported one such as `32000` returns a 400 that
 lists the allowed rates.
 </Note>
 
-<Note>
-**One model name.** `model` is `mira-tts`. The old build-numbered name,
-`mira-tts-v51`, is still accepted as an alias, so existing callers keep
-working. Any other value returns a `404`.
-</Note>
+`model` is `mira-tts`. Any other value returns a `404`; older names that still
+work are listed under [Compatibility](/v2/speech-compatibility#other-model-names).
 
-The same endpoint is also mounted at `POST /v2/tts` if you would rather keep
-every URL under `/v2`. It runs the same handler and also accepts `text` as an
-alias of `input`. Auth, fields, headers and billing are identical, so switching
-between the two changes only the URL.
-
-## 3. Pick a voice
+### Pick a voice
 
 ```bash
 curl https://sandbox.voice.miraiminds.co/v2/voices \
@@ -120,7 +112,33 @@ allowed set; we never swap in another voice silently. Gujarati is accepted in
 beta, and five more languages are on the way. See the
 [language roadmap](/v2/tts-languages).
 
-## 4. Stream it with the OpenAI SDK
+### What comes back
+
+Every `200` carries its own accounting in headers, so you can meter spend and
+pin a build without a second request:
+
+| Header | Meaning |
+| :--- | :--- |
+| `X-Request-Id` | This request's id (`tts_…`). It identifies the row in your [request log](#your-request-log) and is the `reference` on the [ledger row](#billing). |
+| `X-Chars-Billed` | Characters counted for billing. |
+| `X-Cost-Paise` | What this request costs, in paise, once it completes. |
+| `X-Sample-Rate` | The sample rate of the audio you received, for example `8000` or `48000`. |
+| `X-Audio-Encoding` | How the samples are encoded: `pcm_s16le` (for `pcm` and `wav`), `mulaw` or `alaw`. |
+| `Content-Type` | `audio/pcm` for `pcm` at any rate, `audio/wav`, `audio/PCMU;rate=8000` for μ-law or `audio/PCMA;rate=8000` for A-law (with `16000` at 16 kHz). |
+| `X-Mira-Model` | The build that produced the audio, for example `miraiminds/mira-tts-v53`. Pin it when you compare quality across releases. |
+
+Read `X-Sample-Rate` and `X-Audio-Encoding` before you play the audio. Raw
+audio has no header, so playing μ-law as PCM, or 8 kHz audio as 48 kHz, gives
+you noise or audio at the wrong speed.
+
+Every error after authentication also carries `X-Request-Id`, so you can trace
+a failure the same way as a success. Quote the id when you ask us about a
+failed request.
+
+## 3. Stream it
+
+`pcm`, μ-law and A-law stream: the first bytes arrive while the rest is still
+being synthesised. With the OpenAI SDK, read them as they come:
 
 ```python
 from openai import OpenAI
@@ -148,7 +166,7 @@ better fit than one request per sentence. You keep one connection for the
 whole call, send text as your model writes it, and stop a reply with one
 message when the caller interrupts.
 
-## 5. Drop it into your orchestrator
+## 4. Pipecat
 
 If you build on Pipecat, use our integration. Install it with
 `uv add pipecat-mirai` and add `MiraiTTSService` to your pipeline:
@@ -171,29 +189,6 @@ Other frameworks with an OpenAI TTS integration can call the endpoint directly.
 Point them at `https://sandbox.voice.miraiminds.co/v1` with model `mira-tts`
 and `response_format="pcm"`. The audio is 48 kHz unless you ask for another
 rate, and `X-Sample-Rate` always tells you which rate you got.
-
-## What comes back
-
-Every `200` carries its own accounting in headers, so you can meter spend and
-pin a build without a second request:
-
-| Header | Meaning |
-| :--- | :--- |
-| `X-Request-Id` | This request's id (`tts_…`). It identifies the row in your [request log](#your-request-log) and is the `reference` on the [ledger row](#billing). |
-| `X-Chars-Billed` | Characters counted for billing. |
-| `X-Cost-Paise` | What this request costs, in paise, once it completes. |
-| `X-Sample-Rate` | The sample rate of the audio you received, for example `8000` or `48000`. |
-| `X-Audio-Encoding` | How the samples are encoded: `pcm_s16le` (for `pcm` and `wav`), `mulaw` or `alaw`. |
-| `Content-Type` | `audio/pcm` for `pcm` at any rate, `audio/wav`, `audio/PCMU;rate=8000` for μ-law or `audio/PCMA;rate=8000` for A-law (with `16000` at 16 kHz). |
-| `X-Mira-Model` | The build that produced the audio, for example `miraiminds/mira-tts-v53`. Pin it when you compare quality across releases. |
-
-Read `X-Sample-Rate` and `X-Audio-Encoding` before you play the audio. Raw
-audio has no header, so playing μ-law as PCM, or 8 kHz audio as 48 kHz, gives
-you noise or audio at the wrong speed.
-
-Every error after authentication also carries `X-Request-Id`, so you can trace
-a failure the same way as a success. Quote the id when you ask us about a
-failed request.
 
 ## For phone calls
 
@@ -270,53 +265,6 @@ at 622 ms median and 737 ms at the 95th percentile. The [test
 harness](https://github.com/MiraiMinds/pipecat-mirai/tree/main/benchmarks/customer-e2e)
 is public, so you can run it yourself.
 
-## Fixing choppy or broken audio
-
-If callers hear gaps, clicks or a voice that breaks up, find the symptom below.
-
-| What you hear | Likely cause | Fix |
-| :--- | :--- | :--- |
-| Fine on one call, breaking up once several calls run at once | 48 kHz PCM over a link that cannot carry every stream in real time | Ask for `ulaw_8000`, or the rate your player uses. See [Why the format matters](#why-the-format-matters). |
-| A pause before some sentences, sometimes a second or more | A new HTTPS connection for each sentence | Keep one connection for the call: use the [WebSocket endpoint](/v2/tts-websocket), or one keep-alive HTTP client. |
-| Short breaks in the middle of sentences, worse when your server is busy | Audio sent to the phone line at exactly real time, with nothing in hand when your server stalls | Keep the provider about 0.4 seconds ahead. See [For phone calls](#for-phone-calls). |
-| A sliver of a word, a gap, then the rest of the sentence | Playback starts on the first, very short chunk | Hold about 150 ms of audio before each sentence starts playing. |
-| A sentence goes missing under load, or you see `429 at_capacity` | More sentences in flight than your workspace limit (10 by default) | On the WebSocket, sentences wait up to 3 seconds for a slot. On HTTP, honour `Retry-After`. Ask us to raise the limit if you run many calls at once. |
-| Static or noise, or a voice that is too fast, too slow or too high | The audio is decoded with the wrong encoding or rate | Read `X-Sample-Rate` and `X-Audio-Encoding` (on the WebSocket, `audio.start`) and set your player to match. |
-
-To find out whether a gap starts on our side or yours, look the request up in
-your [request log](#your-request-log). `first_byte_ms` is how long we took to
-send the first audio, and `status` says whether all of it was delivered. If
-those look normal and the caller still hears gaps, the audio is being held up
-between our server and the caller: on your link, in your server's event loop,
-or in how it is paced to the phone line. The fixes above cover each of those.
-
-If you are on Pipecat, the [recommended phone setup](/v2/pipecat#recommended-phone-setup)
-takes care of all of this except the size of your limit.
-
-## Limits
-
-| Limit | Default | Over the limit |
-| :--- | :--- | :--- |
-| Requests in flight | Your workspace's limit, **10** unless it has been set otherwise | `429 at_capacity` with a `Retry-After` header. |
-| `input` length | **2,000 characters** | `400 invalid_request`. Split longer text. |
-| Request rate | Per key (see [Limits](/v2/limits)) | `429 rate_limited` with a `Retry-After` header. |
-
-We refuse an HTTP request over the limit instead of queueing it. Honour
-`Retry-After` and send it again. A refused request does not hold a slot and
-costs nothing. `at_capacity` can also come from a deployment-wide ceiling when
-the speech node is saturated. Handle it the same way.
-
-Sentences on the [WebSocket endpoint](/v2/tts-websocket) draw on the same
-limit, but a sentence that finds it full waits up to 3 seconds for a slot
-before it fails. A live conversation rides out a short burst there without a
-retry loop of your own.
-
-The limit is set per workspace, and a workspace starts at 10. The plans under
-[Billing](#billing) list the concurrency each plan includes. If your
-workspace's limit doesn't match your plan, or you need more, ask your Mirai
-contact. Changing the limit is a provisioning change and needs no change to
-your code.
-
 ## Billing
 
 {/* pricing:tts:start */}
@@ -371,6 +319,30 @@ from, and it appears on the console billing statement under **Text to speech**:
 
 If your wallet cannot cover the request, you get a `402` before anything is
 synthesised. See [Wallet](/v2/wallet#list-transactions).
+
+## Limits
+
+| Limit | Default | Over the limit |
+| :--- | :--- | :--- |
+| Requests in flight | Your workspace's limit, **10** unless it has been set otherwise | `429 at_capacity` with a `Retry-After` header. |
+| `input` length | **2,000 characters** | `400 invalid_request`. Split longer text. |
+| Request rate | Per key (see [Limits](/v2/limits)) | `429 rate_limited` with a `Retry-After` header. |
+
+We refuse an HTTP request over the limit instead of queueing it. Honour
+`Retry-After` and send it again. A refused request does not hold a slot and
+costs nothing. `at_capacity` can also come from a deployment-wide ceiling when
+the speech node is saturated. Handle it the same way.
+
+Sentences on the [WebSocket endpoint](/v2/tts-websocket) draw on the same
+limit, but a sentence that finds it full waits up to 3 seconds for a slot
+before it fails. A live conversation rides out a short burst there without a
+retry loop of your own.
+
+The limit is set per workspace, and a workspace starts at 10. The plans under
+[Billing](#billing) list the concurrency each plan includes. If your
+workspace's limit doesn't match your plan, or you need more, ask your Mirai
+contact. Changing the limit is a provisioning change and needs no change to
+your code.
 
 ## Your request log
 
@@ -451,3 +423,26 @@ check it there than poll the API.
 Errors use the same envelope as the rest of the API. See
 [Errors](/v2/errors). If you are stuck on something this page does not cover,
 reply on your onboarding thread, where a person reads it.
+
+## Fixing choppy or broken audio
+
+If callers hear gaps, clicks or a voice that breaks up, find the symptom below.
+
+| What you hear | Likely cause | Fix |
+| :--- | :--- | :--- |
+| Fine on one call, breaking up once several calls run at once | 48 kHz PCM over a link that cannot carry every stream in real time | Ask for `ulaw_8000`, or the rate your player uses. See [Why the format matters](#why-the-format-matters). |
+| A pause before some sentences, sometimes a second or more | A new HTTPS connection for each sentence | Keep one connection for the call: use the [WebSocket endpoint](/v2/tts-websocket), or one keep-alive HTTP client. |
+| Short breaks in the middle of sentences, worse when your server is busy | Audio sent to the phone line at exactly real time, with nothing in hand when your server stalls | Keep the provider about 0.4 seconds ahead. See [For phone calls](#for-phone-calls). |
+| A sliver of a word, a gap, then the rest of the sentence | Playback starts on the first, very short chunk | Hold about 150 ms of audio before each sentence starts playing. |
+| A sentence goes missing under load, or you see `429 at_capacity` | More sentences in flight than your workspace limit (10 by default) | On the WebSocket, sentences wait up to 3 seconds for a slot. On HTTP, honour `Retry-After`. Ask us to raise the limit if you run many calls at once. |
+| Static or noise, or a voice that is too fast, too slow or too high | The audio is decoded with the wrong encoding or rate | Read `X-Sample-Rate` and `X-Audio-Encoding` (on the WebSocket, `audio.start`) and set your player to match. |
+
+To find out whether a gap starts on our side or yours, look the request up in
+your [request log](#your-request-log). `first_byte_ms` is how long we took to
+send the first audio, and `status` says whether all of it was delivered. If
+those look normal and the caller still hears gaps, the audio is being held up
+between our server and the caller: on your link, in your server's event loop,
+or in how it is paced to the phone line. The fixes above cover each of those.
+
+If you are on Pipecat, the [recommended phone setup](/v2/pipecat#recommended-phone-setup)
+takes care of all of this except the size of your limit.

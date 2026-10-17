@@ -1,0 +1,154 @@
+---
+title: "Speech API compatibility: other URLs, browser tokens and Sarvam clients"
+sidebarTitle: "Compatibility"
+description: "The other URLs and model names the speech routes answer to, stream tokens for browsers, the api-subscription-key header, and moving a Sarvam realtime client."
+---
+
+The [Speech API](/v2/speech) pages use one URL per route and the
+`Authorization` header. The routes also answer to the names on this page, so
+existing code keeps working without changes. New code needs none of them,
+except stream tokens when a browser opens the socket itself.
+
+## Other URLs for the same routes
+
+| Route | Also answers at |
+| :--- | :--- |
+| `POST /v1/audio/speech` | `POST /v2/tts`, which also accepts `text` as an alias of `input`. `POST /tts/v1/audio/speech`, the [original speech endpoint](/v2/text-to-speech). |
+| `GET /v1/audio/speech/stream` | `GET /v2/tts/stream` |
+| `POST /v1/audio/transcriptions` | `POST /v2/stt` |
+| `GET /v1/audio/transcriptions/stream` | `GET /v2/stt/stream` |
+
+Each one runs the same handler as its route. Auth, fields, headers and billing
+are identical, so switching changes only the URL.
+
+## Other model names
+
+| `model` | Also accepted |
+| :--- | :--- |
+| `mira-tts` | `mira-tts-v51` |
+| `mira-stt` | `mira-stt:v5-realtime`, `saaras:v3-realtime` |
+
+Any other value returns `404 model_not_found`. Request-log rows and the
+socket's `session.begin` name the build that served you, for example
+`mira-stt:v5-realtime`, whichever name you sent.
+
+## Browser stream tokens
+
+A browser cannot set headers on a WebSocket, and your API key must never reach
+a web page. Your backend mints a short-lived stream token with its key and
+hands the page only the token.
+
+| Socket | Mint |
+| :--- | :--- |
+| `/v1/audio/speech/stream` | `POST /v2/tts/stream/tokens` |
+| `/v1/audio/transcriptions/stream` | `POST /v2/stt/stream/tokens` |
+
+<Tabs>
+  <Tab title="cURL">
+    ```bash
+    curl -X POST https://sandbox.voice.miraiminds.co/v2/stt/stream/tokens \
+      -H "Authorization: Bearer $MIRA_API_KEY"
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    import os
+
+    import httpx
+
+    r = httpx.post(
+        "https://sandbox.voice.miraiminds.co/v2/stt/stream/tokens",
+        headers={"Authorization": f"Bearer {os.environ['MIRA_API_KEY']}"},
+    )
+    r.raise_for_status()
+    stream_url = "wss://sandbox.voice.miraiminds.co" + r.json()["url"]
+    ```
+  </Tab>
+  <Tab title="Node.js">
+    ```js
+    const r = await fetch("https://sandbox.voice.miraiminds.co/v2/stt/stream/tokens", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${process.env.MIRA_API_KEY}` },
+    });
+    if (!r.ok) throw new Error(`token mint failed: ${r.status}`);
+    const streamUrl = "wss://sandbox.voice.miraiminds.co" + (await r.json()).url;
+    ```
+  </Tab>
+</Tabs>
+
+```json title="201 Created (speech to text)"
+{
+  "object": "stt_stream_token",
+  "token": "te1.eyJzdmMiOiJzdHQifQ.Hq3x9Zt0bL7wKc2Vn5RdQe8yUf1aJm4sPo6iTg0hBkE",
+  "tokens": ["te1.eyJzdmMiOiJzdHQifQ.Hq3x9Zt0bL7wKc2Vn5RdQe8yUf1aJm4sPo6iTg0hBkE"],
+  "expires_at": "2026-10-12T05:31:00Z",
+  "url": "/v1/audio/transcriptions/stream?token=te1.eyJzdmMiOiJzdHQifQ.Hq3x9Zt0bL7wKc2Vn5RdQe8yUf1aJm4sPo6iTg0hBkE",
+  "edge_url": null
+}
+```
+
+```json title="201 Created (text to speech)"
+{
+  "object": "tts_stream_token",
+  "token": "Hq3x9Zt0bL7wKc2Vn5RdQe8yUf1aJm4sPo6iTg0hBkE",
+  "expires_at": "2026-10-07T05:31:00Z",
+  "url": "/v1/audio/speech/stream?token=Hq3x9Zt0bL7wKc2Vn5RdQe8yUf1aJm4sPo6iTg0hBkE"
+}
+```
+
+`url` is a path. The page connects to your API host followed by that path. On
+the speech-to-text socket, add your
+[query parameters](/v2/speech-to-text#query-parameters) after it with `&`. A
+token:
+
+- lasts 60 seconds and opens one socket;
+- acts for the workspace of the key that minted it, under that key's rate limit;
+- stops working if that key is revoked.
+
+The speech-to-text mint also takes `count`, up to 20 (`?count=5`, or
+`{"count": 5}` as the body), and returns that many tokens in `tokens`, each
+good for one socket. It checks the wallet before minting, so an empty wallet
+gets `402 insufficient_balance` here instead of at the socket. Ignore
+`edge_url`: it is `null`, and you connect to `url`.
+
+A token that is unknown, expired or already used fails the upgrade with
+`401 invalid_token`. Mint a new one for each connection, including a reconnect.
+
+<Warning>
+A socket opened with a token can synthesise or transcribe on your wallet until
+it closes, for up to an hour. Mint tokens only for users you have signed in,
+one per connection, right before the page connects, and rate-limit the route
+that mints them.
+</Warning>
+
+The [browser example](/v2/tts-websocket#browser-example) on the TTS socket page
+shows a backend route that mints a token and a page that uses it.
+
+## The api-subscription-key header
+
+The speech-to-text socket also accepts the key in an `api-subscription-key`
+header in place of `Authorization: Bearer`. Both carry the same `sk_live_` key.
+An API key in the URL (`?api_key=`) is refused with `401` on every socket,
+because URLs end up in proxy and server logs.
+
+## Moving from Sarvam realtime
+
+If your code already speaks Sarvam's v3 realtime protocol, it can connect to
+the [speech-to-text socket](/v2/speech-to-text) as it is. The messages are the
+same ones, so you change the URL and the key and keep the rest:
+
+- send the key in `api-subscription-key`, as you do now, or in
+  `Authorization: Bearer`;
+- `model=saaras:v3-realtime` is accepted and served by Mira STT;
+- `mode` (`transcribe` or `codemix`) and `stream_type` (`balanced` or `fast`)
+  are accepted. Both values of each behave the same today.
+
+Mira STT has no automatic language detection, so pass the language you expect
+in `language_code`. See [Languages](/v2/stt-languages).
+
+## The original speech endpoint
+
+`/tts/v1` and its old `mira_` keys predate the current API. The URL is an alias
+of `POST /v1/audio/speech`, and the
+[original endpoint's page](/v2/text-to-speech) says what changed for callers
+still on it.

@@ -10,7 +10,9 @@ when they end, [text-to-speech](/v2/tts-quickstart) requests debit it when they
 complete, [AI flow drafts](/v2/node-agents#what-a-draft-costs) and
 [recording transcriptions](/v2/node-agents#what-transcription-costs) debit it
 when they finish, [offline transcriptions](/v2/transcribe-recorded-calls#pricing)
-debit it when a job completes, and top-ups credit it. If the wallet cannot
+debit it when a job completes, [speech-to-text](/v2/stt-quickstart#billing)
+requests and sessions debit it for the audio they received, and top-ups credit
+it. If the wallet cannot
 cover a minute, `POST /v2/calls` returns [`402`](#402-insufficient-balance) and no call
 is placed.
 
@@ -175,7 +177,7 @@ The ledger. One row per credit or debit, newest first.
 | `amount_inr` | number | Always positive; read `type` for direction. |
 | `balance_after_inr` | number | Balance immediately after this row. |
 | `call_id` | string \| null | Set on call debits, `null` on top-ups and adjustments. |
-| `kind` | string | The transaction category: `call`, `tts`, `flow_generation`, `transcription`, `number_rental`, `promotion` or `monthly_minimum`. **Branch on this**, never on `description`, and tolerate new categories. |
+| `kind` | string | The transaction category: `call`, `tts`, `stt`, `flow_generation`, `transcription`, `number_rental`, `promotion` or `monthly_minimum`. **Branch on this**, never on `description`, and tolerate new categories. |
 | `reference` | string | The id of the thing billed: the `tts_…` request id on a `tts` row; the `fgen_…` generation id, or the `ftr_…` transcription id, on a `flow_generation` row; the `trn_…` job id on a `transcription` row. |
 | `quantity` | number | How much was billed: characters on a `tts` row, tokens (input plus output) on a `flow_generation` row, seconds of audio (rounded up) on a `transcription` row. |
 | `description` | string | Human-readable. Do not parse it. |

@@ -11,6 +11,16 @@ with the job at once, then read it with
 `completed` or `failed`. For an introduction, see
 [Transcribe recorded calls](/v2/transcribe-recorded-calls).
 
+<Tip>
+**Which one do I use?**
+
+| You have | Use |
+| :--- | :--- |
+| One short clip, up to 2 minutes, and you want the text in one answer | [`POST /v1/audio/transcriptions`](/v2/stt-quickstart#2-one-request) |
+| Live audio, such as a call in progress, and you want text while the person speaks | The [speech-to-text socket](/v2/speech-to-text) |
+| A recording of up to 2 hours, with speakers and timestamps | This page |
+</Tip>
+
 Base URL `https://sandbox.voice.miraiminds.co`. Every request carries
 `Authorization: Bearer sk_live_…`, your workspace API key. A job belongs to the
 workspace whose key created it.

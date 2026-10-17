@@ -62,18 +62,28 @@
             ]
           },
           {
+            "group": "Speech API",
+            "pages": [
+              "v2/speech",
+              "v2/pipecat",
+              "v2/speech-compatibility"
+            ]
+          },
+          {
             "group": "Text to speech",
             "pages": [
               "v2/tts-quickstart",
               "v2/tts-websocket",
-              "v2/pipecat",
-              "v2/voices",
-              "v2/tts-languages"
+              "v2/tts-languages",
+              "v2/voices"
             ]
           },
           {
             "group": "Speech to text",
             "pages": [
+              "v2/stt-quickstart",
+              "v2/speech-to-text",
+              "v2/stt-languages",
               "v2/transcribe-recorded-calls",
               "v2/transcriptions"
             ]

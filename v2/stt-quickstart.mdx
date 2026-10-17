@@ -1,0 +1,442 @@
+---
+title: "Speech to text API quickstart: Hindi, Gujarati and eight more languages"
+sidebarTitle: "STT quickstart"
+description: "Transcribe a clip with one curl request to the OpenAI-compatible /v1/audio/transcriptions, stream live audio over a WebSocket, and add Mira STT to Pipecat."
+---
+
+Mira STT is our own speech recognition, the one our voice agents listen with.
+It transcribes Hindi, English, Gujarati and seven more Indian languages,
+including the Hinglish most calls are in. The HTTP endpoint speaks OpenAI's
+`POST /v1/audio/transcriptions` protocol, so an OpenAI SDK can call it once
+you change the base URL and the model name. For live audio, the same key opens
+a WebSocket that sends text back while the person is still talking.
+
+<Tip>
+**Which one do I use?** One clip of up to two minutes, text back in one
+answer: the HTTP endpoint in step 2. Live audio, such as a call in progress:
+the socket in step 3. A recording of up to two hours, with speakers and
+timestamps: [offline transcription](/v2/transcriptions).
+</Tip>
+
+## 1. Get a key
+
+Open the [console](https://sandbox.voice.miraiminds.co), go to **Developers**
+and press **Create key**. You do not need an access code. The first time, the
+console asks for your work email and sends you a confirmation link; open it,
+then press **Create key** again. The key is a `sk_live_` secret, and the
+console shows it only once. We store only its hash, so we cannot recover a
+lost key; you rotate it instead. The same key works for speech to text, text
+to speech and the rest of the [v2 API](/v2/overview), and draws on the same
+[wallet](/v2/wallet).
+
+## 2. One request
+
+Send the audio as a multipart form:
+
+<Tabs>
+  <Tab title="cURL">
+    ```bash
+    curl https://sandbox.voice.miraiminds.co/v1/audio/transcriptions \
+      -H "Authorization: Bearer $MIRA_API_KEY" \
+      -F file=@call.wav \
+      -F language=gu-IN \
+      -F model=mira-stt
+    ```
+  </Tab>
+  <Tab title="Python (OpenAI SDK)">
+    ```python
+    from openai import OpenAI
+
+    client = OpenAI(
+        api_key="sk_live_...",
+        base_url="https://sandbox.voice.miraiminds.co/v1",
+    )
+
+    with open("call.wav", "rb") as f:
+        result = client.audio.transcriptions.create(
+            model="mira-stt",
+            file=f,
+            language="gu",
+        )
+    print(result.text)
+    ```
+  </Tab>
+</Tabs>
+
+```json title="200 OK"
+{ "text": "નમસ્તે મારે કાલે સાંજે પાંચ વાગ્યાની appointment બુક કરવી છે" }
+```
+
+The answer arrives once the whole clip is transcribed. HTTP sends no partial
+transcripts; for text while someone is still speaking, use the
+[socket](#3-stream-it). We cut a long clip into turns ourselves, so a
+120-second file still comes back as one `text`. We wait up to 30 seconds plus
+half the clip's length for the transcript (90 seconds for a 120-second clip),
+so give your client a timeout of 120 seconds.
+
+| Field | Values | Default |
+| :--- | :--- | :--- |
+| `file` | The audio, up to 25 MB and 120 seconds. WAV, raw PCM, μ-law or A-law, or a compressed format such as MP3, M4A, OGG/Opus or FLAC, which we convert. Stereo is mixed down to mono. | Required |
+| `model` | `mira-stt` | `mira-stt` |
+| `language` | One of the [ten languages](/v2/stt-languages), as `gu-IN` or `gu`, in any case. There is no automatic detection, so name the language you expect. | `hi-IN` |
+| `response_format` | `json`, `verbose_json` or `text`. See below. | `json` |
+| `encoding`, `sample_rate` | Only for raw audio with no header: `linear16`, `mulaw` or `alaw`, at `8000` or `16000`. Leave them out for WAV and compressed files. | |
+
+OpenAI's `prompt`, `temperature` and `timestamp_granularities` are accepted and
+ignored, so an OpenAI client that sends them works unchanged.
+
+```bash title="8 kHz μ-law straight off a phone line"
+curl https://sandbox.voice.miraiminds.co/v1/audio/transcriptions \
+  -H "Authorization: Bearer $MIRA_API_KEY" \
+  -F file=@call.ulaw \
+  -F model=mira-stt \
+  -F language=hi-IN \
+  -F encoding=mulaw \
+  -F sample_rate=8000
+```
+
+### Response formats
+
+`json`, the default, is the text alone. `text` is the same text as a plain
+body (`text/plain; charset=utf-8`), with no JSON around it. `verbose_json` adds
+the language as its full code, such as `gu-IN` even when you sent `gu`, the
+audio's length in seconds, and one segment for each utterance we found, with
+where it starts and ends in the clip. `srt` and `vtt` are not offered.
+
+```json title="verbose_json"
+{
+  "text": "नमस्ते मुझे कल शाम पाँच बजे का appointment book करना है क्या आप confirm कर सकते हैं",
+  "language": "hi-IN",
+  "duration": 6.84,
+  "segments": [
+    { "id": 0, "start": 0.0, "end": 3.92, "text": "नमस्ते मुझे कल शाम पाँच बजे का appointment book करना है" },
+    { "id": 1, "start": 4.31, "end": 6.84, "text": "क्या आप confirm कर सकते हैं" }
+  ]
+}
+```
+
+### What comes back
+
+Every `200` carries its own accounting in headers:
+
+| Header | Meaning |
+| :--- | :--- |
+| `X-Request-Id` | This request's id. It identifies the row in your [request log](#your-request-log) and is the `reference` on the [ledger row](#billing). |
+| `X-Audio-Seconds` | The length of the audio we transcribed, in seconds. |
+| `X-Cost-Paise` | What this request cost, in paise. |
+| `X-Mira-Model` | The build that transcribed it, for example `mira-stt:v5-realtime`. Pin it when you compare accuracy across releases. |
+
+Every error after authentication also carries `X-Request-Id`. Quote it when
+you ask us about a failed request.
+
+## 3. Stream it
+
+The socket takes audio as it is captured and sends back partial transcripts as
+the words are recognised, then one final transcript for each utterance:
+
+```text
+wss://sandbox.voice.miraiminds.co/v1/audio/transcriptions/stream?language_code=gu-IN&sample_rate=16000&endpointing=manual
+```
+
+Send your key in the `Authorization: Bearer` header, as on every other
+request. This script streams a WAV file as if it were live: it opens an
+utterance with `speech_start`, sends the audio in 20 ms `audio_input`
+messages, closes the utterance with `speech_end`, and ends the session with
+`end`.
+
+```python stream.py
+# pip install "websockets>=14"
+"""Stream a WAV file to Mira STT at real-time pace and print the transcript.
+
+    export MIRA_API_KEY=sk_live_...
+    python stream.py hello.wav      # 16-bit mono WAV at 16 kHz, under 25 seconds
+"""
+import asyncio
+import base64
+import json
+import os
+import sys
+import wave
+
+import websockets
+
+URL = ("wss://sandbox.voice.miraiminds.co/v1/audio/transcriptions/stream"
+       "?language_code=gu-IN&encoding=linear16&sample_rate=16000&endpointing=manual")
+CHUNK = 640  # bytes: 20 ms of 16 kHz, 16-bit audio
+
+
+async def send_audio(ws, pcm):
+    await ws.send(json.dumps({"event": "speech_start"}))
+    for i in range(0, len(pcm), CHUNK):
+        audio = base64.b64encode(pcm[i:i + CHUNK]).decode()
+        await ws.send(json.dumps({"event": "audio_input", "audio": audio}))
+        await asyncio.sleep(0.02)  # real time, the way a live call arrives
+    await ws.send(json.dumps({"event": "speech_end"}))
+    await ws.send(json.dumps({"event": "end"}))
+
+
+async def main(path):
+    with wave.open(path, "rb") as w:
+        if (w.getnchannels(), w.getsampwidth(), w.getframerate()) != (1, 2, 16000):
+            sys.exit("need a 16-bit mono WAV at 16 kHz")
+        pcm = w.readframes(w.getnframes())
+
+    headers = {"Authorization": f"Bearer {os.environ['MIRA_API_KEY']}"}
+    async with websockets.connect(URL, additional_headers=headers) as ws:
+        sender = asyncio.create_task(send_audio(ws, pcm))
+        async for message in ws:
+            event = json.loads(message)
+            kind = event["event"]
+            if kind == "session.begin":
+                print("session", event["session_id"])
+            elif kind == "transcript.partial":
+                print("   …", event["text"])
+            elif kind == "transcript.final":
+                print("final:", event["text"])
+            elif kind == "error":
+                print("error:", event["code"], event["message"])
+            elif kind == "session.end":
+                print(event["audio_seconds_billed"], "s billed,", event["cost_paise"], "paise")
+                break
+        sender.cancel()
+        await asyncio.gather(sender, return_exceptions=True)
+
+
+asyncio.run(main(sys.argv[1]))
+```
+
+```text title="Output"
+session sttws_01K7C2M3Q4R7T9V2X5Y8A1B4C7
+   … નમસ્તે મારે
+   … નમસ્તે મારે કાલે સાંજે
+final: નમસ્તે મારે કાલે સાંજે પાંચ વાગ્યાની appointment બુક કરવી છે
+5 s billed, 5 paise
+```
+
+A partial can rewrite words it sent earlier, so replace what you show with each
+new partial instead of appending to it. To make a test file,
+`ffmpeg -i call.mp3 -ac 1 -ar 16000 -sample_fmt s16 hello.wav`. With
+`websockets` older than 14, pass `extra_headers=` instead of
+`additional_headers=`.
+
+The script sends the file as one utterance. With manual endpointing, one
+utterance can run for at most 60 seconds: past that you get a fatal
+`utterance_too_long`, the socket closes with 1011, and that utterance gets no
+final. For longer audio, send `speech_end` at a pause at least every 25
+seconds, or connect with `endpointing=vad` and we cut the utterances for you. The
+[WebSocket reference](/v2/speech-to-text) has every message and event, both
+endpointing modes, phone audio and the close codes. A browser connects with a
+short-lived [stream token](/v2/speech-compatibility#browser-stream-tokens)
+instead of your key.
+
+## 4. Pipecat
+
+If you build on Pipecat, install our integration with
+`uv add "pipecat-mirai>=0.6.0"` and put `MiraiSTTService` where your STT
+service was:
+
+```python
+import os
+from pipecat_mirai import MiraiSTTService
+
+stt = MiraiSTTService(api_key=os.environ["MIRA_API_KEY"], language="gu-IN")
+```
+
+It opens one socket per call, uses your pipeline's VAD to mark the start and
+end of each utterance, sends 8 kHz phone audio as it is, and reconnects without
+losing what the caller said. See [Pipecat](/v2/pipecat#transcribe-with-miraisttservice).
+
+## For phone calls
+
+- **Send the line's audio as it is.** Twilio and Plivo carry 8 kHz μ-law:
+  connect with `encoding=mulaw&sample_rate=8000` and forward each media
+  payload. Exotel carries 8 kHz 16-bit PCM: `encoding=linear16&sample_rate=8000`.
+  Don't resample to 16 kHz first; that adds bytes and nothing the model can use.
+- **Keep one socket per call.** Open it when the call connects and send `end`
+  when it hangs up.
+- **Use your own VAD if you have one.** With `endpointing=manual`, the final
+  comes back straight after your `speech_end`, with no silence wait on our
+  side. Send the half second of audio from before your VAD fired right after
+  `speech_start`, so the first word is not clipped.
+
+## Billing
+
+**₹30 per hour of audio**, on HTTP and on the socket. That is 0.83 paise a
+second.
+
+We charge on the seconds of audio we received, rounded up to the next second,
+with a minimum of 1 second, and round the price up to the next paisa. A
+20-second clip costs 17 paise; a 3-minute call streamed in full costs ₹1.50.
+
+- **HTTP:** charged once the transcript is written. A request that fails or
+  times out is not charged.
+- **Socket:** you pay for the audio you send, silence included, however the
+  session ends: with `end`, with a closed socket, on a timeout or on an error.
+  With manual endpointing you can send audio only around speech, but keep the
+  half second before `speech_start`. A session longer than 5 minutes is
+  charged in parts as it runs, and the parts add up to what the whole session
+  would cost.
+
+Before a request or a session starts, we check that your wallet is not empty;
+if it is, you get `402 insufficient_balance` and nothing is transcribed. If the
+wallet runs out during a long session, the session ends with
+[`insufficient_balance`](/v2/speech-to-text#errors-on-an-open-socket) after
+its last final.
+
+Each charge is one debit row on the same [wallet](/v2/wallet) your calls draw
+from:
+
+```json title="GET /v2/wallet/transactions"
+{
+  "id": "txn_01K7C2M9W3X5Y7Z9A2B4C6D8E0",
+  "object": "wallet_transaction",
+  "type": "debit",
+  "amount_inr": 0.35,
+  "balance_after_inr": 498.12,
+  "call_id": null,
+  "kind": "stt",
+  "reference": "stt_01K7C2M3Q4R7T9V2X5Y8A1B4C7-1",
+  "quantity": 42,
+  "description": "Live transcription · 42s of audio",
+  "created_at": "2026-10-12T05:31:00Z"
+}
+```
+
+| Field | Meaning |
+| :--- | :--- |
+| `kind` | `stt`, for both transports. Classify rows by this field, never by reading `description`, which starts with Transcription for an HTTP request and Live transcription for a socket session. |
+| `reference` | The `id` of the row in your [request log](#your-request-log). For an HTTP request, that is its `X-Request-Id`. |
+| `quantity` | Seconds billed. |
+
+[Offline transcription](/v2/transcribe-recorded-calls#pricing) of recordings
+is priced separately, at ₹18 per hour.
+
+## Limits
+
+| Limit | Default | Over the limit |
+| :--- | :--- | :--- |
+| Sessions at once | **10 per workspace**, counting HTTP requests in flight and open sockets together | `429 at_capacity` with `Retry-After`. |
+| One HTTP clip | **25 MB and 120 seconds** of audio | Over 25 MB, `413 request_too_large`. Over 120 seconds, `413 audio_too_long`. Send longer recordings to [offline transcription](/v2/transcriptions). |
+| Request rate | Per key (see [Limits](/v2/limits)) | `429 rate_limited` with `Retry-After`. Opening a socket counts as a request. |
+
+We refuse a request over the session limit instead of queueing it. Honour
+`Retry-After` and send it again; a refused request costs nothing. The socket
+has its own limits on message size, utterance length and idle time, listed in
+the [WebSocket reference](/v2/speech-to-text#limits).
+
+The limit is raised on request, with no change to your code. If you run many
+calls at once, ask your Mirai contact for a little more than your peak number
+of simultaneous calls.
+
+## Your request log
+
+We log every request and every session, and you can read the log yourself:
+
+```bash
+curl "https://sandbox.voice.miraiminds.co/v2/stt/requests?limit=50" \
+  -H "Authorization: Bearer $MIRA_API_KEY"
+```
+
+```json title="200 OK"
+{
+  "data": [
+    {
+      "id": "stt_01K7C2M3Q4R7T9V2X5Y8A1B4C7-1",
+      "object": "stt_request",
+      "via": "ws",
+      "session_id": "sttws_01K7C2M3Q4R7T9V2X5Y8A1B4C7",
+      "seq": 1,
+      "created_at": "2026-10-12T05:30:12Z",
+      "ended_at": "2026-10-12T05:31:00Z",
+      "language": "hi-IN",
+      "model": "mira-stt:v5-realtime",
+      "encoding": "mulaw",
+      "sample_rate": 8000,
+      "endpointing": "manual",
+      "audio_seconds": 41.36,
+      "billed_seconds": 42,
+      "utterances": 7,
+      "status": "completed",
+      "cost_inr": 0.35,
+      "error_code": null
+    },
+    {
+      "id": "stt_01K7C3A1B2C3D4E5F6G7H8J9K0",
+      "object": "stt_request",
+      "via": "http",
+      "session_id": "stt_01K7C3A1B2C3D4E5F6G7H8J9K0",
+      "seq": 0,
+      "created_at": "2026-10-12T05:28:40Z",
+      "ended_at": "2026-10-12T05:28:43Z",
+      "language": "gu-IN",
+      "model": "mira-stt:v5-realtime",
+      "encoding": "linear16",
+      "sample_rate": 16000,
+      "endpointing": "manual",
+      "audio_seconds": 19.42,
+      "billed_seconds": 20,
+      "utterances": 3,
+      "status": "completed",
+      "cost_inr": 0.17,
+      "error_code": null
+    }
+  ],
+  "has_more": false,
+  "next_cursor": null
+}
+```
+
+Rows come newest first, and only from your own workspace:
+
+| Query | Meaning |
+| :--- | :--- |
+| `limit` | Up to 200, default 50. |
+| `cursor` | Opaque, from the response's `next_cursor`. |
+| `from`, `to` | RFC3339 timestamps. |
+| `status` | `interim`, `completed` or `failed`. |
+| `session_id` | Only the rows of one socket session. |
+
+`GET /v2/stt/requests/{id}` returns a single row.
+
+| Field | Meaning |
+| :--- | :--- |
+| `via` | `http` for a clip sent to `POST /v1/audio/transcriptions`, `ws` for a socket session. `edge` is also a socket session, served from an edge server; no edge serves speech to text today. |
+| `id` | The row. An HTTP request has one row, whose `id` is its `X-Request-Id`. A socket session's rows are `stt_` and the session's ULID, then `-1`, `-2` and so on, one for each part of a session charged in parts. |
+| `session_id`, `seq` | For a socket, the session and which part of it this row is, from 1; every row of a session has the same `session_id`. For an HTTP request, `session_id` is the row's own `id` and `seq` is `0`. |
+| `created_at`, `ended_at` | When the request or part started and ended. |
+| `encoding`, `sample_rate`, `endpointing` | How the audio reached the recogniser. A socket shows what you connected with. An HTTP request shows `linear16`, `16000` and `manual` whatever you uploaded, because we convert the file first. |
+| `model` | The build that listened. |
+| `audio_seconds` | The audio received, exactly. |
+| `billed_seconds` | The seconds charged. |
+| `utterances` | Final transcripts sent. |
+| `status` | `completed` when the request or session finished, `interim` for a 5-minute part of a session that was still open, `failed` when the recogniser or our server ended it. |
+| `cost_inr` | What it cost. |
+| `error_code` | Why it ended, when it was not a plain `end` or close: `idle_timeout`, `max_duration`, `insufficient_balance`, or an error `code`. `null` otherwise. |
+
+A row holds no audio and no transcript, only what was used and what it cost.
+
+## When something fails
+
+Errors on the HTTP endpoint use the same [envelope](/v2/errors) as the rest of
+the API:
+
+| Status | `code` | Cause |
+| :--- | :--- | :--- |
+| 400 | `invalid_request` | No `file` in the form. |
+| 400 | `invalid_config` | A field is out of range: a `language` outside the [ten](/v2/stt-languages) (including `auto`), a `response_format` other than `json`, `verbose_json` or `text` (such as `srt` or `vtt`), or `encoding` and `sample_rate` that don't fit. The message names the field. |
+| 401 | `unauthorized` | Missing or unknown key. Check the `Authorization: Bearer sk_live_…` header. |
+| 402 | `insufficient_balance` | Your wallet is empty. Nothing was transcribed and nothing was charged. |
+| 404 | `model_not_found` | `model` is not `mira-stt` or one of its [other names](/v2/speech-compatibility#other-model-names). |
+| 413 | `request_too_large` | The upload is over 25 MB. Nothing was charged. |
+| 413 | `audio_too_long` | The clip is longer than 120 seconds. Send it to [offline transcription](/v2/transcriptions), which takes recordings of up to two hours. |
+| 415 | `unsupported_media` | We could not decode the file. Send WAV or a common compressed format, or raw audio with `encoding` and `sample_rate`. |
+| 429 | `at_capacity` | Your workspace already has 10 sessions running, or the service is at its own ceiling. Honour `Retry-After`. |
+| 429 | `rate_limited` | Per-key request rate. Honour `Retry-After`, and see [Limits](/v2/limits). |
+| 503 | `unavailable` | The recogniser is briefly unreachable or restarting. Nothing was charged. Honour `Retry-After`. |
+| 504 | `upstream_timeout` | The transcript did not arrive within 30 seconds plus half the clip's length. Nothing was charged. Retry, or send a long clip to offline transcription. |
+
+The socket refuses a connection with the same codes before the upgrade, and an
+open session reports errors as `error` events. Both are listed in the
+[WebSocket reference](/v2/speech-to-text#when-the-connection-is-refused). If
+you are stuck on something this page does not cover, reply on your onboarding
+thread, where a person reads it.
