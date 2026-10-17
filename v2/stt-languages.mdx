@@ -1,0 +1,87 @@
+---
+title: "Speech to text languages: Hindi, Gujarati, Tamil, Telugu and six more"
+sidebarTitle: "STT languages"
+description: "The ten Indian languages Mira STT transcribes, how to pass the language code, how English inside an Indian language comes back, and each language's status."
+---
+
+Mira STT transcribes ten languages, on HTTP and on the socket alike:
+
+| Code | Language | Status |
+| :--- | :--- | :--- |
+| `hi-IN` | Hindi, including Hinglish | Production |
+| `en-IN` | English (Indian) | Production |
+| `gu-IN` | Gujarati | Beta |
+| `mr-IN` | Marathi | Preview |
+| `pa-IN` | Punjabi | Preview |
+| `bn-IN` | Bengali | Preview |
+| `ta-IN` | Tamil | Preview |
+| `te-IN` | Telugu | Preview |
+| `kn-IN` | Kannada | Preview |
+| `ml-IN` | Malayalam | Preview |
+
+## What the status means
+
+- **Production** is what our own voice agents listen with on live calls.
+- **Beta** is good enough to build against. Try it on your own audio before you
+  put it in front of customers, and tell us what you hear.
+- **Preview** is accepted and transcribed today, and we have not yet published
+  accuracy for it. Measured numbers are published here as each language clears
+  our evaluation. Test on recordings from your own callers before you rely on
+  it.
+
+The status is a label on this page only. Every language takes the same
+requests, returns the same events and costs the same.
+
+## Pass the language
+
+Send the code you expect the speaker to use. `gu-IN` and `gu` mean the same,
+in any case. When you leave it out, we transcribe Hindi.
+
+| Where | How |
+| :--- | :--- |
+| [HTTP](/v2/stt-quickstart#2-one-request) | The `language` form field: `-F language=gu-IN`. The OpenAI SDK's `language="gu"` works too. |
+| [WebSocket](/v2/speech-to-text#query-parameters) | `language_code` on the URL: `?language_code=gu-IN`. |
+| [Pipecat](/v2/pipecat#transcribe-with-miraisttservice) | `MiraiSTTService(language="gu-IN")` |
+
+A code outside the ten is refused with `400 invalid_config`.
+
+### No automatic detection
+
+Mira STT does not guess the language. `auto` and `unknown` are refused with
+`400 invalid_config`, so pass the language you expect. If you don't know it
+before the call, start with the language most of your callers speak.
+
+On the socket you can change it mid-session. Send
+`{"event": "config.update", "language_code": "ta-IN"}` and it applies from the
+next utterance; the utterance in progress finishes in the language it started
+with. On HTTP, each request carries its own `language`.
+
+## English inside an Indian language
+
+Indian speech mixes in English all the time. Pass the Indian language, and the
+English words in it come back in English, in Latin script, the way they were
+said. Nothing is translated, and the rest stays in the language's own script:
+
+```text title="hi-IN"
+नमस्ते मुझे कल शाम पाँच बजे का appointment book करना है
+```
+
+```text title="gu-IN"
+નમસ્તે મારે કાલે સાંજે પાંચ વાગ્યાની appointment બુક કરવી છે
+```
+
+Use `en-IN` when the speaker talks English throughout.
+
+## When to use offline transcription instead
+
+[Offline transcription](/v2/transcriptions) is a separate service for
+recordings that already exist. Use it when you need speaker labels, timestamps
+across a long call, or recordings of up to two hours. It takes `auto`, which
+detects the main language, and its own codes: `hi`, `gu`, `en`, `mr`, `pa`,
+`bn` and `ur`. For one clip of up to two minutes, or live audio, use the
+[speech-to-text API](/v2/stt-quickstart).
+
+## Ask for a language
+
+If your callers speak a language that is not here, or a preview language
+matters to your business, tell your Mirai contact which one.

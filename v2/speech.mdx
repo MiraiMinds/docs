@@ -1,0 +1,91 @@
+---
+title: "Speech API: text to speech and speech to text for Indian languages"
+sidebarTitle: "Speech API"
+description: "Mira TTS and Mira STT with one API key: four endpoints over HTTP or WebSocket, ten Indian languages for speech to text, prices and a first request for each."
+---
+
+Our voice agents speak with Mira TTS and listen with Mira STT, our own speech
+recognition. You can call both directly. Each model answers over HTTP for one
+request and over a WebSocket for live audio.
+
+| | |
+| :--- | :--- |
+| Base URL | `https://sandbox.voice.miraiminds.co` (`wss://` for the sockets) |
+| Every request and every socket | `Authorization: Bearer sk_live_…` |
+| Key | Console, **Developers**, **Create key**. See [Get a key](/v2/tts-quickstart#1-get-a-key). |
+
+## Endpoints
+
+| | HTTP, one request | WebSocket, live audio | Model |
+| :--- | :--- | :--- | :--- |
+| Speak (text to speech) | `POST /v1/audio/speech` | `GET /v1/audio/speech/stream` | `mira-tts` |
+| Hear (speech to text) | `POST /v1/audio/transcriptions` | `GET /v1/audio/transcriptions/stream` | `mira-stt` |
+
+Both HTTP routes take the same requests as OpenAI's audio API, so an OpenAI SDK
+works once you change `base_url` and `api_key`. `GET /v1/models` lists both
+models. Every answer carries `X-Request-Id`, errors share one
+[envelope](/v2/errors), and each model keeps a request log you can read:
+`GET /v2/tts/requests` and `GET /v2/stt/requests`.
+
+## Languages and prices
+
+| | Text to speech | Speech to text |
+| :--- | :--- | :--- |
+| Languages | Hindi, English and Hinglish. Gujarati in beta. See the [language roadmap](/v2/tts-languages). | Hindi, English, Gujarati, Marathi, Punjabi, Bengali, Tamil, Telugu, Kannada and Malayalam. See [the status of each](/v2/stt-languages). |
+| Price | ₹1.80 per 1,000 characters | ₹30 per hour of audio, charged per second |
+
+The price is the same on HTTP and on the socket.
+
+## First request
+
+Speak a line into a file, then transcribe that file:
+
+```bash
+curl https://sandbox.voice.miraiminds.co/v1/audio/speech \
+  -H "Authorization: Bearer $MIRA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"model": "mira-tts", "voice": "neha", "response_format": "wav",
+       "input": "नमस्ते, आपका ऑर्डर कल तक पहुँच जाएगा।"}' \
+  --output speech.wav
+
+curl https://sandbox.voice.miraiminds.co/v1/audio/transcriptions \
+  -H "Authorization: Bearer $MIRA_API_KEY" \
+  -F file=@speech.wav \
+  -F model=mira-stt \
+  -F language=hi-IN
+```
+
+The second command prints the transcript as JSON, `{"text": "…"}`.
+
+## Pipecat
+
+```bash
+uv add "pipecat-mirai>=0.6.0"
+```
+
+```python
+import os
+from pipecat_mirai import MiraiSTTService, MiraiTTSService
+
+stt = MiraiSTTService(api_key=os.environ["MIRA_API_KEY"], language="hi-IN")
+tts = MiraiTTSService(
+    api_key=os.environ["MIRA_API_KEY"],
+    settings=MiraiTTSService.Settings(voice="neha"),
+)
+```
+
+Put them where your STT and TTS services were. See [Pipecat](/v2/pipecat).
+
+## Next
+
+<CardGroup cols={3}>
+  <Card title="TTS quickstart" icon="volume-high" href="/v2/tts-quickstart">
+    Voices, formats, streaming and phone audio.
+  </Card>
+  <Card title="STT quickstart" icon="microphone" href="/v2/stt-quickstart">
+    One clip over HTTP, then live audio over a socket.
+  </Card>
+  <Card title="Compatibility" icon="plug" href="/v2/speech-compatibility">
+    Other URLs, browser tokens, and moving from Sarvam.
+  </Card>
+</CardGroup>

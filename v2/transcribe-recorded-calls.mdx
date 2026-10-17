@@ -18,7 +18,8 @@ Base URL `https://sandbox.voice.miraiminds.co`. API requests use
 | :--- | :--- |
 | A recording of a call that has already happened: your team's calls, calls from another dialler, a recorded interview | Offline transcription, on this page |
 | A call one of your Mirai voice agents made | That call's own transcript: [`GET /v2/calls/{id}/transcript`](/v2/calls#get-the-transcript). You don't need to send its recording here. |
-| Live audio that you need as text while people are still talking | Streaming recognition. It runs inside every voice agent; as a standalone API it is in private preview, so ask us for access. |
+| Live audio that you need as text while people are still talking | The [speech-to-text socket](/v2/speech-to-text) |
+| One short clip, up to 2 minutes, with the text back in one answer | [`POST /v1/audio/transcriptions`](/v2/stt-quickstart#2-one-request) |
 
 Turning example calls into a node-based agent has its own transcription step,
 priced separately. See

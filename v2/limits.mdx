@@ -17,7 +17,7 @@ Limits are per **secret key**.
 | Queue depth | 500 | calls accepted and not yet ended | `429 rate_limited` |
 | TTS requests in flight | 10 **per workspace** | `/v1/audio/speech`, `/v2/tts`, and each sentence being synthesised on a TTS stream | HTTP: `429 at_capacity`. Stream: the sentence waits up to 3 seconds, then `error` `at_capacity`. |
 | Open TTS streams | 200 **per workspace** | WebSockets on `/v1/audio/speech/stream` | `429 at_capacity` with `Retry-After: 5` |
-| Open STT streams | 10 **per workspace** | WebSockets on [`/v1/audio/transcriptions/stream`](/v2/speech-to-text) | `429 at_capacity` with `Retry-After` |
+| Speech-to-text sessions | 10 **per workspace** | [`POST /v1/audio/transcriptions`](/v2/stt-quickstart#2-one-request) requests in flight and open WebSockets on [`/v1/audio/transcriptions/stream`](/v2/speech-to-text), together | `429 at_capacity` with `Retry-After` |
 | Flow generations | 30 per hour **per workspace** | [`POST /v2/agents/flow/generate`](/v2/node-agents#generate-a-flow-from-a-brief) | `429 rate_limited` with `Retry-After` |
 | Recording transcriptions | 60 per hour **per workspace** | [`POST /v2/agents/flow/transcribe`](/v2/node-agents#transcribe-a-recording) | `429 rate_limited` with `Retry-After` |
 | Offline transcriptions | 120 per hour **per workspace** | [`POST /v2/transcriptions`](/v2/transcriptions#create-a-transcription) | `429 rate_limited` with `Retry-After` |
@@ -159,26 +159,28 @@ Streams have their own limits:
 See [Streaming text to speech](/v2/tts-websocket#limits) for what each limit
 does to an open socket.
 
-### Speech to text (streaming)
+### Speech to text
 
-Each open socket on the [streaming speech-to-text API](/v2/speech-to-text) is
-one session, and a workspace can have **10** open at once. More returns
-`429 at_capacity` with `Retry-After` before the upgrade. The limit is raised on
-request, with no change to your code.
+A workspace can run **10** speech-to-text sessions at once. Each
+[HTTP request](/v2/stt-quickstart#2-one-request) is a session while it runs,
+and so is each open [socket](/v2/speech-to-text). One more returns
+`429 at_capacity` with `Retry-After` and costs nothing; a socket is refused
+before the upgrade. The limit is raised on request, with no change to your code.
 
 | Thing | Limit |
 | :--- | :--- |
-| Open sessions | 10 per workspace |
+| Sessions at once | 10 per workspace, HTTP and socket together |
+| One HTTP clip | 25 MB and 120 seconds of audio. Over it, `413 audio_too_long`; send longer recordings to [offline transcription](/v2/transcriptions). |
 | Stream token | Valid for 60 seconds, opens one socket. Up to 20 per mint request. |
-| One audio message | 128,000 bytes of audio (4 seconds of 16 kHz PCM) |
-| One utterance | 60 seconds |
+| One audio message on the socket | 128,000 bytes of audio (4 seconds of 16 kHz PCM) |
+| One utterance on the socket | 60 seconds |
 | Utterances waiting for a final | 8 |
 | Idle socket | Closed after 120 seconds with no message from you. `ping` keeps it open. |
-| Session length | 1 hour |
-| Request rate | 10 requests/second, burst 20, per key. Opening a socket or minting tokens counts as a request. |
+| Session length on the socket | 1 hour |
+| Request rate | 10 requests/second, burst 20, per key. Opening a socket and minting tokens count as requests too. |
 
-See [Speech to text, live](/v2/speech-to-text#limits) for what each limit does
-to an open session.
+See the [STT quickstart](/v2/stt-quickstart#limits) and the
+[WebSocket reference](/v2/speech-to-text#limits) for what each limit does.
 
 ## Payload and duration ceilings
 
@@ -193,6 +195,7 @@ to an open session.
 | `webhook_url` | HTTPS only, 2,048 characters |
 | Idempotency key | 255 characters, 24-hour window |
 | TTS `input` | 2,000 characters per request |
+| Speech-to-text clip | 25 MB and 120 seconds of audio per `POST /v1/audio/transcriptions` |
 
 Invalid values return `400 invalid_request`.
 

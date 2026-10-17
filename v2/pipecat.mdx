@@ -231,7 +231,7 @@ the way an LLM would.
 ## Transcribe with MiraiSTTService
 
 From version 0.6.0 the package can replace your STT service too, with Mira
-STT, the recogniser our own agents listen with. Upgrade with
+STT, our own speech recognition and the one our agents listen with. Upgrade with
 `uv add "pipecat-mirai>=0.6.0"` and add `MiraiSTTService` where your STT
 service was:
 
@@ -261,13 +261,11 @@ The service opens one WebSocket to the
 and keeps it for the call. While the caller speaks it pushes
 `InterimTranscriptionFrame`s, and each utterance ends with one
 `TranscriptionFrame`. `language` takes any of the
-[supported codes](/v2/speech-to-text#languages): `hi-IN`, `en-IN`, `gu-IN` and
-seven more. It also:
+[ten language codes](/v2/stt-languages): `hi-IN`, `en-IN`, `gu-IN` and seven
+more. It also:
 
 - sends a phone pipeline's 8 kHz audio as it is, and resamples any other rate
   to 16 kHz first;
-- streams from Mirai's edge next to the GPUs when it can, and falls back to the
-  API URL the same way `MiraiTTSService` does (`edge=False` turns that off);
 - reconnects once if the socket drops mid-call and resends up to 30 seconds of
   audio that had no transcript yet, so the caller doesn't have to repeat
   themselves;
@@ -275,8 +273,8 @@ seven more. It also:
 
 ### Endpointing
 
-When your pipeline has a VAD, such as Silero on the transport or the user
-aggregator in Pipecat's examples, the service uses manual endpointing. Your
+When your pipeline has a VAD, such as a `vad_analyzer` on the user aggregator
+in Pipecat's examples, the service uses manual endpointing. Your
 VAD's "user started speaking" opens an utterance with half a second of the
 audio from just before it, and "user stopped speaking" closes it. The final
 transcript comes back straight away, with no silence wait on Mirai's side.
@@ -288,12 +286,13 @@ which waits for a second of silence by default before the final. Pass
 The service's TTFB metric is the time from the end of speech to the final
 transcript, which is the pause your caller sits through before the LLM can
 start. Its usage metric is seconds of audio, which is what you're billed for
-(₹30 per hour; see [Pricing](/v2/speech-to-text#pricing)).
+(see [Billing](/v2/stt-quickstart#billing)).
 
 ### Limits for STT
 
 A workspace can have 10 sessions open at once: one per live call, plus the few
-each worker process keeps waiting. Before a load test with more calls than
+sockets each process keeps open and waiting so a call's first audio does not
+wait for a handshake. Before a load test with more calls than
 that, tell us the number and we raise the limit. The
 [streaming page](/v2/speech-to-text#limits) has the full table.
 

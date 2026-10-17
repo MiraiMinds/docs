@@ -1,45 +1,47 @@
 ---
-title: "Speech to text, live"
-description: Stream audio over one WebSocket and read Hindi, English, Gujarati and seven more Indian languages back as text while people speak. Partial and final transcripts, manual or VAD endpointing, and 8 kHz phone audio as it comes off the line.
+title: "Streaming speech to text API (WebSocket)"
+sidebarTitle: "STT WebSocket"
+description: "Stream live audio over one WebSocket and get partial and final transcripts in Hindi, Gujarati and eight more Indian languages, with manual or VAD endpointing."
 ---
 
-Mira STT v5 realtime turns a live audio stream into text while the person is
-still talking. You open one WebSocket per call and send audio as it arrives.
-Partial transcripts come back as the words are recognised, and each utterance
-ends with one final transcript. It is the same recogniser our own voice
-agents listen with.
+The streaming endpoint turns live audio into text while the person is still
+talking. You open one WebSocket per call and send audio as it arrives. Partial
+transcripts come back as the words are recognised, and each utterance ends
+with one final transcript. It runs Mira STT, our own speech recognition, the
+same one our voice agents listen with.
 
-For a recording that already exists, use [offline transcription](/v2/transcriptions)
-instead: it labels speakers and adds timestamps.
+## When to use it
+
+Use the socket for audio that is still happening: a phone call, a browser
+microphone, anything where your code needs the words before the speaker has
+finished. Compared with sending clips over HTTP:
+
+- You set up the connection once per call.
+- Partial transcripts arrive while the person speaks, so you can show them or
+  detect barge-in.
+- With manual endpointing, the final comes back straight after your
+  `speech_end`, which is the fastest path for a voice agent.
+
+For one clip that already exists, the
+[HTTP endpoint](/v2/stt-quickstart#2-one-request) is simpler. For a recording
+with speakers and timestamps, use [offline transcription](/v2/transcriptions).
 
 <Tip>
 On Pipecat, `MiraiSTTService` from our [Pipecat package](/v2/pipecat#transcribe-with-miraisttservice)
-speaks this protocol for you, including endpointing, reconnects and the edge.
+speaks this protocol for you, including endpointing and reconnects.
 </Tip>
 
 ## Languages
 
-Pass the language in `language_code`. Mira writes speech the way it was
-spoken: Hindi in Devanagari with English words in Latin, never translated.
+Pass the language in `language_code`. The default is `hi-IN`.
 
-| `language_code` | Language |
-| :--- | :--- |
-| `hi-IN` (default) | Hindi, including Hinglish |
-| `en-IN` | English (Indian) |
-| `gu-IN` | Gujarati |
-| `mr-IN` | Marathi |
-| `pa-IN` | Punjabi |
-| `bn-IN` | Bengali |
-| `ta-IN` | Tamil |
-| `te-IN` | Telugu |
-| `kn-IN` | Kannada |
-| `ml-IN` | Malayalam |
-
-We publish accuracy for Hindi, English and Gujarati, measured on real customer
-calls, on the **Evals** tab of the console's Speech to text page. Try the other
-seven on your own audio before you rely on them. There is no automatic
+`hi-IN` (Hindi, including Hinglish), `en-IN`, `gu-IN`, `mr-IN`, `pa-IN`,
+`bn-IN`, `ta-IN`, `te-IN`, `kn-IN` and `ml-IN` are accepted, and so are the
+same codes without `-IN`. Mira STT writes speech the way it was spoken, with
+English words in Latin script, never translated. There is no automatic
 language detection: name the language, and change it mid-call with
 [`config.update`](#messages-you-send) if the caller switches.
+[Languages](/v2/stt-languages) has the status of each one.
 
 ## Connect
 
@@ -47,9 +49,7 @@ language detection: name the language, and change it mid-call with
 wss://sandbox.voice.miraiminds.co/v1/audio/transcriptions/stream
 ```
 
-Once your company has gone live, use `wss://prod.voice.miraiminds.co` with the
-same path. `/v2/stt/stream` is the same endpoint, if you keep every URL under
-`/v2`. Open one socket per call and keep it until the call ends.
+Open one socket per call and keep it until the call ends.
 
 ### From your server
 
@@ -62,95 +62,12 @@ Authorization: Bearer sk_live_…
 We refuse an API key in the URL (`?api_key=` returns `401`), because URLs end
 up in proxy and server logs.
 
-If your code already speaks Sarvam's v3 realtime protocol, it can send the key
-in an `api-subscription-key` header instead. The messages below are the same
-ones, so you change the URL and the key and keep the rest.
-
 ### From a browser
 
 A browser cannot set headers on a WebSocket, and your API key must never reach
-a web page. Your backend mints a short-lived stream token with its key and
-hands the page only the token.
-
-<Tabs>
-  <Tab title="cURL">
-    ```bash
-    curl -X POST https://sandbox.voice.miraiminds.co/v2/stt/stream/tokens \
-      -H "Authorization: Bearer $MIRA_API_KEY"
-    ```
-  </Tab>
-  <Tab title="Python">
-    ```python
-    import os
-
-    import httpx
-
-    r = httpx.post(
-        "https://sandbox.voice.miraiminds.co/v2/stt/stream/tokens",
-        headers={"Authorization": f"Bearer {os.environ['MIRA_API_KEY']}"},
-    )
-    r.raise_for_status()
-    stream_url = "wss://sandbox.voice.miraiminds.co" + r.json()["url"]
-    ```
-  </Tab>
-  <Tab title="Node.js">
-    ```js
-    const r = await fetch("https://sandbox.voice.miraiminds.co/v2/stt/stream/tokens", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${process.env.MIRA_API_KEY}` },
-    });
-    if (!r.ok) throw new Error(`token mint failed: ${r.status}`);
-    const streamUrl = "wss://sandbox.voice.miraiminds.co" + (await r.json()).url;
-    ```
-  </Tab>
-</Tabs>
-
-```json title="201 Created"
-{
-  "object": "stt_stream_token",
-  "token": "te1.eyJzdmMiOiJzdHQifQ.Hq3x9Zt0bL7wKc2Vn5RdQe8yUf1aJm4sPo6iTg0hBkE",
-  "tokens": ["te1.eyJzdmMiOiJzdHQifQ.Hq3x9Zt0bL7wKc2Vn5RdQe8yUf1aJm4sPo6iTg0hBkE"],
-  "expires_at": "2026-10-12T05:31:00Z",
-  "url": "/v1/audio/transcriptions/stream?token=te1.eyJzdmMiOiJzdHQifQ.Hq3x9Zt0bL7wKc2Vn5RdQe8yUf1aJm4sPo6iTg0hBkE",
-  "edge_url": "wss://stt-edge.voice.miraiminds.co/v1/audio/transcriptions/stream"
-}
-```
-
-`url` is a path. Connect to your API host followed by that path, and add your
-[query parameters](#query-parameters) after it with `&`. A token:
-
-- lasts 60 seconds and opens one socket;
-- bills the workspace of the key that minted it, under that key's rate limit;
-- stops working if that key is revoked.
-
-To open several sockets at once, ask for up to 20 tokens in one request with
-`count` (`?count=5`, or `{"count": 5}` as the body). They come back in
-`tokens`, each good for one socket. The wallet is checked before anything is
-minted, so an empty wallet gets `402 insufficient_balance` here rather than at
-the socket. The mint shares your key's rate limit (`429 rate_limited`), and
-answers `503 unavailable` on a server where streaming speech to text is not
-switched on.
-
-<Warning>
-A socket opened with a token can transcribe on your wallet until it closes,
-for up to an hour. Mint tokens only for users you have signed in, one per
-connection, right before the page connects, and rate-limit the route that
-mints them.
-</Warning>
-
-### Streaming from the edge
-
-Speech is recognised on GPUs in a different datacenter from our API region.
-When an edge server next to those GPUs is running, the token response names it
-in `edge_url`, and audio sent there skips the hop between the two
-datacenters. pipecat-mirai connects to the edge by itself and falls back to the
-API URL if the edge does not answer within a few seconds. You don't change
-anything.
-
-From your own client, connect to `edge_url` with the same token and the same
-query parameters, or with your API key in the `Authorization` header. When
-`edge_url` is `null`, no edge is serving: connect to `url` on your API host. A
-rejected key, an empty wallet or a rate limit gets the same answer on either.
+a web page. Your backend mints a short-lived token with
+`POST /v2/stt/stream/tokens` and hands the page only the token. See
+[Browser stream tokens](/v2/speech-compatibility#browser-stream-tokens).
 
 ### Query parameters
 
@@ -159,12 +76,10 @@ Everything about the session is set on the URL, checked before the upgrade:
 | Parameter | Values | Default |
 | :--- | :--- | :--- |
 | `language_code` | One of the codes under [Languages](#languages). | `hi-IN` |
-| `model` | `mira-stt`. `mira-stt:v5-realtime` and `saaras:v3-realtime` are accepted as aliases. | `mira-stt` |
+| `model` | `mira-stt` | `mira-stt` |
 | `encoding` | `linear16` (signed 16-bit little-endian PCM), `mulaw` or `alaw` (G.711). | `linear16` |
 | `sample_rate` | `8000` or `16000`. | `16000` |
 | `endpointing` | `manual` or `vad`. See [Manual or VAD endpointing](#manual-or-vad-endpointing). | `vad` |
-| `stream_type` | `balanced` or `fast`. Both give the same partial cadence today; the parameter is there for Sarvam clients. | `balanced` |
-| `mode` | `transcribe` or `codemix`. Both mean the same here, and are accepted so Sarvam clients work unchanged. | `transcribe` |
 | `return_timestamps` | `true` or `false`. `true` adds `start_s` and `end_s` to each `transcript.final`: where the utterance sits in the audio you have sent, in seconds, padding included. | `false` |
 | `silence_duration_ms` | `vad` only. How long a pause ends an utterance, 0 to 10,000. | `1000` |
 | `threshold` | `vad` only. Speech probability that counts as speech, 0 to 1. | `0.3` |
@@ -177,7 +92,8 @@ wss://sandbox.voice.miraiminds.co/v1/audio/transcriptions/stream?language_code=h
 
 An unknown parameter, a value outside these, or a parameter given twice fails
 the upgrade with `400 invalid_config`, and `message` names it. `token` is the
-only other parameter we read.
+only other parameter we read. `mode` and `stream_type` are also accepted, for
+[clients moving from Sarvam](/v2/speech-compatibility#moving-from-sarvam-realtime).
 
 ### When the connection is refused
 
@@ -192,7 +108,7 @@ gets an ordinary HTTP response with the usual [error envelope](/v2/errors):
 | 402 | `insufficient_balance` | Your wallet is empty. | [Top up](/v2/wallet#top-up). |
 | 403 | `forbidden` | The key, or the key that minted the token, was revoked. | Use a current key. |
 | 426 | `upgrade_required` | A plain HTTP request reached the endpoint. | Connect with a WebSocket client (`wss://`). |
-| 429 | `at_capacity` | Your workspace already has 10 sessions open (`Retry-After: 5`), or the service is at its own ceiling. Carries `Retry-After`. | Close the sessions you are done with, then retry after that delay. |
+| 429 | `at_capacity` | Your workspace already has 10 sessions running (`Retry-After: 5`), or the service is at its own ceiling. Carries `Retry-After`. | Close the sessions you are done with, then retry after that delay. |
 | 429 | `rate_limited` | Your key's request rate. | Honour `Retry-After`. |
 | 503 | `unavailable` | The server is restarting, the recogniser is briefly unreachable, or streaming speech to text is not switched on for this server. Carries `Retry-After` when retrying helps. | Reconnect after that delay. |
 | 503 | `billing_unavailable` | We could not read your wallet, so we don't open the session. `Retry-After: 2`. | Retry shortly. Open sessions keep running. |
@@ -239,7 +155,7 @@ don't, use `vad`.**
 
 ### Manual
 
-Your own voice activity detection (Pipecat's Silero VAD, a turn model, your
+Your own voice activity detection (Pipecat's VAD, a turn model, your
 telephony provider's events) decides. Send `speech_start` when speech begins
 and `speech_end` when it ends, and the final comes back straight after
 `speech_end`. There is no silence wait on our side, which makes this the
@@ -253,7 +169,7 @@ outside an utterance is billed but not transcribed. `flush` does the same as
 
 ### VAD
 
-We run a Silero VAD on your audio. You send audio continuously, and we send
+We detect speech in your audio for you. You send audio continuously, and we send
 `vad.speech_start` when speech begins and `vad.speech_end` once the caller has
 been quiet for `silence_duration_ms` (1 second by default), then the final.
 Use `vad.speech_start` to detect barge-in.
@@ -372,7 +288,7 @@ open a new one to change them.
 `config` is the full configuration in force. `turn_detection` is your
 `endpointing`, and `model` is the build that is listening. Quote `session_id`
 when you ask us about a session; it is also on its row in your
-[session log](#your-session-log).
+[request log](/v2/stt-quickstart#your-request-log).
 
 ```json title="vad.speech_start"
 { "event": "vad.speech_start", "utterance_idx": 0, "confidence": 0.91 }
@@ -478,7 +394,7 @@ session carries on. With `is_fatal: true` the session is over and the socket
 closes. No `session.end` follows, except after `insufficient_balance`, where the
 open utterance is finished first. The audio you sent is billed however the
 session ends, and the session appears in your
-[session log](#your-session-log) with what it cost.
+[request log](/v2/stt-quickstart#your-request-log) with what it cost.
 
 | `code` | Fatal | What happened | What to do |
 | :--- | :--- | :--- | :--- |
@@ -523,7 +439,7 @@ The close frame's reason text names the cause.
 
 | Limit | Value | Over the limit |
 | :--- | :--- | :--- |
-| Open sessions | **10 per workspace** | `429 at_capacity` before the upgrade, with `Retry-After`. |
+| Sessions at once | **10 per workspace**, counting open sockets and HTTP requests in flight together | `429 at_capacity` before the upgrade, with `Retry-After`. |
 | One audio message | 128,000 bytes of audio (4 seconds of 16 kHz PCM) | Fatal `audio_too_large`. |
 | One utterance | 60 seconds | Fatal `utterance_too_long`. |
 | Utterances waiting for a final | 8 | Fatal `overloaded`. |
@@ -541,108 +457,25 @@ do not count as activity for the idle limit: keep sending audio, or send
 If you need more than 10 sessions at once, ask your Mirai contact. It is a
 provisioning change and needs no change to your code.
 
-## Pricing
+## Request log and billing
 
-{/* price: owner to confirm */}
-
-**₹30 per hour of audio, billed per second.**
-
-You pay for the audio you send, silence included. Each session is rounded up
-to the next second, and its price to the next paisa. A 3-minute phone call
-streamed in full costs ₹1.50. With manual endpointing you can send audio only
-around speech, but keep the half second before `speech_start` so the first
-word is not clipped.
-
-You are billed for the audio we received however the session ends: with
-`end`, with a closed socket, on a timeout or on an error. The charge comes out
-of the same [wallet](/v2/wallet) your calls draw from, as debits with `kind`
-`stt` whose `reference` is the row's `id` in your session log.
-
-A session longer than 5 minutes is charged in parts as it runs, so an hour-long
-call never lands as one lump; the parts add up to what the whole session would
-cost. Before a session opens, and before a token is minted, we check that your
-wallet is not empty; if it is, you get `402 insufficient_balance`. If it runs
-out during a long session, the session ends at the next 5-minute charge with
-[`insufficient_balance`](#errors-on-an-open-socket).
-
-### Your session log
-
-Every session has a row in your log, and you can read it yourself:
-
-```bash
-curl "https://sandbox.voice.miraiminds.co/v2/stt/requests?limit=50" \
-  -H "Authorization: Bearer $MIRA_API_KEY"
-```
-
-```json title="200 OK"
-{
-  "data": [
-    {
-      "id": "stt_01K7C2M3Q4R7T9V2X5Y8A1B4C7-1",
-      "object": "stt_request",
-      "session_id": "sttws_01K7C2M3Q4R7T9V2X5Y8A1B4C7",
-      "seq": 1,
-      "created_at": "2026-10-12T05:30:12Z",
-      "ended_at": "2026-10-12T05:31:00Z",
-      "language": "hi-IN",
-      "model": "mira-stt:v5-realtime",
-      "encoding": "mulaw",
-      "sample_rate": 8000,
-      "endpointing": "manual",
-      "audio_seconds": 41.36,
-      "billed_seconds": 42,
-      "utterances": 7,
-      "status": "completed",
-      "cost_inr": 0.35,
-      "error_code": null
-    }
-  ],
-  "has_more": false,
-  "next_cursor": null
-}
-```
-
-Rows come newest first, and only from your own workspace:
-
-| Query | Meaning |
-| :--- | :--- |
-| `limit` | Up to 200, default 50. |
-| `cursor` | Opaque, from the response's `next_cursor`. |
-| `from`, `to` | RFC3339 timestamps. |
-| `status` | `interim`, `completed` or `failed`. |
-| `session_id` | Only the rows of one session. |
-
-`GET /v2/stt/requests/{id}` returns a single row.
-
-| Field | Meaning |
-| :--- | :--- |
-| `id` | The row: `stt_` and the session's ULID, then `-1`, `-2` and so on for each part of a session charged in parts. Every row of a session has the same `session_id`. |
-| `seq` | Which part of the session this row is, from 1. |
-| `created_at`, `ended_at` | When the part started and ended. |
-| `model` | The build that listened. |
-| `audio_seconds` | The audio received in this part, exactly. |
-| `billed_seconds` | The seconds this part was charged for. |
-| `utterances` | Final transcripts sent in this part. |
-| `status` | `interim` for a 5-minute part of a session that was still open, `completed` when the session ended, `failed` when the recogniser or our server ended it. |
-| `cost_inr` | What this part cost. Billed whatever the `status`. |
-| `error_code` | Why the session ended, when it was not a plain `end` or close: `idle_timeout`, `max_duration`, `insufficient_balance`, or an error `code` from the socket. `null` otherwise. |
+Every session has a row in your
+[request log](/v2/stt-quickstart#your-request-log), with `via` set to `ws`, and
+a session longer than 5 minutes gets one row for each 5-minute part. You pay
+for the audio we received, silence included, however the session ends:
+`session.end` carries `audio_seconds_billed` and `cost_paise`, and
+[Billing](/v2/stt-quickstart#billing) has the price and the ledger row. If
+your wallet runs out during a session, it ends with `insufficient_balance`
+after its last final (see [Closing](#closing)).
 
 ## Latency
 
-The number that matters in a conversation is the gap between the end of
-speech and the final transcript: your agent cannot answer before it has the
-words. We measure it through the public endpoint from a client in India,
-streaming real 8 kHz call audio with manual endpointing and utterances of 1 to
-3 seconds, so the figures include the network path your requests take.
-
-| From India, 8 kHz, manual endpointing | p50 | p95 | p99 |
-| :--- | :--- | :--- | :--- |
-| Connect to `session.begin` | measured before launch | measured before launch | measured before launch |
-| `speech_end` to final, 20 sessions at once | measured before launch | measured before launch | measured before launch |
-| `speech_end` to final, 50 sessions at once | measured before launch | measured before launch | measured before launch |
-
-With `vad` endpointing, add `silence_duration_ms` (1 second by default): the
-final cannot start until the caller has been quiet that long.
+In a conversation, the number that matters is the gap between the end of
+speech and the final transcript, because your agent cannot answer before it
+has the words. With manual endpointing, the final follows your `speech_end`
+without a silence wait. With `vad` endpointing, add `silence_duration_ms`
+(1 second by default): the final cannot start until the caller has been quiet
+that long.
 
 ## Python example
 
@@ -736,47 +569,19 @@ With `websockets` older than 14, pass `extra_headers=` instead of
 The latency it prints includes your network path to us. To make your own WAV
 from a phone recording, `ffmpeg -i call.mp3 -ac 1 -ar 8000 -sample_fmt s16 call.wav`.
 
-## Pipecat
-
-`MiraiSTTService` from [pipecat-mirai](/v2/pipecat#transcribe-with-miraisttservice)
-(0.6.0 and later) replaces your STT service:
-
-```python
-import os
-from pipecat_mirai import MiraiSTTService
-
-stt = MiraiSTTService(api_key=os.environ["MIRA_API_KEY"], language="hi-IN")
-
-pipeline = Pipeline([
-    transport.input(),
-    stt,
-    context_aggregator.user(),
-    llm,
-    tts,
-    transport.output(),
-    context_aggregator.assistant(),
-])
-```
-
-A phone pipeline's 8 kHz audio goes up as it is, and any other rate is
-resampled to 16 kHz first. The service uses manual endpointing when the
-pipeline has a VAD and `vad` when it doesn't, streams from the edge, and
-reconnects without losing what the caller said. The
-[Pipecat page](/v2/pipecat#transcribe-with-miraisttservice) has the details.
-
 ## Related
 
 <CardGroup cols={2}>
+  <Card title="STT quickstart" icon="microphone" href="/v2/stt-quickstart">
+    One clip over HTTP, billing, the request log and errors.
+  </Card>
+  <Card title="Languages" icon="language" href="/v2/stt-languages">
+    The ten codes, their status, and code-mixed speech.
+  </Card>
   <Card title="Pipecat" icon="python" href="/v2/pipecat#transcribe-with-miraisttservice">
     `MiraiSTTService`, endpointing and the phone setup.
   </Card>
-  <Card title="Offline transcription" icon="file-audio" href="/v2/transcriptions">
-    A recording in, speakers and timestamps out.
-  </Card>
   <Card title="Streaming text to speech" icon="bolt" href="/v2/tts-websocket">
     The other half of a voice agent, on the same kind of socket.
-  </Card>
-  <Card title="Limits" icon="gauge" href="/v2/limits#speech-to-text-streaming">
-    Sessions, rate limits and timeouts.
   </Card>
 </CardGroup>
