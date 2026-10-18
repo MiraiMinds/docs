@@ -162,7 +162,14 @@ html, body { background-color: var(--c-paper); }
 }
 
 /* ── the navbar ─────────────────────────────────────────────────────────── */
-#navbar .nav-logo, #navbar a img { height: 40px !important; width: auto; }
+/* The lockup at its native 176x44, so the pixel mark stays pixel-exact. */
+#navbar .nav-logo, #navbar a img.nav-logo, #navbar a img { height: 44px !important; width: auto !important; max-width: none !important; }
+/* On a desktop the lockup sits on the rail. Without the rail (phones,
+   tablets) it gets the rail's charcoal as its own plate, so its light
+   wordmark never lands on paper. */
+@media (max-width: 1023px) {
+  #navbar .nav-logo, #navbar a img { background: var(--c-dark); border-radius: 10px; }
+}
 #navbar .nav-tabs-item { color: var(--c-ink-3); }
 #navbar .nav-tabs-item[data-active="true"] { color: var(--c-ink) !important; }
 #navbar .nav-tabs-item[data-active="true"] > div { background: var(--c-amber) !important; height: 2px; display: block !important; }
