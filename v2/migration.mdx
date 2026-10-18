@@ -5,7 +5,7 @@ description: How each v1 endpoint, field and webhook maps to the v2 API, and how
 ---
 
 
-[v1](/v1/overview) still runs for the integrations already on it, hosted
+v1 still runs for the integrations already on it, hosted
 separately at `api.voice-agents.miraiminds.co`. New features ship on v2 only,
 and we are moving v1 integrations to v2 one at a time. Your Mirai contact
 agrees the switch-over date with you.
@@ -80,8 +80,8 @@ create, rotate and revoke in the console, so switch to one when you can.
 | `POST /v2/call/web` | [`POST /v2/calls`](/v2/web-calls#create-the-call) with `channel: "web"` | Your backend creates the call and gives the page an audio link and a live event link. See [Browser calls](/v2/web-calls). |
 | `GET /v1/number-pool/*` | `/v2/phone-numbers` and `/v2/telephony/*` | Different resources and IDs. Follow the [inbound setup recipe](/cookbooks/inbound-calling); importing does not change routing until activation. |
 | `/v1/admin/tool/api` (all methods) | [`/v2/agents/{id}/tools/{name}`](/v2/tools#api-routes) | Tools belong to an agent; recreate the definition instead of copying a v1 ID. |
-| `/v1/knowledge-base/*` | — | [v1 Knowledge Base](/v1/knowledge-base). |
-| [`GET /v1/admin/voice-gallery`](/v1/assistants#voice-gallery) | — | Still v1. v2 `voice_id` values come from this same catalogue. See [Voices](/v2/voices). |
+| `/v1/knowledge-base/*` | — | v1 Knowledge Base. |
+| `GET /v1/admin/voice-gallery` | — | Still v1. v2 `voice_id` values come from this same catalogue. See [Voices](/v2/voices). |
 | — | [`GET /v2/calls/{id}/transcript`](/v2/calls#get-the-transcript) | **New.** Turn-by-turn, as spoken. |
 | — | [`GET /v2/calls/{id}/recording`](/v2/calls#get-the-recording) | **New.** `302` to a 15-minute signed URL. This is the v2 equivalent of v1's `recordingUrl`. |
 | — | [`GET /v2/calls/{id}/analysis`](/v2/analysis#where-the-result-appears) | **New.** The post-call analysis, including the chosen message template. |

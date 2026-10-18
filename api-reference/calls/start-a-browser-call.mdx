@@ -1,0 +1,159 @@
+---
+title: "Start a browser call"
+sidebarTitle: "Start a browser call"
+description: "Create a call that runs in your user's browser instead of on a phone line. Send channel web and no to; the answer carries the audio socket and the live event stream."
+openapi: "POST /v2/calls"
+---
+
+A browser call (also called a web call) runs one of your agents with the
+user's microphone and speakers. It is the same endpoint as
+[Place a call](/api-reference/calls/place-a-call), with two differences in the
+body: `"channel": "web"`, and no `to`. Sending `to` with `channel: "web"`
+returns `400 invalid_request`, because nothing is dialled.
+
+Call it from your server, where your key lives. The `202` gives you two links
+for this one call. Hand them to the page, and the page never sees your key:
+
+| Field | What the page does with it |
+| :--- | :--- |
+| `ws_url` | Opens it as a WebSocket and streams audio both ways. **Single use**; connect within 5 minutes (`ws_url_expires_at`). |
+| `events_url` | Opens it with `EventSource` to show the agent's state and each finished turn. Works for the whole call and an hour after. |
+
+<RequestExample>
+```bash cURL
+curl -X POST https://sandbox.voice.miraiminds.co/v2/calls \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: voice-session-sess_8f2c41" \
+  -d '{
+    "agent_id": "agt_01K2M4P7QRSTVWXYZ0A1B2C3",
+    "channel": "web",
+    "variables": { "first_name": "Asha" },
+    "metadata": { "session_id": "sess_8f2c41", "user_id": "usr_1042" },
+    "max_duration_secs": 600,
+    "final_results": true,
+    "webhook_url": "https://example.com/mirai/webhook"
+  }'
+```
+
+```python Python
+import os, httpx
+
+r = httpx.post(
+    "https://sandbox.voice.miraiminds.co/v2/calls",
+    headers={
+        "Authorization": f"Bearer {os.environ['MIRAI_API_KEY']}",
+        "Idempotency-Key": "voice-session-sess_8f2c41",
+    },
+    json={
+        "agent_id": "agt_01K2M4P7QRSTVWXYZ0A1B2C3",
+        "channel": "web",
+        "variables": {"first_name": "Asha"},
+        "metadata": {"session_id": "sess_8f2c41", "user_id": "usr_1042"},
+        "max_duration_secs": 600,
+        "final_results": True,
+        "webhook_url": "https://example.com/mirai/webhook",
+    },
+    timeout=30,
+)
+call = r.raise_for_status().json()
+links = {"ws_url": call["ws_url"], "events_url": call["events_url"]}  # send these to the page
+```
+
+```javascript Node.js
+const res = await fetch("https://sandbox.voice.miraiminds.co/v2/calls", {
+  method: "POST",
+  headers: {
+    Authorization: `Bearer ${process.env.MIRAI_API_KEY}`,
+    "Content-Type": "application/json",
+    "Idempotency-Key": "voice-session-sess_8f2c41",
+  },
+  body: JSON.stringify({
+    agent_id: "agt_01K2M4P7QRSTVWXYZ0A1B2C3",
+    channel: "web",
+    variables: { first_name: "Asha" },
+    metadata: { session_id: "sess_8f2c41", user_id: "usr_1042" },
+    max_duration_secs: 600,
+    final_results: true,
+    webhook_url: "https://example.com/mirai/webhook",
+  }),
+});
+const call = await res.json();
+if (!res.ok) throw new Error(`${call.error.code}: ${call.error.message}`);
+const links = { ws_url: call.ws_url, events_url: call.events_url }; // send these to the page
+```
+</RequestExample>
+
+<ResponseExample>
+```json 202
+{
+  "id": "call_01M4ZQ7V3K9D2R8T5W1X6Y0B4N",
+  "status": "queued",
+  "transport": "web",
+  "ws_url": "wss://sandbox.voice.miraiminds.co/v2/calls/call_01M4ZQ7V3K9D2R8T5W1X6Y0B4N/media?token=3q2-7wQx1mVb9L0cJf4kTz8RyPn6AeHu5sGd2KoWiYc",
+  "ws_url_expires_at": "2026-10-18T09:20:00Z",
+  "events_url": "https://sandbox.voice.miraiminds.co/v2/calls/call_01M4ZQ7V3K9D2R8T5W1X6Y0B4N/events?token=Vb7nQ2xK9pL4mR8tW1yZ6cF3hJ0sD5gA2eU7iO4kN9q"
+}
+```
+
+```json 400
+{
+  "error": {
+    "code": "invalid_request",
+    "message": "to is not accepted for channel web: a web call connects the browser that placed it, and no number is dialled"
+  }
+}
+```
+
+```json 402
+{
+  "error": {
+    "code": "insufficient_balance",
+    "message": "wallet balance 3.20 INR is below the minimum for one minute at t5"
+  }
+}
+```
+</ResponseExample>
+
+## The audio socket
+
+The page opens `ws_url` with `new WebSocket(ws_url)`. Audio is binary in both
+directions: raw PCM, 16-bit signed little-endian, mono, **48,000 Hz**, with no
+header. Send 20 ms frames (1,920 bytes) continuously, and send zeros to mute
+rather than stopping. When the user interrupts, the server sends the text
+message `{"event":"clear"}`: drop any agent audio you have queued but not yet
+played. Closing the socket ends the call.
+
+The call stays `queued` until the page connects, then moves to `in_progress`.
+If no audio connects before `ws_url` expires, the call ends `failed` with
+`ended_reason: "no-media"` and costs nothing.
+
+## The live event stream
+
+```javascript
+const events = new EventSource(events_url);
+events.addEventListener("transcript.turn", (e) => {
+  const { role, text } = JSON.parse(e.data).data;
+});
+events.addEventListener("call.ended", () => events.close());
+```
+
+Events are `agent.state` (`listening`, `processing`, `speaking`, `ended`),
+`transcript.turn` (one per finished turn, for both speakers) and `call.ended`,
+which is always last. Your server can read the same stream with its key at
+[Stream live events](/api-reference/calls/stream-live-events).
+
+## While it runs and after
+
+- **Steer or end it** from your server with
+  [Send a live control](/api-reference/calls/send-a-live-control): an
+  `instruction` the agent follows from its next reply, or a `close` with a
+  goodbye line.
+- **Results** arrive as webhooks to `webhook_url`, the same as a phone call.
+  With `final_results: true` you also get one `call.processed` carrying the
+  finished transcript. See [Webhooks](/v2/webhooks).
+- **Billing** starts when audio goes live and follows the same per-minute rate
+  as a phone call.
+
+The [browser calls guide](/v2/web-calls) has a complete page and backend,
+timing options for timed sessions, and every event payload.

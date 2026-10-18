@@ -42,3 +42,15 @@
 - Show common error scenarios
 - Provide working code examples
 - Include authentication details
+
+## API reference tab (generated)
+
+- The **API reference** tab, `api-reference/openapi.json` and
+  `files/postman/mirai-voice-postman.zip` are generated. Never edit them by hand.
+- Rebuild after every API release that changes an endpoint:
+  `python3 scripts/build_api_reference.py` (reads the live Postman collection and
+  `GET /v2/schema`); `--check` exits 1 when the committed files are stale.
+- Fix wording at the source: the Postman spec in `MiraiMinds/mirai-voice`
+  (`scripts/postman/spec/`). Hand-written pages are `api-reference/introduction.mdx`,
+  `api-reference/postman.mdx` and `api-reference/calls/start-a-browser-call.mdx`.
+- There is no v1 documentation. Old v1 URLs redirect to their v2 pages in `docs.json`.

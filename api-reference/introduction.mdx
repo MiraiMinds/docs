@@ -1,100 +1,127 @@
 ---
-title: "v1 API reference"
+title: "API reference"
 sidebarTitle: "Introduction"
-description: "Base URLs, authentication, endpoint groups and error codes for the v1 Voice Agents REST API."
+description: "Every endpoint of the Mirai Voice v2 API: base URLs, authentication, errors, pagination and idempotency, with a request you can send from each page."
 ---
 
-<Note>
-**This documents the v1 product.** It is kept for integrations already running
-on it. If you are building something new, start with the
+This tab lists every public endpoint of the v2 API. Each page shows the
+request fields, a worked example, the responses you can get back, and a panel
+where you can send the request yourself.
+
+The pages are generated from the API's own contract and from the Postman
+collection that ships with each release, so they change when the API changes.
+For a walkthrough instead of a reference, start with the
 [Quickstart](/v2/quickstart).
-</Note>
 
-The Voice Agents API lets you onboard workspaces, create and manage assistants,
-initiate outbound calls and handle real-time webhook events.
+## Base URLs
 
-## Base URL
+| Environment | Base URL | Use it for |
+| :--- | :--- | :--- |
+| Sandbox | `https://sandbox.voice.miraiminds.co` | Trial workspaces, before your company goes live. Calls run and bill at the T5 rate. |
+| Production | `https://prod.voice.miraiminds.co` | Workspaces that have gone live, billed at your plan's tier. |
 
-All API requests target the production server:
-
-```
-https://api.voice-agents.miraiminds.co
-```
-
-A staging environment is also available for testing:
-
-```
-https://api.stage.voice-agent.miraiminds.co
-```
+The routes are the same on both. The console's **Developers** page shows the
+base URL for your key; a sandbox key sent to the production URL is refused.
 
 ## Authentication
 
-Every request must include two API key headers:
-
-| Header          | Description                            |
-| :-------------- | :------------------------------------- |
-| `x-public-key`  | Your public API key for identification |
-| `x-private-key` | Your private API key for authorization |
-
-Most endpoints also require a `workspace` header to scope requests to a specific workspace.
+Every request carries your workspace's secret key as a bearer token:
 
 ```bash
-curl -X POST https://api.voice-agents.miraiminds.co/v2/call/initiate \
-  -H "x-public-key: pk_your_public_key" \
-  -H "x-private-key: sk_your_private_key" \
-  -H "workspace: your_workspace_id" \
-  -H "Content-Type: application/json" \
-  -d '{ ... }'
+curl https://sandbox.voice.miraiminds.co/v2/wallet \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY"
 ```
 
-<Note>
-  Contact [sneh@miraiminds.co](mailto:sneh@miraiminds.co) to get your API keys and workspace ID.
-</Note>
+A key is `sk_live_` followed by 32 hex characters, and it belongs to one
+workspace. Create, rotate and revoke keys in the console under **Developers**.
+The key is shown once; we keep only its hash, so a lost key is rotated, not
+recovered.
 
-## API endpoints
+| Situation | Status | `error.code` |
+| :--- | :--- | :--- |
+| Header missing, not `Bearer`, or key unknown | `401` | `unauthorized` |
+| Key revoked | `403` | `forbidden` |
+| Sandbox key sent to the production URL | `403` | `production_workspace_required` |
 
-The endpoints fall into these groups:
+Keep the key on your server. A browser or a mobile app never gets it: for
+[browser calls](/api-reference/calls/start-a-browser-call) and speech streams
+your server hands the page short-lived links instead.
 
-<CardGroup cols={2}>
-  <Card title="Onboarding" icon="store">
-    Register a Shopify store and create a workspace with billing configuration.
-  </Card>
-  <Card title="Assistant" icon="robot">
-    Create, retrieve, and update voice agent configurations.
-  </Card>
-  <Card title="Call" icon="phone">
-    Initiate outbound calls and abort queued calls.
-  </Card>
-  <Card title="Webhooks" icon="webhook">
-    Receive real-time call status and action events.
-  </Card>
-  <Card title="Organization" icon="building">
-    Archive and unarchive organizations and workspaces.
-  </Card>
-  <Card title="Voice Gallery" icon="microphone">
-    Browse available voice options for your agents.
-  </Card>
-</CardGroup>
+## Trying requests from these pages
 
-## Common error codes
+Each endpoint page has a **Try it** panel. Paste your key into the
+`Authorization` field, pick the server, and send. These are real requests
+against your workspace: **Place a call** rings a real phone and uses wallet
+credit, and anything you create stays in your workspace. Use a sandbox key
+while you explore.
 
-| Code  | Meaning                                            |
-| :---- | :------------------------------------------------- |
-| `200` | Success                                            |
-| `201` | Resource created                                   |
-| `400` | Bad request: check your request body or parameters |
-| `401` | Unauthorized: missing or invalid API keys          |
-| `403` | Forbidden: insufficient permissions                |
-| `404` | Not found: the resource does not exist             |
-| `429` | Rate limit exceeded: wait before retrying          |
-| `500` | Internal server error                              |
+## Requests and responses
 
-## Rate limits
+- **JSON in and out.** Send `Content-Type: application/json` with every body.
+  Responses are JSON, including errors. The few exceptions (audio, CSV
+  reports, file uploads) say so on their page.
+- **IDs are opaque strings** with a type prefix: `agt_` for agents, `call_` for
+  calls, `cmp_` for campaigns. Store them as they are.
+- **Timestamps** are RFC 3339 in UTC: `2026-10-18T09:14:02Z`.
+- **Money** is in rupees (`amount_inr`, `balance_inr`), except campaign budgets,
+  which are integer paise.
+- **Phone numbers** are E.164 with the leading `+`: `+919876543210`.
 
-The API rate-limits requests to keep the service stable. If you get a `429`
-response, wait before retrying. Assistant updates also have a cooldown period so
-that update operations don't overlap.
+## Errors
 
-<Warning>
-  Keep your `x-private-key` secure. Never expose it in client-side code or public repositories.
-</Warning>
+Errors carry a stable code you can branch on, and a message for your logs:
+
+```json
+{
+  "error": {
+    "code": "insufficient_balance",
+    "message": "wallet balance 3.20 INR is below the minimum for one minute at t5"
+  }
+}
+```
+
+Saving an agent's tools or flow can fail on several fields at once. Those two
+answer `{"error": "invalid_tools" | "invalid_flow", "details": [...]}` with one
+entry per problem. Every code, its status and whether to retry are listed in
+[Errors](/v2/errors).
+
+## Pagination
+
+List endpoints take `limit` and `cursor` and answer with the same envelope:
+
+```json
+{
+  "data": [{ "id": "call_01K2M4RB8CDEFGHJKMNPQRST" }],
+  "has_more": true,
+  "next_cursor": "MTc4NzIyMjcwMS4xMTgyMDQ6Y2FsbF8wMUpa"
+}
+```
+
+Send `next_cursor` back as `cursor` for the next page, and stop when `has_more`
+is `false`. Lists are newest first.
+
+## Idempotency
+
+`POST /v2/calls`, `POST /v2/agents`, `POST /v2/transcriptions` and live call
+controls take an `Idempotency-Key` header. The same key within 24 hours returns
+the first answer and creates nothing new, so a retry never places a second
+call. Build the key from your own record, such as `order-8842-reminder-1`,
+rather than a fresh random value on each attempt.
+
+## Webhooks and live events
+
+Calls report their progress to your `webhook_url` as signed events. The event
+types, payloads and signature check are in [Webhooks](/v2/webhooks). A browser
+call also has a live event stream for the page; see
+[Start a browser call](/api-reference/calls/start-a-browser-call).
+
+## Limits
+
+Each key is rate limited, and each workspace has a concurrent-call limit.
+Calls over the concurrency limit queue rather than fail. The numbers are in
+[Limits](/v2/limits).
+
+## Postman
+
+The same endpoints, with the same examples, are in a Postman collection you can
+import in a minute. See [Postman collection](/api-reference/postman).
