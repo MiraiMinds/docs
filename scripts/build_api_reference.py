@@ -4,7 +4,6 @@
 Everything this writes is GENERATED. Do not edit it by hand:
 
     api-reference/openapi.json         the OpenAPI file behind the API reference tab
-    files/postman/mirai-voice-postman.zip   the Postman collection and its two environments
     docs.json                          only the endpoint groups of the "API reference" tab
 
 Two sources, both published by the API itself:
@@ -28,12 +27,10 @@ from __future__ import annotations
 
 import argparse
 import copy
-import io
 import json
 import re
 import sys
 import urllib.request
-import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -44,19 +41,13 @@ TAB = "API reference"
 CONSOLE = "https://console.voice.miraiminds.co/static/postman/"
 SOURCES = {
     "mirai-voice.postman_collection.json": CONSOLE + "mirai-voice.postman_collection.json",
-    "sandbox.postman_environment.json": CONSOLE + "sandbox.postman_environment.json",
-    "production.postman_environment.json": CONSOLE + "production.postman_environment.json",
     "mira-tts.postman_collection.json": CONSOLE + "mira-tts.postman_collection.json",
     "schema.json": "https://sandbox.voice.miraiminds.co/v2/schema",
 }
-#: Zipped unchanged into POSTMAN_ZIP for download. Mintlify serves .zip but not
-#: .json as a static file, so the three JSON files ship as one archive.
-POSTMAN_ZIP = ROOT / "files" / "postman" / "mirai-voice-postman.zip"
-POSTMAN_DOWNLOADS = (
-    "mirai-voice.postman_collection.json",
-    "sandbox.postman_environment.json",
-    "production.postman_environment.json",
-)
+#: The Postman files themselves are not copied here: the hosted docs serve only
+#: images, audio, video and fonts as files (.json, .zip, .pdf and .csv answer
+#: 404), so the Postman page links the console's copies, which every release
+#: refreshes.
 
 SERVERS = [
     {"url": "https://sandbox.voice.miraiminds.co",
@@ -574,18 +565,6 @@ def nav_groups(nav) -> list[dict]:
     return groups
 
 
-def postman_zip(src: dict[str, bytes]) -> bytes:
-    """The download, byte-for-byte reproducible: fixed timestamps and order."""
-    buf = io.BytesIO()
-    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
-        for name in POSTMAN_DOWNLOADS:
-            info = zipfile.ZipInfo(name, date_time=(2026, 1, 1, 0, 0, 0))
-            info.compress_type = zipfile.ZIP_DEFLATED
-            info.external_attr = 0o644 << 16
-            z.writestr(info, src[name])
-    return buf.getvalue()
-
-
 def render(obj) -> str:
     return json.dumps(obj, indent=2, ensure_ascii=False) + "\n"
 
@@ -614,7 +593,6 @@ def main() -> int:
     files = {
         OPENAPI_FILE: render(spec).encode(),
         DOCS_JSON: updated_docs_json(nav_groups(nav)).encode(),
-        POSTMAN_ZIP: postman_zip(src),
     }
 
     stale = [p for p, data in files.items() if not p.exists() or p.read_bytes() != data]
