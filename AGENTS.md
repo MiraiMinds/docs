@@ -45,8 +45,11 @@
 
 ## API reference tab (generated)
 
-- The **API reference** tab, `api-reference/openapi.json` and
-  `files/postman/mirai-voice-postman.zip` are generated. Never edit them by hand.
+- The **API reference** tab and `api-reference/openapi.json` are generated.
+  Never edit them by hand.
+- The hosted docs serve only images, audio, video and fonts as files: `.json`,
+  `.zip`, `.pdf` and `.csv` answer 404. Link downloads to where they live (the
+  Postman files: `https://console.voice.miraiminds.co/static/postman/`).
 - Rebuild after every API release that changes an endpoint:
   `python3 scripts/build_api_reference.py` (reads the live Postman collection and
   `GET /v2/schema`); `--check` exits 1 when the committed files are stale.

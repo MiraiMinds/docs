@@ -8,16 +8,20 @@ The Postman collection holds every endpoint in this reference, with the same
 worked examples and saved responses. It is generated from the API, and each
 release of the API ships a fresh copy, so it does not fall behind.
 
-<CardGroup cols={2}>
-  <Card title="Download the collection" icon="download" href="/files/postman/mirai-voice-postman.zip">
-    One zip with the collection and the sandbox and production environments.
+<CardGroup cols={3}>
+  <Card title="Collection" icon="download" href="https://console.voice.miraiminds.co/static/postman/mirai-voice.postman_collection.json">
+    Every endpoint, with examples.
   </Card>
-  <Card title="Import by link" icon="link" href="#import-by-link">
-    Point Postman at the console's copy, which is always the latest release.
+  <Card title="Sandbox environment" icon="flask" href="https://console.voice.miraiminds.co/static/postman/sandbox.postman_environment.json">
+    For trial workspaces.
+  </Card>
+  <Card title="Production environment" icon="server" href="https://console.voice.miraiminds.co/static/postman/production.postman_environment.json">
+    For workspaces that have gone live.
   </Card>
 </CardGroup>
 
-The zip holds three files:
+The files are served by the console, so these links always give the latest
+release. Save each one as a `.json` file, or import it straight from the link.
 
 | File | What it is |
 | :--- | :--- |
@@ -42,9 +46,9 @@ The console's **Developers** page links the same files.
 
 <Steps>
   <Step title="Import the files">
-    Unzip the download, then in Postman choose **Import** and drop in the
-    collection and the environment you need, or import them by link. Most
-    people start with sandbox.
+    In Postman, choose **Import** and paste the collection link and the link of
+    the environment you need, or drop in the files you saved. Most people start
+    with sandbox.
   </Step>
   <Step title="Select the environment">
     Pick **sandbox** or **production** from the environment menu at the top
