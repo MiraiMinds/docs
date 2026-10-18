@@ -527,6 +527,168 @@ or billing. If your agent has [analysis](/v2/analysis) enabled, a post-call tool
 `analysis.status` or `analysis.success` when the request requires a successful
 analysis result.
 
+### Send the whole call with Send webhook
+
+The `webhook` tool posts the finished call to an HTTPS URL you own. You do not
+write a request body. We build it, and it carries the whole record: the call's
+details, the transcript, your after-call results, and whether a recording was
+stored.
+
+It runs once after every call the agent handles. That includes inbound calls to
+your numbers, outbound calls, browser calls, text chats, campaign calls,
+WhatsApp calls, and scheduled callbacks.
+
+In Agent Studio, open **Tools**, choose **Post-call**, click **Add preset**,
+and pick **Send webhook**. Enter your URL and save. Over the API, add this tool
+to the agent:
+
+```json
+{
+  "name": "webhook",
+  "phase": "post_call",
+  "builtin": { "url": "https://api.example.com/calls/finished" }
+}
+```
+
+`url` is the only setting. There is no `events` setting: the tool sends one
+request per call. If an agent you saved earlier still has `builtin.events`, we
+accept it and ignore it.
+
+Your server receives a `POST` like this one, for an inbound call:
+
+```json title="Body sent to builtin.url"
+{
+  "call": {
+    "id": "call_01K8INB4M8N3P6R2S5T7V9W1YA",
+    "object": "call",
+    "agent_id": "agt_01K7Q9F3K7M2N5P9R4T6V8W0XZ",
+    "agent_revision": 3,
+    "channel": "phone",
+    "route": "trunk",
+    "direction": "inbound",
+    "from": "+919876543210",
+    "to": "+919876543211",
+    "phone_number_id": "pn_01K8D2H5J7L9N1Q3S5U7W9Y1AC",
+    "provider": "plivo",
+    "tier": "t3",
+    "status": "completed",
+    "ended_reason": "customer-ended-call",
+    "started_at": "2026-10-12T05:23:07Z",
+    "ended_at": "2026-10-12T05:24:12Z",
+    "duration_secs": 65,
+    "answered": true,
+    "user_spoke": true,
+    "turns": { "agent": 2, "user": 2 },
+    "cost": { "paise": 325, "amount_inr": 3.25, "per_min_inr": 2.5, "billing_block_secs": 10 },
+    "metadata": { "branch": "indiranagar" },
+    "test": false,
+    "transcript_status": "ready",
+    "campaign_id": "",
+    "contact_id": "",
+    "parent_call_id": "",
+    "skip_reason": ""
+  },
+  "analysis": {
+    "status": "done",
+    "summary": "The caller moved their appointment to Friday at 4 pm.",
+    "success": true,
+    "data": { "outcome": "rescheduled", "slot": "2026-10-16T16:00:00+05:30" }
+  },
+  "transcript": {
+    "status": "ready",
+    "turns": [
+      { "role": "assistant", "text": "Namaste, Sunrise Clinic. How can I help you?", "start_ms": 0, "end_ms": 2900 },
+      { "role": "user", "text": "I want to move my appointment to Friday.", "start_ms": 3400, "end_ms": 6100 },
+      { "role": "assistant", "text": "Done. Friday at 4 pm with Dr. Rao. Anything else?", "start_ms": 6600, "end_ms": 10200 },
+      { "role": "user", "text": "No, thank you.", "start_ms": 10700, "end_ms": null }
+    ]
+  },
+  "recording": { "status": "available" },
+  "tool": "webhook"
+}
+```
+
+| Field | Meaning |
+| --- | --- |
+| `call.id`, `call.agent_id`, `call.agent_revision` | The call, the agent, and the agent revision the call used. |
+| `call.channel`, `call.route`, `call.direction` | How the call ran: `phone`, `web`, `text` or `realtime`; the route; `inbound` or `outbound`. `route` can be empty on calls that use no phone line. |
+| `call.from`, `call.to` | The numbers. On an inbound call, `from` is the caller and `to` is your number. Empty on calls with no number. |
+| `call.phone_number_id`, `call.provider` | Your number and its telephony provider. `phone_number_id` is empty, and `provider` is absent, when the call used none. |
+| `call.status`, `call.ended_reason` | The [final status](/v2/calls#statuses) and why the call ended. |
+| `call.started_at`, `call.ended_at`, `call.duration_secs` | When the conversation started and ended, in UTC. `started_at` is an empty string if the call never connected. |
+| `call.answered`, `call.user_spoke`, `call.turns` | Whether the call connected, whether the other person said anything, and how many turns each side took. |
+| `call.cost` | What the call cost. `paise` and `amount_inr` are the same amount. `per_min_inr` and `billing_block_secs` are the rate it was billed at. It can also carry the other `cost` fields of the [call object](/v2/calls#the-call-object). |
+| `call.metadata` | The `metadata` you set when you created the call. `{}` when there is none. |
+| `call.test` | `true` for a test call or a **Run test** request. |
+| `call.transcript_status` | `ready`, `empty` or `failed`. The same value [`GET /v2/calls/{id}`](/v2/calls#get-a-call) reports. |
+| `call.campaign_id`, `call.contact_id`, `call.parent_call_id`, `call.skip_reason` | Set on campaign calls, scheduled callbacks and skipped calls. Empty strings otherwise. |
+| `call.flow` | Only on a [node-based agent's](/v2/node-agents) call: the [flow outcome](/v2/calls#flow-outcome). |
+| `call.tool_runs` | Only when the call ran tools before or during the conversation: one short receipt per tool, the same shape as `data.call.tool_runs` on webhook events. |
+| `analysis` | Your after-call results. `status` is `done`, `failed`, `skipped` or `not_enabled`. `summary` is always present. `success` and `data` are present when the analysis produced them. |
+| `transcript.status` | `ready`, `empty`, `failed` or `fetch_required`. See the next table. |
+| `transcript.turns` | The turns when `status` is `ready`, in the same shape as [`GET /v2/calls/{id}/transcript`](/v2/calls#get-the-transcript). `[]` otherwise. |
+| `recording.status` | `available`, `disabled` or `not_available`. See below. |
+| `tool` | The tool's name, `webhook`. |
+
+Two more fields appear inside `call` on some calls. `calls_from_source` says
+how an outbound phone call's number was chosen: `request`, `agent`, `shared` or
+`trunk`. `identity` holds the caller's WhatsApp identity on a WhatsApp call. We
+may add fields. Ignore the ones you do not use.
+
+| `transcript.status` | Meaning |
+| --- | --- |
+| `ready` | The turns are inline. |
+| `empty` | Nobody spoke, or the call never connected. |
+| `failed` | No transcript reached us in time. The request is still sent. |
+| `fetch_required` | The transcript is larger than 512 KB, so `turns` is empty. Fetch it with [`GET /v2/calls/{id}/transcript`](/v2/calls#get-the-transcript). We never cut a transcript short. |
+
+| `recording.status` | Meaning |
+| --- | --- |
+| `available` | Audio was stored. Fetch it with [`GET /v2/calls/{id}/recording`](/v2/calls#get-the-recording) and your API key. |
+| `disabled` | Recording was turned off for this call. |
+| `not_available` | No audio was stored when we sent the request. A text chat or a call that never connected has none. |
+
+The body does not contain a recording link. Ask for one when you need the
+audio: `GET /v2/calls/{id}/recording` redirects to a link that expires.
+
+**When it is sent.** After the call ends, we wait for two things and then send:
+
+- The transcript. It is usually stored before the call ends, so there is no
+  wait. If it is late, we wait until 2 minutes after the call ended. After
+  that we send the request with `transcript.status` set to `failed`.
+- Your after-call results, if the agent has analysis turned on. We wait until
+  they are ready, for up to 7 minutes. After that we send the request with
+  `analysis.status` set to `failed`.
+
+We never hold the request back because one part is missing. The terminal
+event, such as `call.completed`, does not wait for any of this. Use it to know
+the call ended. Use this request to process the conversation.
+
+**Signature.** The request carries `X-Mirai-Signature`, signed with your
+workspace's webhook secret over the raw body. It is the same header and the
+same check as for call events. See
+[signature verification](/v2/webhooks#signature-verification). Verify against
+the bytes you received, before you parse them.
+
+**Delivery.** Any `2xx` reply counts as delivered. We try up to three times by
+default, 15 seconds each. Change that with `timeout_ms` and `retry` on the
+tool. A `4xx` reply is not retried. Each request has `X-Mirai-Call-Id`,
+`X-Mirai-Tool-Run-Id` and `X-Mirai-Attempt` headers. Retries of the same
+request keep the same `X-Mirai-Tool-Run-Id`, so deduplicate on it.
+
+**Size.** Most bodies are a few kilobytes. A very long call can reach about
+600 KB, so make sure your server accepts a body that large. The 256 KB request
+limit applies to bodies you write yourself, not to this one.
+
+**Test it.** Open the tool's **Test** tab and click **Run test**. We send a
+sample call in exactly this shape: `call.test` is `true`, the transcript has
+four sample turns, the cost is zero, and `recording.status` is
+`not_available`. A test request is not signed, so it has no
+`X-Mirai-Signature` header.
+
+A [post-call rerun](#rerun-post-call-tools) sends the whole body again with a
+new `X-Mirai-Tool-Run-Id`.
+
 ### Receive `call.processed`
 
 The terminal event, such as `call.completed`, describes the finished call.
@@ -636,7 +798,7 @@ tool arguments. Builtins currently include:
 | `skip_call` | `pre_call` | Prevent dialing when a condition holds. |
 | `end_call` | `on_call` | End the conversation. |
 | `schedule_callback` | `on_call`, `post_call` | Arrange a later call. |
-| `webhook` | `post_call` | Send the finished call and analysis to an additional HTTPS URL supplied in `builtin.url`. |
+| `webhook` | `post_call` | Send the whole finished call to the HTTPS URL in `builtin.url`: details, transcript, after-call results and recording status. See [Send the whole call with Send webhook](#send-the-whole-call-with-send-webhook). |
 
 An explicit `end_call` tool can use `builtin.enabled`, `builtin.message`, and
 `builtin.confirm` to override the agent's [ending settings](/v2/agents#ending-a-call).
@@ -695,7 +857,8 @@ separate from any wait for analysis.
 - Endpoints must use public HTTPS on port 443. Private-network destinations and
   redirects are refused.
 - Request and response bodies are limited to 256 KB; URLs to 2,048 characters;
-  headers and query entries to 20 each.
+  headers and query entries to 20 each. The body the `webhook` tool builds is
+  not limited to 256 KB.
 - jq transforms have a 100 ms budget and 64 KB output limit. Up to 16 selected
   fields can be promoted, each with a maximum value length of 512 characters.
 - Retries apply to timeouts, connection failures, and server errors. Client
