@@ -1,0 +1,164 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Voice Infra docs, dressed like the Voice Infra console.
+ *
+ * Every value here is a console token (console/static/app.css in
+ * MiraiMinds/mirai-voice) or the brand guide's (brand-bank BRAND.md):
+ * warm paper canvas, near-black ink, one hairline, a charcoal left rail with
+ * the amber mark on it, system sans and system mono, no webfonts.
+ * Mintlify loads every .css file in the repository on every page.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  --c-paper: #fbfaf8;
+  --c-surface: #ffffff;
+  --c-sunk: #f4f2ee;
+  --c-line: #e7e4dd;
+  --c-line-strong: #d3cec4;
+  --c-ink: #1b1a18;
+  --c-ink-2: #45433d;
+  --c-ink-3: #6f6c65;
+  --c-dark: #151513;
+  --c-dark-line: #2b2a24;
+  --c-on-dark: #f1efe9;
+  --c-on-dark-2: #c4c0b6;
+  --c-on-dark-3: #8b877d;
+  --c-amber: #f1bc04;
+  --ui-dark-fill: rgba(241, 239, 233, 0.07);
+  --ui-dark-raise: #2a2925;
+  --ui-dark-lift: 0 1px 2px rgba(0, 0, 0, 0.35), inset 0 0 0 0.5px rgba(241, 239, 233, 0.07);
+  --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+}
+
+/* ── type: the console's system faces ───────────────────────────────────── */
+html, body, button, input, select, textarea, .font-sans {
+  font-family: var(--sans) !important;
+}
+code, kbd, pre, samp, .font-mono {
+  font-family: var(--mono) !important;
+}
+body {
+  color: var(--c-ink-2);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+#page-title, #content-area h1, #content-area h2, #content-area h3, #content-area h4 {
+  color: var(--c-ink);
+  letter-spacing: -0.02em;
+}
+#content-area table td, #content-area table th { font-variant-numeric: tabular-nums; }
+
+/* The section label above a title reads like a console label, not a link. */
+#header .eyebrow { color: var(--c-ink-3) !important; font-weight: 600; letter-spacing: 0.01em; }
+
+/* ── the canvas and the content panel ───────────────────────────────────── */
+html, body { background-color: var(--c-paper); }
+#navbar > div:first-child, #navbar > div:nth-child(2) { background: transparent !important; }
+
+/* Links: ink, underlined with the hairline, like the console's help copy. */
+#content-area a:not([class*="card"]):not(.link):not([data-component-part]) {
+  color: var(--c-ink);
+  text-decoration-color: var(--c-line-strong);
+}
+#content-area a:not([class*="card"]):hover { text-decoration-color: var(--c-ink); }
+
+/* Inline code: the console's sunk fill and hairline. */
+#content-area :not(pre) > code {
+  background: var(--c-sunk);
+  border: 1px solid var(--c-line);
+  color: var(--c-ink);
+  border-radius: 6px;
+}
+
+/* ── the left rail: the console's charcoal sidebar ──────────────────────── */
+@media (min-width: 1024px) {
+  /* The rail runs the full height, as the console's does, and the logo in
+     the navbar sits on top of it: same charcoal, so the lockup reads as the
+     rail's own header. */
+  #sidebar-content {
+    background: var(--c-dark);
+    border: 1px solid var(--c-dark-line);
+    border-radius: 16px;
+    margin-left: 8px;
+    top: calc(8px + var(--banner-height, 0px)) !important;
+    height: calc(100vh - 16px - var(--banner-height, 0px)) !important;
+    padding-top: calc(var(--mintlify-slot-header-height, 3.5rem) - 8px);
+    color: var(--c-on-dark-2);
+  }
+  #navbar { pointer-events: none; }
+  #navbar a, #navbar button, #navbar input, #navbar [role="button"] { pointer-events: auto; }
+  #navbar .nav-logo, #navbar a img { margin-left: 4px; }
+
+  /* Method pills, re-inked for the dark rail: same hue per method, lifted
+     to read on charcoal. */
+  #sidebar-content .method-nav-pill > span { background: var(--ui-dark-fill) !important; }
+  #sidebar-content .method-nav-pill > span[class*="green"] { color: #4fc08a !important; }
+  #sidebar-content .method-nav-pill > span[class*="blue"],
+  #sidebar-content .method-nav-pill > span[class*="3064E3"] { color: #8fb0ff !important; }
+  #sidebar-content .method-nav-pill > span[class*="yellow"],
+  #sidebar-content .method-nav-pill > span[class*="orange"] { color: #e8b866 !important; }
+  #sidebar-content .method-nav-pill > span[class*="red"] { color: #ff8073 !important; }
+
+  #sidebar-content .sidebar-group-header,
+  #sidebar-content .sidebar-title {
+    color: var(--c-on-dark-3) !important;
+    font-size: 11.5px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+
+  #sidebar-content li > a {
+    color: var(--c-on-dark-2) !important;
+    border-radius: 8px !important;
+  }
+  #sidebar-content li > a:hover {
+    background: var(--ui-dark-fill) !important;
+    color: var(--c-on-dark) !important;
+  }
+  /* The one selection idiom: a raised pill one step lighter than the rail. */
+  #sidebar-content li[data-active="true"] > a,
+  #sidebar-content li > a[aria-current="page"] {
+    background: var(--ui-dark-raise) !important;
+    box-shadow: var(--ui-dark-lift);
+    color: var(--c-on-dark) !important;
+    text-shadow: none !important;
+  }
+  #sidebar-content svg { color: var(--c-on-dark-3); }
+
+  /* Search sits on the rail as a dark field. */
+  #sidebar-content #search-bar-entry {
+    background: var(--ui-dark-fill) !important;
+    color: var(--c-on-dark-3) !important;
+    --tw-ring-color: var(--c-dark-line) !important;
+  }
+  #sidebar-content #search-bar-entry svg { color: var(--c-on-dark-3) !important; }
+
+  #sidebar-content .almond-nav-bottom-section-divider { background: var(--c-dark-line) !important; }
+
+  /* The rail fades into its own colour, not into paper. */
+  #navigation-items > div { mask-image: none !important; -webkit-mask-image: none !important; }
+}
+
+/* ── the navbar ─────────────────────────────────────────────────────────── */
+#navbar .nav-logo, #navbar a img { height: 40px !important; width: auto; }
+#navbar .nav-tabs-item { color: var(--c-ink-3); }
+#navbar .nav-tabs-item[data-active="true"] { color: var(--c-ink) !important; }
+#navbar .nav-tabs-item[data-active="true"] > div { background: var(--c-amber) !important; height: 2px; display: block !important; }
+
+/* Primary actions are solid ink, as in the console. */
+#topbar-cta-button a, #topbar-cta-button button {
+  background: var(--c-ink) !important;
+  color: var(--c-on-dark) !important;
+  border-radius: 8px !important;
+}
+
+/* ── cards, callouts, code: white surfaces on paper with the hairline ───── */
+#content-area [class*="card"] {
+  border-color: var(--c-line) !important;
+  border-radius: 12px !important;
+  box-shadow: none !important;
+}
+#content-area [class*="card"]:hover { border-color: var(--c-line-strong) !important; }
+[data-component-part="code-block-root"], .code-block {
+  border-color: var(--c-line) !important;
+}

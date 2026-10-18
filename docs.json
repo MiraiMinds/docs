@@ -2,13 +2,32 @@
   "$schema": "https://mintlify.com/docs.json",
   "theme": "almond",
   "name": "Voice Infra",
-  "description": "Developer docs for Mirai Voice: AI voice agents that call in Hindi, English and Hinglish, plus Hindi text-to-speech and call transcription APIs.",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#1B1A18",
+    "light": "#F1BC04",
+    "dark": "#1B1A18"
   },
-  "favicon": "/favicon.png",
+  "logo": {
+    "light": "/logo/voice-infra.svg",
+    "dark": "/logo/voice-infra.svg",
+    "href": "/"
+  },
+  "favicon": "/favicon.svg",
+  "appearance": {
+    "default": "light",
+    "strict": true
+  },
+  "background": {
+    "color": {
+      "light": "#FBFAF8",
+      "dark": "#151513"
+    }
+  },
+  "styling": {
+    "eyebrows": "section",
+    "codeblocks": "system"
+  },
+  "description": "Developer docs for Mirai Voice: AI voice agents that call in Hindi, English and Hinglish, plus Hindi text-to-speech and call transcription APIs.",
   "api": {
     "playground": {
       "display": "interactive"
@@ -531,7 +550,12 @@
         "label": "Support",
         "href": "mailto:sneh@miraiminds.co"
       }
-    ]
+    ],
+    "primary": {
+      "type": "button",
+      "label": "Open console",
+      "href": "https://sandbox.voice.miraiminds.co"
+    }
   },
   "contextual": {
     "options": [
