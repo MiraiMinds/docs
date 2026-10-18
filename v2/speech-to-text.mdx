@@ -110,6 +110,7 @@ gets an ordinary HTTP response with the usual [error envelope](/v2/errors):
 | 426 | `upgrade_required` | A plain HTTP request reached the endpoint. | Connect with a WebSocket client (`wss://`). |
 | 429 | `at_capacity` | Your workspace already has 10 sessions running (`Retry-After: 5`), or the service is at its own ceiling. Carries `Retry-After`. | Close the sessions you are done with, then retry after that delay. |
 | 429 | `rate_limited` | Your key's request rate. | Honour `Retry-After`. |
+| 503 | `maintenance_window` | Speech to text is in its nightly pause, 22:00 to 08:00 IST. `Retry-After` counts the seconds until 08:00. Stream tokens are not minted during the pause either. | Reconnect after that delay. See [Service hours](/v2/speech#service-hours). |
 | 503 | `unavailable` | The server is restarting, the recogniser is briefly unreachable, or streaming speech to text is not switched on for this server. Carries `Retry-After` when retrying helps. | Reconnect after that delay. |
 | 503 | `billing_unavailable` | We could not read your wallet, so we don't open the session. `Retry-After: 2`. | Retry shortly. Open sessions keep running. |
 

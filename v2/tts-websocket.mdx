@@ -78,6 +78,7 @@ gets an ordinary HTTP response with the usual [error envelope](/v2/errors):
 | 426 | `upgrade_required` | A plain HTTP request reached the endpoint. | Connect with a WebSocket client (`wss://`). |
 | 429 | `at_capacity` | Your workspace already has 200 sockets open, or the service is at its own ceiling. `Retry-After: 5`. | Reuse one socket per call and close the ones you are done with. |
 | 429 | `rate_limited` | Your key's request rate. | Honour `Retry-After`. |
+| 503 | `maintenance_window` | Text to speech is in its nightly pause, 22:00 to 09:00 IST. `Retry-After` counts the seconds until 09:00. | Reconnect after that delay. See [Service hours](/v2/speech#service-hours). |
 | 503 | `unavailable` | The server is restarting. `Retry-After: 2`. | Reconnect in a moment. |
 
 A successful upgrade carries `X-Session-Id: ttsws_…`. Quote it when you ask us
@@ -342,6 +343,7 @@ the next sentence goes ahead.
 | `insufficient_balance` | Your wallet balance is too low. | [Top up](/v2/wallet#top-up). |
 | `upstream_error`, `first_byte_timeout`, `total_timeout` | The speech engine failed or stalled on this sentence. | Send the text again. |
 | `fleet_offline` | No speech capacity is online. | Retry after `retry_after_secs`. |
+| `maintenance_window` | Text to speech is in its nightly pause, 22:00 to 09:00 IST, so this sentence was not spoken and costs nothing. `retry_after_secs` counts the seconds until 09:00. | Send the text again after that delay. See [Service hours](/v2/speech#service-hours). |
 
 ## Closing
 

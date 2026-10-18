@@ -36,6 +36,37 @@ models. Every answer carries `X-Request-Id`, errors share one
 
 The price is the same on HTTP and on the socket.
 
+## Service hours
+
+The Mira speech engines pause every night while their GPUs train:
+
+| | Paused from | Back by |
+| :--- | :--- | :--- |
+| Speech to text | 22:00 IST | 08:00 IST |
+| Text to speech | 22:00 IST | 09:00 IST |
+
+During the pause, both APIs refuse new work with `503 maintenance_window`. The
+`Retry-After` header says how many seconds are left until the engine is back,
+and the error message gives that time in IST. A refused request costs nothing.
+The APIs reopen on their own, so retry once `Retry-After` has passed.
+
+```json title="503 Service Unavailable · Retry-After: 32400"
+{
+  "error": {
+    "code": "maintenance_window",
+    "message": "speech to text is paused for its nightly maintenance window until 08:00 IST (2026-10-19 02:30 UTC); retry after that"
+  }
+}
+```
+
+For speech to text, the HTTP route, the socket and the browser token mint all
+answer this way. For text to speech, the HTTP route answers this way. A text to
+speech socket is either refused when it connects or, if it is already open,
+gets an `error` event with this code and `retry_after_secs` for each sentence.
+
+Phone calls on the platform keep running through the night on standby
+engines. The pause applies only to requests you send to these APIs.
+
 ## First request
 
 Speak a line into a file, then transcribe that file:
