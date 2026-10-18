@@ -107,6 +107,208 @@
         ]
       },
       {
+        "tab": "API reference",
+        "openapi": "api-reference/openapi.json",
+        "groups": [
+          {
+            "group": "Get started",
+            "pages": [
+              "api-reference/introduction",
+              "api-reference/postman"
+            ]
+          },
+          {
+            "group": "Agents",
+            "pages": [
+              "POST /v2/agents",
+              "GET /v2/agents",
+              "GET /v2/agents/{agent_id}",
+              "PATCH /v2/agents/{agent_id}",
+              "POST /v2/agents/{agent_id}/preview",
+              "GET /v2/agents/{agent_id}/revisions",
+              "GET /v2/agents/{agent_id}/revisions/{revision}",
+              "POST /v2/agents/{agent_id}/rollback",
+              "POST /v2/agents/{agent_id}/publish",
+              "GET /v2/agents/{agent_id}/logs",
+              "GET /v2/agents/{agent_id}/logs/summary",
+              "GET /v2/agents/schema",
+              "DELETE /v2/agents/{agent_id}"
+            ]
+          },
+          {
+            "group": "Calls",
+            "pages": [
+              "POST /v2/calls",
+              "api-reference/calls/start-a-browser-call",
+              "GET /v2/calls/{call_id}",
+              "GET /v2/calls",
+              "GET /v2/calls/summary",
+              "GET /v2/calls/{call_id}/events",
+              "POST /v2/calls/{call_id}/control",
+              "GET /v2/calls/{call_id}/control/{control_id}",
+              "POST /v2/calls/{call_id}/abort",
+              "GET /v2/calls/{call_id}/transcript",
+              "GET /v2/calls/{call_id}/recording",
+              "GET /v2/calls/{call_id}/analysis",
+              "POST /v2/calls/{call_id}/analysis/retry",
+              "POST /v2/calls/{call_id}/analysis/delivery/retry",
+              "POST /v2/calls/{call_id}/post_call/rerun"
+            ]
+          },
+          {
+            "group": "Flows",
+            "pages": [
+              "POST /v2/agents/flow/transcribe",
+              "POST /v2/agents/flow/generate",
+              "POST /v2/agents/flow/validate",
+              "POST /v2/agents/flow/refine",
+              "GET /v2/agents/flow/refine/{refine_id}",
+              "GET /v2/agents/{agent_id}/flow/refinement",
+              "POST /v2/agents/flow/refine/{refine_id}/cancel",
+              "PUT /v2/agents/{agent_id}/flow",
+              "GET /v2/agents/{agent_id}/flow"
+            ]
+          },
+          {
+            "group": "Tools and secrets",
+            "pages": [
+              "GET /v2/tools/catalog",
+              "PUT /v2/secrets/{secret_name}",
+              "GET /v2/secrets",
+              "PUT /v2/agents/{agent_id}/tools/{tool_name}",
+              "POST /v2/agents/{agent_id}/tools/{tool_name}/test",
+              "POST /v2/agents/{agent_id}/conditions/test",
+              "GET /v2/calls/{call_id}/tool_runs",
+              "DELETE /v2/callbacks/{callback_id}",
+              "DELETE /v2/agents/{agent_id}/tools/{tool_name}",
+              "DELETE /v2/secrets/{secret_name}"
+            ]
+          },
+          {
+            "group": "Campaigns",
+            "pages": [
+              "POST /v2/campaigns",
+              "POST /v2/campaigns/{campaign_id}/contacts",
+              "DELETE /v2/campaigns/{campaign_id}/contacts/{contact_id}",
+              "PATCH /v2/campaigns/{campaign_id}",
+              "POST /v2/campaigns/{campaign_id}/start",
+              "GET /v2/campaigns/{campaign_id}",
+              "GET /v2/campaigns/{campaign_id}/contacts",
+              "GET /v2/campaigns",
+              "GET /v2/campaign-groups",
+              "POST /v2/campaigns/{campaign_id}/pause",
+              "POST /v2/campaigns/{campaign_id}/resume",
+              "POST /v2/campaigns/{campaign_id}/contacts/{contact_id}/retry",
+              "GET /v2/campaigns/{campaign_id}/report",
+              "GET /v2/campaigns/{campaign_id}/insights",
+              "POST /v2/campaigns/{campaign_id}/insights",
+              "GET /v2/campaigns/{campaign_id}/insights.html",
+              "GET /v2/campaigns/{campaign_id}/calls/{call_id}/audio",
+              "POST /v2/campaigns/{campaign_id}/share",
+              "GET /v2/campaigns/{campaign_id}/share",
+              "DELETE /v2/campaigns/{campaign_id}/share",
+              "POST /v2/campaigns/{campaign_id}/stop",
+              "POST /v2/campaigns/{campaign_id}/duplicate"
+            ]
+          },
+          {
+            "group": "Do-not-call list",
+            "pages": [
+              "POST /v2/dnc",
+              "GET /v2/dnc",
+              "DELETE /v2/dnc/{phone}"
+            ]
+          },
+          {
+            "group": "Phone numbers",
+            "pages": [
+              "POST /v2/phone-numbers",
+              "GET /v2/phone-numbers",
+              "GET /v2/phone-numbers/{phone_number_id}",
+              "PATCH /v2/phone-numbers/{phone_number_id}",
+              "POST /v2/phone-numbers/{phone_number_id}/activate",
+              "POST /v2/phone-numbers/{phone_number_id}/rest",
+              "POST /v2/phone-numbers/{phone_number_id}/resume",
+              "POST /v2/phone-numbers/{phone_number_id}/retire",
+              "GET /v2/phone-numbers/{phone_number_id}/health"
+            ]
+          },
+          {
+            "group": "Phone pools",
+            "pages": [
+              "POST /v2/phone-pools",
+              "GET /v2/phone-pools",
+              "GET /v2/phone-pools/{pool_id}",
+              "PATCH /v2/phone-pools/{pool_id}",
+              "DELETE /v2/phone-pools/{pool_id}"
+            ]
+          },
+          {
+            "group": "Telephony",
+            "pages": [
+              "GET /v2/telephony/options",
+              "GET /v2/telephony/requirements",
+              "GET /v2/telephony/onboarding",
+              "POST /v2/telephony/onboarding",
+              "POST /v2/telephony/onboarding/{onboarding_id}/refresh",
+              "GET /v2/telephony/compliances",
+              "GET /v2/telephony/available-numbers",
+              "POST /v2/telephony/quotes",
+              "POST /v2/telephony/rentals/{rental_id}/purchase",
+              "GET /v2/telephony/rentals",
+              "GET /v2/telephony/rentals/{rental_id}",
+              "PATCH /v2/telephony/rentals/{rental_id}",
+              "POST /v2/telephony/connections",
+              "GET /v2/telephony/connections",
+              "GET /v2/telephony/connections/{connection_id}",
+              "GET /v2/telephony/connections/{connection_id}/numbers",
+              "PATCH /v2/telephony/connections/{connection_id}",
+              "POST /v2/telephony/connections/{connection_id}/verify"
+            ]
+          },
+          {
+            "group": "Transcriptions",
+            "pages": [
+              "POST /v2/transcriptions",
+              "GET /v2/transcriptions/{transcription_id}",
+              "GET /v2/transcriptions"
+            ]
+          },
+          {
+            "group": "Speech to text",
+            "pages": [
+              "POST /v2/stt",
+              "POST /v2/stt/stream/tokens",
+              "GET /v2/stt/requests",
+              "GET /v2/stt/requests/{stt_request_id}"
+            ]
+          },
+          {
+            "group": "Text to speech",
+            "pages": [
+              "POST /v2/tts",
+              "GET /v2/tts/requests",
+              "GET /v2/tts/requests/{tts_request_id}",
+              "POST /v2/tts/stream/tokens"
+            ]
+          },
+          {
+            "group": "Wallet",
+            "pages": [
+              "GET /v2/wallet",
+              "GET /v2/wallet/transactions"
+            ]
+          },
+          {
+            "group": "Reference",
+            "pages": [
+              "GET /v2/voices",
+              "GET /v2/schema"
+            ]
+          }
+        ]
+      },
+      {
         "tab": "Cookbooks",
         "groups": [
           {
@@ -147,75 +349,6 @@
             ]
           }
         ]
-      },
-      {
-        "tab": "v1 (legacy)",
-        "groups": [
-          {
-            "group": "Start",
-            "pages": [
-              "general/overview",
-              "v2/migration",
-              "general/faq"
-            ]
-          },
-          {
-            "group": "Developer guides",
-            "pages": [
-              "developers/introduction",
-              "developers/customer-lifecycle",
-              "developers/create-assistant",
-              "developers/make-a-call",
-              "developers/call-lifecycle-events",
-              "developers/webhook-signature",
-              "developers/assistant-sandbox"
-            ]
-          },
-          {
-            "group": "API v1 reference",
-            "pages": [
-              "v1/overview",
-              "v1/workspaces",
-              "v1/assistants",
-              "v1/calls",
-              "v1/webhooks",
-              "v1/telephony",
-              "v1/tools",
-              "v1/knowledge-base",
-              "v2/text-to-speech",
-              "api-reference/introduction"
-            ]
-          },
-          {
-            "group": "Endpoints",
-            "openapi": "api-reference/legacy-openapi.yaml"
-          },
-          {
-            "group": "Guides",
-            "pages": [
-              "guides/abandon-cart-recovery",
-              "guides/how-discounts-work"
-            ]
-          },
-          {
-            "group": "Integrations",
-            "pages": [
-              "integrations/shopify",
-              "integrations/whatsapp",
-              "integrations/limechat",
-              "integrations/klaviyo",
-              "integrations/google-calendar"
-            ]
-          },
-          {
-            "group": "Use cases",
-            "pages": [
-              "usecases/retail",
-              "usecases/b2b",
-              "usecases/healthcare"
-            ]
-          }
-        ]
       }
     ]
   },
@@ -225,12 +358,164 @@
       "destination": "/v2/overview"
     },
     {
-      "source": "/v1",
-      "destination": "/v1/overview"
-    },
-    {
       "source": "/v2/node-graphs",
       "destination": "/v2/node-agents"
+    },
+    {
+      "source": "/v1",
+      "destination": "/v2/migration"
+    },
+    {
+      "source": "/v1/:slug*",
+      "destination": "/v2/migration"
+    },
+    {
+      "source": "/api-reference/call/initiate-ai-call",
+      "destination": "/api-reference/calls/place-a-call"
+    },
+    {
+      "source": "/api-reference/call/initiate-ai-web-call",
+      "destination": "/api-reference/calls/start-a-browser-call"
+    },
+    {
+      "source": "/api-reference/call/abort-call",
+      "destination": "/api-reference/calls/abort-call"
+    },
+    {
+      "source": "/api-reference/call/call-events-webhook",
+      "destination": "/v2/webhooks"
+    },
+    {
+      "source": "/api-reference/call/update-call-payload",
+      "destination": "/v2/calls"
+    },
+    {
+      "source": "/api-reference/call/receive-shiprocket-ndr-webhook",
+      "destination": "/v2/webhooks"
+    },
+    {
+      "source": "/api-reference/assistant/create-ai-assistant",
+      "destination": "/api-reference/agents/create-agent"
+    },
+    {
+      "source": "/api-reference/assistant/get-ai-assistant",
+      "destination": "/api-reference/agents/get-agent"
+    },
+    {
+      "source": "/api-reference/assistant/list-ai-assistants",
+      "destination": "/api-reference/agents/list-agents"
+    },
+    {
+      "source": "/api-reference/assistant/update-ai-assistant",
+      "destination": "/api-reference/agents/update-agent"
+    },
+    {
+      "source": "/api-reference/telephony/search-available-phone-numbers",
+      "destination": "/api-reference/telephony/search-available-numbers"
+    },
+    {
+      "source": "/api-reference/telephony/purchase-an-available-phone-number",
+      "destination": "/api-reference/telephony/rent-the-quoted-number"
+    },
+    {
+      "source": "/api-reference/telephony/release-a-purchased-phone-number",
+      "destination": "/api-reference/phone-numbers/retire-a-number"
+    },
+    {
+      "source": "/api-reference/tools/create-an-api-tool",
+      "destination": "/api-reference/tools-and-secrets/add-or-replace-a-tool"
+    },
+    {
+      "source": "/api-reference/tools/update-an-api-tool",
+      "destination": "/api-reference/tools-and-secrets/add-or-replace-a-tool"
+    },
+    {
+      "source": "/api-reference/tools/delete-an-api-tool",
+      "destination": "/api-reference/tools-and-secrets/remove-a-tool"
+    },
+    {
+      "source": "/api-reference/tools/list-workspace-api-tools",
+      "destination": "/api-reference/tools-and-secrets/get-tool-catalog"
+    },
+    {
+      "source": "/api-reference/voice-gallery/get-voice-gallery",
+      "destination": "/api-reference/reference/list-voices"
+    },
+    {
+      "source": "/api-reference/onboarding/:slug*",
+      "destination": "/v2/quickstart"
+    },
+    {
+      "source": "/api-reference/knowledge-base/:slug*",
+      "destination": "/api-reference/introduction"
+    },
+    {
+      "source": "/api-reference/organization/:slug*",
+      "destination": "/api-reference/introduction"
+    },
+    {
+      "source": "/api-reference/setting/:slug*",
+      "destination": "/api-reference/introduction"
+    },
+    {
+      "source": "/api-reference/showcase/:slug*",
+      "destination": "/api-reference/introduction"
+    },
+    {
+      "source": "/developers/introduction",
+      "destination": "/v2/start-building"
+    },
+    {
+      "source": "/developers/customer-lifecycle",
+      "destination": "/v2/overview"
+    },
+    {
+      "source": "/developers/create-assistant",
+      "destination": "/v2/agents"
+    },
+    {
+      "source": "/developers/make-a-call",
+      "destination": "/v2/calls"
+    },
+    {
+      "source": "/developers/call-lifecycle-events",
+      "destination": "/v2/webhooks"
+    },
+    {
+      "source": "/developers/webhook-signature",
+      "destination": "/v2/webhooks"
+    },
+    {
+      "source": "/developers/assistant-sandbox",
+      "destination": "/v2/agents"
+    },
+    {
+      "source": "/developers/:slug*",
+      "destination": "/v2/start-building"
+    },
+    {
+      "source": "/guides/:slug*",
+      "destination": "/cookbooks/overview"
+    },
+    {
+      "source": "/integrations/:slug*",
+      "destination": "/v2/tools"
+    },
+    {
+      "source": "/usecases/:slug*",
+      "destination": "/cookbooks/overview"
+    },
+    {
+      "source": "/general/overview",
+      "destination": "/"
+    },
+    {
+      "source": "/general/faq",
+      "destination": "/v2/faq"
+    },
+    {
+      "source": "/v2/text-to-speech",
+      "destination": "/v2/tts-quickstart"
     }
   ],
   "topbar": {

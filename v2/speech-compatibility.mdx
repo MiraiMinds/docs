@@ -13,7 +13,7 @@ except stream tokens when a browser opens the socket itself.
 
 | Route | Also answers at |
 | :--- | :--- |
-| `POST /v1/audio/speech` | `POST /v2/tts`, which also accepts `text` as an alias of `input`. `POST /tts/v1/audio/speech`, the [original speech endpoint](/v2/text-to-speech). |
+| `POST /v1/audio/speech` | `POST /v2/tts`, which also accepts `text` as an alias of `input`. `POST /tts/v1/audio/speech`, the [original speech endpoint](#the-original-speech-endpoint). |
 | `GET /v1/audio/speech/stream` | `GET /v2/tts/stream` |
 | `POST /v1/audio/transcriptions` | `POST /v2/stt` |
 | `GET /v1/audio/transcriptions/stream` | `GET /v2/stt/stream` |
@@ -149,6 +149,15 @@ in `language_code`. See [Languages](/v2/stt-languages).
 ## The original speech endpoint
 
 `/tts/v1` and its old `mira_` keys predate the current API. The URL is an alias
-of `POST /v1/audio/speech`, and the
-[original endpoint's page](/v2/text-to-speech) says what changed for callers
-still on it.
+of `POST /v1/audio/speech`: it runs the same handler and returns the same audio.
+A caller still on it changes only its key:
+
+- **Auth is your `sk_live_` API key** from the console's **Developers** page.
+  The old `mira_` speech keys are retired.
+- **`model` is `mira-tts`.** `mira-tts-v51` is accepted as an alias, so an old
+  body keeps working.
+- **Everything else follows the current endpoint**: voices, output formats,
+  streaming, the 2,000-character limit, headers, price and request log. See the
+  [TTS quickstart](/v2/tts-quickstart).
+- **`speech_ready`, `instructions`, `lexicon` and `numbers`**, which only the
+  old endpoint had, are ignored. Sending them is not an error.

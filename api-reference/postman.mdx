@@ -1,0 +1,92 @@
+---
+title: "Postman collection"
+sidebarTitle: "Postman collection"
+description: "Download the v2 Postman collection and its sandbox and production environments, set your key, and send your first request."
+---
+
+The Postman collection holds every endpoint in this reference, with the same
+worked examples and saved responses. It is generated from the API, and each
+release of the API ships a fresh copy, so it does not fall behind.
+
+<CardGroup cols={2}>
+  <Card title="Download the collection" icon="download" href="/files/postman/mirai-voice-postman.zip">
+    One zip with the collection and the sandbox and production environments.
+  </Card>
+  <Card title="Import by link" icon="link" href="#import-by-link">
+    Point Postman at the console's copy, which is always the latest release.
+  </Card>
+</CardGroup>
+
+The zip holds three files:
+
+| File | What it is |
+| :--- | :--- |
+| `mirai-voice.postman_collection.json` | Every endpoint, with examples. |
+| `sandbox.postman_environment.json` | `base_url` for trial workspaces: `https://sandbox.voice.miraiminds.co`. |
+| `production.postman_environment.json` | `base_url` for workspaces that have gone live: `https://prod.voice.miraiminds.co`. |
+
+### Import by link
+
+In Postman, choose **Import**, paste a link, and import. Do it once for the
+collection and once for the environment you need:
+
+```text
+https://console.voice.miraiminds.co/static/postman/mirai-voice.postman_collection.json
+https://console.voice.miraiminds.co/static/postman/sandbox.postman_environment.json
+https://console.voice.miraiminds.co/static/postman/production.postman_environment.json
+```
+
+The console's **Developers** page links the same files.
+
+## Set it up
+
+<Steps>
+  <Step title="Import the files">
+    Unzip the download, then in Postman choose **Import** and drop in the
+    collection and the environment you need, or import them by link. Most
+    people start with sandbox.
+  </Step>
+  <Step title="Select the environment">
+    Pick **sandbox** or **production** from the environment menu at the top
+    right. The two differ only in `base_url`.
+  </Step>
+  <Step title="Fill in two values">
+    In the environment, set `api_key` to your `sk_live_` key from the console's
+    **Developers** page, and `test_number` to the phone you want test calls to
+    ring, in E.164 (`+919876543210`).
+  </Step>
+  <Step title="Send the first three requests">
+    Open **Agents → Create agent** and send it, then **Calls → Place a call**,
+    then **Calls → Get call**. Each request that creates something saves the
+    new id into a collection variable, so the next request uses it without any
+    copying.
+  </Step>
+</Steps>
+
+<Warning>
+**Place a call** rings `test_number` and uses wallet credit. Every send makes a
+new call, because the collection generates a fresh `Idempotency-Key` each time.
+</Warning>
+
+## What is inside
+
+| Folder | What it covers |
+| :--- | :--- |
+| Agents | Create, update, preview, publish, roll back and delete agents; revisions and logs. |
+| Calls | Phone and browser calls, live events and controls, transcript, recording and analysis. |
+| Flows | Generate, validate, test and save node flows. |
+| Tools and secrets | Tools on an agent, secrets they use, tool runs and callbacks. |
+| Campaigns | Lists, calling windows, start and stop, reports, insights and share links. |
+| Do-not-call list | Numbers you never want called. |
+| Phone numbers and pools | Your own numbers, incoming calls, pacing and pools. |
+| Telephony | Renting a number, business verification and your own Plivo account. |
+| Transcriptions and speech to text | Recorded-call transcription and the speech-to-text API. |
+| Wallet and reference | Balance, transactions, voices and the API contract. |
+
+Auth is set once on the collection (`Authorization: Bearer {{api_key}}`), so no
+request carries a key of its own.
+
+## Keeping it current
+
+Download the files again when you want the latest. An endpoint that ships in a
+release is in that release's collection, and on its page in this reference.
