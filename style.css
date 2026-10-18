@@ -30,6 +30,19 @@
   --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
 }
 
+/* ── proportions ────────────────────────────────────────────────────────
+   The console's rail is 216px beside a fluid workspace. Mintlify's defaults
+   (a 264px sidebar, a 36rem text column) leave a narrow column floating in a
+   wide panel on a laptop or desktop screen, and squeeze tables until their
+   code wraps. A narrower rail and a column that grows with the screen keep
+   the reading width and the empty space in proportion. API pages keep room
+   for the example panel on their right, so their column grows later. */
+:root { --sidebar-width: 15.5rem; }
+@media (min-width: 1280px) { :root { --content-width: 42rem; } }
+@media (min-width: 1536px) { :root { --content-width: 46rem; } }
+@media (min-width: 1280px) { :root:has(#api-playground-2-operation-page) { --content-width: 36rem; } }
+@media (min-width: 1600px) { :root:has(#api-playground-2-operation-page) { --content-width: 40rem; } }
+
 /* ── type: the console's system faces ───────────────────────────────────── */
 html, body, button, input, select, textarea, .font-sans {
   font-family: var(--sans) !important;
@@ -47,6 +60,15 @@ body {
   letter-spacing: -0.02em;
 }
 #content-area table td, #content-area table th { font-variant-numeric: tabular-nums; }
+
+/* Body copy at the brand's density: generous line height (1.5–1.65), not
+   Mintlify's airier default, and a lead paragraph one step above body. */
+#content.mdx-content { font-size: 15.5px; line-height: 1.65; }
+#content.mdx-content table { font-size: 14px; line-height: 1.5; }
+#header #page-title { font-size: 34px; line-height: 1.12; letter-spacing: -0.03em; }
+#header .prose, #header .prose p { font-size: 16.5px; line-height: 1.6; color: var(--c-ink-2); }
+/* A URL or id in a table cell stays on one line. */
+#content-area table td code { white-space: nowrap; }
 
 /* The section label above a title reads like a console label, not a link. */
 #header .eyebrow { color: var(--c-ink-3) !important; font-weight: 600; letter-spacing: 0.01em; }
