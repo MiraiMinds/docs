@@ -1,0 +1,410 @@
+---
+title: Revisions, preview and publish
+description: Check an agent's prompts with real variables before a call, read every saved version, publish drafts and roll back.
+---
+
+
+Agents change over time, and a bad edit reaches the next real call. Revisions
+let you see what changed, refuse an edit made on stale data, and go back to a
+version that worked. Preview lets you check the exact text a call would start
+with before anyone is dialled.
+
+Base URL `https://sandbox.voice.miraiminds.co`. All endpoints require
+`Authorization: Bearer sk_live_…`. The Python and Node.js examples reuse `API`,
+`auth` and the agent ID from the first example on this page.
+
+## The revision model
+
+Every successful save creates a new, immutable revision. Creating the agent is
+revision `1`. Each `PATCH`, [`PUT /flow`](/v2/node-agents#edit-the-graph),
+[tool](/v2/tools) change, publish and rollback adds one. Preview never saves.
+
+The [agent object](/v2/agents#the-agent-object) carries `revision`, the
+current revision, and `draft`, which is `true` while the agent is a draft.
+
+**`if_revision`** is the revision you last read. Send it and the API refuses
+your write if the agent has changed since. It is optional on `PATCH`, the tool
+routes and `PUT /flow`, and required on publish and rollback.
+
+**A `409 conflict`** means someone saved the agent after you read it: a
+teammate in the console, another script, or your own earlier request. Nothing
+was saved. Read the agent again, check what changed, and resend with the new
+`revision`.
+
+**A draft** is not ready for ordinary calls. `POST /v2/calls` refuses it with
+`400 invalid_request`, and so does a new campaign. You can create or `PATCH` an
+agent with `"draft": true`. A draft may have an empty `system_prompt` or
+`first_message`.
+
+To try a draft, place a browser [test call](/v2/web-calls#create-the-call). It
+runs the saved draft as it is, without changing it. The draft must be complete,
+because the test call checks it as if it were published.
+
+```json
+{ "agent_id": "agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ", "channel": "web", "test": true }
+```
+
+<Note>
+An agent has one current configuration. A draft is not a copy beside the live
+agent: making an agent a draft pauses its ordinary calls. To check an edit
+without touching live calls, [preview it](#preview-an-agent) with `changes`.
+</Note>
+
+## Preview an agent
+
+```http
+POST /v2/agents/{id}/preview
+```
+
+Fills the agent's prompts with a set of `variables` and returns the text a call
+would start with. Nothing is saved, dialled or charged. Use it to check your
+variables before a campaign.
+
+| Field | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `variables` | object | no | The values a call would send. At most 32. |
+| `changes` | object | no | Any fields `PATCH` accepts, applied to this preview only. May include `if_revision`. |
+
+The body must be one JSON object. Send `{}` to render the saved agent with no
+variables.
+
+<Tabs>
+  <Tab title="cURL">
+    ```bash
+    curl -X POST https://sandbox.voice.miraiminds.co/v2/agents/agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ/preview \
+      -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+      -H "Content-Type: application/json" \
+      -d '{ "variables": { "customer_name": "Rahul", "order_id": "8842" } }'
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    import os, httpx
+
+    API = "https://sandbox.voice.miraiminds.co"
+    auth = {"Authorization": f"Bearer {os.environ['MIRAI_API_KEY']}"}
+    agent_id = "agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ"
+
+    r = httpx.post(
+        f"{API}/v2/agents/{agent_id}/preview",
+        headers=auth,
+        json={"variables": {"customer_name": "Rahul", "order_id": "8842"}},
+        timeout=30,
+    )
+    if r.status_code == 400:
+        raise RuntimeError(r.json()["error"]["message"])  # names the variable
+    preview = r.raise_for_status().json()
+    print(preview["first_message"])
+    ```
+  </Tab>
+  <Tab title="Node.js">
+    ```javascript
+    const API = "https://sandbox.voice.miraiminds.co";
+    const auth = { Authorization: `Bearer ${process.env.MIRAI_API_KEY}` };
+    const agentId = "agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ";
+
+    const res = await fetch(`${API}/v2/agents/${agentId}/preview`, {
+      method: "POST",
+      headers: { ...auth, "Content-Type": "application/json" },
+      body: JSON.stringify({ variables: { customer_name: "Rahul", order_id: "8842" } }),
+    });
+    const preview = await res.json();
+    if (!res.ok) throw new Error(`${preview.error.code}: ${preview.error.message}`);
+    console.log(preview.first_message);
+    ```
+  </Tab>
+</Tabs>
+
+```json title="200 OK"
+{
+  "agent_id": "agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ",
+  "agent_revision": 3,
+  "archived": false,
+  "draft": false,
+  "end_message": "धन्यवाद, आपका दिन शुभ हो।",
+  "first_message": "नमस्ते Rahul, मैं Acme से Priya बोल रही हूँ।",
+  "system_prompt": "You are Priya from Acme. Confirm order 8842 with Rahul.",
+  "variables": { "customer_name": "Rahul", "order_id": "8842" }
+}
+```
+
+| Field | Description |
+| :--- | :--- |
+| `agent_revision` | The saved revision the preview started from. `changes` never raise it. |
+| `variables` | The values used, with any `input_schema` defaults filled in. |
+| `system_prompt`, `first_message`, `end_message` | The rendered text. `end_message` is `end_call.message`. |
+| `draft`, `archived` | The agent's state. Preview works on drafts and archived agents too. |
+
+How values are checked:
+
+- **With an `input_schema`**, each value must match its declared type. A wrong
+  type returns `400` with a message such as
+  `variables.order_id must match type string`. A missing required value
+  returns `variables.order_id is required`.
+- **Without one**, every value must be a string. A number returns
+  `variables["order_id"] must be a string without input_schema`. A placeholder
+  with no value renders empty.
+
+To preview an edit before you save it, add `changes`. If you include
+`if_revision` and the agent has moved on, you get `409 conflict`.
+
+```json
+{
+  "variables": { "customer_name": "Rahul", "order_id": "8842" },
+  "changes": { "if_revision": 3, "first_message": "नमस्ते {{customer_name}} जी, Acme से Priya बोल रही हूँ।" }
+}
+```
+
+Preview renders the agent-level texts only. On a
+[node-based agent](/v2/node-agents), node prompts are not rendered here.
+
+## List revisions
+
+```http
+GET /v2/agents/{id}/revisions?limit=&cursor=
+```
+
+Every saved revision, newest first. Each item is the full agent object exactly
+as it was saved. `limit` is 1–100 (default 20). When `has_more` is true, send
+`next_cursor` back as `cursor`. It is the revision number, as a string, that the
+next page starts at. On the last page it is an empty string.
+
+<Tabs>
+  <Tab title="cURL">
+    ```bash
+    curl "https://sandbox.voice.miraiminds.co/v2/agents/agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ/revisions?limit=20" \
+      -H "Authorization: Bearer sk_live_YOUR_API_KEY"
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    page = httpx.get(
+        f"{API}/v2/agents/{agent_id}/revisions",
+        headers=auth,
+        params={"limit": 20},
+        timeout=30,
+    ).raise_for_status().json()
+
+    for rev in page["data"]:
+        print(rev["revision"], rev["draft"], rev["updated_at"])
+    ```
+  </Tab>
+  <Tab title="Node.js">
+    ```javascript
+    const page = await fetch(`${API}/v2/agents/${agentId}/revisions?limit=20`, {
+      headers: auth,
+    }).then((r) => r.json());
+
+    for (const rev of page.data) console.log(rev.revision, rev.draft, rev.updated_at);
+    ```
+  </Tab>
+</Tabs>
+
+```json title="200 OK (agent fields trimmed)"
+{
+  "data": [
+    { "id": "agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ", "object": "agent", "revision": 3, "draft": false, "updated_at": "2026-10-09T11:02:40Z" },
+    { "id": "agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ", "object": "agent", "revision": 2, "draft": false, "updated_at": "2026-10-08T16:20:11Z" },
+    { "id": "agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ", "object": "agent", "revision": 1, "draft": false, "updated_at": "2026-07-26T09:14:02Z" }
+  ],
+  "has_more": false,
+  "next_cursor": ""
+}
+```
+
+A `cursor` that is not a revision of this agent returns `400` with
+`cursor must identify an existing revision`.
+
+## Get a revision
+
+```http
+GET /v2/agents/{id}/revisions/{revision}
+```
+
+One saved revision, as it was. Revisions never change.
+
+<Tabs>
+  <Tab title="cURL">
+    ```bash
+    curl https://sandbox.voice.miraiminds.co/v2/agents/agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ/revisions/2 \
+      -H "Authorization: Bearer sk_live_YOUR_API_KEY"
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    old = httpx.get(
+        f"{API}/v2/agents/{agent_id}/revisions/2", headers=auth, timeout=30
+    ).raise_for_status().json()
+    print(old["revision"], old["first_message"])
+    ```
+  </Tab>
+  <Tab title="Node.js">
+    ```javascript
+    const old = await fetch(`${API}/v2/agents/${agentId}/revisions/2`, {
+      headers: auth,
+    }).then((r) => r.json());
+    console.log(old.revision, old.first_message);
+    ```
+  </Tab>
+</Tabs>
+
+Responds with **`200 OK`** and the [agent object](/v2/agents#the-agent-object)
+as saved at that revision. An unknown revision returns `404 not_found`. A
+`revision` that is not a positive integer returns `400 invalid_request`.
+
+To run one call on a saved revision instead of the current one, pass
+`agent_revision` to `POST /v2/calls`. This does not get around a draft: while
+the current agent is a draft, ordinary calls are refused whatever revision
+they name.
+
+## Publish a draft
+
+```http
+POST /v2/agents/{id}/publish
+```
+
+Checks the agent as if it were about to take a call, then saves it as a new
+revision with `draft: false`. Ordinary calls can use it again.
+
+`if_revision` is required. Send the revision you previewed or tested, so you
+publish exactly what you checked. An archived agent must be restored first,
+with `PATCH` and `{"archived": false}`.
+
+<Tabs>
+  <Tab title="cURL">
+    ```bash
+    curl -X POST https://sandbox.voice.miraiminds.co/v2/agents/agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ/publish \
+      -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+      -H "Content-Type: application/json" \
+      -d '{ "if_revision": 4 }'
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    r = httpx.post(
+        f"{API}/v2/agents/{agent_id}/publish",
+        headers=auth,
+        json={"if_revision": 4},
+        timeout=30,
+    )
+    if r.status_code == 409:
+        raise RuntimeError(r.json()["error"]["message"])  # changed since you tested it
+    agent = r.raise_for_status().json()
+    print(agent["revision"], agent["draft"])  # 5 False
+    ```
+  </Tab>
+  <Tab title="Node.js">
+    ```javascript
+    const pub = await fetch(`${API}/v2/agents/${agentId}/publish`, {
+      method: "POST",
+      headers: { ...auth, "Content-Type": "application/json" },
+      body: JSON.stringify({ if_revision: 4 }),
+    });
+    const published = await pub.json();
+    if (!pub.ok) throw new Error(JSON.stringify(published));
+    console.log(published.revision, published.draft); // 5 false
+    ```
+  </Tab>
+</Tabs>
+
+Responds with **`200 OK`** and the agent object, now at revision `5` with
+`draft: false`. Publishing an agent that is not a draft still checks it and
+saves a new revision.
+
+If the agent is incomplete, for example an empty `system_prompt`, you get
+`400 invalid_request` naming the field. A node-based agent's graph is checked
+again, including your tier's model, and problems come back as
+[`invalid_flow`](/v2/node-agents#errors).
+
+## Roll back to a revision
+
+```http
+POST /v2/agents/{id}/rollback
+```
+
+Copies an old revision's configuration into a new **draft** revision. The
+agent keeps its ID, name and archived state. Everything else comes from the old
+revision: prompts, voice, tools, flow and `input_schema`.
+
+Both fields are required and must be positive. `if_revision` is the agent's
+current revision. `revision` is the one to copy.
+
+<Tabs>
+  <Tab title="cURL">
+    ```bash
+    curl -X POST https://sandbox.voice.miraiminds.co/v2/agents/agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ/rollback \
+      -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+      -H "Content-Type: application/json" \
+      -d '{ "if_revision": 5, "revision": 2 }'
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    agent = httpx.post(
+        f"{API}/v2/agents/{agent_id}/rollback",
+        headers=auth,
+        json={"if_revision": 5, "revision": 2},
+        timeout=30,
+    ).raise_for_status().json()
+    print(agent["revision"], agent["draft"])  # 6 True
+    ```
+  </Tab>
+  <Tab title="Node.js">
+    ```javascript
+    const rb = await fetch(`${API}/v2/agents/${agentId}/rollback`, {
+      method: "POST",
+      headers: { ...auth, "Content-Type": "application/json" },
+      body: JSON.stringify({ if_revision: 5, revision: 2 }),
+    });
+    const restored = await rb.json();
+    if (!rb.ok) throw new Error(JSON.stringify(restored));
+    console.log(restored.revision, restored.draft); // 6 true
+    ```
+  </Tab>
+</Tabs>
+
+Responds with **`200 OK`** and the agent object, now at revision `6` with
+`draft: true`. The old configuration is checked against today's rules. A tool
+that reads a deleted secret, or a flow your tier's model cannot run, is
+refused with `400`.
+
+<Warning>
+A rollback makes the agent a draft, so ordinary calls are refused from that
+moment. Preview or test it, then [publish](#publish-a-draft) it to take calls
+again. If you are undoing a bad change in production, publish straight after
+you have checked it.
+</Warning>
+
+## Errors
+
+| Status | `error.code` | `error.message` today | When |
+| :--- | :--- | :--- | :--- |
+| `400` | `invalid_request` | `if_revision is required` | Publish without `if_revision`. |
+| `400` | `invalid_request` | `if_revision and revision must be positive` | Rollback with either field missing or `0`. |
+| `400` | `invalid_request` | `revision must be a positive integer` | `GET …/revisions/{revision}` with something like `latest`. |
+| `400` | `invalid_request` | `variables.order_id must match type string` | A value does not match the agent's `input_schema`. |
+| `400` | `invalid_request` | `variables["order_id"] must be a string without input_schema` | A non-string value on an agent with no `input_schema`. |
+| `400` | `invalid_request` | `body must be one JSON object` | Preview, publish or rollback sent with no body. |
+| `400` | `invalid_request` | `agent is a draft; publish it before calling, or use test=true on the web channel` | `POST /v2/calls` for a draft agent. |
+| `404` | `not_found` | `revision not found` | Get or rollback names a revision that does not exist. |
+| `409` | `conflict` | `agent changed; read its current revision and retry` | `if_revision` is not the current revision. Nothing was saved. |
+| `409` | `agent_archived` | `restore this agent before publishing` | Publish on an archived agent. |
+
+Branch on `error.code`, not the message. Messages can change. See
+[Errors](/v2/errors).
+
+## Typical flow
+
+**Edit, preview, publish.** While the agent is a draft, `PATCH` it with
+`if_revision`. Preview it and place a browser test call. Publish the revision
+you tested.
+
+**Roll back, preview, publish.** List revisions and find the last good one.
+Roll back to it; the agent is now a draft. Preview or test it, then publish.
+
+**Change a live agent.** Note `revision` from `GET /v2/agents/{id}`. Preview
+with `changes` and real `variables`. `PATCH` the same fields with
+`if_revision`. The next call uses them.
+
+Calls already queued or in progress keep the configuration they started with.
+A campaign keeps the agent revision it was created with.
