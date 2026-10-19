@@ -29,6 +29,28 @@ release. Save each one as a `.json` file, or import it straight from the link.
 | `sandbox.postman_environment.json` | `base_url` for trial workspaces: `https://sandbox.voice.miraiminds.co`. |
 | `production.postman_environment.json` | `base_url` for workspaces that have gone live: `https://prod.voice.miraiminds.co`. |
 
+### Collections for the models
+
+If you only use our text to speech or our language model, these two smaller
+collections hold just those routes. They use the same environment files and
+the same `api_key`; `test_number` is not used.
+
+<CardGroup cols={2}>
+  <Card title="Text to speech" icon="volume-high" href="https://console.voice.miraiminds.co/static/postman/mira-tts.postman_collection.json">
+    Speech, voices and your request log.
+  </Card>
+  <Card title="Language model" icon="message" href="https://console.voice.miraiminds.co/static/postman/mira-llm.postman_collection.json">
+    Chat completions, with tools and streamed.
+  </Card>
+</CardGroup>
+
+| File | What it is |
+| :--- | :--- |
+| `mira-tts.postman_collection.json` | [Text to speech](/v2/tts-quickstart): `POST /v1/audio/speech` (streamed PCM), `POST /v2/tts` (a finished WAV), the request log `GET /v2/tts/requests` and `GET /v2/tts/requests/{id}`, and `GET /v2/voices`, with example responses including the failures. |
+| `mira-llm.postman_collection.json` | The [language model](/v2/llm): `POST /v1/chat/completions` three ways, a plain completion, one with tools (and the follow-up turn after the function has run) and a streamed one, each with an example response. |
+
+Speech to text is in the main collection, in its **Speech to text** folder.
+
 ### Import by link
 
 In Postman, choose **Import**, paste a link, and import. Do it once for the
@@ -38,6 +60,8 @@ collection and once for the environment you need:
 https://console.voice.miraiminds.co/static/postman/mirai-voice.postman_collection.json
 https://console.voice.miraiminds.co/static/postman/sandbox.postman_environment.json
 https://console.voice.miraiminds.co/static/postman/production.postman_environment.json
+https://console.voice.miraiminds.co/static/postman/mira-tts.postman_collection.json
+https://console.voice.miraiminds.co/static/postman/mira-llm.postman_collection.json
 ```
 
 The console's **Developers** page links the same files.

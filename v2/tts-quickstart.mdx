@@ -161,6 +161,33 @@ with client.audio.speech.with_streaming_response.create(
 `sample_rate` is not an OpenAI parameter. To get another rate through the SDK,
 pass it in `extra_body={"sample_rate": 16000}`.
 
+To save the stream as a playable file, write the PCM into a WAV with Python's
+own `wave` module. You need no other audio package:
+
+```python
+import os
+import wave
+
+from openai import OpenAI
+
+client = OpenAI(
+    api_key=os.environ["MIRA_API_KEY"],
+    base_url="https://sandbox.voice.miraiminds.co/v1",
+)
+
+with wave.open("speech.wav", "wb") as wav:
+    wav.setparams((1, 2, 48000, 0, "NONE", "NONE"))  # mono, 16-bit, 48 kHz
+    with client.audio.speech.with_streaming_response.create(
+        model="mira-tts", voice="neha",
+        input="नमस्ते, आपका ऑर्डर कल तक पहुँच जाएगा।",
+        response_format="pcm",
+    ) as speech:
+        for chunk in speech.iter_bytes():
+            wav.writeframesraw(chunk)
+
+print("Saved speech.wav")
+```
+
 For a live conversation, the [WebSocket endpoint](/v2/tts-websocket) is a
 better fit than one request per sentence. You keep one connection for the
 whole call, send text as your model writes it, and stop a reply with one
@@ -188,7 +215,9 @@ caller interrupts, and keeps one connection open for the call. See
 Other frameworks with an OpenAI TTS integration can call the endpoint directly.
 Point them at `https://sandbox.voice.miraiminds.co/v1` with model `mira-tts`
 and `response_format="pcm"`. The audio is 48 kHz unless you ask for another
-rate, and `X-Sample-Rate` always tells you which rate you got.
+rate, and `X-Sample-Rate` always tells you which rate you got. On LiveKit
+Agents, the OpenAI plugin needs one setting for that rate; see
+[LiveKit](/v2/livekit).
 
 ## For phone calls
 
@@ -404,8 +433,8 @@ Rows come newest first, and only from your own workspace:
 `input`, so a row is recognisable in a list. The rest is never stored.
 </Note>
 
-The same table is in the console under **TTS → Requests**, if you would rather
-check it there than poll the API.
+The same table is in the console under **Text to Speech → Logs**, if you would
+rather check it there than poll the API.
 
 ## When something fails
 

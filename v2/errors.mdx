@@ -45,6 +45,7 @@ flow, or generating one.
 | `429` | Request-rate limit, or no capacity for the request (`at_capacity`). Reaching your *call* concurrency limit does not return `429`: those calls queue. | Yes, with backoff. |
 | `500` | Our fault. | Yes, with backoff. |
 | `501` | The feature exists in the contract but is not live yet. | No. |
+| `502` | A model behind the request failed: the [speech engine](/v2/tts-quickstart#when-something-fails) or the [language model](/v2/llm#when-something-fails) refused, returned nothing or stalled (`upstream_error`). Nothing was charged. | Yes. |
 | `503` | Temporarily unavailable (deploy, capacity), or a feature that is not provisioned for your workspace. | Yes for `fleet_offline` and `upstream_unavailable`. No for `campaigns_unavailable` and `transcription_unavailable`, which clear only when the feature is provisioned. |
 | `504` | [Speech to text](/v2/stt-quickstart#when-something-fails) over HTTP did not get the transcript back in time (`upstream_timeout`). Nothing was charged. | Yes. |
 
@@ -93,6 +94,7 @@ flow, or generating one.
 | `unavailable` | `503` | The speech-to-text recogniser is briefly unreachable or restarting, or a [speech socket](/v2/speech-to-text#when-the-connection-is-refused) reached a server that is restarting. Nothing was charged. | Honour `Retry-After` and retry. |
 | `maintenance_window` | `503` | A [speech API](/v2/speech#service-hours) request arrived during the engines' nightly pause: speech to text from 22:00 to 08:00 IST, text to speech from 22:00 to 09:00 IST. Nothing was charged. Phone calls are not affected. | Retry after `Retry-After`, which counts the seconds until the engine is back. |
 | `billing_unavailable` | `503` | We could not read your wallet, so a [speech-to-text session](/v2/speech-to-text#when-the-connection-is-refused) was not opened. | Retry in a couple of seconds. |
+| `upstream_error` | `502` | The model behind the request failed. On [text to speech](/v2/tts-quickstart#when-something-fails), the engine refused, returned no audio or stalled. On the [language model](/v2/llm#when-something-fails), the model was unavailable or returned nothing usable, and the body carries a `correlation_id`. Nothing was charged. | Retry. Quote `X-Request-Id` or `correlation_id` if you ask us about it. |
 | `upstream_timeout` | `504` | [Speech to text](/v2/stt-quickstart#when-something-fails) over HTTP did not get the transcript back in time. Nothing was charged. | Retry. For a long clip, use [offline transcription](/v2/transcriptions). |
 | `internal` | `500` | Our bug. It has already raised an alert on our side. | Retry with backoff; if it persists, send us the `call_id`. |
 
