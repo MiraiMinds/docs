@@ -85,6 +85,7 @@
             "pages": [
               "v2/speech",
               "v2/pipecat",
+              "v2/livekit",
               "v2/speech-compatibility"
             ]
           },
@@ -105,6 +106,12 @@
               "v2/stt-languages",
               "v2/transcribe-recorded-calls",
               "v2/transcriptions"
+            ]
+          },
+          {
+            "group": "Language model",
+            "pages": [
+              "v2/llm"
             ]
           },
           {

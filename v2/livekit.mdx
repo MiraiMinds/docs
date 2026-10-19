@@ -1,0 +1,125 @@
+---
+title: "LiveKit: Mirai voices in a LiveKit agent"
+sidebarTitle: "LiveKit"
+description: "Use Mira TTS in LiveKit Agents through LiveKit's OpenAI plugin: install, the 48 kHz sample-rate setting and its caveat, the WAV alternative, and a script that checks your connection."
+---
+
+There is no Mirai plugin for LiveKit Agents yet. LiveKit's OpenAI plugin can
+call our [OpenAI-compatible speech endpoint](/v2/tts-quickstart) instead, with
+one extra setting for the sample rate. This page was tested with LiveKit Agents
+1.8.0 and `livekit-plugins-openai` 1.8.0.
+
+## 1. Install
+
+```bash
+python -m pip install "livekit-agents==1.8.0" \
+  "livekit-plugins-openai==1.8.0"
+export MIRA_API_KEY='your_api_key'
+```
+
+Create the key in the console under **Developers**. See
+[Get a key](/v2/tts-quickstart#1-get-a-key).
+
+## 2. Add it to your agent
+
+```python
+import os
+
+from livekit.plugins.openai import tts as openai_tts
+
+# Mirai-only worker: Mirai's PCM is 48 kHz.
+openai_tts.SAMPLE_RATE = 48000
+
+tts = openai_tts.TTS(
+    api_key=os.environ["MIRA_API_KEY"],
+    base_url="https://sandbox.voice.miraiminds.co/v1",
+    model="mira-tts",
+    voice="neha",
+    response_format="pcm",
+)
+
+# Pass tts to AgentSession(tts=tts, ...).
+```
+
+The voices are `ashu`, `neha`, `shruti` and `sameer` ([hear them](/v2/voices)).
+Once your company has gone live, use `https://prod.voice.miraiminds.co/v1`.
+
+The plugin assumes OpenAI's PCM, which is 24 kHz. Ours is 48 kHz, so without
+the `SAMPLE_RATE` line LiveKit plays the audio at half speed and an octave too
+low. Set it before you create the TTS: the plugin reads it then, and again on
+every request.
+
+<Warning>
+**The setting changes every OpenAI TTS in the process.** `SAMPLE_RATE` belongs
+to LiveKit's OpenAI plugin module, not to one TTS object. OpenAI's own TTS
+sends 24 kHz PCM, and with this setting that audio plays at double speed. Run
+Mirai in a dedicated worker, and don't mix it with OpenAI TTS in the same
+worker.
+</Warning>
+
+Each request the plugin makes is an ordinary request to `POST /v1/audio/speech`:
+billed per character, counted against your
+[limits](/v2/tts-quickstart#limits), and listed in your
+[request log](/v2/tts-quickstart#your-request-log).
+
+### If you also use OpenAI TTS in the same worker
+
+Leave out the `SAMPLE_RATE` line and ask for WAV:
+
+```python
+tts = openai_tts.TTS(
+    api_key=os.environ["MIRA_API_KEY"],
+    base_url="https://sandbox.voice.miraiminds.co/v1",
+    model="mira-tts",
+    voice="neha",
+    response_format="wav",
+)
+```
+
+A WAV file states its own sample rate, so it plays at the right speed. The cost
+is latency: WAV is not streamed. Each piece of audio arrives in one go once
+it has been synthesised, so the caller hears each sentence later than with
+`pcm`.
+
+## 3. Check your connection
+
+Download the runnable example and run it. It speaks one line through LiveKit's
+OpenAI plugin and saves it as `speech.wav`. It needs only your Mirai key: no
+LiveKit room, microphone, STT or LLM key. It uses a little API credit.
+
+```bash
+curl -fsS https://console.voice.miraiminds.co/static/integrations/mirai_livekit.py \
+  -o mirai_livekit.py
+python mirai_livekit.py \
+  --base-url 'https://sandbox.voice.miraiminds.co/v1' \
+  --voice 'neha' \
+  --text 'नमस्ते, मैं आपकी कैसे मदद कर सकती हूँ?'
+```
+
+```text title="Output"
+Saved speech.wav: 2.47s, 48 kHz mono.
+```
+
+The script lists its dependencies inline, so `uv run mirai_livekit.py` works
+too, without the `pip install`.
+
+| Option | Default |
+| :--- | :--- |
+| `--voice` | `neha` |
+| `--text` | `नमस्ते, मैं आपकी कैसे मदद कर सकती हूँ?` |
+| `--base-url` | `https://sandbox.voice.miraiminds.co/v1` |
+| `--output` | `speech.wav` |
+
+It reads the key from `MIRA_API_KEY` (or `MIRAI_API_KEY`). If it fails, look
+up the status code from the error in
+[When something fails](/v2/tts-quickstart#when-something-fails); a `401` means
+the key is wrong or missing.
+
+<CardGroup cols={2}>
+  <Card title="TTS quickstart" icon="volume-high" href="/v2/tts-quickstart">
+    Voices, formats, limits and the request log.
+  </Card>
+  <Card title="Pipecat" icon="layer-group" href="/v2/pipecat">
+    Our own Pipecat services, if you build on Pipecat instead.
+  </Card>
+</CardGroup>

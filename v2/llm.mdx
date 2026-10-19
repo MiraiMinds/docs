@@ -1,0 +1,495 @@
+---
+title: "Language model API: mira-llm on OpenAI's chat completions"
+sidebarTitle: "Language model API"
+description: "Call mira-llm on the OpenAI-compatible POST /v1/chat/completions: one request, streaming, tool calls, Python, Pipecat, limits and the request log. Free while in beta."
+---
+
+`mira-llm` is the language model our voice agents run on, offered on its own.
+It answers on OpenAI's `POST /v1/chat/completions`, so the stock `openai`
+package and any framework with an OpenAI LLM integration can call it. You
+change the base URL, the key and the model name, and the rest of your code
+stays as it is.
+
+It was built for voice agents in India. It does best with the Hinglish real
+customers speak, Hindi and English in one sentence, in either script, and it
+calls tools the OpenAI way, with a `tool_calls` array.
+
+If you build agents on this platform, you don't need this page: your agents
+already run on this model.
+
+| | |
+| :--- | :--- |
+| Base URL | `https://sandbox.voice.miraiminds.co/v1`, or `https://prod.voice.miraiminds.co/v1` once your company has [gone live](/general/tiers#your-plan) |
+| Route | `POST /v1/chat/completions` |
+| Auth | `Authorization: Bearer sk_live_…` |
+| Model | `mira-llm` |
+| Price | Free while the model is in beta |
+
+On the production address, a key from a workspace that has not gone live gets
+`403 production_workspace_required`.
+
+## 1. Get a key
+
+Open the [console](https://sandbox.voice.miraiminds.co), go to **Developers**
+and press **Create key**. The key is a `sk_live_` secret and the console shows
+it only once. It is the same key you use for text to speech, speech to text
+and the rest of the [v2 API](/v2/overview). See
+[Get a key](/v2/tts-quickstart#1-get-a-key) for the first-time email check.
+
+Call the API from your server. Never put the key in a web page or a mobile
+app. There is no browser token for this route.
+
+## 2. One request
+
+```bash
+curl https://sandbox.voice.miraiminds.co/v1/chat/completions \
+  -H "Authorization: Bearer $MIRA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "mira-llm",
+    "messages": [
+      {"role": "system", "content": "You are a support agent for an online grocery store. Reply in the mix of Hindi and English the customer uses. Keep it to three sentences."},
+      {"role": "user", "content": "भाई मेरा order अभी तक नहीं आया, कल delivery date था. अब कहाँ tak pahuncha hai?"}
+    ],
+    "temperature": 0.3,
+    "max_tokens": 200
+  }'
+```
+
+```json title="200 OK"
+{
+  "id": "chatcmpl-01K3A7QF2M8N4P6R9T1V3W5X7Y",
+  "object": "chat.completion",
+  "created": 1755849600,
+  "model": "mira-llm",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "Sorry sir, delay के लिए माफ़ी. मैं अभी check कर लेता हूँ — आप order number बता दीजिए. उसके बाद exact status और नई delivery date दोनों बता दूंगा."
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 98,
+    "completion_tokens": 52,
+    "total_tokens": 150
+  }
+}
+```
+
+Without `"stream": true`, the whole reply arrives as one JSON document once
+the model has finished. That suits work nobody is waiting on, such as
+classification, extraction or a summary after a call. When a person is waiting,
+stream the reply.
+
+`model` must be `mira-llm`, and `model` in the response is always `mira-llm`.
+Any other value, including one an OpenAI client carries over such as
+`gpt-4o-mini`, returns `400 invalid_request` with a message that names the
+model to use.
+
+## 3. Stream it
+
+Add `"stream": true`. The reply comes back as server-sent events
+(`Content-Type: text/event-stream`), one `chat.completion.chunk` per `data:`
+line:
+
+```bash
+curl --no-buffer https://sandbox.voice.miraiminds.co/v1/chat/completions \
+  -H "Authorization: Bearer $MIRA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "mira-llm",
+    "messages": [
+      {"role": "system", "content": "You are a support agent for an online grocery store. Keep it short: this will be spoken aloud."},
+      {"role": "user", "content": "Mera refund kab tak aayega? Order return किए हुए चार दिन हो गए."}
+    ],
+    "stream": true
+  }'
+```
+
+```text title="200 OK · text/event-stream"
+data: {"id":"chatcmpl-01K3A7SZ4M6N8P0Q2R4S6T8V0W","object":"chat.completion.chunk","created":1755849810,"model":"mira-llm","choices":[{"index":0,"delta":{"role":"assistant","content":""},"finish_reason":null}]}
+
+data: {"id":"chatcmpl-01K3A7SZ4M6N8P0Q2R4S6T8V0W","object":"chat.completion.chunk","created":1755849810,"model":"mira-llm","choices":[{"index":0,"delta":{"content":"Refund"},"finish_reason":null}]}
+
+data: {"id":"chatcmpl-01K3A7SZ4M6N8P0Q2R4S6T8V0W","object":"chat.completion.chunk","created":1755849810,"model":"mira-llm","choices":[{"index":0,"delta":{"content":" process"},"finish_reason":null}]}
+
+…
+
+data: {"id":"chatcmpl-01K3A7SZ4M6N8P0Q2R4S6T8V0W","object":"chat.completion.chunk","created":1755849810,"model":"mira-llm","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}
+
+data: [DONE]
+```
+
+- The first chunk usually carries only `role`, with empty content. Start your
+  timer, or your speech, on the first chunk that has text.
+- Join the `delta.content` pieces in order. The last chunk carries an empty
+  `delta` and the `finish_reason`.
+- The stream ends with the line `data: [DONE]`, which is not JSON. Check for it
+  before you parse a line.
+- If the model stops part-way, the stream ends without a `finish_reason` and
+  without `data: [DONE]`. Treat that reply as incomplete.
+
+If you feed the reply to a text-to-speech service, send it on a sentence at a
+time, or use the [TTS WebSocket](/v2/tts-websocket), which takes tokens as they
+arrive and finds the sentence ends itself.
+
+## 4. Call tools
+
+Send a `tools` array of function schemas. When the model decides a function
+applies, it answers with `tool_calls` instead of text and stops with
+`finish_reason: "tool_calls"`:
+
+```bash
+curl https://sandbox.voice.miraiminds.co/v1/chat/completions \
+  -H "Authorization: Bearer $MIRA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "mira-llm",
+    "messages": [
+      {"role": "system", "content": "You book service visits. Today is Friday, 2026-08-22. Resolve relative days against today. Confirm nothing you have not been told."},
+      {"role": "user", "content": "कल शाम को koi slot mil jaayega kya? Mujhe चार बजे के बाद hi convenient hai, naam Rakesh Sharma."}
+    ],
+    "tools": [
+      {
+        "type": "function",
+        "function": {
+          "name": "book_slot",
+          "description": "Book a service visit.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "date": {"type": "string", "description": "The visit date as YYYY-MM-DD."},
+              "time_window": {"type": "string", "description": "A window as HH:MM-HH:MM, 24-hour clock."},
+              "name": {"type": "string", "description": "The customer name, if they have said it."}
+            },
+            "required": ["date", "time_window"]
+          }
+        }
+      }
+    ],
+    "tool_choice": "auto"
+  }'
+```
+
+```json title="200 OK"
+{
+  "id": "chatcmpl-01K3A7RD5N9P2Q4S6T8V0W2X4Z",
+  "object": "chat.completion",
+  "created": 1755849712,
+  "model": "mira-llm",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": null,
+        "tool_calls": [
+          {
+            "id": "call_01K3A7RDBQ7YHN4F2K6M8P0R",
+            "type": "function",
+            "function": {
+              "name": "book_slot",
+              "arguments": "{\"date\": \"2026-08-23\", \"time_window\": \"16:00-20:00\", \"name\": \"Rakesh Sharma\"}"
+            }
+          }
+        ]
+      },
+      "finish_reason": "tool_calls"
+    }
+  ]
+}
+```
+
+`function.arguments` is a JSON-encoded string, as on OpenAI. Parse it
+(`json.loads`, `JSON.parse`) before you read a field, and handle a parse
+failure: a model can produce malformed JSON.
+
+To finish the turn, run the function yourself, then send the conversation
+again with two more messages: the assistant message exactly as it came back,
+`tool_calls` and all, and a `tool` message with the matching `tool_call_id` and
+your result as a string. The model reads the result and answers in text:
+
+```json title="The two messages you add"
+[
+  {
+    "role": "assistant",
+    "content": null,
+    "tool_calls": [
+      {
+        "id": "call_01K3A7RDBQ7YHN4F2K6M8P0R",
+        "type": "function",
+        "function": {
+          "name": "book_slot",
+          "arguments": "{\"date\": \"2026-08-23\", \"time_window\": \"16:00-20:00\", \"name\": \"Rakesh Sharma\"}"
+        }
+      }
+    ]
+  },
+  {
+    "role": "tool",
+    "tool_call_id": "call_01K3A7RDBQ7YHN4F2K6M8P0R",
+    "content": "{\"booked\": true, \"date\": \"2026-08-23\", \"time_window\": \"16:00-20:00\", \"engineer\": \"Imran\"}"
+  }
+]
+```
+
+`tool_choice` takes `auto`, `none`, `required`, or one function as
+`{"type": "function", "function": {"name": "book_slot"}}`. Leave it at `auto`
+on a live call: forcing a call on a turn that was only "हाँ ठीक है" makes the
+model invent arguments. Use `required` only when the turn cannot end any other
+way.
+
+Tool calls also stream. With `"stream": true` they arrive as
+`delta.tool_calls` fragments, each with an `index`: the name in one chunk,
+pieces of the `arguments` string in the next. Join the fragments that share an
+`index` before you parse the arguments. The Python example below does this.
+
+## 5. Python
+
+The stock `openai` package, with the base URL and key changed. This example
+streams the reply, joins tool-call fragments on their `index`, runs the
+function and sends the result back:
+
+```python
+# pip install openai
+import json
+import os
+
+from openai import OpenAI
+
+client = OpenAI(
+    api_key=os.environ["MIRA_API_KEY"],
+    base_url="https://sandbox.voice.miraiminds.co/v1",
+)
+
+TOOLS = [{
+    "type": "function",
+    "function": {
+        "name": "book_slot",
+        "description": "Book a service visit for a customer.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "date": {"type": "string", "description": "ISO date, YYYY-MM-DD"},
+                "time_window": {"type": "string", "description": "e.g. 16:00-18:00"},
+                "name": {"type": "string", "description": "customer name"},
+            },
+            "required": ["date", "time_window"],
+        },
+    },
+}]
+
+
+def book_slot(args):
+    # Replace with your own booking code.
+    return {"booked": True, "reference": "SRV-40912", **args}
+
+
+HANDLERS = {"book_slot": book_slot}
+
+
+def stream_reply(messages):
+    """Stream one reply. Returns its text and its tool calls, joined."""
+    stream = client.chat.completions.create(
+        model="mira-llm", messages=messages, tools=TOOLS, stream=True,
+    )
+    text, calls = "", {}
+    for chunk in stream:
+        if not chunk.choices:
+            continue
+        delta = chunk.choices[0].delta
+        if delta.content:
+            text += delta.content
+            print(delta.content, end="", flush=True)
+        for tc in delta.tool_calls or []:  # fragments: join them on .index
+            call = calls.setdefault(tc.index, {"id": "", "name": "", "arguments": ""})
+            if tc.id:
+                call["id"] = tc.id
+            if tc.function and tc.function.name:
+                call["name"] += tc.function.name
+            if tc.function and tc.function.arguments:
+                call["arguments"] += tc.function.arguments
+    return text, list(calls.values())
+
+
+messages = [
+    {"role": "system", "content": "You book service visits. Today is 2026-10-19."},
+    {"role": "user", "content": "कल शाम चार से छह के बीच service के लिए बंदा भेज दो, नाम है Rakesh Sharma."},
+]
+
+text, calls = stream_reply(messages)
+if calls:
+    messages.append({
+        "role": "assistant",
+        "content": text or None,
+        "tool_calls": [
+            {"id": c["id"], "type": "function",
+             "function": {"name": c["name"], "arguments": c["arguments"]}}
+            for c in calls
+        ],
+    })
+    for c in calls:
+        args = json.loads(c["arguments"])  # a JSON string, even when complete
+        result = HANDLERS[c["name"]](args)
+        messages.append({"role": "tool", "tool_call_id": c["id"],
+                         "content": json.dumps(result, ensure_ascii=False)})
+    stream_reply(messages)  # the model reads the result and answers
+print()
+```
+
+## 6. Pipecat
+
+Pipecat's `OpenAILLMService` works with a base URL change, the same swap the
+[TTS quickstart](/v2/tts-quickstart#4-pipecat) describes for speech:
+
+```python
+import os
+
+from pipecat.services.openai.llm import OpenAILLMService
+
+
+class MiraiLLMService(OpenAILLMService):
+    # mira-llm accepts system, user, assistant and tool messages. This makes
+    # Pipecat send its "developer" messages as "user" messages instead.
+    supports_developer_role = False
+
+
+llm = MiraiLLMService(
+    api_key=os.environ["MIRA_API_KEY"],
+    base_url="https://sandbox.voice.miraiminds.co/v1",
+    settings=MiraiLLMService.Settings(model="mira-llm"),
+)
+
+
+# Pipecat runs the call-and-resume loop. You supply the handler.
+# `calendar` stands for your own booking client.
+async def book_slot(params):
+    await params.result_callback(await calendar.book(**params.arguments))
+
+
+llm.register_function("book_slot", book_slot)
+```
+
+Put `llm` where your LLM service was, between the user context aggregator and
+your TTS service. Three things to know on a real call:
+
+- **Pipecat sometimes adds `developer` messages**, for example when the tool
+  set changes mid-call or a function runs with `cancel_on_interruption=False`.
+  This API refuses a `developer` message with `400 invalid_request`. The
+  subclass above has Pipecat send those messages as `user` messages instead.
+- **A long call passes the [conversation limits](#limits).** Pipecat keeps the
+  whole conversation in its context, and each turn adds at least two messages,
+  so after about ten turns a request goes over 20 messages and is refused.
+  Trim the context as the call goes on: keep the system message and the latest
+  turns. Pipecat's context summarization can do this if you set its thresholds
+  below our limits.
+- **Only some settings reach the model.** Pipecat also sends `top_p`, `seed`,
+  the penalties and `stream_options`; we ignore them. `temperature` and
+  `max_tokens` work. See [What the API reads](#what-the-api-reads).
+
+This page was checked against Pipecat 1.8.1, where passing `model=` to the
+constructor still works but is deprecated in favour of
+`settings=...Settings(model=...)`.
+
+## What the API reads
+
+We read seven fields and ignore everything else, so a body written for another
+provider still runs, with fewer of its settings in effect:
+
+| Field | Values | Default |
+| :--- | :--- | :--- |
+| `model` | `mira-llm` | Required |
+| `messages` | 1 to 20 messages. `role` is `system`, `user`, `assistant` or `tool`. `content` is a string; an array of content parts (images, audio) is refused. An `assistant` message may leave `content` out when it carries `tool_calls`. A `tool` message needs `tool_call_id`. | Required |
+| `tools` | Up to 6, each `{"type": "function", "function": {"name", "description", "parameters"}}`. Other keys inside a tool are dropped. | None |
+| `tool_choice` | `auto`, `none`, `required`, or `{"type": "function", "function": {"name": …}}`. Any other value is dropped. Ignored without `tools`. | Left to the model |
+| `temperature` | 0 to 1.5. A value outside the range is clamped to it. | `0.3` |
+| `max_tokens` | 1 to 400. A larger value is lowered to 400. | `400` |
+| `stream` | `true` for server-sent events. | `false` |
+
+`top_p`, `stop`, `seed`, `n`, `frequency_penalty`, `presence_penalty`,
+`response_format`, `parallel_tool_calls`, `stream_options`,
+`max_completion_tokens` and `user` are ignored. So is the `name` field on a
+message.
+
+## Limits
+
+| Limit | Value | Over the limit |
+| :--- | :--- | :--- |
+| Messages per request | **20** | `400 invalid_request`. Trim older turns. |
+| Text per request | **8,000 characters**, counted over every message's `content` | `400 invalid_request`. |
+| Tools per request | **6** | `400 invalid_request`. |
+| Reply length | **400 tokens** | The reply stops with `finish_reason: "length"`. |
+| Request rate | The same limit as the rest of the API (see [Limits](/v2/limits#rate-limits)) | `429 rate_limited` with `Retry-After`. |
+
+Each refusal says which limit you hit.
+
+## Price
+
+Free while the model is in beta. A request does not check or debit your
+wallet, and it writes no ledger row. The request rate limit still applies.
+
+## Your request log
+
+Every request your keys make is logged, whether it completed or failed. Open
+the console's **Language Model** page and choose **Logs**. Each row shows the
+time and request id, a preview of the last user message, the time to the first
+token, the total time, the tokens in and out when the model reported them,
+tool calls, and the status. Requests from the console's playground are in the
+same table, tagged. Pick 24 hours, 7 days or 30 days.
+
+The log holds your workspace's latest 1,000 requests. It stores metadata and
+the first 140 characters of the last user message, never the whole
+conversation. Requests refused for a missing, unknown or revoked key, or for
+the rate limit, are not logged.
+
+The log is in the console only. There is no API for it yet.
+
+## Try it in the console
+
+The **Playground** tab on the same page is a chat with the model. You can set a
+system prompt and switch three demo tools on or off (`book_slot`,
+`check_order_status` and `send_payment_link`). When the model calls one, the
+playground shows the arguments it extracted and the raw messages going each
+way. The tool results are simulated: nothing is booked, looked up or sent.
+**Code for this message** gives you the cURL command for what you just sent.
+
+## Postman
+
+The [language model collection](https://console.voice.miraiminds.co/static/postman/mira-llm.postman_collection.json)
+has three requests: a chat completion, one with tools (with the follow-up turn
+after the function has run) and a streaming one, each with a worked example
+response. Import it with the
+[sandbox environment](https://console.voice.miraiminds.co/static/postman/sandbox.postman_environment.json),
+or the [production environment](https://console.voice.miraiminds.co/static/postman/production.postman_environment.json)
+once you have gone live, and set `api_key`. See
+[Postman collection](/api-reference/postman) for how to import.
+
+## When something fails
+
+Errors use the same [envelope](/v2/errors) as the rest of the API:
+
+| Status | `code` | Cause |
+| :--- | :--- | :--- |
+| 400 | `invalid_request` | The body is not a JSON object, `model` is not `mira-llm`, a message or tool breaks the rules in [What the API reads](#what-the-api-reads), or the request is over a [limit](#limits). The message says which. |
+| 401 | `unauthorized` | Missing or unknown key. Check the `Authorization: Bearer sk_live_…` header. |
+| 403 | `forbidden` | The key was revoked. |
+| 403 | `production_workspace_required` | A key from a workspace that has not gone live was sent to `https://prod.voice.miraiminds.co`. |
+| 429 | `rate_limited` | Request rate. Honour `Retry-After`. |
+| 502 | `upstream_error` | The model is unavailable, or returned nothing or something unreadable. The body carries a `correlation_id`; quote it if you ask us about the failure. Retry. |
+| 503 | `unavailable` | The language model is not configured on this deployment. |
+
+A stream that has already started cannot change its status code. If the model
+fails after the first chunk, the stream just ends, without `data: [DONE]`.
+
+<CardGroup cols={2}>
+  <Card title="TTS quickstart" icon="volume-high" href="/v2/tts-quickstart">
+    Speak the model's reply with Mira TTS.
+  </Card>
+  <Card title="Pipecat" icon="layer-group" href="/v2/pipecat">
+    Mirai's own Pipecat services for speech.
+  </Card>
+</CardGroup>
