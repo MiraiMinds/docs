@@ -433,7 +433,7 @@ the API:
 | 415 | `unsupported_media` | We could not decode the file. Send WAV or a common compressed format, or raw audio with `encoding` and `sample_rate`. |
 | 429 | `at_capacity` | Your workspace already has 10 sessions running, or the service is at its own ceiling. Honour `Retry-After`. |
 | 429 | `rate_limited` | Per-key request rate. Honour `Retry-After`, and see [Limits](/v2/limits). |
-| 503 | `maintenance_window` | Speech to text is in its nightly pause, 22:00 to 08:00 IST. `Retry-After` counts the seconds until 08:00. Nothing was charged. See [Service hours](/v2/speech#service-hours). |
+| 503 | `maintenance_window` | Rare. Speech to text is down for planned maintenance. `Retry-After` counts the seconds until it is back. Nothing was charged. See [Availability](/v2/speech#availability). |
 | 503 | `unavailable` | The recogniser is briefly unreachable or restarting. Nothing was charged. Honour `Retry-After`. |
 | 504 | `upstream_timeout` | The transcript did not arrive within 30 seconds plus half the clip's length. Nothing was charged. Retry, or send a long clip to offline transcription. |
 

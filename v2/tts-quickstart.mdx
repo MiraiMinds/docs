@@ -449,7 +449,7 @@ rather check it there than poll the API.
 | 429 | `rate_limited` | Per-key request rate. Honour `Retry-After`, and see [Limits](/v2/limits). |
 | 502 | `upstream_error` | The engine refused, returned no audio, or the stream stalled past its timeout. Nothing was charged; the message says which. Retry. |
 | 503 | `fleet_offline` | No speech capacity is online. Nothing was charged. Honour `Retry-After`. |
-| 503 | `maintenance_window` | Text to speech is in its nightly pause, 22:00 to 09:00 IST. `Retry-After` counts the seconds until 09:00. Nothing was charged. See [Service hours](/v2/speech#service-hours). |
+| 503 | `maintenance_window` | Rare. Text to speech is down for planned maintenance. `Retry-After` counts the seconds until it is back. Nothing was charged. See [Availability](/v2/speech#availability). |
 
 Errors use the same envelope as the rest of the API. See
 [Errors](/v2/errors). If you are stuck on something this page does not cover,
