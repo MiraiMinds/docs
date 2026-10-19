@@ -40,6 +40,8 @@
   <rect x="150" y="191" width="490" height="16" rx="3" fill="#07C983"/>
   <text x="632" y="203" text-anchor="end" font-size="11" font-weight="700" fill="#0B2A1D">76.5M</text>
   <text x="677" y="203" font-size="12" fill="#9AA39D">81.1M</text>
+  <rect x="721" y="191" width="38" height="16" rx="8" fill="#07C983" opacity="0.14"/>
+  <text x="740" y="203" text-anchor="middle" font-size="9.5" font-weight="700" fill="#07C983" letter-spacing="0.8">LIVE</text>
 
   <!-- Tamil -->
   <text x="138" y="250" text-anchor="end" font-size="13" font-weight="600" fill="#E8EAE8">Tamil</text>
@@ -48,6 +50,8 @@
   <rect x="150" y="245" width="435" height="16" rx="3" fill="#07C983"/>
   <text x="577" y="257" text-anchor="end" font-size="11" font-weight="700" fill="#0B2A1D">68.0M</text>
   <text x="600" y="257" font-size="12" fill="#9AA39D">69.0M</text>
+  <rect x="644" y="245" width="38" height="16" rx="8" fill="#07C983" opacity="0.14"/>
+  <text x="663" y="257" text-anchor="middle" font-size="9.5" font-weight="700" fill="#07C983" letter-spacing="0.8">LIVE</text>
 
   <!-- Gujarati -->
   <text x="138" y="304" text-anchor="end" font-size="13" font-weight="600" fill="#E8EAE8">Gujarati</text>
@@ -56,6 +60,8 @@
   <rect x="150" y="299" width="216" height="16" rx="3" fill="#07C983"/>
   <text x="358" y="311" text-anchor="end" font-size="11" font-weight="700" fill="#0B2A1D">33.8M</text>
   <text x="513" y="311" font-size="12" fill="#9AA39D">55.5M</text>
+  <rect x="557" y="299" width="38" height="16" rx="8" fill="#07C983" opacity="0.14"/>
+  <text x="576" y="311" text-anchor="middle" font-size="9.5" font-weight="700" fill="#07C983" letter-spacing="0.8">LIVE</text>
 
   <!-- Kannada -->
   <text x="138" y="358" text-anchor="end" font-size="13" font-weight="600" fill="#E8EAE8">Kannada</text>
