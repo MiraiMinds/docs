@@ -1343,8 +1343,8 @@ data: {"v":1,"seq":12,"type":"flow.node.entered","call_id":"call_01K8C5F7H9K1M3P
 | `flow.node.entered` | `node_id`, `name`, `previous_id` | The call entered a node. The start node sends one too, with `previous_id: null`. It arrives before the reply that node produces. |
 | `flow.variables.extracted` | `node_id`, `variables` | A node's extraction saved values: the names that node asked for, with what was extracted. Sent only when something was extracted, shortly after the call leaves the node. |
 
-The full event reference is in [Browser calls](/v2/web-calls#live-events).
-Phone calls have no live event stream.
+The full event reference is in [Live events](/v2/live-events). A phone call
+has the same stream, with the same flow events.
 
 Try each branch before you dial anyone:
 
@@ -1426,8 +1426,11 @@ The same agent takes phone calls. Send `to` instead of `channel: "web"`.
 </Tabs>
 
 **`202 Accepted`**, and the call follows the usual
-[lifecycle](/v2/calls#statuses) and [webhooks](/v2/webhooks). To run the same
-agent over a list, create a [campaign](/v2/campaigns) with its `agent_id`.
+[lifecycle](/v2/calls#statuses) and [webhooks](/v2/webhooks). The `202` carries
+`events_url`, so you can watch the phone call move through the graph with the
+same listeners as the browser test. The first event arrives when the call is
+answered. See [Live events](/v2/live-events). To run the same agent over a
+list, create a [campaign](/v2/campaigns) with its `agent_id`.
 
 {/* FLOW-OUTCOME */}
 
@@ -1639,7 +1642,8 @@ model.
 | | With a node-based agent |
 | :--- | :--- |
 | Phone calls | `POST /v2/calls` with `to`, as for any agent. |
-| Browser calls | `POST /v2/calls` with `channel: "web"`. The event stream adds the [flow events](#step-4-test-it-in-the-browser). |
+| Browser calls | `POST /v2/calls` with `channel: "web"`. |
+| Live events | Every call's [event stream](/v2/live-events) adds the [flow events](#step-4-test-it-in-the-browser), phone calls included. |
 | Campaigns | Use the agent's ID as the campaign's `agent_id`. |
 | Text chat | Not supported. A call with `channel: "text"` is refused with `409 flow_agent_voice_only`. |
 | `variables` | Fill the node prompts, greetings and extraction prompts. See [variables in node text](#variables-in-node-text). |

@@ -7,7 +7,8 @@ description: "Get a signed event each time a call moves on: event types, payload
 
 Pass `webhook_url` when you [create a call](/v2/calls#create-a-call) and we POST
 a signed JSON event at each lifecycle transition. Webhooks are the intended way
-to learn a call's outcome. Use polling only as a fallback.
+to learn a call's outcome. Use polling only as a fallback. To show a call while
+it runs, turn by turn, read its [live events](/v2/live-events).
 
 Your endpoint must be **public HTTPS** and must return a **2xx** quickly. Any
 other status, or a connection failure, triggers [retries](#retries).

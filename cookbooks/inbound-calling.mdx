@@ -348,6 +348,7 @@ For an incoming call, `from` is the caller and `to` is your business number.
 | Request | Result |
 | :--- | :--- |
 | `GET /v2/calls/{id}` | Status, direction, agent revision, duration, cost, and result availability |
+| `GET /v2/calls/{id}/events` | The call's [live events](/v2/live-events) while it runs: agent state and each turn |
 | `GET /v2/calls/{id}/transcript` | The conversation transcript when available |
 | `GET /v2/calls/{id}/recording` | Redirect to available recording audio |
 | `GET /v2/calls/{id}/analysis` | Post-call analysis state and results, when configured |

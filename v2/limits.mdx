@@ -213,13 +213,21 @@ Invalid values return `400 invalid_request`.
 | `wrap_up_instruction` | 1,000 characters |
 | `close_message`, `user_silence_message` | 500 characters each |
 
+### Live events
+
+These apply to every call's [live event stream](/v2/live-events): phone,
+campaign, inbound, browser and realtime.
+
+| Thing | Limit |
+| :--- | :--- |
+| Events link (`events_url`) | Reusable. Its token is valid for the call's maximum duration plus one hour. |
+| Live event replay | Kept for one hour after the call ends. |
+
 ### Browser calls
 
 | Thing | Limit |
 | :--- | :--- |
 | Audio link (`ws_url`) | Single use. Connect within 5 minutes of creating the call. |
-| Events link (`events_url`) | Reusable for the whole call and one hour after it ends. |
-| Live event replay | Kept for one hour after the call ends. |
 | Control `instruction` text | 1–1,000 characters |
 | Control `close` message | 500 characters |
 | Control acknowledgement | `200` within 3 seconds, otherwise `202 pending` |
