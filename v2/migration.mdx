@@ -80,7 +80,7 @@ create, rotate and revoke in the console, so switch to one when you can.
 | `POST /v2/call/web` | [`POST /v2/calls`](/v2/web-calls#create-the-call) with `channel: "web"` | Your backend creates the call and gives the page an audio link and a live event link. See [Browser calls](/v2/web-calls). |
 | `GET /v1/number-pool/*` | `/v2/phone-numbers` and `/v2/telephony/*` | Different resources and IDs. Follow the [inbound setup recipe](/cookbooks/inbound-calling); importing does not change routing until activation. |
 | `/v1/admin/tool/api` (all methods) | [`/v2/agents/{id}/tools/{name}`](/v2/tools#api-routes) | Tools belong to an agent; recreate the definition instead of copying a v1 ID. |
-| `/v1/knowledge-base/*` | — | v1 Knowledge Base. |
+| `/v1/knowledge-base/*` | [`/v2/knowledge-bases`](/v2/knowledge-bases) | Different resources and IDs. Add your sources again, then attach the knowledge base with the agent's `knowledge` block. |
 | `GET /v1/admin/voice-gallery` | — | Still v1. v2 `voice_id` values come from this same catalogue. See [Voices](/v2/voices). |
 | — | [`GET /v2/calls/{id}/transcript`](/v2/calls#get-the-transcript) | **New.** Turn-by-turn, as spoken. |
 | — | [`GET /v2/calls/{id}/recording`](/v2/calls#get-the-recording) | **New.** `302` to a 15-minute signed URL. This is the v2 equivalent of v1's `recordingUrl`. |
@@ -385,5 +385,6 @@ returns the resource itself. See the [error reference](/v2/errors).
 5. Switch one low-volume flow to v2 and compare its outcomes with the same flow
    on v1 for a day.
 6. Recreate and test your [tools](/v2/tools) on the v2 agent, then move the
-   remaining calls. Check support for other capabilities, such as the
-   knowledge base, before moving the assistants that use them.
+   remaining calls. Add your documents and website to a
+   [knowledge base](/v2/knowledge-bases) and attach it to the v2 agent before
+   moving assistants that use the v1 knowledge base.

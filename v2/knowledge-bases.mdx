@@ -1,0 +1,404 @@
+---
+title: "Knowledge bases: answer callers from your website and documents"
+sidebarTitle: "Knowledge bases"
+description: "Give a voice agent your website, files, text and FAQs. It looks up the answer during the call and replies in the caller's language. Set it up in the console or with the API."
+---
+
+A knowledge base holds what your business already has written down: your
+website, policy documents, product sheets, pasted text and answers to common
+questions. Attach it to an agent, and the agent looks things up there while it
+talks. When a caller asks "do you deliver to Surat?", the agent finds the part
+of your delivery page that answers it and replies in a sentence or two.
+
+Callers can ask in their own language. A Hindi or Gujarati caller can ask about
+an English policy page, and the agent answers in the caller's language. Mira
+does the search and the answering; you only add the sources.
+
+A knowledge base belongs to a workspace. One agent can use up to five, and one
+knowledge base can serve many agents.
+
+## Set it up in the console
+
+<Steps>
+  <Step title="Create a knowledge base">
+    Open **Knowledge** in the sidebar, under **Agent Studio**. Click **New
+    knowledge base**, give it a name such as "Store policies", and click
+    **Create**.
+  </Step>
+  <Step title="Add your sources">
+    Click **Add source** and pick one of four kinds:
+
+    - **Files**: drop one or more files. PDF, Word (DOCX), TXT, Markdown, HTML,
+      CSV or Excel (XLSX), up to 50 MB each.
+    - **Website**: enter an address and choose **This page only**,
+      **Sitemap** or **Whole site**. For a sitemap or a whole site, you can cap
+      the number of pages and limit the crawl to some paths, such as `/help`.
+    - **Paste text**: up to 200,000 characters.
+    - **FAQ**: question and answer pairs.
+
+    You can add more sources later. Each source syncs on its own.
+  </Step>
+  <Step title="Wait for Ready">
+    The sources table shows each source's progress, for example
+    **Fetching · 12 of 40**, then **Ready**. A website with many pages takes
+    longer than one file. If a source fails, the reason appears under its name.
+  </Step>
+  <Step title="Try a question">
+    Under **Try a question**, type something the way a caller would say it, in
+    any language. You see the passages your agent would read and which source
+    each came from. If the right passage is missing, see
+    [Tips for good answers](#tips-for-good-answers).
+  </Step>
+  <Step title="Attach it to an agent">
+    Open the agent in **Agent Studio** and choose the **Knowledge** tab. Tick
+    the knowledge bases this agent should use, leave the mode on **Auto**, and
+    click **Save changes**. A knowledge base that is still syncing shows
+    **Still syncing · calls don't use it yet**.
+  </Step>
+  <Step title="Test it on a call">
+    Click **Test agent** and ask a question your sources answer. After the
+    call, a chip such as **From returns.pdf** appears under each agent line
+    that used your knowledge. The same chips appear on the call's transcript
+    in **Call history**.
+  </Step>
+</Steps>
+
+## Set it up with the API
+
+Base URL `https://sandbox.voice.miraiminds.co`. All endpoints require
+`Authorization: Bearer sk_live_…`. Every route is listed in the
+[API reference](/api-reference/introduction).
+
+```bash
+export MIRAI_API_BASE="https://sandbox.voice.miraiminds.co"
+export MIRAI_API_KEY="sk_live_YOUR_API_KEY"
+export MIRAI_AGENT_ID="agt_YOUR_AGENT_ID"
+```
+
+### 1. Create a knowledge base
+
+```bash
+curl --fail-with-body -X POST "$MIRAI_API_BASE/v2/knowledge-bases" \
+  -H "Authorization: Bearer $MIRAI_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Store policies",
+    "description": "Delivery, returns and payment",
+    "settings": { "languages": ["hi", "gu", "en"] }
+  }'
+```
+
+`name` is required, up to 200 characters. `description` is optional, up to
+2,000. `settings.languages` lists the languages your callers will ask in; leave
+it out and Mira chooses. The response is `201 Created`:
+
+```json
+{
+  "id": "kb_01JZT4M8Q2X7N3K5R9W6Y1B0CD",
+  "object": "knowledge_base",
+  "name": "Store policies",
+  "description": "Delivery, returns and payment",
+  "status": "empty",
+  "active_version": null,
+  "settings": { "languages": ["hi", "gu", "en"], "refresh": "manual" },
+  "stats": { "sources": 0, "ready_sources": 0, "failed_sources": 0, "pages": 0, "chunks": 0, "tokens": 0, "bytes": 0 },
+  "created_at": "2026-10-19T09:30:00Z",
+  "updated_at": "2026-10-19T09:30:00Z"
+}
+```
+
+```bash
+export MIRAI_KB_ID="kb_01JZT4M8Q2X7N3K5R9W6Y1B0CD"
+```
+
+### 2. Add a web page
+
+```bash
+curl --fail-with-body -X POST "$MIRAI_API_BASE/v2/knowledge-bases/$MIRAI_KB_ID/sources" \
+  -H "Authorization: Bearer $MIRAI_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "type": "url", "url": "https://www.example.com/shipping-policy" }'
+```
+
+The response is `202 Accepted` with the new source in status `queued`. Syncing
+starts on its own. To read a whole site instead, use `"type": "site"`; see
+[Sources and limits](#sources-and-limits) for every type.
+
+### 3. Upload a file
+
+Send a file as `multipart/form-data` with a `file` field. `name` is optional;
+without it the source is named after the file. Send one file per request.
+
+```bash
+curl --fail-with-body -X POST "$MIRAI_API_BASE/v2/knowledge-bases/$MIRAI_KB_ID/sources" \
+  -H "Authorization: Bearer $MIRAI_API_KEY" \
+  -F "file=@returns.pdf" \
+  -F "name=Returns policy"
+```
+
+This also answers `202 Accepted` with the source `queued`.
+
+### 4. Wait until the source is ready
+
+```bash
+curl --fail-with-body "$MIRAI_API_BASE/v2/knowledge-bases/$MIRAI_KB_ID/sources/ks_01JZT4P0A6C3E8G1J4L7N2Q5S9" \
+  -H "Authorization: Bearer $MIRAI_API_KEY"
+```
+
+```json
+{
+  "id": "ks_01JZT4P0A6C3E8G1J4L7N2Q5S9",
+  "object": "knowledge_source",
+  "knowledge_base_id": "kb_01JZT4M8Q2X7N3K5R9W6Y1B0CD",
+  "type": "file",
+  "name": "Returns policy",
+  "status": "indexing",
+  "progress": { "stage": "embedding", "done": 3, "total": 8 },
+  "error": null,
+  "spec": { "filename": "returns.pdf", "content_type": "application/pdf" },
+  "bytes": 482113,
+  "pages": 0,
+  "chunks": 0,
+  "tokens": 0,
+  "last_synced_at": null,
+  "created_at": "2026-10-19T09:31:02Z",
+  "updated_at": "2026-10-19T09:31:20Z"
+}
+```
+
+`status` moves through `queued`, `fetching`, `parsing` and `indexing` to
+`ready` or `failed`. While it syncs, `progress` shows the stage and how far it
+has got. A failed source carries `error` with a `code` and a plain-words
+`message`. To list every source at once, call
+`GET /v2/knowledge-bases/{id}/sources`, optionally with `?status=failed`.
+
+Poll every few seconds until the source settles:
+
+```python
+import os, time, httpx
+
+base = os.environ["MIRAI_API_BASE"]
+auth = {"Authorization": f"Bearer {os.environ['MIRAI_API_KEY']}"}
+kb, source = os.environ["MIRAI_KB_ID"], "ks_01JZT4P0A6C3E8G1J4L7N2Q5S9"
+
+while True:
+    s = httpx.get(f"{base}/v2/knowledge-bases/{kb}/sources/{source}",
+                  headers=auth, timeout=30).raise_for_status().json()
+    if s["status"] in ("ready", "failed"):
+        break
+    time.sleep(5)
+print(s["status"], s["error"])
+```
+
+The knowledge base itself is `ready` once a version is built, and
+`active_version` stops being `null`. Calls only use a knowledge base that has
+an active version.
+
+### 5. Try a question
+
+```bash
+curl --fail-with-body -X POST "$MIRAI_API_BASE/v2/knowledge-bases/$MIRAI_KB_ID/search" \
+  -H "Authorization: Bearer $MIRAI_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "query": "सूरत में डिलीवरी होती है क्या?", "top_k": 3 }'
+```
+
+`query` is 1 to 500 characters, in any language. `top_k` is 1 to 20, default
+5. The answer lists the passages an agent would read, best first. Each hit has
+at least `text`, `title`, `source_id` and `score`, and `ms` says how long the
+search took. Abridged:
+
+```json
+{
+  "object": "knowledge_search",
+  "knowledge_base_id": "kb_01JZT4M8Q2X7N3K5R9W6Y1B0CD",
+  "version": 1,
+  "hits": [
+    {
+      "source_id": "ks_01JZT4N5V2D9F6H3K8M1P4R7T0",
+      "title": "Shipping policy",
+      "text": "We deliver across Gujarat, including Surat, in 3–5 working days. Delivery is free above ₹999.",
+      "score": 0.91
+    }
+  ]
+}
+```
+
+Before the first source is ready, search answers `409 not_ready`. To see every
+passage a source was split into, call
+`GET /v2/knowledge-bases/{id}/chunks?source_id=ks_…`.
+
+### 6. Attach it to an agent
+
+Add a `knowledge` block to the agent:
+
+```bash
+curl --fail-with-body -X PATCH "$MIRAI_API_BASE/v2/agents/$MIRAI_AGENT_ID" \
+  -H "Authorization: Bearer $MIRAI_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d "{ \"knowledge\": { \"base_ids\": [\"$MIRAI_KB_ID\"], \"mode\": \"auto\" } }"
+```
+
+| Field | Default | Meaning |
+| --- | --- | --- |
+| `base_ids` | `[]` | Up to 5 knowledge base ids from this workspace. An id that does not exist is a `400` naming its position. |
+| `mode` | `auto` | `auto`, `always_retrieve` or `off`. See [Modes](#modes). |
+| `max_chunks` | `5` | Passages the agent reads per turn, 1 to 6. |
+| `min_score` | `null` | Relevance cut-off from 0 to 1. `null` uses a threshold Mira sets for each knowledge base. Leave it unset unless you have a reason. |
+
+The block is part of the agent, so each change makes a new
+[agent revision](/v2/agents#update-an-agent). A `PATCH` replaces the whole
+block, and `"knowledge": null` removes it. Like every agent change, it applies
+from the next call. Each call uses the version of the knowledge base that was
+ready when the call started.
+
+## Sources and limits
+
+| `type` | What it reads | Fields |
+| --- | --- | --- |
+| File (multipart) | One uploaded file. | `file`, optional `name`. |
+| `url` | One web page. | `url`. |
+| `sitemap` | The pages a sitemap lists. Give the sitemap's address, usually `/sitemap.xml`. | `url`, `max_pages`, `include`, `exclude`. |
+| `site` | Follows links on the same site, up to three links deep from `url`. | `url`, `max_pages`, `include`, `exclude`. |
+| `text` | Text you paste. | `text`, optional `title`. |
+| `faq` | Question and answer pairs. | `items`: `[{"question": "…", "answer": "…"}]`. |
+
+Every JSON source also takes an optional `name`. `include` and `exclude` are
+lists of path prefixes, such as `["/help", "/policies"]`, up to 20 each.
+
+Supported files:
+
+| Format | Notes |
+| --- | --- |
+| PDF | PDFs with selectable text. A scanned PDF is a picture of each page with no text in it, so it fails. |
+| Word (`.docx`) | Headings and tables are kept. |
+| Text (`.txt`), Markdown (`.md`) | Markdown headings shape the passages. |
+| HTML (`.html`, `.htm`) | The main content is kept; menus and footers are dropped. |
+| CSV, Excel (`.xlsx`) | One passage per row, up to 100,000 rows. The first row must be a header, such as `Product, Price, Sizes`. Good for a product catalogue. |
+
+Password-protected files fail; remove the password and upload again. Old
+`.doc` and `.xls` files are not supported; save them as DOCX or XLSX.
+
+On websites, Mira reads the main text of each page and skips menus, footers and
+cookie banners. It respects your `robots.txt`. A page that only shows its text
+after JavaScript runs may come back empty; add that content as a file or text
+instead.
+
+| Limit | Value |
+| --- | --- |
+| Knowledge bases per workspace | 20 (`409 knowledge_base_limit`) |
+| Sources per knowledge base | 200 (`409 source_limit`) |
+| File size | 50 MB (`413 file_too_large`) |
+| Pages per `sitemap` or `site` source | 1 to 2,000, default 500 |
+| Pasted text | 200,000 characters |
+| FAQ | 1 to 500 pairs per source; question up to 500 characters, answer up to 2,000 |
+| JSON request body for a source | 8 MB (`413 request_too_large`) |
+| Passages per knowledge base | 50,000. A source that would go past it fails. |
+| Knowledge bases per agent | 5 |
+
+## Modes
+
+| Console | `mode` | What the agent does |
+| --- | --- | --- |
+| **Auto** (recommended) | `auto` | A small knowledge base, a few pages of text, goes into the conversation whole. A larger one is searched each time the caller speaks. |
+| **Always search** | `always_retrieve` | Searches on every caller turn, whatever the size. |
+| **Off** | `off` | Keeps the knowledge bases attached but doesn't use them on calls. Use it to switch knowledge off for a while without losing the setup. |
+
+**Passages per answer** (`max_chunks`) is how many passages the agent reads
+before it answers. Raise it when answers need facts from several places. Lower
+it when the agent pulls in unrelated detail.
+
+If a search finds nothing relevant, the agent gets no passages for that turn
+and is told to say it will check. A call never waits on knowledge. If a lookup
+cannot finish in time, the agent answers that turn without it.
+
+## What not to put in a knowledge base
+
+A knowledge base is for facts that stay the same for days or weeks: policies,
+product details, store hours, how-to steps. It is a copy of your content from
+the last sync, so it cannot know what changed this morning.
+
+Stock levels, order status, delivery dates for a specific order, today's
+prices and free appointment slots change by the minute. Give the agent an
+[on-call tool](/v2/tools) for those. A tool asks your system during the call,
+so the answer is always current.
+
+## Sync, re-sync and delete
+
+### Sync a source again
+
+When a source's content changes, click **Sync again** on the source, or call:
+
+```bash
+curl --fail-with-body -X POST \
+  "$MIRAI_API_BASE/v2/knowledge-bases/$MIRAI_KB_ID/sources/ks_01JZT4P0A6C3E8G1J4L7N2Q5S9/sync" \
+  -H "Authorization: Bearer $MIRAI_API_KEY"
+```
+
+It answers `202` with the source `queued`. A website re-crawl only re-reads
+pages that changed. Syncing is manual for now; there is no schedule yet. If a
+sync fails, calls keep using the last good content.
+
+### Remove a source
+
+Click **Remove**, or call `DELETE /v2/knowledge-bases/{id}/sources/{source_id}`
+(`204`). The knowledge base is rebuilt without it. Until the rebuild is ready,
+calls keep using the previous version.
+
+### Delete a knowledge base
+
+Click **Delete**, or call `DELETE /v2/knowledge-bases/{id}` (`204`). While agents use it, the delete is
+refused with `409` and the list of those agents:
+
+```json
+{
+  "error": {
+    "code": "knowledge_base_in_use",
+    "message": "1 agent(s) use this knowledge base; remove it from them, or delete with ?detach=true",
+    "agents": [{ "id": "agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ", "name": "Order Confirmation" }]
+  }
+}
+```
+
+Remove it from those agents first, or delete with `?detach=true` to do both in
+one step. In the console, choose **Remove from agents and delete**. Each agent
+it is removed from gets a new revision. A deleted knowledge base disappears
+at once and new calls stop using it. Its stored files are removed about two
+hours later, so calls already running can finish.
+
+## Tips for good answers
+
+- Add FAQ pairs for the ten or twenty questions callers ask most. An FAQ
+  answer is never split, so the agent reads all of it.
+- Keep each fact in one place. If your delivery page says 3 to 5 days and your
+  FAQ page says 7 days, the agent may read either one. Fix the contradiction in
+  your content, or leave the outdated page out with `exclude`.
+- Use clear headings. Headings such as "Returns" and "Exchange within 7 days"
+  tell the agent what a passage is about. Long pages with no headings are
+  harder to search.
+- Keep a website crawl to the pages that answer customers. Use `include` for
+  paths such as `/help` and `/policies`, and `exclude` for blogs and careers
+  pages.
+- Test the way callers talk. In **Try a question**, ask short, spoken
+  questions in Hindi, Gujarati or Hinglish as well as English. If the right
+  passage doesn't come back, add an FAQ pair in the caller's words.
+- Put facts in the knowledge base and keep the
+  [prompt](/v2/prompting-guide) for how the agent should speak and behave.
+
+## Errors
+
+Errors use the [standard envelope](/v2/errors).
+
+| Status | `code` | Meaning |
+| --- | --- | --- |
+| `400` | `invalid_request` | A field is missing or out of range. The message names it. |
+| `400` | `knowledge_unavailable` | The agent's `knowledge` block was sent where knowledge isn't available, or with a mode that isn't available yet. |
+| `404` | `not_found` | No such knowledge base or source in your workspace, or knowledge isn't on for your workspace yet. |
+| `409` | `knowledge_base_limit` | The workspace already has 20 knowledge bases. |
+| `409` | `source_limit` | The knowledge base already has 200 sources. |
+| `409` | `knowledge_base_in_use` | Agents use this knowledge base. See [Delete a knowledge base](#delete-a-knowledge-base). |
+| `409` | `not_ready` | Search or preview before the first source is ready. Try again in a minute. |
+| `413` | `file_too_large` | The file is over 50 MB. |
+| `413` | `request_too_large` | A JSON source is over 8 MB. Upload long documents as a file. |
+| `415` | `unsupported_file_type` | Send PDF, DOCX, TXT, MD, HTML, CSV or XLSX. |
+| `502`, `503`, `504` | `upstream_error`, `upstream_unavailable`, `upstream_timeout` | Search or upload is briefly unavailable. Retry after a few seconds. |

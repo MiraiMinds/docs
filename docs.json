@@ -62,6 +62,7 @@
               "v2/agents",
               "v2/node-agents",
               "v2/tools",
+              "v2/knowledge-bases",
               "v2/analysis",
               "v2/calls",
               "v2/live-events",
