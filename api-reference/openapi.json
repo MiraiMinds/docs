@@ -657,11 +657,12 @@
                             "properties": {
                               "enabled": {
                                 "default": false,
+                                "description": "Run the analysis after every call that connected; a call that never connected is skipped (not_connected). Default false. On the T1 plan, your workspace's insights setting decides this for each call instead.",
                                 "type": "boolean"
                               },
                               "output_schema": {
                                 "additionalProperties": false,
-                                "description": "Root object schema from the documented bounded subset. Nested nodes use the same keywords; the server validates depth, node count and keyword/type compatibility.",
+                                "description": "The shape of analysis.data: a root object schema from the documented bounded subset. Nested nodes use the same keywords; the server validates depth, node count and keyword/type compatibility. The model's data must satisfy it before the result is published. Not a template: placeholders are not rendered here.",
                                 "properties": {
                                   "additionalProperties": {
                                     "default": false,
@@ -726,10 +727,12 @@
                                 "type": "object"
                               },
                               "prompt": {
+                                "description": "What the analysis should summarise or extract, in your words: the instruction the model reads beside the transcript. At most 2000 characters. {{variable}} placeholders render with the same rules as system_prompt: the call's variables (for example {{customer_name}}) and pre-call tool outputs as {{tool_name.key}}. A placeholder with no value renders empty. For example: Write the summary in {{summary_language}}.",
                                 "maxLength": 2000,
                                 "type": "string"
                               },
                               "success_criteria": {
+                                "description": "How to decide success: true, false, or null when the conversation does not show it. At most 2000 characters. {{variable}} placeholders render with the same rules as system_prompt: the call's variables (for example {{customer_name}}) and pre-call tool outputs as {{tool_name.key}}. A placeholder with no value renders empty.",
                                 "maxLength": 2000,
                                 "type": "string"
                               },
@@ -2160,6 +2163,45 @@
                   "agent_revision": {
                     "minimum": 1,
                     "type": "integer"
+                  },
+                  "call_settings": {
+                    "additionalProperties": false,
+                    "description": "This call's voice and languages, each key over the agent's (and, later, under a pre_call tool's call_settings). voice.voice_id is the older spelling of call_settings.voice_id; both with different values is 400 invalid_request. An unknown key, an unknown voice or language is 400 invalid_request naming the allowed values. The effective values and their sources are on the call object as call_settings.",
+                    "properties": {
+                      "language": {
+                        "description": "The main language speech recognition listens for on this call, as an agent's language (for example hi, gu or en-IN).",
+                        "maxLength": 35,
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      "secondary_languages": {
+                        "description": "Other languages callers may speak on this call. Base codes (gu-IN is read as gu; or as od); duplicates and the main language are dropped; at most 4. [] listens for the main language only.",
+                        "items": {
+                          "enum": [
+                            "hi",
+                            "en",
+                            "gu",
+                            "mr",
+                            "bn",
+                            "ta",
+                            "te",
+                            "kn",
+                            "ml",
+                            "pa",
+                            "od"
+                          ],
+                          "type": "string"
+                        },
+                        "maxItems": 4,
+                        "type": "array"
+                      },
+                      "voice_id": {
+                        "description": "The voice the agent speaks in on this call: one of the voices an agent's voice.voice_id accepts. Same as the older voice.voice_id; both with different values is 400.",
+                        "minLength": 1,
+                        "type": "string"
+                      }
+                    },
+                    "type": "object"
                   },
                   "caller_name": {
                     "type": "string"
@@ -7193,6 +7235,45 @@
                     "items": {
                       "additionalProperties": false,
                       "properties": {
+                        "call_settings": {
+                          "additionalProperties": false,
+                          "description": "The voice and languages for this call only, over the agent's. Every key is optional; a key left out keeps the agent's value (or, on a campaign contact, the request's). The same object is accepted on POST /v2/calls, on a campaign contact and in a pre_call tool's result. An unknown key or a value that fails these rules is 400 invalid_request naming it.",
+                          "properties": {
+                            "language": {
+                              "description": "The main language speech recognition listens for on this call, as an agent's language (for example hi, gu or en-IN).",
+                              "maxLength": 35,
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "secondary_languages": {
+                              "description": "Other languages callers may speak on this call. Base codes (gu-IN is read as gu; or as od); duplicates and the main language are dropped; at most 4. [] listens for the main language only.",
+                              "items": {
+                                "enum": [
+                                  "hi",
+                                  "en",
+                                  "gu",
+                                  "mr",
+                                  "bn",
+                                  "ta",
+                                  "te",
+                                  "kn",
+                                  "ml",
+                                  "pa",
+                                  "od"
+                                ],
+                                "type": "string"
+                              },
+                              "maxItems": 4,
+                              "type": "array"
+                            },
+                            "voice_id": {
+                              "description": "The voice the agent speaks in on this call: one of the voices an agent's voice.voice_id accepts. Same as the older voice.voice_id; both with different values is 400.",
+                              "minLength": 1,
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "id": {
                           "type": "string"
                         },
@@ -7572,6 +7653,45 @@
                     "items": {
                       "additionalProperties": false,
                       "properties": {
+                        "call_settings": {
+                          "additionalProperties": false,
+                          "description": "The voice and languages for this call only, over the agent's. Every key is optional; a key left out keeps the agent's value (or, on a campaign contact, the request's). The same object is accepted on POST /v2/calls, on a campaign contact and in a pre_call tool's result. An unknown key or a value that fails these rules is 400 invalid_request naming it.",
+                          "properties": {
+                            "language": {
+                              "description": "The main language speech recognition listens for on this call, as an agent's language (for example hi, gu or en-IN).",
+                              "maxLength": 35,
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "secondary_languages": {
+                              "description": "Other languages callers may speak on this call. Base codes (gu-IN is read as gu; or as od); duplicates and the main language are dropped; at most 4. [] listens for the main language only.",
+                              "items": {
+                                "enum": [
+                                  "hi",
+                                  "en",
+                                  "gu",
+                                  "mr",
+                                  "bn",
+                                  "ta",
+                                  "te",
+                                  "kn",
+                                  "ml",
+                                  "pa",
+                                  "od"
+                                ],
+                                "type": "string"
+                              },
+                              "maxItems": 4,
+                              "type": "array"
+                            },
+                            "voice_id": {
+                              "description": "The voice the agent speaks in on this call: one of the voices an agent's voice.voice_id accepts. Same as the older voice.voice_id; both with different values is 400.",
+                              "minLength": 1,
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "id": {
                           "type": "string"
                         },
@@ -15704,11 +15824,12 @@
                 "properties": {
                   "enabled": {
                     "default": false,
+                    "description": "Run the analysis after every call that connected; a call that never connected is skipped (not_connected). Default false. On the T1 plan, your workspace's insights setting decides this for each call instead.",
                     "type": "boolean"
                   },
                   "output_schema": {
                     "additionalProperties": false,
-                    "description": "Root object schema from the documented bounded subset. Nested nodes use the same keywords; the server validates depth, node count and keyword/type compatibility.",
+                    "description": "The shape of analysis.data: a root object schema from the documented bounded subset. Nested nodes use the same keywords; the server validates depth, node count and keyword/type compatibility. The model's data must satisfy it before the result is published. Not a template: placeholders are not rendered here.",
                     "properties": {
                       "additionalProperties": {
                         "default": false,
@@ -15773,10 +15894,12 @@
                     "type": "object"
                   },
                   "prompt": {
+                    "description": "What the analysis should summarise or extract, in your words: the instruction the model reads beside the transcript. At most 2000 characters. {{variable}} placeholders render with the same rules as system_prompt: the call's variables (for example {{customer_name}}) and pre-call tool outputs as {{tool_name.key}}. A placeholder with no value renders empty. For example: Write the summary in {{summary_language}}.",
                     "maxLength": 2000,
                     "type": "string"
                   },
                   "success_criteria": {
+                    "description": "How to decide success: true, false, or null when the conversation does not show it. At most 2000 characters. {{variable}} placeholders render with the same rules as system_prompt: the call's variables (for example {{customer_name}}) and pre-call tool outputs as {{tool_name.key}}. A placeholder with no value renders empty.",
                     "maxLength": 2000,
                     "type": "string"
                   },
@@ -16137,11 +16260,12 @@
                 "properties": {
                   "enabled": {
                     "default": false,
+                    "description": "Run the analysis after every call that connected; a call that never connected is skipped (not_connected). Default false. On the T1 plan, your workspace's insights setting decides this for each call instead.",
                     "type": "boolean"
                   },
                   "output_schema": {
                     "additionalProperties": false,
-                    "description": "Root object schema from the documented bounded subset. Nested nodes use the same keywords; the server validates depth, node count and keyword/type compatibility.",
+                    "description": "The shape of analysis.data: a root object schema from the documented bounded subset. Nested nodes use the same keywords; the server validates depth, node count and keyword/type compatibility. The model's data must satisfy it before the result is published. Not a template: placeholders are not rendered here.",
                     "properties": {
                       "additionalProperties": {
                         "default": false,
@@ -16206,10 +16330,12 @@
                     "type": "object"
                   },
                   "prompt": {
+                    "description": "What the analysis should summarise or extract, in your words: the instruction the model reads beside the transcript. At most 2000 characters. {{variable}} placeholders render with the same rules as system_prompt: the call's variables (for example {{customer_name}}) and pre-call tool outputs as {{tool_name.key}}. A placeholder with no value renders empty. For example: Write the summary in {{summary_language}}.",
                     "maxLength": 2000,
                     "type": "string"
                   },
                   "success_criteria": {
+                    "description": "How to decide success: true, false, or null when the conversation does not show it. At most 2000 characters. {{variable}} placeholders render with the same rules as system_prompt: the call's variables (for example {{customer_name}}) and pre-call tool outputs as {{tool_name.key}}. A placeholder with no value renders empty.",
                     "maxLength": 2000,
                     "type": "string"
                   },
@@ -16578,11 +16704,12 @@
                 "properties": {
                   "enabled": {
                     "default": false,
+                    "description": "Run the analysis after every call that connected; a call that never connected is skipped (not_connected). Default false. On the T1 plan, your workspace's insights setting decides this for each call instead.",
                     "type": "boolean"
                   },
                   "output_schema": {
                     "additionalProperties": false,
-                    "description": "Root object schema from the documented bounded subset. Nested nodes use the same keywords; the server validates depth, node count and keyword/type compatibility.",
+                    "description": "The shape of analysis.data: a root object schema from the documented bounded subset. Nested nodes use the same keywords; the server validates depth, node count and keyword/type compatibility. The model's data must satisfy it before the result is published. Not a template: placeholders are not rendered here.",
                     "properties": {
                       "additionalProperties": {
                         "default": false,
@@ -16647,10 +16774,12 @@
                     "type": "object"
                   },
                   "prompt": {
+                    "description": "What the analysis should summarise or extract, in your words: the instruction the model reads beside the transcript. At most 2000 characters. {{variable}} placeholders render with the same rules as system_prompt: the call's variables (for example {{customer_name}}) and pre-call tool outputs as {{tool_name.key}}. A placeholder with no value renders empty. For example: Write the summary in {{summary_language}}.",
                     "maxLength": 2000,
                     "type": "string"
                   },
                   "success_criteria": {
+                    "description": "How to decide success: true, false, or null when the conversation does not show it. At most 2000 characters. {{variable}} placeholders render with the same rules as system_prompt: the call's variables (for example {{customer_name}}) and pre-call tool outputs as {{tool_name.key}}. A placeholder with no value renders empty.",
                     "maxLength": 2000,
                     "type": "string"
                   },
@@ -17087,10 +17216,12 @@
         "additionalProperties": false,
         "properties": {
           "description": {
+            "description": "What the template is for. The model reads it when choosing.",
             "maxLength": 1000,
             "type": "string"
           },
           "language": {
+            "description": "The template's language, as you label it (at most 35 characters). Returned with a selected template.",
             "maxLength": 35,
             "type": "string"
           },
@@ -17106,6 +17237,7 @@
               "additionalProperties": false,
               "properties": {
                 "description": {
+                  "description": "What this value should hold. The model reads it when filling the template.",
                   "maxLength": 1000,
                   "type": "string"
                 },
@@ -17204,6 +17336,7 @@
                 "additionalProperties": {
                   "type": "string"
                 },
+                "description": "Request headers, at most 20. Values are templates, rendered like a post_call tool's request.",
                 "maxProperties": 20,
                 "type": "object"
               },
@@ -17214,6 +17347,7 @@
               },
               "method": {
                 "default": "GET",
+                "description": "GET (default) or POST.",
                 "enum": [
                   "GET",
                   "POST"
@@ -17224,6 +17358,7 @@
                 "additionalProperties": {
                   "type": "string"
                 },
+                "description": "Query parameters, at most 20, URL-encoded. Values are templates, rendered like a post_call tool's request.",
                 "maxProperties": 20,
                 "type": "object"
               },
@@ -17244,6 +17379,7 @@
             "type": "string"
           },
           "items": {
+            "description": "The catalog: 1-50 templates. Exactly one of items or fetch.",
             "items": {
               "$ref": "#/components/schemas/AnalysisTemplateItem"
             },
@@ -17259,6 +17395,9 @@
         "properties": {
           "analysis": {
             "$ref": "#/components/schemas/CallAnalysisValue"
+          },
+          "call_settings": {
+            "$ref": "#/components/schemas/CallSettingsEffective"
           },
           "calls_from_source": {
             "description": "How an outbound phone call's number was chosen: request (the call's own phone_number_id, or its campaign's), agent (the agent's calls_from), shared (the Mirai shared line, shared with other customers and showing as Mirai) or trunk (a carrier line from a campaign's caller_ids). Absent on inbound, web and WhatsApp calls.",
@@ -17502,6 +17641,107 @@
         ],
         "type": "object"
       },
+      "CallSettings": {
+        "additionalProperties": false,
+        "description": "The voice and languages for this call only, over the agent's. Every key is optional; a key left out keeps the agent's value (or, on a campaign contact, the request's). The same object is accepted on POST /v2/calls, on a campaign contact and in a pre_call tool's result. An unknown key or a value that fails these rules is 400 invalid_request naming it.",
+        "properties": {
+          "language": {
+            "description": "The main language speech recognition listens for on this call, as an agent's language (for example hi, gu or en-IN).",
+            "maxLength": 35,
+            "minLength": 1,
+            "type": "string"
+          },
+          "secondary_languages": {
+            "description": "Other languages callers may speak on this call. Base codes (gu-IN is read as gu; or as od); duplicates and the main language are dropped; at most 4. [] listens for the main language only.",
+            "items": {
+              "enum": [
+                "hi",
+                "en",
+                "gu",
+                "mr",
+                "bn",
+                "ta",
+                "te",
+                "kn",
+                "ml",
+                "pa",
+                "od"
+              ],
+              "type": "string"
+            },
+            "maxItems": 4,
+            "type": "array"
+          },
+          "voice_id": {
+            "description": "The voice the agent speaks in on this call: one of the voices an agent's voice.voice_id accepts. Same as the older voice.voice_id; both with different values is 400.",
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "CallSettingsEffective": {
+        "description": "The voice and languages this call ran with, and who chose each. Present on every call admitted since per-call settings existed (GET, list and every webhook); absent on older calls.",
+        "properties": {
+          "language": {
+            "type": "string"
+          },
+          "secondary_languages": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "sources": {
+            "description": "Where each value came from: agent (the agent's own), request (POST /v2/calls call_settings or voice.voice_id), campaign (the campaign contact) or pre_call:<tool name> (that pre_call tool's result).",
+            "properties": {
+              "language": {
+                "examples": [
+                  "agent",
+                  "request",
+                  "campaign",
+                  "pre_call:crm_lookup"
+                ],
+                "type": "string"
+              },
+              "secondary_languages": {
+                "examples": [
+                  "agent",
+                  "request",
+                  "campaign",
+                  "pre_call:crm_lookup"
+                ],
+                "type": "string"
+              },
+              "voice_id": {
+                "examples": [
+                  "agent",
+                  "request",
+                  "campaign",
+                  "pre_call:crm_lookup"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "voice_id",
+              "language",
+              "secondary_languages"
+            ],
+            "type": "object"
+          },
+          "voice_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "voice_id",
+          "language",
+          "secondary_languages",
+          "sources"
+        ],
+        "type": "object"
+      },
       "CallSummary": {
         "description": "GET /v2/calls/summary: this workspace's calls created in [from, to), or all of them when both are null. Every key is always present; counts are calls, one per call id.",
         "properties": {
@@ -17602,6 +17842,7 @@
             "additionalProperties": false,
             "properties": {
               "all": {
+                "description": "True when every condition in the list is true.",
                 "items": {
                   "$ref": "#/components/schemas/Condition"
                 },
@@ -17618,6 +17859,7 @@
             "additionalProperties": false,
             "properties": {
               "any": {
+                "description": "True when at least one condition in the list is true.",
                 "items": {
                   "$ref": "#/components/schemas/Condition"
                 },
@@ -17650,6 +17892,7 @@
                 "type": "string"
               },
               "op": {
+                "description": "The comparison. exists, not_exists, is_true and is_false take no value; in and not_in take an array.",
                 "enum": [
                   "contains",
                   "ends_with",
@@ -18982,11 +19225,12 @@
           },
           "enabled": {
             "default": true,
+            "description": "false keeps the tool saved but never runs it. Default true.",
             "type": "boolean"
           },
           "execution": {
             "default": "sync",
-            "description": "On-call HTTP tools may run in the background and return their result when ready.",
+            "description": "sync (default) or async, HTTP tools only. An async on_call tool runs in the background and returns its result when ready (timeout up to 300000 ms). An async pre_call tool starts with the pre-call phase and never holds the dial or the answer (timeout up to 120000 ms, on_failure continue): its outputs reach on_call tool requests, post_call tools and the analysis, and the live conversation as an instruction, once it answers.",
             "enum": [
               "sync",
               "async"
@@ -19021,6 +19265,7 @@
             "type": "object"
           },
           "phase": {
+            "description": "When the tool runs: pre_call before the call is placed or answered, on_call when the model asks for it during the conversation, post_call after the call ends.",
             "enum": [
               "pre_call",
               "on_call",
@@ -19044,6 +19289,7 @@
               },
               "method": {
                 "default": "GET",
+                "description": "HTTP method. Default GET.",
                 "enum": [
                   "GET",
                   "POST",
@@ -19074,6 +19320,7 @@
           },
           "response": {
             "additionalProperties": false,
+            "description": "How the HTTP response becomes the tool's result and the values it promotes into variables.",
             "properties": {
               "select": {
                 "description": "Keys promoted into variables as <tool>.<key>, each at most 512 characters.",
@@ -19089,7 +19336,7 @@
                 "type": "boolean"
               },
               "transform": {
-                "description": "jq, evaluated with a 100 ms budget and a 64 KB output cap. No input/inputs, no env, no modules.",
+                "description": "jq, evaluated with a 100 ms budget and a 64 KB output cap. No input/inputs, no env, no modules. On a pre_call tool, a top-level call_settings object in the result (after transform) sets this call's voice and languages.",
                 "type": "string"
               }
             },
@@ -19100,11 +19347,13 @@
             "description": "Defaults 0 for pre_call and on_call, 2 for post_call. on_call may not retry: a second attempt is another whole timeout of silence for the caller.",
             "properties": {
               "attempts": {
+                "description": "Retries after the first attempt fails; 0 means one attempt only. The default and the maximum depend on the phase (see retry).",
                 "minimum": 0,
                 "type": "integer"
               },
               "backoff_ms": {
                 "default": 500,
+                "description": "Wait between attempts, in milliseconds. Default 500, at most 10000.",
                 "maximum": 10000,
                 "minimum": 0,
                 "type": "integer"
@@ -19160,11 +19409,12 @@
           },
           "enabled": {
             "default": true,
+            "description": "false keeps the tool saved but never runs it. Default true.",
             "type": "boolean"
           },
           "execution": {
             "default": "sync",
-            "description": "On-call HTTP tools may run in the background and return their result when ready.",
+            "description": "sync (default) or async, HTTP tools only. An async on_call tool runs in the background and returns its result when ready (timeout up to 300000 ms). An async pre_call tool starts with the pre-call phase and never holds the dial or the answer (timeout up to 120000 ms, on_failure continue): its outputs reach on_call tool requests, post_call tools and the analysis, and the live conversation as an instruction, once it answers.",
             "enum": [
               "sync",
               "async"
@@ -19204,6 +19454,7 @@
             "type": "object"
           },
           "phase": {
+            "description": "When the tool runs: pre_call before the call is placed or answered, on_call when the model asks for it during the conversation, post_call after the call ends.",
             "enum": [
               "pre_call",
               "on_call",
@@ -19227,6 +19478,7 @@
               },
               "method": {
                 "default": "GET",
+                "description": "HTTP method. Default GET.",
                 "enum": [
                   "GET",
                   "POST",
@@ -19257,6 +19509,7 @@
           },
           "response": {
             "additionalProperties": false,
+            "description": "How the HTTP response becomes the tool's result and the values it promotes into variables.",
             "properties": {
               "select": {
                 "description": "Keys promoted into variables as <tool>.<key>, each at most 512 characters.",
@@ -19283,11 +19536,13 @@
             "description": "Defaults 0 for pre_call and on_call, 2 for post_call. on_call may not retry: a second attempt is another whole timeout of silence for the caller.",
             "properties": {
               "attempts": {
+                "description": "Retries after the first attempt fails; 0 means one attempt only. The default and the maximum depend on the phase (see retry).",
                 "minimum": 0,
                 "type": "integer"
               },
               "backoff_ms": {
                 "default": 500,
+                "description": "Wait between attempts, in milliseconds. Default 500, at most 10000.",
                 "maximum": 10000,
                 "minimum": 0,
                 "type": "integer"
