@@ -59,7 +59,7 @@ phone rings, and the first event arrives when the call is answered.
 | :--- | :--- |
 | Placed and ringing (`queued`, `dialing`) | No events yet. The stream is open and sends a keep-alive comment every 15 seconds. |
 | Answered | The first event, `agent.state`. |
-| In conversation | `agent.state` each time the agent's state changes, and one `transcript.turn` per completed turn. A [node-based agent](/v2/node-agents) also sends `flow.node.entered` and `flow.variables.extracted`. |
+| In conversation | `agent.state` each time the agent's state changes, one `transcript.turn` per completed turn, `turn.metrics` with how fast each reply came, and `tool.started` and `tool.completed` when the agent runs a tool. A [node-based agent](/v2/node-agents) also sends `flow.node.entered` and `flow.variables.extracted`. |
 | Ended | `call.ended`, then the stream closes. |
 
 ### A call nobody answers
@@ -308,7 +308,7 @@ data: {"v":1,"seq":9,"type":"transcript.turn","call_id":"call_01K8D7R2T4V6X8Z0B2
 | :--- | :--- |
 | `v` | Schema version. `1`. |
 | `seq` | Sequence number of the event within this call, increasing. |
-| `type` | `agent.state`, `transcript.turn` or `call.ended`, plus `flow.node.entered` and `flow.variables.extracted` for a [node-based agent](/v2/node-agents). The same value as the SSE `event` line. |
+| `type` | `agent.state`, `transcript.turn`, `turn.metrics`, `tool.started`, `tool.completed`, `tool.missing` or `call.ended`, plus `flow.node.entered` and `flow.variables.extracted` for a [node-based agent](/v2/node-agents). The same value as the SSE `event` line. |
 | `call_id` | The call this event belongs to. |
 | `at` | When it happened. RFC 3339, UTC. |
 | `data` | The type-specific payload below. |
@@ -368,6 +368,84 @@ Text arrives once per **completed** turn: the person's after they finish
 speaking, the agent's after its turn ends. There are no word-by-word captions
 yet.
 
+### `turn.metrics`
+
+How fast one agent reply came. It is sent when the reply's audio starts, and
+again when later figures arrive, such as when the reply finishes playing. Each
+event carries everything known so far for that reply, so keep the latest one
+per `reply`.
+
+```json
+{
+  "v": 1, "seq": 14, "type": "turn.metrics",
+  "call_id": "call_01K8D7R2T4V6X8Z0B2D4F6H8JK",
+  "at": "2026-10-20T10:00:16.794Z",
+  "data": {
+    "reply": 3,
+    "latency_ms": 892.4,
+    "stt_ms": 141.0,
+    "llm_ms": 402.6,
+    "tts_ms": 188.3
+  }
+}
+```
+
+| Field | Description |
+| :--- | :--- |
+| `reply` | Which agent reply this is, counting from 1. The greeting is reply 1 when the agent speaks first. |
+| `latency_ms` | From the person stopping speaking to the reply's audio starting. This is the delay the caller hears. A greeting has none. |
+| `wait_ms`, `wait_reason` | The part of `latency_ms` the agent waited on purpose, for example because the person hesitated or was reading out a number. Sent only when the agent waited. |
+| `stt_ms`, `llm_ms`, `tts_ms` | Time to the first result of speech recognition, the language model and speech synthesis for this reply. The stages overlap, so they do not add up to `latency_ms`. |
+| `tools_ms` | Time this reply waited for [tools](/v2/tools) the agent ran during the call. |
+| `finished_ms` | From the person stopping speaking to the reply's audio ending. |
+
+A field is left out until it is known.
+
+### `tool.started` and `tool.completed`
+
+The agent ran one of its [on-call tools](/v2/tools). `tool.started` is sent when
+the request to your endpoint goes out, and `tool.completed` when the result is
+back. Only names and timings are sent, never the tool's arguments or results.
+
+```json
+{
+  "v": 1, "seq": 12, "type": "tool.completed",
+  "call_id": "call_01K8D7R2T4V6X8Z0B2D4F6H8JK",
+  "at": "2026-10-20T10:00:16.402Z",
+  "data": {
+    "name": "order_status",
+    "reply": 3,
+    "status": "ok",
+    "duration_ms": 338,
+    "waited_ms": 402,
+    "tool_run_id": "tr_01K8D7S9V1X3Z5B7D9F1H3K5M7"
+  }
+}
+```
+
+| Field | Description |
+| :--- | :--- |
+| `name` | The tool's name. |
+| `reply` | The agent reply the tool ran for. `turn.metrics` for that reply includes the time in `tools_ms`. |
+| `status` | `ok` when your endpoint answered, otherwise why it failed. Only on `tool.completed`. |
+| `duration_ms` | How long your endpoint took. Only on `tool.completed`. |
+| `waited_ms` | How long the reply waited for the tool in total. Only on `tool.completed`. |
+| `tool_run_id` | The run's id in [`GET /v2/calls/{id}/tool_runs`](/v2/tools#inspect-tool-results), where its full record is. Only on `tool.completed`. |
+
+### `tool.missing`
+
+The model asked for a tool this agent does not have. The agent was told so and
+carried on. This usually means the prompt mentions a tool that was never added.
+
+```json
+{
+  "v": 1, "seq": 13, "type": "tool.missing",
+  "call_id": "call_01K8D7R2T4V6X8Z0B2D4F6H8JK",
+  "at": "2026-10-20T10:00:16.410Z",
+  "data": { "name": "get_complaint_status", "reply": 3 }
+}
+```
+
 ### `flow.node.entered`
 
 Sent only for a [node-based agent](/v2/node-agents): the call entered a node.
@@ -426,7 +504,7 @@ Always the last event. The stream closes after it.
 | :--- | :--- |
 | `reason` | Why the call ended, from the [ended reason](/v2/calls#ended-reasons) vocabulary. |
 | `status` | The call's final [status](/v2/calls#statuses), when it is already known. It can be missing. |
-| `synthesized` | `true` when no conversation ran, for example on a phone call nobody answered. We then write `call.ended` ourselves. Treat a missing field as `false`. |
+| `synthesized` | `true` when we wrote `call.ended` ourselves because the call did not send one, for example a phone call nobody answered. Treat a missing field as `false`. |
 
 `call.ended` is sent even when the call ends abnormally. Use it to update what
 your page shows. The [webhook](/v2/webhooks) is the record your backend acts
