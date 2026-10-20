@@ -61,7 +61,9 @@ editor example, follow the [Node.js cookbook](/cookbooks/node-flow-builder).
 Interruptions and silence follow the same rules as every agent:
 
 - **Barge-in.** While the agent speaks, meaningful speech from the caller cuts
-  it off. Backchannels such as "हाँ", "जी" or "ok" do not. On a node with
+  it off, following the agent's [Behavior](/v2/agents#behavior) settings.
+  Acknowledgements such as "हाँ", "जी", "ok" or "hmm" do not, and neither do the
+  agent's [pass-through words](/v2/agents#pass-through-words). On a node with
   `allow_interrupt: false` the agent finishes its line, then answers what the
   caller said. Once a goodbye is playing, nothing the caller says reopens the
   call.

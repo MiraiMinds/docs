@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Mirai Voice API",
-    "version": "2026-10-19.knowledge",
+    "version": "2026-10-20.turn-taking",
     "description": "The v2 API for voice agents, calls, campaigns, phone numbers and speech. Every request carries `Authorization: Bearer sk_live_…`. Generated from the API's own contract and its Postman collection."
   },
   "servers": [
@@ -171,7 +171,8 @@
                       },
                       "behavior": {
                         "interruptions": "normal",
-                        "adaptive_interruptions": true
+                        "adaptive_interruptions": true,
+                        "pass_through": []
                       },
                       "secondary_languages": [
                         "en"
@@ -304,7 +305,8 @@
                           },
                           "behavior": {
                             "interruptions": "normal",
-                            "adaptive_interruptions": true
+                            "adaptive_interruptions": true,
+                            "pass_through": []
                           },
                           "secondary_languages": [
                             "en"
@@ -402,7 +404,8 @@
                       },
                       "behavior": {
                         "interruptions": "normal",
-                        "adaptive_interruptions": true
+                        "adaptive_interruptions": true,
+                        "pass_through": []
                       },
                       "secondary_languages": [
                         "en"
@@ -439,7 +442,7 @@
       "patch": {
         "operationId": "update_agent",
         "summary": "Update agent",
-        "description": "Send only the fields you are changing. Each save is a new revision.\n\nNested objects (`voice`, `end_call`, `voicemail`, `background_sound`, `analysis`) are replaced whole, and so are the `tools` list and the `flow` graph, so send the complete object. `behavior` is the exception: it merges field by field.\n\nTo refuse a stale edit, add `\"if_revision\"` with the revision you read. If someone saved the agent in between, you get a 409 and nothing changes.\n\n`{\"archived\": true}` stops new calls without deleting the agent, and `{\"archived\": false}` brings it back. Changes apply from the next call; calls already queued or running keep the version they started with.",
+        "description": "Send only the fields you are changing. Each save is a new revision.\n\nNested objects (`voice`, `end_call`, `voicemail`, `background_sound`, `analysis`) are replaced whole, and so are the `tools` list and the `flow` graph, so send the complete object. `behavior` is the exception: it merges field by field, and `behavior.pass_through` (words that never interrupt the agent) replaces the whole list you send.\n\nTo refuse a stale edit, add `\"if_revision\"` with the revision you read. If someone saved the agent in between, you get a 409 and nothing changes.\n\n`{\"archived\": true}` stops new calls without deleting the agent, and `{\"archived\": false}` brings it back. Changes apply from the next call; calls already queued or running keep the version they started with.",
         "tags": [
           "Agents"
         ],
@@ -516,7 +519,8 @@
                       },
                       "behavior": {
                         "interruptions": "normal",
-                        "adaptive_interruptions": true
+                        "adaptive_interruptions": true,
+                        "pass_through": []
                       },
                       "secondary_languages": [
                         "en"
@@ -776,7 +780,7 @@
                         ]
                       },
                       "behavior": {
-                        "description": "How the agent takes turns with the caller. Unlike other nested blocks, PATCH merges it field by field: omitted fields keep their current value and {} changes nothing. null resets it to the defaults (interruptions normal, adaptive_interruptions true).",
+                        "description": "How the agent takes turns with the caller. Unlike other nested blocks, PATCH merges it field by field: omitted fields keep their current value and {} changes nothing; a sent pass_through replaces the whole list. null resets it to the defaults (interruptions normal, adaptive_interruptions true, pass_through []).",
                         "oneOf": [
                           {
                             "type": "null"
@@ -786,12 +790,12 @@
                             "properties": {
                               "adaptive_interruptions": {
                                 "default": true,
-                                "description": "The agent learns how loud the caller is from their own turns. A would-be interruption much quieter than the caller (someone else in the room) does not stop the agent and is not treated as the caller's words; if an interruption turns out to be nothing, the agent picks up the line it was cut off on.",
+                                "description": "Turn-taking, on by default. The agent decides when the caller has finished speaking: it waits through mid-thought pauses with a short \"hmm\", ignores quieter voices in the background (someone else in the room), and picks up a line it was cut off on if the interruption turns out to be nothing. Turn it off for fixed rules only: the interruptions setting decides how many words cut the agent off, and pass_through words never do.",
                                 "type": "boolean"
                               },
                               "interruptions": {
                                 "default": "normal",
-                                "description": "How easily the caller can cut the agent off while it speaks. easy: one word or about 0.5 s of speech; normal (the default, and the behaviour before this setting existed): two words or about 0.7 s; firm: three words or about 1.2 s; never: the agent always finishes its line, and what the caller said is answered right after. Acknowledgements (haan, ji, ok) never interrupt at any setting; a stop word (stop, ruko) interrupts at every setting except never. On a flow agent a node's own allow_interrupt false still applies; never makes every node non-interruptible. Trimmed and lower-cased; any other value, including an empty string, is 400.",
+                                "description": "How easily the caller can cut the agent off while it speaks. easy: one word or about 0.5 s of speech; normal (the default, and the behaviour before this setting existed): two words or about 0.7 s; firm: three words or about 1.2 s; never: the agent always finishes its line, and what the caller said is answered right after. Acknowledgements (haan, ji, ok, hmm and your pass_through words) never interrupt at any setting; a stop word (stop, ruko) interrupts at every setting except never. On a flow agent a node's own allow_interrupt false still applies; never makes every node non-interruptible. Trimmed and lower-cased; any other value, including an empty string, is 400.",
                                 "enum": [
                                   "easy",
                                   "normal",
@@ -799,6 +803,20 @@
                                   "never"
                                 ],
                                 "type": "string"
+                              },
+                              "pass_through": {
+                                "default": [],
+                                "description": "Your own words that never interrupt the agent, such as \"theek\", \"achha\" or \"bilkul\". They are added to the built-in acknowledgements (haan, ji, ok, hmm and their equivalents), which always pass through; a reply made only of these words does not stop the agent. Applies whether adaptive_interruptions is on or off. Each entry is literal text, never a pattern: Unicode-normalised (NFC), trimmed and inner spaces collapsed to one, then 1-40 characters and at most 4 words. Duplicates are removed ignoring case, keeping the first spelling and the order; at most 30 entries. Sent, it replaces the whole list; [] or null clears it. Anything else is 400 invalid_request naming behavior.pass_through.",
+                                "items": {
+                                  "maxLength": 40,
+                                  "minLength": 1,
+                                  "type": "string"
+                                },
+                                "maxItems": 30,
+                                "type": [
+                                  "array",
+                                  "null"
+                                ]
                               }
                             },
                             "type": "object"
@@ -1226,7 +1244,8 @@
                           },
                           "behavior": {
                             "interruptions": "normal",
-                            "adaptive_interruptions": true
+                            "adaptive_interruptions": true,
+                            "pass_through": []
                           },
                           "secondary_languages": [
                             "en"
@@ -1266,7 +1285,8 @@
                           },
                           "behavior": {
                             "interruptions": "normal",
-                            "adaptive_interruptions": true
+                            "adaptive_interruptions": true,
+                            "pass_through": []
                           },
                           "secondary_languages": [
                             "en"
@@ -1377,7 +1397,8 @@
                       },
                       "behavior": {
                         "interruptions": "normal",
-                        "adaptive_interruptions": true
+                        "adaptive_interruptions": true,
+                        "pass_through": []
                       },
                       "secondary_languages": [
                         "en"
@@ -1526,7 +1547,8 @@
                       },
                       "behavior": {
                         "interruptions": "normal",
-                        "adaptive_interruptions": true
+                        "adaptive_interruptions": true,
+                        "pass_through": []
                       },
                       "secondary_languages": [
                         "en"
@@ -1669,7 +1691,8 @@
                       },
                       "behavior": {
                         "interruptions": "normal",
-                        "adaptive_interruptions": true
+                        "adaptive_interruptions": true,
+                        "pass_through": []
                       },
                       "secondary_languages": [
                         "en"
@@ -5450,7 +5473,8 @@
                       },
                       "behavior": {
                         "interruptions": "normal",
-                        "adaptive_interruptions": true
+                        "adaptive_interruptions": true,
+                        "pass_through": []
                       },
                       "secondary_languages": [
                         "en"
@@ -6375,7 +6399,8 @@
                       },
                       "behavior": {
                         "interruptions": "normal",
-                        "adaptive_interruptions": true
+                        "adaptive_interruptions": true,
+                        "pass_through": []
                       },
                       "secondary_languages": [
                         "en"
@@ -6557,7 +6582,8 @@
                       },
                       "behavior": {
                         "interruptions": "normal",
-                        "adaptive_interruptions": true
+                        "adaptive_interruptions": true,
+                        "pass_through": []
                       },
                       "secondary_languages": [
                         "en"
@@ -15806,12 +15832,12 @@
             "properties": {
               "adaptive_interruptions": {
                 "default": true,
-                "description": "The agent learns how loud the caller is from their own turns. A would-be interruption much quieter than the caller (someone else in the room) does not stop the agent and is not treated as the caller's words; if an interruption turns out to be nothing, the agent picks up the line it was cut off on.",
+                "description": "Turn-taking, on by default. The agent decides when the caller has finished speaking: it waits through mid-thought pauses with a short \"hmm\", ignores quieter voices in the background (someone else in the room), and picks up a line it was cut off on if the interruption turns out to be nothing. Turn it off for fixed rules only: the interruptions setting decides how many words cut the agent off, and pass_through words never do.",
                 "type": "boolean"
               },
               "interruptions": {
                 "default": "normal",
-                "description": "How easily the caller can cut the agent off while it speaks. easy: one word or about 0.5 s of speech; normal (the default, and the behaviour before this setting existed): two words or about 0.7 s; firm: three words or about 1.2 s; never: the agent always finishes its line, and what the caller said is answered right after. Acknowledgements (haan, ji, ok) never interrupt at any setting; a stop word (stop, ruko) interrupts at every setting except never. On a flow agent a node's own allow_interrupt false still applies; never makes every node non-interruptible. Trimmed and lower-cased; any other value, including an empty string, is 400.",
+                "description": "How easily the caller can cut the agent off while it speaks. easy: one word or about 0.5 s of speech; normal (the default, and the behaviour before this setting existed): two words or about 0.7 s; firm: three words or about 1.2 s; never: the agent always finishes its line, and what the caller said is answered right after. Acknowledgements (haan, ji, ok, hmm and your pass_through words) never interrupt at any setting; a stop word (stop, ruko) interrupts at every setting except never. On a flow agent a node's own allow_interrupt false still applies; never makes every node non-interruptible. Trimmed and lower-cased; any other value, including an empty string, is 400.",
                 "enum": [
                   "easy",
                   "normal",
@@ -15819,11 +15845,22 @@
                   "never"
                 ],
                 "type": "string"
+              },
+              "pass_through": {
+                "description": "Your own words that never interrupt the agent, such as \"theek\", \"achha\" or \"bilkul\". They are added to the built-in acknowledgements (haan, ji, ok, hmm and their equivalents), which always pass through; a reply made only of these words does not stop the agent. Applies whether adaptive_interruptions is on or off. Each entry is literal text, never a pattern: Unicode-normalised (NFC), trimmed and inner spaces collapsed to one, then 1-40 characters and at most 4 words. Duplicates are removed ignoring case, keeping the first spelling and the order; at most 30 entries. Always returned: [] when there are none, including on agents saved before the field existed.",
+                "items": {
+                  "maxLength": 40,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "maxItems": 30,
+                "type": "array"
               }
             },
             "required": [
               "interruptions",
-              "adaptive_interruptions"
+              "adaptive_interruptions",
+              "pass_through"
             ],
             "type": "object"
           },
@@ -16223,7 +16260,7 @@
             ]
           },
           "behavior": {
-            "description": "How the agent takes turns with the caller. Unlike other nested blocks, PATCH merges it field by field: omitted fields keep their current value and {} changes nothing. null resets it to the defaults (interruptions normal, adaptive_interruptions true).",
+            "description": "How the agent takes turns with the caller. Unlike other nested blocks, PATCH merges it field by field: omitted fields keep their current value and {} changes nothing; a sent pass_through replaces the whole list. null resets it to the defaults (interruptions normal, adaptive_interruptions true, pass_through []).",
             "oneOf": [
               {
                 "type": "null"
@@ -16233,12 +16270,12 @@
                 "properties": {
                   "adaptive_interruptions": {
                     "default": true,
-                    "description": "The agent learns how loud the caller is from their own turns. A would-be interruption much quieter than the caller (someone else in the room) does not stop the agent and is not treated as the caller's words; if an interruption turns out to be nothing, the agent picks up the line it was cut off on.",
+                    "description": "Turn-taking, on by default. The agent decides when the caller has finished speaking: it waits through mid-thought pauses with a short \"hmm\", ignores quieter voices in the background (someone else in the room), and picks up a line it was cut off on if the interruption turns out to be nothing. Turn it off for fixed rules only: the interruptions setting decides how many words cut the agent off, and pass_through words never do.",
                     "type": "boolean"
                   },
                   "interruptions": {
                     "default": "normal",
-                    "description": "How easily the caller can cut the agent off while it speaks. easy: one word or about 0.5 s of speech; normal (the default, and the behaviour before this setting existed): two words or about 0.7 s; firm: three words or about 1.2 s; never: the agent always finishes its line, and what the caller said is answered right after. Acknowledgements (haan, ji, ok) never interrupt at any setting; a stop word (stop, ruko) interrupts at every setting except never. On a flow agent a node's own allow_interrupt false still applies; never makes every node non-interruptible. Trimmed and lower-cased; any other value, including an empty string, is 400.",
+                    "description": "How easily the caller can cut the agent off while it speaks. easy: one word or about 0.5 s of speech; normal (the default, and the behaviour before this setting existed): two words or about 0.7 s; firm: three words or about 1.2 s; never: the agent always finishes its line, and what the caller said is answered right after. Acknowledgements (haan, ji, ok, hmm and your pass_through words) never interrupt at any setting; a stop word (stop, ruko) interrupts at every setting except never. On a flow agent a node's own allow_interrupt false still applies; never makes every node non-interruptible. Trimmed and lower-cased; any other value, including an empty string, is 400.",
                     "enum": [
                       "easy",
                       "normal",
@@ -16246,6 +16283,20 @@
                       "never"
                     ],
                     "type": "string"
+                  },
+                  "pass_through": {
+                    "default": [],
+                    "description": "Your own words that never interrupt the agent, such as \"theek\", \"achha\" or \"bilkul\". They are added to the built-in acknowledgements (haan, ji, ok, hmm and their equivalents), which always pass through; a reply made only of these words does not stop the agent. Applies whether adaptive_interruptions is on or off. Each entry is literal text, never a pattern: Unicode-normalised (NFC), trimmed and inner spaces collapsed to one, then 1-40 characters and at most 4 words. Duplicates are removed ignoring case, keeping the first spelling and the order; at most 30 entries. Sent, it replaces the whole list; [] or null clears it. Anything else is 400 invalid_request naming behavior.pass_through.",
+                    "items": {
+                      "maxLength": 40,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "maxItems": 30,
+                    "type": [
+                      "array",
+                      "null"
+                    ]
                   }
                 },
                 "type": "object"
@@ -16650,7 +16701,7 @@
             ]
           },
           "behavior": {
-            "description": "How the agent takes turns with the caller. Unlike other nested blocks, PATCH merges it field by field: omitted fields keep their current value and {} changes nothing. null resets it to the defaults (interruptions normal, adaptive_interruptions true).",
+            "description": "How the agent takes turns with the caller. Unlike other nested blocks, PATCH merges it field by field: omitted fields keep their current value and {} changes nothing; a sent pass_through replaces the whole list. null resets it to the defaults (interruptions normal, adaptive_interruptions true, pass_through []).",
             "oneOf": [
               {
                 "type": "null"
@@ -16660,12 +16711,12 @@
                 "properties": {
                   "adaptive_interruptions": {
                     "default": true,
-                    "description": "The agent learns how loud the caller is from their own turns. A would-be interruption much quieter than the caller (someone else in the room) does not stop the agent and is not treated as the caller's words; if an interruption turns out to be nothing, the agent picks up the line it was cut off on.",
+                    "description": "Turn-taking, on by default. The agent decides when the caller has finished speaking: it waits through mid-thought pauses with a short \"hmm\", ignores quieter voices in the background (someone else in the room), and picks up a line it was cut off on if the interruption turns out to be nothing. Turn it off for fixed rules only: the interruptions setting decides how many words cut the agent off, and pass_through words never do.",
                     "type": "boolean"
                   },
                   "interruptions": {
                     "default": "normal",
-                    "description": "How easily the caller can cut the agent off while it speaks. easy: one word or about 0.5 s of speech; normal (the default, and the behaviour before this setting existed): two words or about 0.7 s; firm: three words or about 1.2 s; never: the agent always finishes its line, and what the caller said is answered right after. Acknowledgements (haan, ji, ok) never interrupt at any setting; a stop word (stop, ruko) interrupts at every setting except never. On a flow agent a node's own allow_interrupt false still applies; never makes every node non-interruptible. Trimmed and lower-cased; any other value, including an empty string, is 400.",
+                    "description": "How easily the caller can cut the agent off while it speaks. easy: one word or about 0.5 s of speech; normal (the default, and the behaviour before this setting existed): two words or about 0.7 s; firm: three words or about 1.2 s; never: the agent always finishes its line, and what the caller said is answered right after. Acknowledgements (haan, ji, ok, hmm and your pass_through words) never interrupt at any setting; a stop word (stop, ruko) interrupts at every setting except never. On a flow agent a node's own allow_interrupt false still applies; never makes every node non-interruptible. Trimmed and lower-cased; any other value, including an empty string, is 400.",
                     "enum": [
                       "easy",
                       "normal",
@@ -16673,6 +16724,20 @@
                       "never"
                     ],
                     "type": "string"
+                  },
+                  "pass_through": {
+                    "default": [],
+                    "description": "Your own words that never interrupt the agent, such as \"theek\", \"achha\" or \"bilkul\". They are added to the built-in acknowledgements (haan, ji, ok, hmm and their equivalents), which always pass through; a reply made only of these words does not stop the agent. Applies whether adaptive_interruptions is on or off. Each entry is literal text, never a pattern: Unicode-normalised (NFC), trimmed and inner spaces collapsed to one, then 1-40 characters and at most 4 words. Duplicates are removed ignoring case, keeping the first spelling and the order; at most 30 entries. Sent, it replaces the whole list; [] or null clears it. Anything else is 400 invalid_request naming behavior.pass_through.",
+                    "items": {
+                      "maxLength": 40,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "maxItems": 30,
+                    "type": [
+                      "array",
+                      "null"
+                    ]
                   }
                 },
                 "type": "object"
