@@ -36,7 +36,9 @@ knowledge base can serve many agents.
     - **Paste text**: up to 200,000 characters.
     - **FAQ**: question and answer pairs.
 
-    You can add more sources later. Each source syncs on its own.
+    You can add more sources later. Sources in one knowledge base sync one
+    after another, so a large website can take a while before the next source
+    starts.
   </Step>
   <Step title="Wait for Ready">
     The sources table shows each source's progress, for example
@@ -205,8 +207,9 @@ curl --fail-with-body -X POST "$MIRAI_API_BASE/v2/knowledge-bases/$MIRAI_KB_ID/s
 
 `query` is 1 to 500 characters, in any language. `top_k` is 1 to 20, default
 5. The answer lists the passages an agent would read, best first. Each hit has
-at least `text`, `title`, `source_id` and `score`, and `ms` says how long the
-search took. Abridged:
+at least `text`, `title`, `source_id` and `score`. `ms` breaks down how long
+the search took in milliseconds (`embed`, `dense`, `lexical`, `rerank` and
+`total`). Abridged:
 
 ```json
 {
@@ -265,6 +268,9 @@ ready when the call started.
 
 Every JSON source also takes an optional `name`. `include` and `exclude` are
 lists of path prefixes, such as `["/help", "/policies"]`, up to 20 each.
+`max_pages` keeps the first pages in the order the sitemap lists them (or the
+order links are found), so on a large site use `include` to point it at the
+pages that matter.
 
 Supported files:
 
