@@ -49,7 +49,11 @@ only `pre_call` and `post_call` tools are allowed. See
   },
   "voicemail": { "action": "hangup" },
   "background_sound": { "sound": "off" },
-  "behavior": { "interruptions": "normal", "adaptive_interruptions": true },
+  "behavior": {
+    "interruptions": "normal",
+    "adaptive_interruptions": true,
+    "pass_through": []
+  },
   "created_at": "2026-07-26T09:14:02Z",
   "updated_at": "2026-07-26T09:14:02Z"
 }
@@ -71,7 +75,7 @@ only `pre_call` and `post_call` tools are allowed. See
 | `end_call` | object | no | See [Ending a call](#ending-a-call). |
 | `voicemail` | object | no | See [Voicemail](#voicemail). |
 | `background_sound` | string \| object | no | Room ambience under the agent's voice. See [Background sound](#background-sound). Default `off`. |
-| `behavior` | object | no | How the agent takes turns with the caller. See [Behavior](#behavior). Default `{"interruptions": "normal", "adaptive_interruptions": true}`. |
+| `behavior` | object | no | How the agent takes turns with the caller. See [Behavior](#behavior). Default `{"interruptions": "normal", "adaptive_interruptions": true, "pass_through": []}`. |
 | `flow` | object \| null | no | A node graph. Makes this a [node-based agent](/v2/node-agents). Present on the agent object only when set. PATCH replaces the whole graph; `null` removes it. |
 
 Server-set and read-only: `id`, `object`, `created_at`, `updated_at`.
@@ -209,17 +213,53 @@ Before you turn it on, note two things:
 
 ### Behavior
 
-`behavior` decides how easily the caller can cut the agent off while it is
-speaking. You can also set it in the console: **Agent Studio → Behavior**.
+`behavior` sets how the agent takes turns with the caller: when it answers, and
+what makes it stop talking. In the console it is **Agent Studio → Behavior →
+Interruptions**, with the **Adaptive interruptions** switch at the top.
 
 ```json
-{ "behavior": { "interruptions": "firm", "adaptive_interruptions": true } }
+{
+  "behavior": {
+    "adaptive_interruptions": true,
+    "interruptions": "normal",
+    "pass_through": []
+  }
+}
 ```
 
 | Field | Type | Description |
 | :--- | :--- | :--- |
-| `interruptions` | `easy` \| `normal` \| `firm` \| `never` | How much the caller has to say before the agent stops talking. Default `normal`. |
-| `adaptive_interruptions` | boolean | Default `true`. The agent learns how loud the caller is from their own turns. While the agent is speaking, a voice much quieter than theirs, such as someone else in the room, cannot interrupt it, and its words are not passed to the agent. If an interruption turns out to be nothing, the agent repeats the line it was cut off on. |
+| `adaptive_interruptions` | boolean | Mirai's turn-taking. Default `true`. See [Adaptive interruptions](#adaptive-interruptions). |
+| `interruptions` | `easy` \| `normal` \| `firm` \| `never` | How much the caller has to say before the agent stops talking. Default `normal`. See [Fixed rules](#fixed-rules). |
+| `pass_through` | array of strings | Your own words that never interrupt the agent, on top of built-in ones such as "haan" and "ok". Default `[]`. See [Pass-through words](#pass-through-words). |
+
+#### Adaptive interruptions
+
+With `adaptive_interruptions` on, the default for every agent, the agent uses
+Mirai's turn-taking:
+
+- It knows when the caller has finished speaking, and answers then.
+- When the caller pauses in the middle of a thought, it waits and says a short
+  "hmm" so they know it is still listening.
+- When the caller asks for a moment ("give me a minute"), it holds until they
+  come back.
+- While it speaks, it ignores voices much quieter than the caller's, such as
+  someone else in the room. Those voices do not stop it, and their words are
+  not passed to the agent.
+- If an interruption turns out to be nothing, it picks up the line it was cut
+  off on.
+
+<Note>
+Mirai's turn-taking is available when the agent uses Mirai's own LLM. An agent
+on another LLM provider follows the [fixed rules](#fixed-rules), even with
+`adaptive_interruptions` on.
+</Note>
+
+#### Fixed rules
+
+Set `adaptive_interruptions` to `false` and the agent follows fixed rules. The
+`interruptions` preset sets how much the caller has to say to stop it, and
+[pass-through words](#pass-through-words) never stop it.
 
 | `interruptions` | The agent stops when the caller says |
 | :--- | :--- |
@@ -228,16 +268,149 @@ speaking. You can also set it in the console: **Agent Studio → Behavior**.
 | `firm` | Three words, or about 1.2 seconds of speech. |
 | `never` | Nothing. The agent always finishes its line, then answers what the caller said. |
 
-Acknowledgements such as "haan", "ji" and "ok" never interrupt. A clear stop
-word such as "stop" or "ruko" interrupts at every setting except `never`.
+A clear stop word such as "stop" or "ruko" interrupts at every setting except
+`never`.
+
+The preset and the pass-through words still apply while
+`adaptive_interruptions` is on. The console shows them only when the switch is
+off, and switching it on there sets `interruptions` back to `normal`.
 
 On a [node-based agent](/v2/node-agents), a node with `allow_interrupt: false`
 is never interrupted whatever this setting is, and `never` applies to every node.
 
+#### Pass-through words
+
+Callers often say a short word while the agent talks, to show they are
+listening. The built-in acknowledgements, "haan", "ji", "ok", "hmm" and their
+equivalents, never interrupt at any setting. Add the words your own callers use
+with `pass_through`:
+
+```json
+{ "behavior": { "pass_through": ["theek", "achha", "bilkul", "theek hai"] } }
+```
+
+A reply made only of acknowledgements and pass-through words, in any mix, does
+not stop the agent. Case and punctuation do not matter. With the list above,
+"Haan, theek hai." passes through. "Theek hai, ek sawaal hai" is treated like
+any other speech, because "ek sawaal" is not on the list.
+
+The API saves each entry like this:
+
+- An entry is literal text, never a pattern.
+- Unicode is normalised (NFC), spaces at either end are trimmed, and runs of
+  spaces inside collapse to one.
+- After that, each entry is 1 to 40 characters and at most 4 words.
+- Duplicates are removed ignoring case. The first spelling and the order are
+  kept.
+- At most 30 entries remain.
+- `null` is saved as `[]`.
+
+For example, `["  Theek ", "theek", "bilkul"]` is saved as `["Theek", "bilkul"]`.
+
+A list outside these limits is refused with `400 invalid_request`, and the
+message names the field:
+
+| Message | Cause |
+| :--- | :--- |
+| `behavior.pass_through: entries must not be empty` | An entry is empty, only spaces, or `null`. |
+| `behavior.pass_through: "<first 40 characters>…" is <length> characters, the maximum is 40` | An entry is longer than 40 characters. |
+| `behavior.pass_through: "haan ji theek hai na" is 5 words, the maximum is 4` | An entry has more than 4 words. |
+| `behavior.pass_through has 31 entries, the maximum is 30` | More than 30 entries remain after duplicates are removed. |
+
+A `pass_through` that is not an array, or an entry that is not a string, gets
+the JSON decoder's message instead.
+
+A [Realtime session](/v2/realtime) started from the agent does not use
+`pass_through` yet.
+
+#### Change behavior with PATCH
+
 `PATCH` merges `behavior` field by field: the fields you send change and the
 others keep their values, unlike other nested objects, which are replaced
-whole. Send `"behavior": null` to go back to the defaults. The setting takes
-effect on the next call and is saved with each agent revision.
+whole. `pass_through` is a list, so the list you send replaces the saved one.
+To add a word, read the agent, add the word to `behavior.pass_through` and send
+the whole list. Send `[]` or `null` to clear the list, or `"behavior": null` to
+go back to the defaults. The change takes effect on the next call and is saved
+with each agent revision.
+
+This request moves an agent to the fixed rules, with a firmer preset and three
+words of its own:
+
+<Tabs>
+  <Tab title="cURL">
+    ```bash
+    curl -X PATCH https://sandbox.voice.miraiminds.co/v2/agents/agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ \
+      -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "behavior": {
+          "adaptive_interruptions": false,
+          "interruptions": "firm",
+          "pass_through": ["theek", "achha", "bilkul"]
+        }
+      }'
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    import os, httpx
+
+    API = "https://sandbox.voice.miraiminds.co"
+    auth = {"Authorization": f"Bearer {os.environ['MIRAI_API_KEY']}"}
+
+    agent = httpx.patch(
+        f"{API}/v2/agents/agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ",
+        headers=auth,
+        json={
+            "behavior": {
+                "adaptive_interruptions": False,
+                "interruptions": "firm",
+                "pass_through": ["theek", "achha", "bilkul"],
+            }
+        },
+        timeout=30,
+    ).raise_for_status().json()
+
+    print(agent["behavior"])
+    ```
+  </Tab>
+  <Tab title="Node.js">
+    ```javascript
+    const API = "https://sandbox.voice.miraiminds.co";
+    const auth = { Authorization: `Bearer ${process.env.MIRAI_API_KEY}` };
+
+    const res = await fetch(`${API}/v2/agents/agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ`, {
+      method: "PATCH",
+      headers: { ...auth, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        behavior: {
+          adaptive_interruptions: false,
+          interruptions: "firm",
+          pass_through: ["theek", "achha", "bilkul"],
+        },
+      }),
+    });
+    if (!res.ok) throw new Error(JSON.stringify(await res.json()));
+    const agent = await res.json();
+    ```
+  </Tab>
+</Tabs>
+
+```json title="200 OK (excerpt)"
+{
+  "id": "agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ",
+  "object": "agent",
+  "behavior": {
+    "interruptions": "firm",
+    "adaptive_interruptions": false,
+    "pass_through": ["theek", "achha", "bilkul"]
+  }
+}
+```
+
+To go back to turn-taking with the default preset, send
+`{ "behavior": { "adaptive_interruptions": true, "interruptions": "normal" } }`.
+The pass-through words stay.
 
 <Tip>
 If your callers use a laptop's built-in microphone in a busy room, keep
@@ -326,7 +499,7 @@ Responds with **`201 Created`** and the full [agent object](#the-agent-object).
 
 | Error | `error.code` | Cause |
 | :--- | :--- | :--- |
-| `400` | `invalid_request` | Missing required field, unknown `voice_id`, `max_duration_secs` out of range |
+| `400` | `invalid_request` | Missing required field, unknown `voice_id`, `max_duration_secs` out of range, a `behavior.pass_through` list outside [its limits](#pass-through-words) |
 | `400` | `invalid_flow` | A problem in `flow`, or an `on_call` tool on a node-based agent. The body lists every problem with its path; see [errors](/v2/node-agents#errors). |
 | `401` | `unauthorized` | Bad or missing key |
 
@@ -400,6 +573,11 @@ curl "https://sandbox.voice.miraiminds.co/v2/agents?limit=20" \
       },
       "voicemail": { "action": "hangup" },
       "background_sound": { "sound": "off" },
+      "behavior": {
+        "interruptions": "normal",
+        "adaptive_interruptions": true,
+        "pass_through": []
+      },
       "created_at": "2026-07-26T09:14:02Z",
       "updated_at": "2026-07-26T09:14:02Z"
     }
@@ -427,8 +605,9 @@ PATCH /v2/agents/{id}
 Send only the fields you are changing. Nested objects such as `voice`,
 `end_call`, `voicemail`, `background_sound`, `analysis` and `tools` are replaced wholesale,
 so to change `end_call.message`, send the whole `end_call` object. `behavior`
-is the one exception: it is merged field by field, as described in
-[Behavior](#behavior). `flow` is replaced wholesale too: send the whole graph,
+is the one exception: it is merged field by field, though a `pass_through`
+list you send replaces the saved list. See
+[Change behavior with PATCH](#change-behavior-with-patch). `flow` is replaced wholesale too: send the whole graph,
 or use [`PUT /v2/agents/{id}/flow`](/v2/node-agents#edit-the-graph).
 `"flow": null` turns a node-based agent back into a single-prompt agent.
 

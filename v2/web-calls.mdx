@@ -666,8 +666,9 @@ Keep `echoCancellation` on in both cases, so the agent does not hear its own
 voice from the user's speakers.
 
 If the agent stops talking when someone nearby speaks, check the constraints
-above first. Then adjust the agent's [Behavior](/v2/agents#behavior): raise
-`interruptions` to `firm`, and keep `adaptive_interruptions` on.
+above first. Then check the agent's [Behavior](/v2/agents#behavior). Keep
+`adaptive_interruptions` on, so the agent ignores voices much quieter than the
+user's. If it still stops, raise `interruptions` to `firm`.
 
 ---
 
