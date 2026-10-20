@@ -111,9 +111,13 @@ rather than a fresh random value on each attempt.
 ## Webhooks and live events
 
 Calls report their progress to your `webhook_url` as signed events. The event
-types, payloads and signature check are in [Webhooks](/v2/webhooks). A browser
-call also has a live event stream for the page; see
-[Start a browser call](/api-reference/calls/start-a-browser-call).
+types, payloads and signature check are in [Webhooks](/v2/webhooks).
+
+Every call also has a live event stream with the agent's state and each turn
+while it runs: phone calls you place, campaign and inbound calls, browser calls
+and realtime sessions. Creating a call returns `events_url`, which a browser can
+open without your key, and your key opens the stream of any call in your
+workspace. See [Live events](/v2/live-events).
 
 ## Limits
 

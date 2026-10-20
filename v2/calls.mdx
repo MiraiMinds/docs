@@ -8,7 +8,8 @@ description: "Place phone and browser calls, follow their status, fetch the tran
 A **call** is one outbound dial attempt driven by an [agent](/v2/agents).
 Creating a call is asynchronous: you get `202 Accepted` immediately and the
 outcome arrives by [webhook](/v2/webhooks) (or by polling
-[`GET /v2/calls/{id}`](#get-a-call)).
+[`GET /v2/calls/{id}`](#get-a-call)). To show the call while it runs, open its
+[live event stream](/v2/live-events).
 
 A call can also run in your user's browser instead of on a phone: create it
 with `channel: "web"`. See [Browser calls](/v2/web-calls) for the whole flow.
@@ -308,13 +309,24 @@ POST /v2/calls
 </Tabs>
 
 ```json title="202 Accepted"
-{ "id": "call_01JZQ9B4M8N3P6R2S5T7V9W1YA", "status": "queued" }
+{
+  "id": "call_01JZQ9B4M8N3P6R2S5T7V9W1YA",
+  "status": "queued",
+  "events_url": "https://sandbox.voice.miraiminds.co/v2/calls/call_01JZQ9B4M8N3P6R2S5T7V9W1YA/events?token=…"
+}
 ```
 
 `202` means the call is admitted to the queue. **The phone has not rung yet.**
 The full call object is available from [`GET /v2/calls/{id}`](#get-a-call).
 
-A browser call's `202` also carries the links the page needs:
+| Field | Description |
+| :--- | :--- |
+| `id` | The call ID. It is the `data.call.id` of every webhook for this call. |
+| `status` | `queued`. |
+| `events_url` | The call's [live event stream](/v2/live-events): the agent's state and each turn while the call runs. It carries its own read-only token, valid for the call's maximum duration plus one hour, so you can hand it to a browser without your API key. |
+
+A phone call's `202` has no `ws_url` and no `transport`. A browser call's `202`
+adds them, because the page also needs an audio link:
 
 ```json title="202 Accepted (channel web)"
 {
@@ -332,7 +344,7 @@ A browser call's `202` also carries the links the page needs:
 | `transport` | `web`. |
 | `ws_url` | The [audio socket](/v2/web-calls#audio-socket). Single use; connect within 5 minutes. |
 | `ws_url_expires_at` | When an unused `ws_url` stops working. |
-| `events_url` | The [live event stream](/v2/web-calls#live-events). Reusable for the call and for one hour after it ends. |
+| `events_url` | The [live event stream](/v2/live-events). Reusable for the call and for one hour after it ends. |
 
 ### Errors
 
@@ -459,6 +471,9 @@ If we have seen that key in the last 24 hours, we replay the original response
 byte for byte and place **no second call**. This is the safe way to retry a
 request that timed out. A network timeout does not tell you whether the call was
 placed, and without the key a retry makes the customer's phone ring twice.
+
+The replay repeats `events_url` while its token is valid, and leaves it out
+after that. Your API key still opens the [live event stream](/v2/live-events).
 
 The key is scoped to your workspace. Reusing a key with a *different* body still
 replays the original response, so pick keys that are unique per intended call.
@@ -667,14 +682,15 @@ billed, even if you abort it after media went live.
 
 ## Live control and events
 
-Browser calls have three more endpoints. [Browser calls](/v2/web-calls) covers
-them in full.
+Three more endpoints work while a call runs. Every call has the live event
+stream. Live control is for browser calls; [Browser calls](/v2/web-calls)
+covers it in full.
 
 | Endpoint | What it does |
 | :--- | :--- |
+| `GET /v2/calls/{id}/events` | The live event stream (Server-Sent Events): agent state, each completed turn and, for a [node-based agent](/v2/node-agents), each step. Every call has one: phone calls you place, campaign and inbound calls, browser calls and realtime sessions. Opened with the `events_url` from create, or with your API key. See [Live events](/v2/live-events). |
 | `POST /v2/calls/{id}/control` | Send an `instruction` the agent follows from its next reply, or `close` the call with a spoken goodbye. Browser calls in progress only. See [live control](/v2/web-calls#live-control). |
 | `GET /v2/calls/{id}/control/{control_id}` | Read a control's current status: `pending`, `applied`, `rejected` or `failed`. |
-| `GET /v2/calls/{id}/events` | The live event stream (Server-Sent Events): agent state, each completed turn and, for a [node-based agent](/v2/node-agents), each step. Opened with the `events_url` from create, or with your API key. See [live events](/v2/web-calls#live-events). |
 
 | Status | `error.code` | Cause |
 | :--- | :--- | :--- |

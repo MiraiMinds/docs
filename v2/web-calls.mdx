@@ -7,9 +7,9 @@ description: "Run a voice agent in your user's browser. Create the call on your 
 
 A **browser call** runs an [agent](/v2/agents) with your user's microphone and
 speakers instead of a phone line. Otherwise it is the same as a phone call: it
-uses the same agent, [tier](/general/tiers) and [webhooks](/v2/webhooks), and it
-is billed the same way from the moment audio goes live. You create it with
-`channel: "web"` and no `to`.
+uses the same agent, [tier](/general/tiers), [webhooks](/v2/webhooks) and
+[live events](/v2/live-events), and it is billed the same way from the moment
+audio goes live. You create it with `channel: "web"` and no `to`.
 
 Your backend keeps the API key. It creates the call and hands the page two
 short-lived links, one for audio and one for live events. The page never sees
@@ -273,182 +273,28 @@ used. Create a new call.
 
 ## Live events
 
-Open `events_url` with `EventSource`. It is a
-[Server-Sent Events](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events)
-stream: the page receives the agent's state and each completed turn as the
-conversation happens.
+Open `events_url` with `EventSource` to show the agent's state and each
+completed turn in the page. It is the same stream every call has, phone calls
+included. [Live events](/v2/live-events) is the full reference: framing, each
+event type, reconnecting and authentication.
 
 ```javascript
 const events = new EventSource(events_url);
+events.addEventListener("agent.state", (e) => {
+  const { state } = JSON.parse(e.data).data; // listening, processing, speaking, ended
+});
 events.addEventListener("transcript.turn", (e) => {
   const { role, text } = JSON.parse(e.data).data;
 });
+events.addEventListener("call.ended", () => events.close());
 ```
 
-### Framing
-
-Each event is one SSE message with three lines:
-
-```text
-id: 1790503302114-0
-event: transcript.turn
-data: {"v":1,"seq":7,"type":"transcript.turn","call_id":"call_01K8B2M4Q6S8T0V2X4Z6A8C0EG","at":"2026-09-27T10:01:42.114Z","data":{"role":"user","text":"I have about three years of experience with that.","turn":4,"interrupted":false}}
-```
-
-- `id` is the position in the stream. Treat it as opaque: it is what a
-  reconnect resumes from.
-- `event` is the event type. Because every event is named, listen with
-  `addEventListener(type, …)`. `onmessage` receives nothing.
-- `data` is a JSON envelope:
-
-| Field | Description |
-| :--- | :--- |
-| `v` | Schema version. `1`. |
-| `seq` | Sequence number of the event within this call, increasing. |
-| `type` | `agent.state`, `transcript.turn` or `call.ended`, plus `flow.node.entered` and `flow.variables.extracted` for a [node-based agent](/v2/node-agents). The same value as the SSE `event` line. |
-| `call_id` | The call this event belongs to. |
-| `at` | When it happened. RFC 3339, UTC. |
-| `data` | The type-specific payload below. |
-
-Treat the envelope as additive: new fields and new event types can appear.
-Ignore what you do not recognise.
-
-### `agent.state`
-
-```json
-{
-  "v": 1, "seq": 5, "type": "agent.state",
-  "call_id": "call_01K8B2M4Q6S8T0V2X4Z6A8C0EG",
-  "at": "2026-09-27T10:01:43.020Z",
-  "data": { "state": "speaking" }
-}
-```
-
-| `state` | Meaning |
-| :--- | :--- |
-| `listening` | Waiting for the user. The agent returns here when its audio stops. |
-| `processing` | The user finished a turn; the agent is preparing its reply. |
-| `speaking` | The agent's audio is playing. This follows the actual audio, not the text being written, so it is safe to drive a "speaking" indicator or to mute the microphone. |
-| `ended` | The conversation is over. `call.ended` follows. |
-
-The page's own playback buffer can add a short delay between `speaking` and
-the moment sound comes out of the speaker.
-
-### `transcript.turn`
-
-One event per completed turn, for both speakers.
-
-```json
-{
-  "v": 1, "seq": 9, "type": "transcript.turn",
-  "call_id": "call_01K8B2M4Q6S8T0V2X4Z6A8C0EG",
-  "at": "2026-09-27T10:01:51.380Z",
-  "data": {
-    "role": "assistant",
-    "text": "Thanks. Could you tell me about a project where",
-    "turn": 5,
-    "interrupted": true
-  }
-}
-```
-
-| Field | Description |
-| :--- | :--- |
-| `role` | `user` or `assistant`. |
-| `text` | What was said in that turn. |
-| `turn` | The turn's number within the call. |
-| `interrupted` | `true` when the user cut the agent off. `text` is then what the user actually heard, not the full reply the agent had planned. |
-
-Text arrives once per **completed** turn: the user's after they finish
-speaking, the agent's after its turn ends. There are no word-by-word captions
-yet.
-
-### `flow.node.entered`
-
-Sent only for a [node-based agent](/v2/node-agents): the call entered a node.
-The start node sends one too, with `previous_id: null`. It arrives before the
-reply that node produces, so a page can show the current step as it changes.
-
-```json
-{
-  "v": 1, "seq": 5, "type": "flow.node.entered",
-  "call_id": "call_01K8B2M4Q6S8T0V2X4Z6A8C0EG",
-  "at": "2026-09-27T10:00:08.910Z",
-  "data": { "node_id": "slot", "name": "Offer the delivery slot", "previous_id": "identity" }
-}
-```
-
-| Field | Description |
-| :--- | :--- |
-| `node_id` | The `id` of the node the call entered. |
-| `name` | That node's `name`. |
-| `previous_id` | The `id` of the node the call left. `null` for the start node. |
-
-### `flow.variables.extracted`
-
-Sent only for a node-based agent: a node's extraction saved values. It arrives
-shortly after the call leaves a node with `extraction_enabled`, and only when
-something was extracted.
-
-```json
-{
-  "v": 1, "seq": 7, "type": "flow.variables.extracted",
-  "call_id": "call_01K8B2M4Q6S8T0V2X4Z6A8C0EG",
-  "at": "2026-09-27T10:00:09.640Z",
-  "data": { "node_id": "identity", "variables": { "identity_confirmed": true } }
-}
-```
-
-| Field | Description |
-| :--- | :--- |
-| `node_id` | The node whose extraction ran. |
-| `variables` | The names that node asked for, with the values extracted: strings, numbers or booleans. |
-
-### `call.ended`
-
-Always the last event. The stream closes after it.
-
-```json
-{
-  "v": 1, "seq": 31, "type": "call.ended",
-  "call_id": "call_01K8B2M4Q6S8T0V2X4Z6A8C0EG",
-  "at": "2026-09-27T10:09:30.412Z",
-  "data": { "reason": "time-limit-close", "status": "completed" }
-}
-```
-
-| Field | Description |
-| :--- | :--- |
-| `reason` | Why the conversation ended, from the [ended reason](/v2/calls#ended-reasons) vocabulary. |
-| `status` | The call's final [status](/v2/calls#statuses), when it is already known. It can be missing. |
-
-`call.ended` is sent even when the conversation ends abnormally. Use it to end
-the session in the page. The [webhook](#ending-and-results) is the record your
-backend acts on.
-
-### Reconnecting
-
-- **Automatic resume.** `EventSource` reconnects on its own and sends the
-  `Last-Event-ID` header. The stream continues after that event, so no turn is
-  missed or repeated.
-- **Manual resume.** Add `after=<id>` to `events_url` to start after a given
-  event, for example after a page reload.
-- **One-hour buffer.** Events are kept for one hour after the call ends.
-  Opening the stream for a finished call replays what happened, then closes.
-- **Close it yourself.** Call `events.close()` when you receive `call.ended`.
-  Otherwise `EventSource` keeps reconnecting to a stream that has nothing left
-  to send.
-- **Keep-alives.** The server sends an SSE comment every 15 seconds.
-  `EventSource` ignores these; they keep proxies from closing an idle stream.
-
-The stream allows every origin (`Access-Control-Allow-Origin: *`) and uses no
-cookies: the token in `events_url` is the credential. Your backend can read the
-same stream with `Authorization: Bearer sk_live_…` instead of the token:
-
-```bash
-curl -N https://sandbox.voice.miraiminds.co/v2/calls/call_01K8B2M4Q6S8T0V2X4Z6A8C0EG/events \
-  -H "Authorization: Bearer sk_live_YOUR_API_KEY"
-```
+`speaking` follows the agent's actual audio, so the page can safely mute the
+microphone while the agent talks. The [browser example](#browser-example) has
+this as an option. The page's own playback buffer can add a short delay
+between `speaking` and the moment sound comes out of the speaker. Your backend
+can read the same stream with `Authorization: Bearer sk_live_…` instead of the
+token.
 
 ---
 

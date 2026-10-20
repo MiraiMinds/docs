@@ -33,7 +33,7 @@ flow, or generating one.
 | Status | Meaning | Retry? |
 | :--- | :--- | :--- |
 | `400` | The request is malformed or a field is invalid. | No. Fix the request. |
-| `401` | Missing, malformed or unknown key, or an invalid token on a browser call's media or events link or a [speech stream](/v2/speech-compatibility#browser-stream-tokens). | No. |
+| `401` | Missing, malformed or unknown key, or an invalid token on a browser call's media link, a call's events link or a [speech stream](/v2/speech-compatibility#browser-stream-tokens). | No. |
 | `402` | Wallet cannot cover the call, or is empty when you generate a flow or transcribe a recording. | After topping up. |
 | `403` | The key is valid but **revoked**, the call is not covered by your company's plan, or it asks for recording on a workspace with recording turned off. | No. |
 | `404` | No such resource in your workspace, including one that exists in someone else's. | No. |
@@ -56,7 +56,7 @@ flow, or generating one.
 | `invalid_request` | `400` | Missing required field, wrong type, `to` not E.164, `max_duration_secs` out of range, unknown `voice_id`, malformed JSON. | Read `message`; it names the field. |
 | `invalid_flow` | `400` | A [node graph](/v2/node-agents) breaks a rule (including a node's `data.tools` naming a tool the agent doesn't have), a node-based agent has `end_call` enabled, or your tier's model cannot run flows. Sent as `{"error":"invalid_flow","details":[{"path","message"}]}`, not in the envelope. | Fix every listed path. See [node-based agent errors](/v2/node-agents#errors). |
 | `unauthorized` | `401` | No `Authorization` header, not `Bearer `-prefixed, or the key is unknown. | Check the header. A trailing newline from `cat`-ing a key file is the usual culprit. |
-| `invalid_token` | `401` | The `token` on a [browser call](/v2/web-calls)'s media or events link is unknown, expired, already used (the media link is single use), or belongs to another call. On a [TTS stream](/v2/tts-websocket#from-a-browser), the stream token is unknown, older than 60 seconds or already used. | Use the links exactly as returned. For audio, create a new call, because the media link cannot be reused. For a TTS stream, mint a new token for each connection. |
+| `invalid_token` | `401` | The `token` on a [browser call](/v2/web-calls)'s media link, or on any call's [events link](/v2/live-events), is unknown, expired, already used (the media link is single use), or belongs to another call. On a [TTS stream](/v2/tts-websocket#from-a-browser), the stream token is unknown, older than 60 seconds or already used. | Use the links exactly as returned. For audio, create a new call, because the media link cannot be reused. For live events, your API key opens the same stream. For a TTS stream, mint a new token for each connection. |
 | `upgrade_required` | `426` | A plain HTTP request reached a WebSocket endpoint, such as the [TTS stream](/v2/tts-websocket). | Connect with a WebSocket client (`wss://`). |
 | `forbidden` | `403` | The key was revoked. | Get a new key. |
 | `production_workspace_required` | `403` | A key from a workspace that has not gone live was sent to the production address, `https://prod.voice.miraiminds.co`. | Use `https://sandbox.voice.miraiminds.co`, or complete [Go live](/general/tiers#your-plan) in the console first. |

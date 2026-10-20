@@ -1042,6 +1042,19 @@ Alert on `campaign.paused` with a `pause_reason`. That event means a campaign
 has stopped spending money for a reason you can fix in one API call.
 </Tip>
 
+### Follow a campaign call live
+
+Each campaign call has a [live event stream](/v2/live-events), like any other
+call: the agent's state and each turn while the call runs. A campaign call has
+no create response, so it has no `events_url`. Open its stream from your backend
+with your API key. Take the call `id` from `data.call.id` on its `call.started`
+webhook, or from [`GET /v2/calls`](/v2/calls#list-calls).
+
+```bash
+curl -N https://sandbox.voice.miraiminds.co/v2/calls/call_01K7QB4M8N3P6R2S5T7V9W1YA/events \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY"
+```
+
 ---
 
 ## A campaign that behaves

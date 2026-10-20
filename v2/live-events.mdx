@@ -1,0 +1,487 @@
+---
+title: "Live events: follow a call as it happens"
+sidebarTitle: "Live events"
+description: "Stream the agent's state and each turn while a call runs, for phone calls, campaign and inbound calls, browser calls and realtime sessions."
+---
+
+
+Every call has a live event stream. While the call runs, it sends the agent's
+state and each completed turn, so your own dashboard or app can show a phone
+call as it happens: whether the agent is listening or speaking, and what each
+side said.
+
+The stream is `GET /v2/calls/{id}/events`, sent as
+[Server-Sent Events](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events),
+and it is read-only. The events and their format are the same for outbound
+phone calls, campaign calls, inbound calls on your numbers, browser calls and
+realtime sessions.
+
+The base URL is `https://sandbox.voice.miraiminds.co`. API requests use
+`Authorization: Bearer sk_live_…`.
+
+## Which calls have a stream
+
+Every call has one. How you open it depends on how the call started:
+
+| Call | How you open its stream |
+| :--- | :--- |
+| Phone call you place with [`POST /v2/calls`](/v2/calls#create-a-call) | The `events_url` in the `202`, from a browser or your backend. Your API key works too. |
+| [Campaign](/v2/campaigns) call | Your API key. Take the call `id` from a webhook such as `call.started`, or from [`GET /v2/calls`](/v2/calls#list-calls). |
+| Inbound call on one of your [numbers](/v2/phone-numbers) | Your API key, with the call `id` from a webhook such as `call.started`, or from `GET /v2/calls`. |
+| [Browser call](/v2/web-calls) (`channel: "web"`) | The `events_url` in the `202`, or your API key. |
+| [Realtime session](/v2/realtime) | Your API key. The session's call `id` is in your call list and on its webhooks. |
+
+A campaign call or an inbound call has no create response, so it has no
+`events_url`. Read its stream from your backend with your key.
+
+---
+
+## Follow a phone call
+
+Place the call from your backend as usual. The `202` carries `events_url`, the
+call's stream:
+
+```json title="202 Accepted"
+{
+  "id": "call_01K8D7R2T4V6X8Z0B2D4F6H8JK",
+  "status": "queued",
+  "events_url": "https://sandbox.voice.miraiminds.co/v2/calls/call_01K8D7R2T4V6X8Z0B2D4F6H8JK/events?token=UGhvbmUtZXZlbnRzLXRva2Vu"
+}
+```
+
+A phone call's `202` has no `ws_url` and no `transport`. Those belong to
+browser calls, where the page also needs an audio link.
+
+You can open the stream as soon as the call is placed. It stays quiet while the
+phone rings, and the first event arrives when the call is answered.
+
+| Stage | On the stream |
+| :--- | :--- |
+| Placed and ringing (`queued`, `dialing`) | No events yet. The stream is open and sends a keep-alive comment every 15 seconds. |
+| Answered | The first event, `agent.state`. |
+| In conversation | `agent.state` each time the agent's state changes, and one `transcript.turn` per completed turn. A [node-based agent](/v2/node-agents) also sends `flow.node.entered` and `flow.variables.extracted`. |
+| Ended | `call.ended`, then the stream closes. |
+
+### A call nobody answers
+
+A call that is never answered (busy, no answer, or failed at the carrier) sends
+exactly one event, `call.ended`, as soon as the call ends:
+
+```text
+id: 1792490506233-0
+event: call.ended
+data: {"v":1,"seq":1,"type":"call.ended","call_id":"call_01K8D9A3C5E7G9J1M3P5R7T9V1","at":"2026-10-20T10:01:46.233Z","data":{"reason":"customer-did-not-answer","status":"no_answer","synthesized":true}}
+```
+
+`status` is the call's final [status](/v2/calls#statuses), such as `busy`,
+`no_answer` or `failed`. `synthesized: true` means no conversation ran, so we
+wrote the end of the stream ourselves.
+
+---
+
+## Open the stream
+
+### From a browser, with `events_url`
+
+`events_url` carries its own read-only token for this one call. The token is
+valid for the call's maximum duration plus one hour. Hand the link to the page
+that shows the call and open it with `EventSource`. Your API key never reaches
+the page.
+
+```javascript
+// events_url came from your backend, which placed the call.
+const events = new EventSource(events_url);
+events.addEventListener("transcript.turn", (e) => {
+  const { role, text } = JSON.parse(e.data).data;
+});
+events.addEventListener("call.ended", () => events.close());
+```
+
+The stream allows every origin (`Access-Control-Allow-Origin: *`) and uses no
+cookies, so a page on your own domain can open it directly. The token in the
+link is the credential.
+
+- Use the link exactly as returned, and do not build it yourself.
+- If you retry the create request with the same `Idempotency-Key`, the replayed
+  `202` repeats `events_url` while its token is valid. After that, open the
+  stream with your key.
+
+<Warning>
+**`events_url` is a credential for one call.** Anyone holding it can read that
+conversation while the token is valid. Send it only to the page that shows this
+call, over HTTPS, and keep it out of logs and analytics. Never send your
+`sk_live_` key to a browser.
+</Warning>
+
+### From your backend, with your API key
+
+Your key opens the stream of any call in your workspace. This is how you follow
+campaign and inbound calls, which have no `events_url`.
+
+<Tabs>
+  <Tab title="cURL">
+    ```bash
+    curl -N https://sandbox.voice.miraiminds.co/v2/calls/call_01K8D7R2T4V6X8Z0B2D4F6H8JK/events \
+      -H "Authorization: Bearer sk_live_YOUR_API_KEY"
+    ```
+
+    `-N` turns off curl's buffering, so each event prints when it arrives.
+  </Tab>
+  <Tab title="Python SDK">
+    ```python
+    from mirai import Mirai
+
+    mirai = Mirai()  # reads MIRAI_API_KEY
+
+    call = mirai.calls.create(agent_id="agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ", to="+919876543210")
+    for event in mirai.calls.events(call.id):
+        if event.type == "agent.state":
+            print("agent is", event.data["state"])  # listening, processing, speaking, ended
+        elif event.type == "transcript.turn":
+            print(event.data["role"], event.data["text"])
+        elif event.type == "call.ended":
+            print("ended:", event.data.get("status"), event.data["reason"])
+    ```
+
+    `mirai.calls.events(call_id)` works for any call in your workspace. After a
+    dropped connection it resumes from the last event it received, and it stops
+    after `call.ended`. On a phone call, `call.events_url` holds the link to
+    hand to a browser.
+  </Tab>
+</Tabs>
+
+### Responses
+
+| Status | `error.code` | Meaning |
+| :--- | :--- | :--- |
+| `200` | | The stream. It stays open until `call.ended`. |
+| `204` | | Nothing left to send: this reader is already past `call.ended`, for example on a reconnect after the last event. `EventSource` stops reconnecting on a `204`. |
+| `401` | `invalid_token` | The token in `events_url` is unknown, expired or for another call. Your API key still opens the stream. |
+| `401` | `unauthorized` | Bad or missing API key. |
+| `404` | `not_found` | Unknown call ID, or a call in another workspace. |
+
+---
+
+## Show phone calls on your dashboard
+
+This server places phone calls and relays each call's stream to your dashboard
+with your API key. The dashboard reads the relay from your own origin, so your
+own sign-in decides who can watch which call. The relay works for campaign and
+inbound calls too, because it only needs the call `id`. Add those calls to
+`db.calls` when their `call.started` webhook arrives (`data.call.id`).
+
+It is written in Node.js 18 or later with Express. `db` and `requireUser` stand
+in for your own code.
+
+```javascript title="server.js"
+import express from "express";
+import { Readable, pipeline } from "node:stream";
+
+const API = "https://sandbox.voice.miraiminds.co";
+const auth = { Authorization: `Bearer ${process.env.MIRAI_API_KEY}` };
+const app = express();
+app.use(express.json());
+
+// 1. Place a phone call and keep its id beside your own record.
+app.post("/api/calls", requireUser, async (req, res) => {
+  const { orderId, name, phone } = req.body;
+  const r = await fetch(`${API}/v2/calls`, {
+    method: "POST",
+    headers: {
+      ...auth,
+      "Content-Type": "application/json",
+      "Idempotency-Key": `order-${orderId}-confirm-1`,
+    },
+    body: JSON.stringify({
+      agent_id: process.env.MIRAI_AGENT_ID,
+      to: phone,
+      variables: { customer_name: name, order_id: orderId },
+      metadata: { order_id: orderId },
+    }),
+  });
+  const call = await r.json();
+  if (!r.ok) return res.status(502).json({ error: call.error.code });
+
+  await db.calls.create({ id: call.id, orgId: req.user.orgId, orderId });
+  res.json({ call_id: call.id });
+});
+
+// 2. Relay one call's live events to the dashboard. The key stays here.
+app.get("/api/calls/:id/live", requireUser, async (req, res) => {
+  const call = await db.calls.get(req.params.id, { orgId: req.user.orgId });
+  if (!call) return res.sendStatus(404);
+
+  const abort = new AbortController();
+  res.on("close", () => abort.abort()); // the page left: close the upstream stream
+
+  // EventSource sends Last-Event-ID when it reconnects. Pass it on, so the
+  // stream continues after the last event the page saw.
+  const lastId = req.get("Last-Event-ID");
+  let upstream;
+  try {
+    upstream = await fetch(`${API}/v2/calls/${call.id}/events`, {
+      headers: {
+        ...auth,
+        Accept: "text/event-stream",
+        ...(lastId ? { "Last-Event-ID": lastId } : {}),
+      },
+      signal: abort.signal,
+    });
+  } catch {
+    return res.sendStatus(502);
+  }
+  if (upstream.status === 204) return res.sendStatus(204); // already past call.ended
+  if (!upstream.ok) return res.sendStatus(502);
+
+  res.set({ "Content-Type": "text/event-stream", "Cache-Control": "no-cache" });
+  res.flushHeaders();
+  // Copy the stream as it is. It ends after call.ended, or when the page leaves.
+  pipeline(Readable.fromWeb(upstream.body), res, () => {});
+});
+
+app.listen(3000);
+```
+
+The dashboard page opens the relay with `EventSource` and shows the agent's
+state and the conversation:
+
+```html title="call.html"
+<!doctype html>
+<meta charset="utf-8" />
+<p id="state">Waiting for an answer…</p>
+<ol id="transcript"></ol>
+
+<script type="module">
+  const $ = (id) => document.getElementById(id);
+  const callId = new URLSearchParams(location.search).get("call");
+  const events = new EventSource(`/api/calls/${encodeURIComponent(callId)}/live`);
+
+  events.addEventListener("agent.state", (e) => {
+    $("state").textContent = `Agent is ${JSON.parse(e.data).data.state}`;
+  });
+  events.addEventListener("transcript.turn", (e) => {
+    const { role, text, interrupted } = JSON.parse(e.data).data;
+    const li = document.createElement("li");
+    // textContent, never innerHTML: transcript text is what people said.
+    li.textContent = `${role === "user" ? "Customer" : "Agent"}: ${text}` +
+      (interrupted ? " (interrupted)" : "");
+    $("transcript").append(li);
+  });
+  events.addEventListener("call.ended", (e) => {
+    const { status, reason } = JSON.parse(e.data).data;
+    $("state").textContent = `Call ended: ${status ?? reason}`;
+    events.close(); // the last event; stop EventSource from reconnecting
+  });
+</script>
+```
+
+Notes on the example:
+
+- For a call you place yourself, you can skip the relay: return `events_url`
+  from `POST /api/calls` and open it in the page with `EventSource`. The relay
+  is for campaign and inbound calls, and for when your own sign-in should
+  decide who can watch.
+- If a proxy sits in front of your server, turn off response buffering for the
+  relay route. Otherwise events reach the page in bursts.
+- A call nobody answers ends at once on the page, with a line such as
+  `Call ended: no_answer`.
+
+---
+
+## Framing
+
+Each event is one SSE message with three lines:
+
+```text
+id: 1792490414114-0
+event: transcript.turn
+data: {"v":1,"seq":9,"type":"transcript.turn","call_id":"call_01K8D7R2T4V6X8Z0B2D4F6H8JK","at":"2026-10-20T10:00:14.114Z","data":{"role":"user","text":"Haan, kal shaam ko main ghar par hoon.","turn":4,"interrupted":false}}
+```
+
+- `id` is the position in the stream. Treat it as opaque: it is what a
+  reconnect resumes from.
+- `event` is the event type. Because every event is named, listen with
+  `addEventListener(type, …)`. `onmessage` receives nothing.
+- `data` is a JSON envelope:
+
+| Field | Description |
+| :--- | :--- |
+| `v` | Schema version. `1`. |
+| `seq` | Sequence number of the event within this call, increasing. |
+| `type` | `agent.state`, `transcript.turn` or `call.ended`, plus `flow.node.entered` and `flow.variables.extracted` for a [node-based agent](/v2/node-agents). The same value as the SSE `event` line. |
+| `call_id` | The call this event belongs to. |
+| `at` | When it happened. RFC 3339, UTC. |
+| `data` | The type-specific payload below. |
+
+Treat the envelope as additive: new fields and new event types can appear.
+Ignore what you do not recognise.
+
+## Event types
+
+### `agent.state`
+
+```json
+{
+  "v": 1, "seq": 10, "type": "agent.state",
+  "call_id": "call_01K8D7R2T4V6X8Z0B2D4F6H8JK",
+  "at": "2026-10-20T10:00:15.020Z",
+  "data": { "state": "speaking" }
+}
+```
+
+| `state` | Meaning |
+| :--- | :--- |
+| `listening` | Waiting for the person on the call. The agent returns here when its audio stops. |
+| `processing` | The person finished a turn; the agent is preparing its reply. |
+| `speaking` | The agent's audio is playing. This follows the actual audio, not the text being written, so it is safe to drive a "speaking" indicator. |
+| `ended` | The conversation is over. `call.ended` follows. |
+
+On a browser call, the page's own playback buffer can add a short delay
+between `speaking` and the moment sound comes out of the speaker.
+
+### `transcript.turn`
+
+One event per completed turn, for both speakers.
+
+```json
+{
+  "v": 1, "seq": 12, "type": "transcript.turn",
+  "call_id": "call_01K8D7R2T4V6X8Z0B2D4F6H8JK",
+  "at": "2026-10-20T10:00:21.380Z",
+  "data": {
+    "role": "assistant",
+    "text": "Theek hai Rahul ji, toh main delivery kal shaam",
+    "turn": 5,
+    "interrupted": true
+  }
+}
+```
+
+| Field | Description |
+| :--- | :--- |
+| `role` | `user` (the person on the call, such as your customer on a phone call) or `assistant` (the agent). |
+| `text` | What was said in that turn. |
+| `turn` | The turn's number within the call. |
+| `interrupted` | `true` when the person cut the agent off. `text` is then what they actually heard, not the full reply the agent had planned. |
+
+Text arrives once per **completed** turn: the person's after they finish
+speaking, the agent's after its turn ends. There are no word-by-word captions
+yet.
+
+### `flow.node.entered`
+
+Sent only for a [node-based agent](/v2/node-agents): the call entered a node.
+The start node sends one too, with `previous_id: null`. It arrives before the
+reply that node produces, so a page can show the current step as it changes.
+
+```json
+{
+  "v": 1, "seq": 5, "type": "flow.node.entered",
+  "call_id": "call_01K8D7R2T4V6X8Z0B2D4F6H8JK",
+  "at": "2026-10-20T10:00:08.910Z",
+  "data": { "node_id": "slot", "name": "Offer the delivery slot", "previous_id": "identity" }
+}
+```
+
+| Field | Description |
+| :--- | :--- |
+| `node_id` | The `id` of the node the call entered. |
+| `name` | That node's `name`. |
+| `previous_id` | The `id` of the node the call left. `null` for the start node. |
+
+### `flow.variables.extracted`
+
+Sent only for a node-based agent: a node's extraction saved values. It arrives
+shortly after the call leaves a node with `extraction_enabled`, and only when
+something was extracted.
+
+```json
+{
+  "v": 1, "seq": 6, "type": "flow.variables.extracted",
+  "call_id": "call_01K8D7R2T4V6X8Z0B2D4F6H8JK",
+  "at": "2026-10-20T10:00:09.640Z",
+  "data": { "node_id": "identity", "variables": { "identity_confirmed": true } }
+}
+```
+
+| Field | Description |
+| :--- | :--- |
+| `node_id` | The node whose extraction ran. |
+| `variables` | The names that node asked for, with the values extracted: strings, numbers or booleans. |
+
+### `call.ended`
+
+Always the last event. The stream closes after it.
+
+```json
+{
+  "v": 1, "seq": 31, "type": "call.ended",
+  "call_id": "call_01K8D7R2T4V6X8Z0B2D4F6H8JK",
+  "at": "2026-10-20T10:01:30.412Z",
+  "data": { "reason": "assistant-ended-call", "status": "completed" }
+}
+```
+
+| Field | Description |
+| :--- | :--- |
+| `reason` | Why the call ended, from the [ended reason](/v2/calls#ended-reasons) vocabulary. |
+| `status` | The call's final [status](/v2/calls#statuses), when it is already known. It can be missing. |
+| `synthesized` | `true` when no conversation ran, for example on a phone call nobody answered. We then write `call.ended` ourselves. Treat a missing field as `false`. |
+
+`call.ended` is sent even when the call ends abnormally. Use it to update what
+your page shows. The [webhook](/v2/webhooks) is the record your backend acts
+on.
+
+---
+
+## Reconnecting
+
+- **Automatic resume.** `EventSource` reconnects on its own and sends the
+  `Last-Event-ID` header. The stream continues after that event, so no turn is
+  missed or repeated.
+- **Manual resume.** Add `after=<id>` to `events_url`, or to the stream URL you
+  open with your key, to start after a given event, for example after a page
+  reload.
+- **One-hour buffer.** Events are kept for one hour after the call ends.
+  Opening the stream for a finished call replays what happened, then closes.
+- **Past the end.** A reader that has already received `call.ended` gets
+  `204 No Content`, and `EventSource` stops reconnecting.
+- **Close it yourself.** Call `events.close()` when you receive `call.ended`,
+  so `EventSource` does not try to reconnect.
+- **Keep-alives.** The server sends an SSE comment every 15 seconds.
+  `EventSource` ignores these; they keep proxies from closing an idle stream,
+  for example while a phone rings.
+
+## Steering or stopping a call
+
+The stream is read-only. To steer a browser call or a realtime session while it
+runs, send a [live control](/v2/web-calls#live-control). A phone call answers
+live control with `400 unsupported_channel`. To stop a phone call, use
+[`POST /v2/calls/{id}/abort`](/v2/calls#abort-a-call).
+
+## Privacy
+
+- The stream carries what your customer says. Show it only to people who need
+  it, behind your own sign-in.
+- Live events work the same with `recording_enabled: false`. No audio is
+  stored, and the text still streams.
+- Events are kept for one hour after the call ends. For the stored transcript,
+  use [`GET /v2/calls/{id}/transcript`](/v2/calls#get-the-transcript) or
+  [final results](/v2/webhooks#final-results).
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Calls" icon="phone" href="/v2/calls">
+    Place calls, read status, transcripts and recordings.
+  </Card>
+  <Card title="Browser calls" icon="browser" href="/v2/web-calls">
+    Audio, live events and live control in your user's browser.
+  </Card>
+  <Card title="Campaigns" icon="list-check" href="/v2/campaigns">
+    Dial a whole list. Each call has its own stream.
+  </Card>
+  <Card title="Webhooks" icon="bell" href="/v2/webhooks">
+    Signed events for each step of a call, and the final transcript.
+  </Card>
+</CardGroup>

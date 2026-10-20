@@ -86,6 +86,12 @@ transcript in a webhook with [final results](/v2/webhooks#final-results). To
 store no audio, create calls with `recording_enabled: false`. Retention is on
 the [limits page](/v2/limits#data-retention).
 
+**Can I show a phone call on my own dashboard while it runs?**
+Yes. Every call has a [live event stream](/v2/live-events) with the agent's
+state and each turn as it happens. A call you place returns `events_url`, which
+a browser can open without your API key. For campaign and inbound calls, read
+the stream from your backend with your key.
+
 **What happens if the customer does not answer?**
 The call ends with `status: no_answer`, you get a `call.failed` webhook, and
 there is no charge. v2 does not retry for you, so retry from your own dialler if
