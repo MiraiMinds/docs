@@ -36,18 +36,19 @@ balance. The [webhook test vector](/v2/webhooks#test-vector) lets you build and
 verify your handler without placing a call at all.
 
 **Is there an SDK?**
-Yes, for Python:
+No. We support two ways to build on Mirai:
 
-```bash
-pip install --extra-index-url https://sandbox.voice.miraiminds.co/pypi/simple mirai-voice
-```
+- **The REST API.** The [API reference](/api-reference/introduction) documents
+  every endpoint, and the [Postman collection](/api-reference/postman) has each
+  request ready to send. The API is deliberately small, so the cURL, Python and
+  Node examples on every page are ready to copy.
+- **Pipecat.** If your bot runs on Pipecat, the [`pipecat-mirai`](/v2/pipecat)
+  package gives you our voices and realtime agents as Pipecat services.
 
-The SDK builds in the rules you would otherwise have to work out yourself: an
-`Idempotency-Key` on every call create so a retry never dials twice,
-`Retry-After`-aware backoff, cursor iterators, and
-`mirai.webhooks.verify()` over the raw body. It supports sync and async use and
-both credential generations. The cURL, Python and Node examples on every page
-are ready to copy and work just as well, because the API is deliberately small.
+A few rules are worth building in from the start: send an `Idempotency-Key` on
+every call create so a retry never dials twice, wait for `Retry-After` when you
+get a `429`, and [verify each webhook's signature](/v2/webhooks#signature-verification)
+over the raw body.
 
 ## Calls
 
