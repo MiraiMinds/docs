@@ -67,6 +67,11 @@ TAG_ORDER = ("Agents", "Calls", "Flows", "Tools and secrets", "Campaigns", "Do-n
 
 #: Endpoints that exist in the contract but are not served on the public hosts
 #: (probed without a key: 404), or that are not v2 paths.
+#: Knowledge bases are in the contract and served, but the console's Postman
+#: collection has no requests for them yet. Add them in mirai-voice
+#: scripts/postman/spec and drop these lines; the pages then generate.
+KNOWLEDGE_PENDING = "no Postman request yet (knowledge bases)"
+
 SKIP_CONTRACT = {
     ("POST", "/v2/telephony/test-calls"): "not served on the public hosts",
     ("GET", "/v2/whatsapp/numbers"): "not served on the public hosts",
@@ -74,6 +79,18 @@ SKIP_CONTRACT = {
     ("GET", "/v2/whatsapp/numbers/{id}"): "not served on the public hosts",
     ("PATCH", "/v2/whatsapp/numbers/{id}"): "not served on the public hosts",
     ("DELETE", "/v2/whatsapp/numbers/{id}"): "not served on the public hosts",
+    ("DELETE", "/v2/knowledge-bases/{id}"): KNOWLEDGE_PENDING,
+    ("DELETE", "/v2/knowledge-bases/{id}/sources/{source_id}"): KNOWLEDGE_PENDING,
+    ("GET", "/v2/knowledge-bases"): KNOWLEDGE_PENDING,
+    ("GET", "/v2/knowledge-bases/{id}"): KNOWLEDGE_PENDING,
+    ("GET", "/v2/knowledge-bases/{id}/chunks"): KNOWLEDGE_PENDING,
+    ("GET", "/v2/knowledge-bases/{id}/sources"): KNOWLEDGE_PENDING,
+    ("GET", "/v2/knowledge-bases/{id}/sources/{source_id}"): KNOWLEDGE_PENDING,
+    ("PATCH", "/v2/knowledge-bases/{id}"): KNOWLEDGE_PENDING,
+    ("POST", "/v2/knowledge-bases"): KNOWLEDGE_PENDING,
+    ("POST", "/v2/knowledge-bases/{id}/search"): KNOWLEDGE_PENDING,
+    ("POST", "/v2/knowledge-bases/{id}/sources"): KNOWLEDGE_PENDING,
+    ("POST", "/v2/knowledge-bases/{id}/sources/{source_id}/sync"): KNOWLEDGE_PENDING,
 }
 
 #: Postman requests left out of the reference, with the reason. Each was

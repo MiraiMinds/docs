@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Mirai Voice API",
-    "version": "2026-10-15.analysis-templates",
+    "version": "2026-10-19.knowledge",
     "description": "The v2 API for voice agents, calls, campaigns, phone numbers and speech. Every request carries `Authorization: Bearer sk_live_…`. Generated from the API's own contract and its Postman collection."
   },
   "servers": [
@@ -27,7 +27,7 @@
     },
     {
       "name": "Calls",
-      "description": "Place a call, follow it while it runs, then read what happened: the transcript, the recording, the post-call analysis.\n\n`POST /v2/calls` answers before the phone rings, with an id. Everything after that is about that id. Live control and the live event stream work on browser calls (`channel: \"web\"`) and realtime sessions only; a phone call answers them with `400 unsupported_channel`."
+      "description": "Place a call, follow it while it runs, then read what happened: the transcript, the recording, the post-call analysis.\n\n`POST /v2/calls` answers before the phone rings, with an id. Everything after that is about that id. Every call has a live event stream, phone calls included, so your own dashboard can show a call as it happens. Live control works on browser calls (`channel: \"web\"`) and realtime sessions only; a phone call answers it with `400 unsupported_channel`."
     },
     {
       "name": "Flows",
@@ -952,6 +952,17 @@
                         ],
                         "description": "Replace the entire input declaration. Null removes it and restores legacy string variables."
                       },
+                      "knowledge": {
+                        "anyOf": [
+                          {
+                            "$ref": "#/components/schemas/Knowledge"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Attach knowledge bases. null removes the block."
+                      },
                       "language": {
                         "minLength": 1,
                         "type": "string"
@@ -1732,6 +1743,7 @@
                 "tools",
                 "variables",
                 "results",
+                "knowledge",
                 "calls"
               ],
               "type": "string"
@@ -2093,7 +2105,7 @@
       "post": {
         "operationId": "create_call",
         "summary": "Place a call",
-        "description": "Rings `to` and runs `agent_id` on the call. **This rings a real phone and uses wallet credit.** It answers **202** once the call is accepted. The phone hasn't rung yet, so poll [Get call](/api-reference/calls/get-call) or take the webhooks sent to `webhook_url`.\n\nBefore your company goes live, every call runs and is billed at t5 (₹5 a minute, in 10-second blocks), whatever tier you send. The wallet must cover one minute before anything is dialled, or you get a 402 and nothing is charged.\n\n**Idempotency-Key** keeps a retry to one phone call. The same key within 24 hours replays the first 202 (with `Idempotent-Replay: true`) and dials nothing. In your own code, build the key from your own record, like `order-8842-reminder-1`.\n\nEverything but `agent_id` and `to` is optional:\n\n* `variables` fill the placeholders in the agent's prompt and first message (up to 32, 512 characters each). Tools read them as `vars.*`.\n* `metadata` is your own ids. They come back on the call and on every webhook, and the agent never sees them.\n* `webhook_url`, `max_duration_secs` (30–1800), `first_message`, `timing`, `recording_enabled` and `final_results` work as the docs describe.\n* `phone_number_id` calls from one of your own numbers (see *Phone numbers*) instead of the default route.\n\n**A browser call instead:** see [Start a browser call](/api-reference/calls/start-a-browser-call): the same request with `\"channel\": \"web\"` and no `to`. `\"channel\": \"realtime\"` opens an OpenAI Realtime-compatible session the same way. Both are billed per minute like a phone call.",
+        "description": "Rings `to` and runs `agent_id` on the call. **This rings a real phone and uses wallet credit.** It answers **202** once the call is accepted. The phone hasn't rung yet, so poll [Get call](/api-reference/calls/get-call), take the webhooks sent to `webhook_url`, or follow it live: `events_url` is the call's live event stream (see [Stream live events](/api-reference/calls/stream-live-events)), with its own read-only token, so you can open it from a browser without your key.\n\nBefore your company goes live, every call runs and is billed at t5 (₹5 a minute, in 10-second blocks), whatever tier you send. The wallet must cover one minute before anything is dialled, or you get a 402 and nothing is charged.\n\n**Idempotency-Key** keeps a retry to one phone call. The same key within 24 hours replays the first 202 (with `Idempotent-Replay: true`) and dials nothing. In your own code, build the key from your own record, like `order-8842-reminder-1`.\n\nEverything but `agent_id` and `to` is optional:\n\n* `variables` fill the placeholders in the agent's prompt and first message (up to 32, 512 characters each). Tools read them as `vars.*`.\n* `metadata` is your own ids. They come back on the call and on every webhook, and the agent never sees them.\n* `webhook_url`, `max_duration_secs` (30–1800), `first_message`, `timing`, `recording_enabled` and `final_results` work as the docs describe.\n* `phone_number_id` calls from one of your own numbers (see *Phone numbers*) instead of the default route.\n\n**A browser call instead:** see [Start a browser call](/api-reference/calls/start-a-browser-call): the same request with `\"channel\": \"web\"` and no `to`. `\"channel\": \"realtime\"` opens an OpenAI Realtime-compatible session the same way. Both are billed per minute like a phone call.",
         "tags": [
           "Calls"
         ],
@@ -2131,7 +2143,7 @@
                   },
                   "channel": {
                     "default": "phone",
-                    "description": "phone dials to. web is a browser session: no to, no route; the answer adds ws_url and events_url. realtime is an OpenAI Realtime-compatible session with the same rules, answer and per-minute price as web, except that it is refused (429 concurrency_limit) rather than queued when no voice slot is free; first_message, system_prompt, timing, test and flow agents are not accepted on it.",
+                    "description": "phone dials to; the answer adds events_url (live events). web is a browser session: no to, no route; the answer adds ws_url and events_url. realtime is an OpenAI Realtime-compatible session with the same rules, answer and per-minute price as web, except that it is refused (429 concurrency_limit) rather than queued when no voice slot is free; first_message, system_prompt, timing, test and flow agents are not accepted on it.",
                     "enum": [
                       "phone",
                       "web",
@@ -2309,7 +2321,8 @@
                     "summary": "202 — accepted, not dialled yet",
                     "value": {
                       "id": "call_01K2M4RB8CDEFGHJKMNPQRST",
-                      "status": "queued"
+                      "status": "queued",
+                      "events_url": "https://sandbox.voice.miraiminds.co/v2/calls/call_01K2M4RB8CDEFGHJKMNPQRST/events?token=Qm4tW8yZ1cF5hJ9sD3gA7eU2iO6kN0qVb4nR8xK2pL6"
                     }
                   },
                   "Accepted, waiting for the browser": {
@@ -2754,7 +2767,7 @@
       "get": {
         "operationId": "stream_live_events",
         "summary": "Stream live events",
-        "description": "What's happening on a browser or realtime call, as it happens, over [Server-Sent Events](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events).\n\n**This response doesn't finish on its own.** It stays open and sends each event as it occurs: `agent.state` (listening, processing, speaking), `transcript.turn` for every completed turn, `flow.node.entered` and `flow.variables.extracted` for a node-based agent, and finally `call.ended`, after which the stream closes.\n\nEvery event has an `id`. To resume after a drop, send it back as `after` (or as the `Last-Event-ID` header) and the stream carries on after that event. Events are kept for an hour after the call ends, so opening a finished call replays it and closes. A reader already past `call.ended` gets `204`.\n\nYour API key works here, from your backend. A browser should open the `events_url` that creating the call returned, which carries its own token, so your key never reaches the page. A phone call answers `400 unsupported_channel`.",
+        "description": "What's happening on a call, as it happens, over [Server-Sent Events](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events). Every call has it: phone calls (outbound, campaign and inbound), browser calls and realtime sessions.\n\n**This response doesn't finish on its own.** It stays open and sends each event as it occurs: `agent.state` (listening, processing, speaking), `transcript.turn` for every completed turn, `turn.metrics` with how fast each agent reply came (`latency_ms` from the caller stopping to the reply's audio, and each stage's first-byte time), `tool.started` and `tool.completed` for each tool the agent runs during the call (names and timings, never arguments or results), `flow.node.entered` and `flow.variables.extracted` for a node-based agent, and finally `call.ended`, after which the stream closes.\n\nEvery event has an `id`. To resume after a drop, send it back as `after` (or as the `Last-Event-ID` header) and the stream carries on after that event. Events are kept for an hour after the call ends, so opening a finished call replays it and closes. A reader already past `call.ended` gets `204`.\n\nA phone call's stream opens when it is placed and stays quiet while it rings; the first event arrives when the call is answered. A call that is never answered (busy, no answer) sends only `call.ended`, with the call's `status`.\n\nYour API key works here, from your backend, for any call in your workspace. A browser should open the `events_url` that creating the call returned, which carries its own token, so your key never reaches the page. A campaign or inbound call has no create response, so read its stream with your key.",
         "tags": [
           "Calls"
         ],
@@ -2798,23 +2811,27 @@
                 "examples": {
                   "The stream, through to call.ended": {
                     "summary": "200 — the stream, through to call.ended",
-                    "value": "retry: 2000\n\nid: 1791540082114-0\nevent: agent.state\ndata: {\"v\":1,\"seq\":1,\"type\":\"agent.state\",\"call_id\":\"call_01K2M5W3B7D9F1H3K5M7P9R1T3\",\"at\":\"2026-10-09T10:01:22.114Z\",\"data\":{\"state\":\"speaking\"}}\n\nid: 1791540084020-0\nevent: transcript.turn\ndata: {\"v\":1,\"seq\":2,\"type\":\"transcript.turn\",\"call_id\":\"call_01K2M5W3B7D9F1H3K5M7P9R1T3\",\"at\":\"2026-10-09T10:01:24.020Z\",\"data\":{\"role\":\"assistant\",\"text\":\"नमस्ते, मैं आशु बोल रहा हूं मिराई मोटर्स से. एक मिनट है आपके पास?\",\"turn\":1,\"interrupted\":false}}\n\nid: 1791540089380-0\nevent: agent.state\ndata: {\"v\":1,\"seq\":3,\"type\":\"agent.state\",\"call_id\":\"call_01K2M5W3B7D9F1H3K5M7P9R1T3\",\"at\":\"2026-10-09T10:01:29.380Z\",\"data\":{\"state\":\"listening\"}}\n\nid: 1791540091902-0\nevent: transcript.turn\ndata: {\"v\":1,\"seq\":4,\"type\":\"transcript.turn\",\"call_id\":\"call_01K2M5W3B7D9F1H3K5M7P9R1T3\",\"at\":\"2026-10-09T10:01:31.902Z\",\"data\":{\"role\":\"user\",\"text\":\"हाँ बोलिए\",\"turn\":2,\"interrupted\":false}}\n\n: ping\n\nid: 1791540291412-0\nevent: call.ended\ndata: {\"v\":1,\"seq\":31,\"type\":\"call.ended\",\"call_id\":\"call_01K2M5W3B7D9F1H3K5M7P9R1T3\",\"at\":\"2026-10-09T10:04:51.412Z\",\"data\":{\"reason\":\"api-ended-call\",\"status\":\"completed\"}}\n\n"
+                    "value": "retry: 2000\n\nid: 1791540082114-0\nevent: agent.state\ndata: {\"v\":1,\"seq\":1,\"type\":\"agent.state\",\"call_id\":\"call_01K2M5W3B7D9F1H3K5M7P9R1T3\",\"at\":\"2026-10-09T10:01:22.114Z\",\"data\":{\"state\":\"speaking\"}}\n\nid: 1791540084020-0\nevent: transcript.turn\ndata: {\"v\":1,\"seq\":2,\"type\":\"transcript.turn\",\"call_id\":\"call_01K2M5W3B7D9F1H3K5M7P9R1T3\",\"at\":\"2026-10-09T10:01:24.020Z\",\"data\":{\"role\":\"assistant\",\"text\":\"नमस्ते, मैं आशु बोल रहा हूं मिराई मोटर्स से. एक मिनट है आपके पास?\",\"turn\":1,\"interrupted\":false}}\n\nid: 1791540089380-0\nevent: agent.state\ndata: {\"v\":1,\"seq\":3,\"type\":\"agent.state\",\"call_id\":\"call_01K2M5W3B7D9F1H3K5M7P9R1T3\",\"at\":\"2026-10-09T10:01:29.380Z\",\"data\":{\"state\":\"listening\"}}\n\nid: 1791540091902-0\nevent: transcript.turn\ndata: {\"v\":1,\"seq\":4,\"type\":\"transcript.turn\",\"call_id\":\"call_01K2M5W3B7D9F1H3K5M7P9R1T3\",\"at\":\"2026-10-09T10:01:31.902Z\",\"data\":{\"role\":\"user\",\"text\":\"हाँ बोलिए\",\"turn\":2,\"interrupted\":false}}\n\nid: 1791540092794-0\nevent: agent.state\ndata: {\"v\":1,\"seq\":5,\"type\":\"agent.state\",\"call_id\":\"call_01K2M5W3B7D9F1H3K5M7P9R1T3\",\"at\":\"2026-10-09T10:01:32.794Z\",\"data\":{\"state\":\"speaking\"}}\n\nid: 1791540092795-0\nevent: turn.metrics\ndata: {\"v\":1,\"seq\":6,\"type\":\"turn.metrics\",\"call_id\":\"call_01K2M5W3B7D9F1H3K5M7P9R1T3\",\"at\":\"2026-10-09T10:01:32.794Z\",\"data\":{\"reply\":2,\"latency_ms\":892.4,\"stt_ms\":141.0,\"llm_ms\":402.6,\"tts_ms\":188.3}}\n\n: ping\n\nid: 1791540291412-0\nevent: call.ended\ndata: {\"v\":1,\"seq\":31,\"type\":\"call.ended\",\"call_id\":\"call_01K2M5W3B7D9F1H3K5M7P9R1T3\",\"at\":\"2026-10-09T10:04:51.412Z\",\"data\":{\"reason\":\"api-ended-call\",\"status\":\"completed\"}}\n\n"
+                  },
+                  "A phone call nobody answered": {
+                    "summary": "200 — a phone call nobody answered",
+                    "value": "retry: 2000\n\nid: 1791540106233-0\nevent: call.ended\ndata: {\"v\":1,\"seq\":1,\"type\":\"call.ended\",\"call_id\":\"call_01K2M4RB8CDEFGHJKMNPQRST\",\"at\":\"2026-10-09T10:01:46.233Z\",\"data\":{\"reason\":\"customer-did-not-answer\",\"status\":\"no_answer\",\"synthesized\":true}}\n\n"
                   }
                 }
               }
             }
           },
-          "400": {
-            "description": "A phone call has no live events",
+          "401": {
+            "description": "The events_url token expired or is for another call",
             "content": {
               "application/json": {
                 "examples": {
-                  "A phone call has no live events": {
-                    "summary": "400 — a phone call has no live events",
+                  "The events_url token expired or is for another call": {
+                    "summary": "401 — the events_url token expired or is for another call",
                     "value": {
                       "error": {
-                        "code": "unsupported_channel",
-                        "message": "live events are available for web and realtime calls only"
+                        "code": "invalid_token",
+                        "message": "the events token is missing, expired or not for this call"
                       }
                     }
                   }
@@ -15956,6 +15973,10 @@
             ],
             "description": "Replace the entire input declaration. Null removes it and restores legacy string variables."
           },
+          "knowledge": {
+            "$ref": "#/components/schemas/Knowledge",
+            "description": "Present only on an agent with knowledge attached."
+          },
           "language": {
             "minLength": 1,
             "type": "string"
@@ -16372,6 +16393,17 @@
               }
             ],
             "description": "Replace the entire input declaration. Null removes it and restores legacy string variables."
+          },
+          "knowledge": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Knowledge"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Attach knowledge bases. null removes the block."
           },
           "language": {
             "minLength": 1,
@@ -16793,6 +16825,17 @@
               }
             ],
             "description": "Replace the entire input declaration. Null removes it and restores legacy string variables."
+          },
+          "knowledge": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Knowledge"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Attach knowledge bases. null removes the block."
           },
           "language": {
             "minLength": 1,
@@ -17308,10 +17351,10 @@
         "type": "object"
       },
       "CallCreated": {
-        "description": "202 response of POST /v2/calls. Web calls and realtime sessions add the session credentials: paths the public edge makes absolute. transport names the channel.",
+        "description": "202 response of POST /v2/calls. Web calls and realtime sessions add the session credentials (ws_url and events_url); a phone call adds events_url. Both are paths the public edge makes absolute. transport names the channel of a web call or realtime session.",
         "properties": {
           "events_url": {
-            "description": "Live events (Server-Sent Events) path with a reusable read-only token, valid for the call's maximum duration plus one hour.",
+            "description": "Live events (Server-Sent Events) path with a reusable read-only token, valid for the call's maximum duration plus one hour. Returned for phone calls, web calls and realtime sessions. An idempotent replay repeats it while the token is valid.",
             "type": "string"
           },
           "id": {
@@ -18771,6 +18814,51 @@
           "type",
           "prompt"
         ],
+        "type": "object"
+      },
+      "Knowledge": {
+        "additionalProperties": false,
+        "description": "Knowledge bases this agent answers from on calls (POST /v2/knowledge-bases). Available only on deployments where knowledge is enabled; elsewhere sending the block answers 400 knowledge_unavailable. Revisioned with the agent; a call pins the version of each base that is ready when it starts, and a base with no ready version yet is skipped. A PATCH replaces the whole block; null removes it.",
+        "properties": {
+          "base_ids": {
+            "description": "Up to 5 knowledge base ids from this workspace. An unknown or deleted id is 400 with its path.",
+            "items": {
+              "pattern": "^kb_",
+              "type": "string"
+            },
+            "maxItems": 5,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "max_chunks": {
+            "default": 5,
+            "description": "Most passages given to the model per turn.",
+            "maximum": 6,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "min_score": {
+            "default": null,
+            "description": "Relevance threshold from 0 to 1. null uses each knowledge base's calibrated threshold.",
+            "maximum": 1,
+            "minimum": 0,
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "mode": {
+            "default": "auto",
+            "description": "auto puts a small knowledge base whole into the conversation and searches a large one every turn; always_retrieve always searches; off keeps the attachment without using it. tool is not available yet (400 knowledge_unavailable).",
+            "enum": [
+              "auto",
+              "always_retrieve",
+              "tool",
+              "off"
+            ],
+            "type": "string"
+          }
+        },
         "type": "object"
       },
       "ResultDelivery": {
