@@ -13,7 +13,7 @@ agent's configuration, so editing a tool affects new calls.
 
 | Phase | When it runs | Use it for |
 | --- | --- | --- |
-| `pre_call` | Before dialing or opening browser audio. | Fetch context, personalize the greeting, or skip a call. |
+| `pre_call` | Before dialing, before answering an incoming call, or before opening browser audio. | Fetch context, personalize the greeting, or skip a call. |
 | `on_call` | When the voice agent chooses it during the conversation. | Lookups, bookings, and background requests. |
 | `post_call` | After the call has settled. | Send outcomes to your CRM or schedule a follow-up. |
 
@@ -380,7 +380,17 @@ become `customer_lookup.name` and `customer_lookup.plan`.
 
 Use `{{customer_lookup.name}}` in the agent's `first_message` or `system_prompt`.
 Inside another tool's template, use `{{ vars.customer_lookup.name }}` instead.
-The pre-call request runs before dialing or opening browser audio.
+The pre-call request runs before dialing, before answering an incoming call,
+or before opening browser audio.
+
+On an incoming call the caller is already ringing, so pre-call tools get about
+two seconds in total. A tool still running when that time is up counts as a
+timeout and follows its `on_failure` rule: with `"continue"` the call is
+answered without that tool's values, and with `"abort"` it is not answered.
+On incoming calls, `{{ vars.caller_number }}` and `{{ vars.called_number }}`
+are available to look the caller up. Keep incoming-call lookups fast. Move
+slower work to an on-call tool with `execution: "async"`
+([background tools](#synchronous-and-background-tools)).
 
 `on_failure: "abort"` prevents the call if this lookup fails. The default,
 `"continue"`, lets the call go ahead, so if you keep it, write the greeting to
@@ -397,7 +407,8 @@ handle missing values.
 }
 ```
 
-When the condition matches, nothing is dialed and the call is not charged.
+When the condition matches, nothing is dialed and the call is not charged. On
+an incoming call, the call is not answered.
 The call ends as `aborted` with a skip reason. A campaign contact becomes
 `skipped` and is not retried as a failed attempt. Use it alongside your
 [workspace do-not-call list](/v2/dnc).
