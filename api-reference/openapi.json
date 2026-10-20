@@ -171,7 +171,8 @@
                       },
                       "behavior": {
                         "interruptions": "normal",
-                        "adaptive_interruptions": true
+                        "adaptive_interruptions": true,
+                        "pass_through": []
                       },
                       "secondary_languages": [
                         "en"
@@ -304,7 +305,8 @@
                           },
                           "behavior": {
                             "interruptions": "normal",
-                            "adaptive_interruptions": true
+                            "adaptive_interruptions": true,
+                            "pass_through": []
                           },
                           "secondary_languages": [
                             "en"
@@ -402,7 +404,8 @@
                       },
                       "behavior": {
                         "interruptions": "normal",
-                        "adaptive_interruptions": true
+                        "adaptive_interruptions": true,
+                        "pass_through": []
                       },
                       "secondary_languages": [
                         "en"
@@ -439,7 +442,7 @@
       "patch": {
         "operationId": "update_agent",
         "summary": "Update agent",
-        "description": "Send only the fields you are changing. Each save is a new revision.\n\nNested objects (`voice`, `end_call`, `voicemail`, `background_sound`, `analysis`) are replaced whole, and so are the `tools` list and the `flow` graph, so send the complete object. `behavior` is the exception: it merges field by field.\n\nTo refuse a stale edit, add `\"if_revision\"` with the revision you read. If someone saved the agent in between, you get a 409 and nothing changes.\n\n`{\"archived\": true}` stops new calls without deleting the agent, and `{\"archived\": false}` brings it back. Changes apply from the next call; calls already queued or running keep the version they started with.",
+        "description": "Send only the fields you are changing. Each save is a new revision.\n\nNested objects (`voice`, `end_call`, `voicemail`, `background_sound`, `analysis`) are replaced whole, and so are the `tools` list and the `flow` graph, so send the complete object. `behavior` is the exception: it merges field by field, and `behavior.pass_through` (words that never interrupt the agent) replaces the whole list you send.\n\nTo refuse a stale edit, add `\"if_revision\"` with the revision you read. If someone saved the agent in between, you get a 409 and nothing changes.\n\n`{\"archived\": true}` stops new calls without deleting the agent, and `{\"archived\": false}` brings it back. Changes apply from the next call; calls already queued or running keep the version they started with.",
         "tags": [
           "Agents"
         ],
@@ -516,7 +519,8 @@
                       },
                       "behavior": {
                         "interruptions": "normal",
-                        "adaptive_interruptions": true
+                        "adaptive_interruptions": true,
+                        "pass_through": []
                       },
                       "secondary_languages": [
                         "en"
@@ -1240,7 +1244,8 @@
                           },
                           "behavior": {
                             "interruptions": "normal",
-                            "adaptive_interruptions": true
+                            "adaptive_interruptions": true,
+                            "pass_through": []
                           },
                           "secondary_languages": [
                             "en"
@@ -1280,7 +1285,8 @@
                           },
                           "behavior": {
                             "interruptions": "normal",
-                            "adaptive_interruptions": true
+                            "adaptive_interruptions": true,
+                            "pass_through": []
                           },
                           "secondary_languages": [
                             "en"
@@ -1391,7 +1397,8 @@
                       },
                       "behavior": {
                         "interruptions": "normal",
-                        "adaptive_interruptions": true
+                        "adaptive_interruptions": true,
+                        "pass_through": []
                       },
                       "secondary_languages": [
                         "en"
@@ -1540,7 +1547,8 @@
                       },
                       "behavior": {
                         "interruptions": "normal",
-                        "adaptive_interruptions": true
+                        "adaptive_interruptions": true,
+                        "pass_through": []
                       },
                       "secondary_languages": [
                         "en"
@@ -1683,7 +1691,8 @@
                       },
                       "behavior": {
                         "interruptions": "normal",
-                        "adaptive_interruptions": true
+                        "adaptive_interruptions": true,
+                        "pass_through": []
                       },
                       "secondary_languages": [
                         "en"
@@ -5464,7 +5473,8 @@
                       },
                       "behavior": {
                         "interruptions": "normal",
-                        "adaptive_interruptions": true
+                        "adaptive_interruptions": true,
+                        "pass_through": []
                       },
                       "secondary_languages": [
                         "en"
@@ -6389,7 +6399,8 @@
                       },
                       "behavior": {
                         "interruptions": "normal",
-                        "adaptive_interruptions": true
+                        "adaptive_interruptions": true,
+                        "pass_through": []
                       },
                       "secondary_languages": [
                         "en"
@@ -6571,7 +6582,8 @@
                       },
                       "behavior": {
                         "interruptions": "normal",
-                        "adaptive_interruptions": true
+                        "adaptive_interruptions": true,
+                        "pass_through": []
                       },
                       "secondary_languages": [
                         "en"
