@@ -723,8 +723,14 @@ the two on `call_id`. You have it **before** any event can arrive, because
 `POST /v2/calls` returns it synchronously in the `202`:
 
 ```python
-call = mirai.calls.create(agent_id=agent.id, to=customer.phone)
-Order.objects.filter(pk=order.id).update(mirai_call_id=call.id)   # store it here
+call = httpx.post(
+    "https://sandbox.voice.miraiminds.co/v2/calls",
+    headers={"Authorization": f"Bearer {MIRAI_API_KEY}",
+             "Idempotency-Key": f"order-{order.id}-call-1"},
+    json={"agent_id": AGENT_ID, "to": customer.phone},
+    timeout=30,
+).raise_for_status().json()
+Order.objects.filter(pk=order.id).update(mirai_call_id=call["id"])   # store it here
 ```
 
 Do that write before you return from the request that placed the call. A

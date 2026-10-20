@@ -34,26 +34,19 @@ Create a key in the [console](https://sandbox.voice.miraiminds.co) under
 work email, and you can create the key once you confirm it from the mail. The
 console shows the key only once. You can rotate or revoke it on the same page.
 
+Every request is plain HTTPS with one `Authorization` header, so it works from
+any language. This places a call with an agent you have already created:
+
 ```bash
-pip install --extra-index-url https://sandbox.voice.miraiminds.co/pypi/simple mirai-voice
+curl -X POST https://sandbox.voice.miraiminds.co/v2/calls \
+  -H "Authorization: Bearer $MIRAI_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: order-8842-confirm-1" \
+  -d '{"agent_id": "agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ", "to": "+919876543210"}'
 ```
 
-```python
-from mirai import Mirai
-
-mirai = Mirai()                                  # reads MIRAI_API_KEY
-
-agent = mirai.agents.create(
-    name="Order confirmation",
-    system_prompt="You are आशु from Acme. Confirm the order and ask whether the delivery address is unchanged.",
-    first_message="नमस्ते, मैं Acme से आशु बोल रहा हूं।",
-    voice_id="ashu",
-    language="hi",
-)
-
-call = mirai.calls.create(agent_id=agent.id, to="+919876543210")
-print(mirai.calls.wait(call.id).status)          # 'completed'
-```
-
-If you would rather use plain HTTP, every page in these docs also shows each
-request in cURL, Python and Node. Start with the [Quickstart](/v2/quickstart).
+There is no SDK to install. Start with the [Quickstart](/v2/quickstart), which
+creates an agent and places a first call in cURL, Python and Node. The
+[API reference](/api-reference/introduction) covers every endpoint, and the
+[Postman collection](/api-reference/postman) has each request ready to send. If
+you build on Pipecat, use the [`pipecat-mirai`](/v2/pipecat) package.

@@ -127,26 +127,35 @@ campaign and inbound calls, which have no `events_url`.
 
     `-N` turns off curl's buffering, so each event prints when it arrives.
   </Tab>
-  <Tab title="Python SDK">
+  <Tab title="Python">
     ```python
-    from mirai import Mirai
+    import json
+    import os
 
-    mirai = Mirai()  # reads MIRAI_API_KEY
+    import httpx
 
-    call = mirai.calls.create(agent_id="agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ", to="+919876543210")
-    for event in mirai.calls.events(call.id):
-        if event.type == "agent.state":
-            print("agent is", event.data["state"])  # listening, processing, speaking, ended
-        elif event.type == "transcript.turn":
-            print(event.data["role"], event.data["text"])
-        elif event.type == "call.ended":
-            print("ended:", event.data.get("status"), event.data["reason"])
+    url = "https://sandbox.voice.miraiminds.co/v2/calls/call_01K8D7R2T4V6X8Z0B2D4F6H8JK/events"
+    auth = {"Authorization": "Bearer " + os.environ["MIRAI_API_KEY"]}
+
+    with httpx.stream("GET", url, headers=auth, timeout=None) as response:
+        response.raise_for_status()
+        for line in response.iter_lines():
+            if not line.startswith("data:"):
+                continue  # id:, event: and keep-alive lines
+            event = json.loads(line[5:])
+            if event["type"] == "agent.state":
+                print("agent is", event["data"]["state"])  # listening, processing, speaking, ended
+            elif event["type"] == "transcript.turn":
+                print(event["data"]["role"], event["data"]["text"])
+            elif event["type"] == "call.ended":
+                print("ended:", event["data"].get("status"), event["data"]["reason"])
+                break
     ```
 
-    `mirai.calls.events(call_id)` works for any call in your workspace. After a
-    dropped connection it resumes from the last event it received, and it stops
-    after `call.ended`. On a phone call, `call.events_url` holds the link to
-    hand to a browser.
+    Your key opens the stream of any call in your workspace. If the connection
+    drops, open it again with the last `id:` you received in the
+    `Last-Event-ID` header, and no event is missed or repeated (see
+    [Reconnecting](#reconnecting)).
   </Tab>
 </Tabs>
 
