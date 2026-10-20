@@ -52,20 +52,24 @@ call's stream:
 A phone call's `202` has no `ws_url` and no `transport`. Those belong to
 browser calls, where the page also needs an audio link.
 
-You can open the stream as soon as the call is placed. It stays quiet while the
-phone rings, and the first event arrives when the call is answered.
+You can open the stream as soon as the call is placed. If the agent has
+[pre-call tools](/v2/tools#before-a-call-fetch-context-or-skip-dialing), each
+one's `tool.started` and `tool.completed` arrive before the call is dialled,
+or while an incoming caller's phone rings. The conversation's events start
+when the call is answered.
 
 | Stage | On the stream |
 | :--- | :--- |
-| Placed and ringing (`queued`, `dialing`) | No events yet. The stream is open and sends a keep-alive comment every 15 seconds. |
-| Answered | The first event, `agent.state`. |
-| In conversation | `agent.state` each time the agent's state changes, one `transcript.turn` per completed turn, `turn.metrics` with how fast each reply came, and `tool.started` and `tool.completed` when the agent runs a tool. A [node-based agent](/v2/node-agents) also sends `flow.node.entered` and `flow.variables.extracted`. |
+| Placed and ringing (`queued`, `dialing`) | [Pre-call tool events](#pre-call-tools), when the agent has pre-call tools. Otherwise nothing yet. The stream is open and sends a keep-alive comment every 15 seconds. |
+| Answered | `agent.state`, the first event of the conversation. |
+| In conversation | `agent.state` each time the agent's state changes, one `transcript.turn` per completed turn, `turn.metrics` with how fast each reply came, and `tool.started` and `tool.completed` when the agent runs a tool. A [node-based agent](/v2/node-agents) also sends `flow.node.entered` and `flow.variables.extracted`. A background pre-call tool's `tool.completed` arrives here when it answers. |
 | Ended | `call.ended`, then the stream closes. |
 
 ### A call nobody answers
 
 A call that is never answered (busy, no answer, or failed at the carrier) sends
-exactly one event, `call.ended`, as soon as the call ends:
+one event, `call.ended`, as soon as the call ends. Pre-call tool events come
+before it when the agent has pre-call tools; this agent has none:
 
 ```text
 id: 1792490506233-0
@@ -307,7 +311,7 @@ data: {"v":1,"seq":9,"type":"transcript.turn","call_id":"call_01K8D7R2T4V6X8Z0B2
 | Field | Description |
 | :--- | :--- |
 | `v` | Schema version. `1`. |
-| `seq` | Sequence number of the event within this call, increasing. |
+| `seq` | Sequence number of the event within this call, increasing. Pre-call tool events and the conversation's events share one count. |
 | `type` | `agent.state`, `transcript.turn`, `turn.metrics`, `tool.started`, `tool.completed`, `tool.missing` or `call.ended`, plus `flow.node.entered` and `flow.variables.extracted` for a [node-based agent](/v2/node-agents). The same value as the SSE `event` line. |
 | `call_id` | The call this event belongs to. |
 | `at` | When it happened. RFC 3339, UTC. |
@@ -431,6 +435,45 @@ back. Only names and timings are sent, never the tool's arguments or results.
 | `duration_ms` | How long your endpoint took. Only on `tool.completed`. |
 | `waited_ms` | How long the reply waited for the tool in total. Only on `tool.completed`. |
 | `tool_run_id` | The run's id in [`GET /v2/calls/{id}/tool_runs`](/v2/tools#inspect-tool-results), where its full record is. Only on `tool.completed`. |
+
+#### Pre-call tools
+
+Every [pre-call tool](/v2/tools#before-a-call-fetch-context-or-skip-dialing)
+sends `tool.started` and `tool.completed` too, with `phase: "pre_call"`. A tool
+that waits for its result sends both before the call is dialled or answered. A
+[background](/v2/tools#run-a-slow-lookup-in-the-background) one sends
+`tool.started` then, and `tool.completed` when it answers, which can be in the
+middle of the conversation.
+
+```json
+{
+  "v": 1, "seq": 2, "type": "tool.completed",
+  "call_id": "call_01K8D7R2T4V6X8Z0B2D4F6H8JK",
+  "at": "2026-10-21T03:00:01.412Z",
+  "data": {
+    "name": "user_lookup",
+    "reply": null,
+    "status": "ok",
+    "duration_ms": 412,
+    "waited_ms": 412,
+    "tool_run_id": "trun_01K8D7R0A2C4E6G8J0L2N4Q6S8",
+    "phase": "pre_call",
+    "execution": "sync"
+  }
+}
+```
+
+| Field | Description |
+| :--- | :--- |
+| `phase` | `pre_call`. On-call tool events have no `phase`. |
+| `execution` | `sync` for a tool the call waited for, `async` for a background one. |
+| `reply` | Always `null`: a pre-call tool runs for no reply. |
+| `status` | `ok` when your endpoint answered, otherwise why not, such as `timeout` or `http_502`, or `skipped` when its condition was false. Only on `tool.completed`. |
+| `waited_ms` | How long the call's setup waited for the tool: its whole run when the call waited, `0` for a background tool. Only on `tool.completed`. |
+
+A background tool that answers after the call has ended sends no event. Read
+its result in the [tool receipts](/v2/tools#inspect-tool-results). Realtime
+sessions don't send pre-call tool events.
 
 ### `tool.missing`
 

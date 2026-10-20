@@ -13,7 +13,7 @@ agent's configuration, so editing a tool affects new calls.
 
 | Phase | When it runs | Use it for |
 | --- | --- | --- |
-| `pre_call` | Before dialing, before answering an incoming call, or before opening browser audio. | Fetch context, personalize the greeting, or skip a call. |
+| `pre_call` | Before dialing, before answering an incoming call, or before opening browser audio. A background pre-call tool starts then and answers during the call. | Fetch context, personalize the greeting, choose the voice and language, or skip a call. |
 | `on_call` | When the voice agent chooses it during the conversation. | Lookups, bookings, and background requests. |
 | `post_call` | After the call has settled. | Send outcomes to your CRM or schedule a follow-up. |
 
@@ -46,7 +46,7 @@ the prompt, and pre-call results are grouped under the tool that returned them.
    agent should collect. Each input has a name, type, description, and required
    setting. Reference these values in your request with `{{ args.order_id }}`.
 4. Open **Behavior** to describe when an on-call tool should run and set
-   conditions and failure handling. For an on-call
+   conditions and failure handling. For an on-call or pre-call
    HTTP tool, choose **Wait for result** or **Run in background**. A background
    result goes back to the agent when it is ready.
 5. Click **Save changes** at the top of the agent workspace. Prompt and tool
@@ -63,7 +63,9 @@ the prompt, and pre-call results are grouped under the tool that returned them.
 In **Response**, you can transform the result with jq. For a pre-call tool,
 choose which returned fields become prompt variables. For example, selecting
 `name` from `lookup_customer` makes `{{lookup_customer.name}}` available in the
-prompt and `{{ vars.lookup_customer.name }}` available to later requests.
+prompt and `{{ vars.lookup_customer.name }}` available to later requests. A
+pre-call tool's result can also
+[set the call's voice and language](#set-the-voice-and-language-for-the-call).
 
 Use **Authentication & secrets** to store a credential or select a stored
 Bearer token. You can reference any stored secret in a header with
@@ -303,7 +305,9 @@ and returns `would_schedule` without scheduling a call.
 
 The optional test input fields are `vars`, `args`, `call`, and `analysis`.
 The response shows the condition verdict, masked request, response, transformed
-result, promoted values, and missing template paths. Check `status` as well as
+result, promoted values, and missing template paths. For a pre-call tool it
+also shows the [`call_settings`](#set-the-voice-and-language-for-the-call) a
+call would take and `warnings` for any it would skip. Check `status` as well as
 HTTP status: the test route can return `200` with a failed tool receipt.
 
 Place a new call with this agent to try the conversation. Ask about an order;
@@ -312,7 +316,8 @@ the voice agent collects the ID, invokes the tool, and uses its result.
 ## Synchronous and background tools
 
 Set `execution` separately on each **on-call HTTP tool**. You can mix both modes
-on one agent.
+on one agent. Pre-call HTTP tools can run in the background too; see
+[Run a slow lookup in the background](#run-a-slow-lookup-in-the-background).
 
 | Mode | Conversation behavior | Maximum timeout |
 | --- | --- | --- |
@@ -348,8 +353,9 @@ while the first one is running.
 - Late results do not rewrite a `call.completed` event already delivered. Read
   receipts for the final result; `call.processed` is not a completion signal for
   background on-call tools.
-- `execution: "async"` is rejected for builtins and other phases. Pre-call work
-  must finish before dialing; post-call tools already run after the conversation.
+- `execution: "async"` is rejected for builtins and post-call tools. Builtins
+  decide things and run in step; post-call tools already run after the
+  conversation.
 
 `speak_while` is an optional short line spoken as a tool starts, such as
 `"Let me check that for you."`. If you leave it empty, the agent speaks no
@@ -389,12 +395,94 @@ timeout and follows its `on_failure` rule: with `"continue"` the call is
 answered without that tool's values, and with `"abort"` it is not answered.
 On incoming calls, `{{ vars.caller_number }}` and `{{ vars.called_number }}`
 are available to look the caller up. Keep incoming-call lookups fast. Move
-slower work to an on-call tool with `execution: "async"`
-([background tools](#synchronous-and-background-tools)).
+slower work to a [background pre-call tool](#run-a-slow-lookup-in-the-background),
+which doesn't count against the two seconds, or to an on-call tool with
+`execution: "async"` ([background tools](#synchronous-and-background-tools)).
 
-`on_failure: "abort"` prevents the call if this lookup fails. The default,
-`"continue"`, lets the call go ahead, so if you keep it, write the greeting to
-handle missing values.
+`on_failure: "abort"` prevents the call if this lookup fails. Nothing is
+dialed, or the incoming caller is not answered, and the call ends `failed`
+with `ended_reason: "precall-tool-failed"`. The default, `"continue"`, lets the
+call go ahead, so if you keep it, write the greeting to handle missing values.
+
+### Set the voice and language for the call
+
+A pre-call tool can choose the voice and the languages of the call it runs
+before. Put a `call_settings` object at the top level of the tool's result. The
+result is the response after `response.transform`, the same object `select`
+reads, and without a transform it is the response body your endpoint sent.
+
+If your endpoint answers:
+
+```json
+{
+  "name": "Mehul",
+  "call_settings": { "voice_id": "sameer", "language": "gu", "secondary_languages": ["en"] }
+}
+```
+
+the call speaks in `sameer` and listens for Gujarati and English from its
+first word. The keys and their rules are the same as on
+[`POST /v2/calls`](/v2/calls#call-settings).
+
+With a transform, you can turn any API's answer into call settings without
+changing that API. This tool calls a public echo service and builds
+`call_settings` from what it echoes back:
+
+```json
+{
+  "name": "echo",
+  "phase": "pre_call",
+  "request": {
+    "url": "https://httpbin.org/anything",
+    "query": { "word": "PINEAPPLE", "voice": "sameer", "lang": "gu" }
+  },
+  "response": {
+    "transform": "{word: .args.word, call_settings: {voice_id: .args.voice, language: .args.lang}}",
+    "select": ["word"]
+  }
+}
+```
+
+The call runs in `sameer` and Gujarati, and `{{echo.word}}` reads `PINEAPPLE`
+in the prompt. `call_settings` is not a variable itself unless `select` names
+it.
+
+- Only a pre-call HTTP tool that waits for its result and succeeds sets
+  anything. A failed or skipped tool sets nothing, and a
+  [background](#run-a-slow-lookup-in-the-background) tool's `call_settings`
+  are ignored because it answers after the call has started.
+- Tools run in order, and a later tool wins for each key it sets.
+- `null` means not set, so a transform that maps a missing field leaves the
+  call's value as it was.
+- A value we can't use never fails the call. That covers a `call_settings`
+  that is not an object, a key with the wrong type, an unknown key and a value
+  that breaks the rules. The call keeps the value it had, and the tool's
+  receipt says what was skipped.
+- The [call object](/v2/calls#on-the-call-object) names the tool that chose
+  each value, such as `"voice_id": "pre_call:echo"`.
+
+The receipt in [`GET /v2/calls/{id}/tool_runs`](#inspect-tool-results) shows
+the keys the call took in `call_settings` and anything skipped in `warnings`:
+
+```json title="A receipt with one key skipped"
+{
+  "tool_run_id": "trun_01K8F2A7C9E1G3J5L7N9Q1S3U5",
+  "name": "user_lookup",
+  "phase": "pre_call",
+  "kind": "http",
+  "status": "ok",
+  "http_status": 200,
+  "ms": 412,
+  "call_settings": { "language": "gu" },
+  "warnings": [
+    "call_settings.voice_id \"robot\" is not a voice; it must be one of ashu, neha, sameer, shruti; the call keeps its current value"
+  ]
+}
+```
+
+[Testing the tool](#3-test-without-placing-a-call) checks its `call_settings`
+against the agent the same way and returns `call_settings` and `warnings`, so
+you can see what a call would take before you place one.
 
 ### Skip when a condition holds
 
@@ -409,9 +497,74 @@ handle missing values.
 
 When the condition matches, nothing is dialed and the call is not charged. On
 an incoming call, the call is not answered.
-The call ends as `aborted` with a skip reason. A campaign contact becomes
-`skipped` and is not retried as a failed attempt. Use it alongside your
-[workspace do-not-call list](/v2/dnc).
+The call ends as `aborted` with `ended_reason: "skipped-by-condition"`. A
+campaign contact becomes `skipped` and is not retried as a failed attempt. Use
+it alongside your [workspace do-not-call list](/v2/dnc).
+
+### Run a slow lookup in the background
+
+Set `"execution": "async"` on a pre-call HTTP tool when the lookup is slow and
+the call should not wait for it. It starts at the same moment as the other
+pre-call tools, and the call is dialed, or the incoming caller answered,
+without waiting for it. On an incoming call it does not count against the
+two-second budget.
+
+```json
+{
+  "name": "caller_history",
+  "phase": "pre_call",
+  "execution": "async",
+  "on_failure": "continue",
+  "timeout_ms": 60000,
+  "request": {
+    "url": "https://api.example.com/callers/history",
+    "query": { "caller": "{{ vars.caller_number }}", "call_id": "{{ call.id }}" }
+  },
+  "response": { "select": ["last_topic", "open_ticket"] }
+}
+```
+
+In Agent Studio, choose **Run in background** under the tool's **Behavior**.
+
+When it answers:
+
+- Its receipt is in [`GET /v2/calls/{id}/tool_runs`](#inspect-tool-results)
+  with `phase: "pre_call"`, and the [live events](/v2/live-events#pre-call-tools)
+  show it finishing.
+- Its selected values join the call's variables. On-call tool requests can
+  read them as `{{ vars.caller_history.open_ticket }}`, and so can post-call
+  tools and the [analysis prompt](/v2/analysis#variables-in-the-prompt).
+- If the phone or browser call is still going, the agent gets the new values
+  and uses them from its next reply. It does not speak up just because they
+  arrived.
+
+A background pre-call tool answers after the call has started, which sets its
+limits:
+
+- It can't stop the call, so `on_failure` must be `"continue"`. Decide whether
+  a call happens with a tool that waits, using `on_failure: "abort"` or a
+  [`skip_call`](#skip-when-a-condition-holds).
+- It can't set the voice or language. Its `call_settings` are ignored, and its
+  receipt says so in `warnings`.
+- Nothing decided before it answers may read its values. A waiting pre-call
+  tool's request or condition, `skip_call`'s condition or reason, and an
+  on-call tool's condition may not use `vars.<tool>.<key>` or `tools.<tool>` of
+  a background tool. Saving such an agent returns `400 invalid_tools` with the
+  path. An on-call tool's request and post-call tools may read them.
+- It reads the call's own variables only, such as `vars.caller_number`. All
+  pre-call tools start together, so the others' outputs don't exist yet.
+- Its values can't fill `first_message` or `system_prompt`. Those are filled
+  in before the call starts, so its placeholders there would be empty.
+
+Its timeout can be up to 120 seconds. The default is 5 seconds, as for every
+pre-call tool, so set `timeout_ms` for a slow lookup. A tool that fails or runs
+out of time leaves its receipt and nothing else.
+
+If the call ends before the tool answers, the agent never hears the values.
+They are still saved with the call, but post-call tools and analysis that
+started before the answer arrived run without them. A `skip_call` or an
+`abort` that stops the call before it starts also cancels the background
+tool.
 
 ## Conditions and templates
 
@@ -454,7 +607,7 @@ model arguments are not available when the initial tool list is chosen.
 | Namespace | Available values |
 | --- | --- |
 | `vars.*` | Call input values and promoted pre-call outputs. |
-| `call.*` | Call identifiers, destination, tier, and status; final duration and outcome after the call. |
+| `call.*` | Call identifiers, `to`, `from`, `direction`, tier, and status; final duration and outcome after the call. On an incoming call, `call.from` is the caller's number. |
 | `now.*` | Date, time, weekday, greeting, and timezone. Uses the call's timezone, defaulting to `Asia/Kolkata`. |
 | `tools.<name>.*` | Results from earlier tools in the same pre-call or post-call phase. |
 | `args.*` | Model-supplied arguments for an on-call request. |
@@ -635,8 +788,10 @@ curl --fail-with-body \
 The `data` array contains receipts with the tool name, phase, status,
 `tool_run_id`, start/end times, duration in milliseconds, HTTP status, transformed
 result, and any error. Receipts can also include the condition verdict, masked
-request, missing paths, and warnings. Read these when a tool was skipped,
-timed out, returned an unexpected result, or finished after hangup.
+request, missing paths, and warnings. A pre-call receipt also has the
+[`call_settings`](#set-the-voice-and-language-for-the-call) the call took from
+that tool. Read these when a tool was skipped, timed out, returned an
+unexpected result, or finished after hangup.
 
 Use `GET /v2/tools/catalog` to discover supported tools, available phases,
 execution modes, limits, and whether your configured model accepts structured
@@ -668,13 +823,13 @@ builtin returns `tool_unavailable`.
 | `description` | No | What an on-call tool does; up to 500 characters. |
 | `when` | No | When the voice agent should invoke an on-call tool; up to 1,000 characters. |
 | `parameters` | No | JSON Schema for model arguments; on-call only. Requires a model with native tool calling. |
-| `execution` | No | `sync` by default; `async` is available for on-call HTTP tools. |
+| `execution` | No | `sync` by default; `async` is available for on-call and pre-call HTTP tools. |
 | `speak_while` | No | Optional on-call filler line, up to 300 characters. Empty by default. |
 | `request` | For HTTP | Required `url`; optional `method` (default `GET`), `headers`, `query`, and `body`. |
 | `response` | No | Optional jq `transform`, `select` keys to promote, and `strict` (default `false`). |
 | `timeout_ms` | No | Per-attempt timeout; at least 100 ms. See phase limits below. |
 | `retry` | No | `attempts` and optional `backoff_ms` (default 500; maximum 10,000). |
-| `on_failure` | No | `continue` by default. `abort` is accepted only for pre-call tools. |
+| `on_failure` | No | `continue` by default. `abort` is accepted only for pre-call tools that wait for their result. |
 | `builtin` | Depends on builtin | Builtin configuration, such as a skip reason or callback window. |
 
 Requests support `GET`, `POST`, `PUT`, `PATCH`, and `DELETE`. GET and DELETE
@@ -690,18 +845,19 @@ narrowing the result the voice agent receives.
 
 ### Limits and retries
 
-| Limit | Pre-call | On-call sync | On-call async | Post-call |
-| --- | --- | --- | --- | --- |
-| Default timeout | 5 s | 10 s | 10 s | 15 s |
-| Maximum timeout | 15 s | 30 s | 300 s | 60 s |
-| Default retries | 0 | 0 | 0 | 2 |
-| Maximum retries | 2 | 0 | 0 | 5 |
-| Maximum tools | 10 | 20 total across both on-call modes | Shared with sync | 10 |
+| Limit | Pre-call sync | Pre-call async | On-call sync | On-call async | Post-call |
+| --- | --- | --- | --- | --- | --- |
+| Default timeout | 5 s | 5 s | 10 s | 10 s | 15 s |
+| Maximum timeout | 15 s | 120 s | 30 s | 300 s | 60 s |
+| Default retries | 0 | 0 | 0 | 0 | 2 |
+| Maximum retries | 2 | 2 | 0 | 0 | 5 |
+| Maximum tools | 10 total across both pre-call modes | Shared with sync | 20 total across both on-call modes | Shared with sync | 10 |
 
 You can define up to 40 tools per agent. On-call execution is limited to
 40 runs per call and four concurrent requests per call. The pre-call phase has
-a 30-second total budget; the post-call tool phase has a five-minute budget,
-separate from any wait for analysis.
+a 30-second total budget, and about two seconds on an incoming call; background
+pre-call tools are outside both. The post-call tool phase has a five-minute
+budget, separate from any wait for analysis.
 
 - Endpoints must use public HTTPS on port 443. Private-network destinations and
   redirects are refused.
@@ -724,8 +880,8 @@ differs from the API's usual error envelope:
   "error": "invalid_tools",
   "details": [
     {
-      "path": "tools[0].execution",
-      "message": "async is available for on_call HTTP tools; lifecycle gates and builtins run synchronously"
+      "path": "tools[0].on_failure",
+      "message": "must be \"continue\" on an async pre_call tool: it finishes after the call has started, so it can no longer stop it"
     }
   ]
 }

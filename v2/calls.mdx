@@ -49,6 +49,12 @@ a key from a workspace that has not gone live is refused with
   "transcript_available": true,
   "transcript_status": "ready",
   "metadata": { "order_id": "8842" },
+  "call_settings": {
+    "voice_id": "neha",
+    "language": "hi",
+    "secondary_languages": ["en"],
+    "sources": { "voice_id": "request", "language": "agent", "secondary_languages": "agent" }
+  },
   "analysis": null
 }
 ```
@@ -57,7 +63,9 @@ a key from a workspace that has not gone live is refused with
 | :--- | :--- | :--- |
 | `id` | string | `call_<ulid>`. Also the idempotency anchor and the workflow ID. |
 | `agent_id` | string | The agent this call ran. |
-| `to` | string | E.164 destination. |
+| `to` | string | E.164 destination. On an incoming call, your number. |
+| `from` | string | Phone calls only. The number the call rang from: your number or the shared line on a call you place, the caller's number on an incoming call. |
+| `direction` | string | `outbound` for a call you or a campaign placed, `inbound` for a call to one of your numbers. |
 | `channel` | string | `phone`, `web` (a [browser call](/v2/web-calls)), `text` (a typed test chat from the console) or `realtime`. Calls placed before this field existed read as `phone`. |
 | `status` | enum | See [statuses](#statuses). |
 | `tier` | string | The rate card this call was billed under, which is your company's plan. See [tiers](/general/tiers). |
@@ -83,6 +91,7 @@ a key from a workspace that has not gone live is refused with
 | `pool_id` | string | The [phone pool](/v2/phone-numbers) that picked the number. Only when a pool did, and then `calls_from_source` is `pool`. |
 | `campaign_id` | string | The [campaign](/v2/campaigns) that placed the call. Only on campaign calls. |
 | `contact_id` | string | The campaign contact the call was to: the `id` you sent with the contact, or the one we minted. Only on campaign calls. |
+| `call_settings` | object | The voice and languages the call runs with, and who chose each. See [call settings](#call-settings). Absent on calls from before per-call settings existed (October 2026) and on incoming calls turned away before an agent was found. |
 | `analysis` | object \| null | The [post-call analysis](/v2/analysis#where-the-result-appears) when the agent has `analysis.enabled`: summary, `success`, extracted `data` and, with templates, the chosen follow-up message in `analysis.template`. `null` otherwise. |
 
 {/* FLOW-OUTCOME */}
@@ -178,12 +187,17 @@ for control flow; use `ended_reason` for analytics and support.
 | `voicemail` | `voicemail` | An answering machine answered. Detecting the machine is what sets the status, so this reason and that status always appear together. |
 | `silence-timed-out` | `completed` | Media was live but nobody ever spoke. Billable, because the agent ran. |
 | `idle-timed-out` | `completed` | The caller went quiet. The agent checked in once after about 10 seconds, then said goodbye. Billable. |
-| `no-media` | `failed` | The call was placed but audio never flowed. See the note below. Not billed. |
+| `no-media` | `failed` | The call was placed but its audio never arrived. An incoming caller who hung up before we answered, and a call to a number whose connection is switched off, also end this way. See the note below. Not billed. |
+| `insufficient_balance` | `failed` | Your wallet couldn't pay for the call when we set it up, so it never started. An incoming caller is not answered. It has an underscore, the same spelling as the [`402 insufficient_balance`](/v2/wallet#402-insufficient-balance) that `POST /v2/calls` answers with. Not billed. |
+| `agent-unavailable` | `failed` | An incoming call that no agent could take. The number has no agent, or its agent is missing, a draft or archived, runs a flow your plan's model can't run, or needs an input an incoming call can't supply. A WhatsApp number or integration that is switched off ends this way too. The caller is not answered. Not billed. |
+| `setup-timeout` | `failed` | An incoming call we couldn't get ready before the caller's ring ran out. Not billed. |
+| `skipped-by-condition` | `aborted` | A pre-call [`skip_call`](/v2/tools#skip-when-a-condition-holds) matched, or your [WhatsApp resolver](/cookbooks/whatsapp-calling-for-partners) answered `allow: false`. Nothing was dialled, and an incoming caller is not answered. Free. |
+| `precall-tool-failed` | `failed` | A pre-call tool with `on_failure: "abort"` failed or ran out of time. Nothing was dialled, and an incoming caller is not answered. Free. |
 | `aborted-by-api` | `aborted` | You called [`POST /abort`](#abort-a-call). An abort produces this reason and no other. |
 | `api-ended-call` | `completed` | You sent a [`close` control](/v2/web-calls#live-control): the agent said goodbye and the call ended. Billable. |
 | `time-limit-close` | `completed` | The [timing policy](/v2/web-calls#timing-policy) closed the call before its hard cap. Billable. |
 | `user-silence-close` | `completed` | The [timing policy](/v2/web-calls#timing-policy) closed the call after the user stayed silent for `user_silence_close_secs`. Billable. |
-| `assistant-error` | `failed` | Pipeline failure on our side. Not billed. |
+| `assistant-error` | `failed` | A failure on our side, while setting the call up or during it. Not billed. |
 | `transferred` | `completed` | Reserved for a call that ends in a warm transfer to a human. Transfer is not available yet, so **no call emits this yet**. See the [roadmap](/general/roadmap). |
 | `balance-exhausted` | `completed` | Reserved for a call ended when the wallet emptied mid-call. **Not wired, so no call emits this yet.** |
 
@@ -232,6 +246,7 @@ POST /v2/calls
 | `metadata` | object | no | Your own identifiers, up to 16 string keys and values. Returned unchanged on the call and in every webhook. Never shown to the agent. See [metadata](#metadata). |
 | `first_message` | string | no | The opening line for this call only, up to 500 characters. Replaces the agent's `first_message`; `{{variable}}` placeholders work the same way. Refused for a [node-based agent](/v2/node-agents), whose start node opens the call. |
 | `system_prompt` | string | no | The agent's instructions for this call only, 1 to 12,000 characters. Replaces the agent's `system_prompt`; `{{variable}}` placeholders are filled from `variables`. Refused on `channel: "realtime"` and for a [node-based agent](/v2/node-agents). Never returned on the call or in webhooks. See [per-call prompt](#per-call-prompt). |
+| `call_settings` | object | no | The voice and languages for this call only: `voice_id`, `language` and `secondary_languages`. The agent is not changed. See [call settings](#call-settings). |
 | `webhook_url` | string | no | HTTPS URL for [lifecycle events](/v2/webhooks). Applies to this call only. |
 | `phone_number_id` / `pool_id` | string | no | Phone calls only. Ring from one of your own [phone numbers](/v2/phone-numbers), or from the number a pool picks. Without either, the call uses the agent's `calls_from`, then your default pool, then the Mirai shared line. Send one, not both. |
 | `max_duration_secs` | integer | no | Overrides the agent's cap for this call only. |
@@ -350,7 +365,7 @@ adds them, because the page also needs an audio link:
 
 | Status | `error.code` | Cause |
 | :--- | :--- | :--- |
-| `400` | `invalid_request` | Missing `agent_id`/`to`, `to` not E.164, `to` sent with `channel: "web"`, `max_duration_secs` out of range, invalid `metadata`, `first_message`, `system_prompt` or `timing`, or `system_prompt` sent with `channel: "realtime"`. `error.message` names the field. |
+| `400` | `invalid_request` | Missing `agent_id`/`to`, `to` not E.164, `to` sent with `channel: "web"`, `max_duration_secs` out of range, invalid `metadata`, `first_message`, `system_prompt`, `timing` or [`call_settings`](#call-settings), or `system_prompt` sent with `channel: "realtime"`. `error.message` names the field. |
 | `401` | `unauthorized` | Bad or missing key |
 | `402` | `insufficient_balance` | Wallet cannot cover the first minute at your tier. We check before we dial, so there is no partial charge. See [Wallet](/v2/wallet#402-insufficient-balance). |
 | `403` | `recording_disabled` | `recording_enabled: true` on a workspace whose recording is turned off |
@@ -435,6 +450,112 @@ curl -X POST https://sandbox.voice.miraiminds.co/v2/calls \
 - Keep it short. The prompt is on the latency path, and a long one adds delay
   well before it reaches the limit. See the
   [prompting guide](/v2/prompting-guide).
+
+### Call settings
+
+`call_settings` sets the voice and the languages of one call. The agent and its
+saved revisions stay as they are.
+
+```bash
+curl -X POST https://sandbox.voice.miraiminds.co/v2/calls \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: order-8842-confirm-gu-1" \
+  -d '{
+    "agent_id": "agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ",
+    "to": "+919876543210",
+    "variables": { "customer_name": "Mehul", "order_id": "8842" },
+    "call_settings": { "voice_id": "sameer", "language": "gu", "secondary_languages": ["en"] }
+  }'
+```
+
+| Key | Description |
+| :--- | :--- |
+| `voice_id` | The voice the agent speaks in. It takes the same values as an agent's `voice.voice_id`: `ashu`, `neha`, `shruti` or `sameer`. See [Voices](/v2/voices). |
+| `language` | The call's main language, written the way an agent's `language` is (`hi`, `gu`, `en-IN`), up to 35 characters. Speech recognition listens for it. |
+| `secondary_languages` | Other languages the caller may speak. Up to 4 of `hi`, `en`, `gu`, `mr`, `bn`, `ta`, `te`, `kn`, `ml`, `pa` and `od`. A regional tag is read as its base code (`gu-IN` is `gu`), and duplicates and the main language are dropped. `[]` listens for the main language only. |
+
+Every key is optional. A key you leave out keeps the agent's value. The
+settings apply from the agent's first word, greeting included, on every
+channel. On a [realtime session](/v2/realtime), the client's `session.update`
+can still change them.
+
+`language` sets what speech recognition listens for, and our standby voice
+pronounces in it if it serves the call. It does not change your prompt. If the
+agent should reply in that language, say so in the prompt, for example with a
+[variable](#variables).
+
+The older `"voice": { "voice_id": "…" }` on a request still works and means
+`call_settings.voice_id`. Send one or the other: both with different values is
+a `400`.
+
+#### Where the settings come from
+
+`call_settings` is accepted in three places, with the same keys and rules. A
+call starts from the agent's own values, and each later source wins, key by
+key:
+
+| Order | Source | Where you set it | In `sources` |
+| :---: | :--- | :--- | :--- |
+| 1 | The agent | `voice.voice_id`, `language` and `secondary_languages` on the [agent](/v2/agents) | `agent` |
+| 2 | Your request | `call_settings` on `POST /v2/calls` | `request` |
+| 3 | A campaign contact | `call_settings` on the [contact](/v2/campaigns#voice-and-language-per-contact) | `campaign` |
+| 4 | Pre-call tools, in the order they run | A `call_settings` object in the [tool's result](/v2/tools#set-the-voice-and-language-for-the-call) | `pre_call:<tool name>` |
+
+A request can set the voice, for example, and a pre-call tool that answers
+with only `language` then changes the language and keeps the request's voice.
+
+#### Bad values
+
+On a request, a bad value is `400 invalid_request` and nothing is dialled. The
+message names the key and, where there is a fixed list, the values allowed:
+
+```json title="400 Bad Request"
+{
+  "error": {
+    "code": "invalid_request",
+    "message": "call_settings.voice_id \"priya\" is not a voice; it must be one of ashu, neha, sameer, shruti"
+  }
+}
+```
+
+The same `400` answers a value of the wrong type, a blank value (leave the key
+out instead), an unknown key, a `language` longer than 35 characters, a
+secondary language outside the list, and more than 4 secondary languages.
+
+A campaign contact with a bad value is rejected on its own row, and the rest
+of the list goes in. A pre-call tool's bad value never fails the call: the call
+keeps the value it had, and the tool's receipt says which key was skipped and
+why.
+
+#### On the call object
+
+Every call shows the settings it runs with, the agent's own values included,
+and who chose each one. They are on [`GET /v2/calls/{id}`](#get-a-call), on
+each call in [`GET /v2/calls`](#list-calls) and in `data.call` of every
+[webhook](/v2/webhooks).
+
+```json
+{
+  "call_settings": {
+    "voice_id": "sameer",
+    "language": "gu",
+    "secondary_languages": ["en"],
+    "sources": {
+      "voice_id": "pre_call:user_lookup",
+      "language": "pre_call:user_lookup",
+      "secondary_languages": "agent"
+    }
+  }
+}
+```
+
+Each value in `sources` is `agent`, `request`, `campaign` or
+`pre_call:<tool name>`. `call.queued` shows the settings before pre-call tools
+run, and every event from `call.started` on shows the ones the call used.
+
+Calls from before per-call settings existed have no `call_settings`, and
+neither does an incoming call turned away before an agent was found.
 
 ### Metadata
 
