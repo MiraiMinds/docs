@@ -97,7 +97,8 @@
               "v2/tts-quickstart",
               "v2/tts-websocket",
               "v2/tts-languages",
-              "v2/voices"
+              "v2/voices",
+              "v2/custom-voices"
             ]
           },
           {
