@@ -3122,7 +3122,7 @@
       "post": {
         "operationId": "abort_call",
         "summary": "Abort call",
-        "description": "Stops a call that hasn't ended, whether it is queued, ringing or mid-conversation. **If someone has picked up, they are cut off with no goodbye.** On a browser call, [Send a live control](/api-reference/calls/send-a-live-control) with `close` ends it gracefully instead.\n\nIt answers 202 straight away. The call then settles as `aborted` with `ended_reason: aborted-by-api`, and `call.aborted` fires. An aborted call is never billed. A call that has already ended is a 409: the ending it has is the real one.",
+        "description": "Stops a call that hasn't ended, whether it is queued, ringing or mid-conversation. **If someone has picked up, they are cut off with no goodbye.** On a browser call, [Send a live control](/api-reference/calls/send-a-live-control) with `close` ends it gracefully instead.\n\nIt answers 202 straight away. The call then settles as `aborted` with `ended_reason: aborted-by-api`, and `call.aborted` fires. An aborted call is billed for the time it was connected, like any other call; one aborted while queued or ringing costs nothing. A call that has already ended is a 409: the ending it has is the real one.",
         "tags": [
           "Calls"
         ],
@@ -3871,7 +3871,7 @@
                     "description": "Optional graph to revise, as GET /v2/agents/{id}/flow returns it. Validated like PUT /flow (400 invalid_flow). The draft keeps what the brief does not ask to change."
                   },
                   "language": {
-                    "description": "Optional language code or name for the spoken lines (for example hi, en or Hinglish). Without it the brief decides.",
+                    "description": "Optional language code or name for the spoken lines (for example hi, gu, en or Hinglish). Without it the language is read from the brief, the example calls and a flow being revised (the Indian script they are written in, a language they name, or a language they are typed in with English letters), plain English text with no Indian words reads as English, and with nothing to go on no language is set and the brief decides, as before. Every Indian language is written in its own script (Gujarati in Gujarati script, Hindi and Marathi in Devanagari, and so on), English words in Latin letters, never romanized: text-to-speech reads Latin letters with English sounds.",
                     "maxLength": 32,
                     "type": "string"
                   },
@@ -4402,7 +4402,7 @@
                     "description": "The graph to test, as GET /v2/agents/{id}/flow or POST /v2/agents/flow/generate returns it. Validated like PUT /flow (400 invalid_flow)."
                   },
                   "language": {
-                    "description": "Optional language code or name for the spoken lines (for example hi, en or Hinglish). Without it the brief decides.",
+                    "description": "Optional language code or name for the spoken lines (for example hi, gu, en or Hinglish). Without it the language is read from the brief, the example calls and the flow under test and your test calls (the Indian script they are written in, a language they name, or a language they are typed in with English letters), plain English text with no Indian words reads as English, and with nothing to go on no language is set and the brief decides, as before. Every Indian language is written in its own script (Gujarati in Gujarati script, Hindi and Marathi in Devanagari, and so on), English words in Latin letters, never romanized: text-to-speech reads Latin letters with English sounds.",
                     "maxLength": 32,
                     "type": "string"
                   },
@@ -16225,6 +16225,59 @@
               }
             },
             "type": "object"
+          },
+          "warnings": {
+            "description": "Lines this agent speaks that will come out wrong on calls, worked out each time the agent is read and never stored; absent when there are none. Today one kind: romanized_speech, a line in an Indian language other than Hindi typed in English letters, which the voice reads with English sounds. Checked: first_message and system_prompt's quoted lines (not on a flow agent, which does not use them), end_call.message when end_call is enabled, voicemail.message when voicemail.action is message, every flow node's greeting and the lines its prompt quotes.",
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "code": {
+                  "description": "What is wrong. romanized_speech: an Indian language typed in English letters.",
+                  "enum": [
+                    "romanized_speech"
+                  ],
+                  "type": "string"
+                },
+                "language": {
+                  "description": "The language the line is in, as read from its words; the agent's own languages decide a tie.",
+                  "enum": [
+                    "gu",
+                    "mr",
+                    "bn",
+                    "pa",
+                    "ta",
+                    "te",
+                    "kn",
+                    "ml",
+                    "od"
+                  ],
+                  "type": "string"
+                },
+                "message": {
+                  "description": "One sentence for the person editing the agent, for example: This line is Gujarati typed in English letters. The voice reads English letters with English sounds, so the Gujarati comes out wrong. Write it in Gujarati script.",
+                  "type": "string"
+                },
+                "path": {
+                  "description": "Where the line is in this object, for example first_message, end_call.message, system_prompt or flow.nodes[2].data.greeting.",
+                  "type": "string"
+                },
+                "text": {
+                  "description": "The line, at most 160 characters (… marks a cut).",
+                  "maxLength": 160,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "code",
+                "path",
+                "language",
+                "text",
+                "message"
+              ],
+              "type": "object"
+            },
+            "maxItems": 20,
+            "type": "array"
           }
         },
         "required": [
@@ -18023,6 +18076,10 @@
             ],
             "type": "object"
           },
+          "language": {
+            "description": "The language the draft's spoken lines are written in, as a code (hi, gu, en, ta, …): read from its greetings and quoted lines, or the request's language when they do not say (empty when neither says) (a language name this API does not know is returned as sent). Use it for the agent's language.",
+            "type": "string"
+          },
           "model": {
             "description": "The model that drafted it.",
             "enum": [
@@ -18098,6 +18155,7 @@
           "variables",
           "input_schema",
           "flow_revision",
+          "language",
           "rounds",
           "usage",
           "cost"
@@ -18252,7 +18310,7 @@
             "description": "Optional graph to revise, as GET /v2/agents/{id}/flow returns it. Validated like PUT /flow (400 invalid_flow). The draft keeps what the brief does not ask to change."
           },
           "language": {
-            "description": "Optional language code or name for the spoken lines (for example hi, en or Hinglish). Without it the brief decides.",
+            "description": "Optional language code or name for the spoken lines (for example hi, gu, en or Hinglish). Without it the language is read from the brief, the example calls and a flow being revised (the Indian script they are written in, a language they name, or a language they are typed in with English letters), plain English text with no Indian words reads as English, and with nothing to go on no language is set and the brief decides, as before. Every Indian language is written in its own script (Gujarati in Gujarati script, Hindi and Marathi in Devanagari, and so on), English words in Latin letters, never romanized: text-to-speech reads Latin letters with English sounds.",
             "maxLength": 32,
             "type": "string"
           },
@@ -18429,7 +18487,7 @@
             "description": "The graph to test, as GET /v2/agents/{id}/flow or POST /v2/agents/flow/generate returns it. Validated like PUT /flow (400 invalid_flow)."
           },
           "language": {
-            "description": "Optional language code or name for the spoken lines (for example hi, en or Hinglish). Without it the brief decides.",
+            "description": "Optional language code or name for the spoken lines (for example hi, gu, en or Hinglish). Without it the language is read from the brief, the example calls and the flow under test and your test calls (the Indian script they are written in, a language they name, or a language they are typed in with English letters), plain English text with no Indian words reads as English, and with nothing to go on no language is set and the brief decides, as before. Every Indian language is written in its own script (Gujarati in Gujarati script, Hindi and Marathi in Devanagari, and so on), English words in Latin letters, never romanized: text-to-speech reads Latin letters with English sounds.",
             "maxLength": 32,
             "type": "string"
           },
@@ -18638,6 +18696,10 @@
               "required"
             ],
             "type": "object"
+          },
+          "language": {
+            "description": "The language the flow's lines are written in, as a code (hi, gu, en, ta, …): while running, the one the job tests and revises in (the request's, else read from the brief, the calls and the flow; absent when they say nothing); once succeeded, the one the final flow's greetings and quoted lines are in. Absent on jobs started before it existed.",
+            "type": "string"
           },
           "model": {
             "description": "The model that reviews and revises.",
@@ -19336,7 +19398,7 @@
                 "type": "boolean"
               },
               "transform": {
-                "description": "jq, evaluated with a 100 ms budget and a 64 KB output cap. No input/inputs, no env, no modules. On a pre_call tool, a top-level call_settings object in the result (after transform) sets this call's voice and languages.",
+                "description": "jq, evaluated with a 100 ms budget and a 64 KB output cap. No input/inputs, no env, no modules. Paths start with a dot (.data.id, not data.id): a save refuses a transform it adds or changes that cannot compile. On a pre_call tool, a top-level call_settings object in the result (after transform) sets this call's voice and languages.",
                 "type": "string"
               }
             },
@@ -19525,7 +19587,7 @@
                 "type": "boolean"
               },
               "transform": {
-                "description": "jq, evaluated with a 100 ms budget and a 64 KB output cap. No input/inputs, no env, no modules.",
+                "description": "jq, evaluated with a 100 ms budget and a 64 KB output cap. No input/inputs, no env, no modules. Paths start with a dot (.data.id, not data.id): a save refuses a transform it adds or changes that cannot compile.",
                 "type": "string"
               }
             },
