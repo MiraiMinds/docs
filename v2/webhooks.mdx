@@ -46,6 +46,7 @@ Every event has the same shape.
 | `created_at` | When the event was generated, not when it was delivered. |
 | `data.call` | The [call object](/v2/calls#the-call-object) as it stands at that moment, with its money in `cost`. A few fields come only when you read the call: `tier`, `cost_inr`, `recording_available` and `transcript_available`. On a `campaign.*` event this is `data.campaign` instead. |
 | `data.call.metadata` | The [`metadata`](/v2/calls#metadata) you set when creating the call, unchanged, on every event for that call. Absent when the call has none. |
+| `data.call.call_settings` | The voice and languages of the call, with who chose each. `call.queued` has them before pre-call tools run; every later event has the ones the call used. See [call settings](/v2/calls#on-the-call-object). |
 | `data.wallet` | Your wallet balance right after the call was billed. Only on the four terminal events. See [wallet balance](#wallet-balance-on-call-ending-events). |
 
 Treat the envelope as **additive**: new fields appear without a version bump.
@@ -204,8 +205,9 @@ bills as two 10-second blocks: ₹1.00 on T3. See
 ```
 
 `aborted-by-api` is the only `ended_reason` an abort produces, whether you
-cancelled the call in the queue, mid-ring or mid-conversation. Aborted calls are
-never billed.
+cancelled the call in the queue, mid-ring or mid-conversation. An aborted call is
+billed for the time it was connected; one cancelled in the queue or while ringing
+costs nothing.
 
 ### Wallet balance on call-ending events
 

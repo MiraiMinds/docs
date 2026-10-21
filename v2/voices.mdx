@@ -91,6 +91,14 @@ curl -X PATCH https://sandbox.voice.miraiminds.co/v2/agents/agt_… \
 
 See the [Agents reference](/v2/agents#voice) for the full agent shape.
 
+## A different voice for one call
+
+To use another voice on one call without changing the agent, send
+`call_settings.voice_id` on [`POST /v2/calls`](/v2/calls#call-settings), on a
+[campaign contact](/v2/campaigns#voice-and-language-per-contact), or from a
+[pre-call tool](/v2/tools#set-the-voice-and-language-for-the-call). It takes
+the same `voice_id` values as an agent.
+
 ## The language caveat
 
 <Warning>
@@ -102,3 +110,9 @@ get what you expect. If they differ, the top-level one wins.
 </Warning>
 
 Keep `voice.language` and the agent's `language` identical.
+
+If our standby voice serves a call, it pronounces in the call's language: the
+agent's `language`, or the call's own
+[`call_settings.language`](/v2/calls#call-settings) when it has one. A
+language it doesn't carry, Hinglish and automatic detection are pronounced as
+Hindi.

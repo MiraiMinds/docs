@@ -107,7 +107,8 @@ with `no-media` as one bucket in your retry logic. See
 Use [`POST /v2/calls/{id}/abort`](/v2/calls#abort-a-call). It works while the
 call is queued, while it is ringing and while it is live. A live call is hung up
 mid-conversation. Only a call that has already ended returns `409`. Aborted
-calls are never billed.
+calls are billed for the time they were connected, like any other call. One
+aborted before it connects costs nothing.
 
 **Which languages work?**
 The stack is tuned for Hindi and Indian English, including Hindi-English

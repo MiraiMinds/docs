@@ -40,8 +40,8 @@ Base URL `https://sandbox.voice.miraiminds.co`. All endpoints require
 | Field | Type | Description |
 | :--- | :--- | :--- |
 | `enabled` | boolean | `true` analyses every call this agent finishes. |
-| `prompt` | string | What to look for and how to summarise it. Up to 2,000 characters. |
-| `success_criteria` | string | What makes a call a success. Up to 2,000 characters. The verdict is `success`: `true`, `false` or `null` when it cannot be told. |
+| `prompt` | string | What to look for and how to summarise it. Up to 2,000 characters. Fills in [`{{variables}}`](#variables-in-the-prompt). |
+| `success_criteria` | string | What makes a call a success. Up to 2,000 characters. Fills in [`{{variables}}`](#variables-in-the-prompt). The verdict is `success`: `true`, `false` or `null` when it cannot be told. |
 | `output_schema` | object | A JSON Schema for the fields to extract, up to 32 properties. The values arrive in `data`. |
 | `templates` | object | The follow-up messages to choose from. See [Pick a follow-up message](#pick-a-follow-up-message). |
 
@@ -51,6 +51,39 @@ whole `analysis` object, so send every field you want to keep.
 `"analysis": null` turns analysis off. A call runs the analysis settings of the
 agent revision it was placed with, so a change applies to calls placed after
 it.
+
+## Variables in the prompt
+
+`prompt` and `success_criteria` fill in `{{variables}}` the way the agent's
+system prompt does. They read the call's [variables](/v2/calls#variables) and
+the values your [pre-call tools](/v2/tools#before-a-call-fetch-context-or-skip-dialing)
+return as `{{tool_name.key}}`, background pre-call tools included. One agent
+can then write each call's summary in that caller's language, or judge success
+against that caller's goal.
+
+```json
+{
+  "analysis": {
+    "enabled": true,
+    "prompt": "Summarise the call for the account owner: who called, why, and what they asked for. Write the summary in {{lang.summary_language}}.",
+    "success_criteria": "The caller's name and the reason for the call were both captured."
+  }
+}
+```
+
+Here `lang` is a pre-call tool whose `select` includes `summary_language`. Its
+answer is `Gujarati` for one call and `Tamil` for the next, so each summary
+comes in that language. A call variable works the same way: send
+`"variables": { "summary_language": "Hindi" }` on
+[`POST /v2/calls`](/v2/calls#create-a-call) and write `{{summary_language}}`.
+
+- Placeholders follow the [same matching rules](/v2/calls#variables) as in the
+  system prompt.
+- A placeholder with no value is left empty. If some calls may not have the
+  value, have your tool always return one, or write the sentence so it still
+  reads well without it.
+- A [background pre-call tool](/v2/tools#run-a-slow-lookup-in-the-background)'s
+  values are there only if it answered before the analysis ran.
 
 ## Where the result appears
 

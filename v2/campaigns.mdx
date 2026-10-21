@@ -453,7 +453,7 @@ POST /v2/campaigns
 | `pool_id` | string \| null | no | A [phone pool](/v2/phone-numbers) to call from, spreading calls across its numbers at its pace. Exclusive with `phone_number_id` and `caller_ids`. `null` clears it. The campaign object returns `pool_id` and a `calls_from` object that names where its number comes from. |
 | `always_on` | boolean | no | Default `false`. `true` keeps the campaign open after its list is done, so you can keep adding contacts. See [always-on campaigns](#always-on-campaigns). |
 | `final_results` | boolean | no | Default `true`. Each call ends with one [`call.processed`](/v2/webhooks#final-results) carrying the transcript, the after-call results and the contact's `metadata`. `false` sends the shorter events only. Change it while the campaign is a draft or paused. |
-| `contacts` | array | no | Up to **1000** rows per request. `{phone, variables?, id?}`. Add more later. |
+| `contacts` | array | no | Up to **1000** rows per request. `{phone, variables?, metadata?, call_settings?, id?}`. Add more later. |
 
 ```bash
 curl -X POST https://sandbox.voice.miraiminds.co/v2/campaigns \
@@ -574,6 +574,37 @@ If the agent declares its variables (`input_schema`), a variable it does not
 declare rejects the row. Send those extra columns as `metadata` instead.
 </Note>
 
+### Voice and language per contact
+
+Give a contact its own `call_settings`, and its calls use that voice and those
+languages in place of the agent's. People on one list can hear a different
+voice, or be understood in a different language.
+
+```json
+{ "id": "cust-1003", "phone": "+919876543212",
+  "variables": { "customer_name": "Mehul Patel", "order_id": "AC-88240" },
+  "call_settings": { "voice_id": "sameer", "language": "gu", "secondary_languages": ["en"] } }
+```
+
+- The keys and rules are the same as on
+  [`POST /v2/calls`](/v2/calls#call-settings). A key you leave out keeps the
+  agent's value.
+- A contact with a bad value is rejected on its own row in
+  `contacts_rejected`, with the reason, and the rest of the list goes in.
+- We check the values again when the contact is dialled. If a key no longer
+  passes, for example because a voice left the catalogue after you uploaded the
+  list, that call keeps the agent's value for it.
+- A pre-call tool on the agent can still change them call by call. Each call's
+  [`call_settings.sources`](/v2/calls#on-the-call-object) says `campaign` for a
+  value that came from the contact.
+- [List contacts](#list-contacts) returns them, and a duplicated campaign
+  keeps them.
+
+In a CSV upload, the columns `call_settings.voice_id`, `call_settings.language`
+and `call_settings.secondary_languages` set the same keys. Separate secondary
+languages with commas, for example `hi,en`. An existing `language` column stays a
+variable.
+
 ### Errors
 
 | Status | `error.code` | Cause |
@@ -683,7 +714,9 @@ Returns `200 OK` with the campaign object.
 POST /v2/campaigns/{id}/contacts
 ```
 
-Up to **1000 rows per request**. For a larger list, call it repeatedly. A
+Up to **1000 rows per request**. For a larger list, call it repeatedly. Each
+row takes the same fields as on create, `metadata` and
+[`call_settings`](#voice-and-language-per-contact) included. A
 `draft`, `play` or `paused` campaign accepts new contacts. When a running
 campaign had nothing left to dial, the add wakes it, so the new contacts are
 called straight away if the calling window is open.
@@ -771,7 +804,9 @@ curl -G https://sandbox.voice.miraiminds.co/v2/campaigns/cmp_01K7QAC5N9P4R7S3T6V
 
 `last_call_id` is an ordinary `call_` id: fetch it from
 [`GET /v2/calls/{id}`](/v2/calls#get-a-call) for the full outcome. A contact
-without [`metadata`](#your-own-fields-metadata) has no `metadata` field.
+without [`metadata`](#your-own-fields-metadata) has no `metadata` field, and
+one without [`call_settings`](#voice-and-language-per-contact) has no
+`call_settings` field.
 
 ---
 

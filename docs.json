@@ -361,6 +361,7 @@
             "group": "Phone calling",
             "pages": [
               "cookbooks/inbound-calling",
+              "cookbooks/one-number-many-users",
               "cookbooks/run-a-campaign-from-your-own-numbers"
             ]
           },
