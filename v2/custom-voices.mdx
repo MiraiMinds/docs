@@ -81,7 +81,10 @@ someone else. Keep the written agreement where you can find it.
 
 Second, the speaker records a short consent statement in their own voice. The
 console shows the sentence to read and can record it in your browser, or you
-can upload a recording of them reading it.
+can upload a recording of them reading it. The sentence is:
+
+> My name is *speaker's name*. I agree to Mirai creating a synthetic version of
+> my voice for *your company*. Today is *today's date*.
 
 <Warning>
 Never upload a voice from another platform, a celebrity's voice, or the voice
@@ -90,8 +93,9 @@ consent.
 </Warning>
 
 The speaker can withdraw consent at any time. Delete the request, whatever its
-status, and we delete its recordings and its consent clip. We keep the
-request's details, without any audio, in our records for audit.
+status, and we delete its recordings and its consent clip. If we've already
+built the voice, we take it down too. We keep the request's details, without
+any audio, in our records for audit.
 
 A voice is personal data. Make sure your agreement with the speaker says how
 the voice will be used on your calls.
@@ -142,8 +146,9 @@ on the request.
 | Needs changes | `needs_changes` | We need something from you, and the note says what. Edit the request or its recordings, then send it again. |
 | Not accepted | `rejected` | We can't build a voice from this request. The note says why. |
 
-When a request is ready, use its `voice_id` on an agent the same way as a
-catalogue voice. See [Setting a voice on an agent](/v2/voices#setting-a-voice-on-an-agent).
+When a request is ready, our team gets in touch to switch your agents to the
+new voice. Its `voice_id` is on the request so you can tell it apart from the
+catalogue voices.
 
 ## Request a voice with the API
 
@@ -327,7 +332,8 @@ the length of every finished recording.
 
 ### 5. Add the consent clip
 
-Upload the speaker's consent statement the same way, with `"kind": "consent"`.
+Upload the speaker reading the [consent sentence](#consent) the same way, with
+`"kind": "consent"`.
 A request holds one consent clip, up to 50 MB. To replace it, delete the old
 one first.
 
@@ -406,7 +412,8 @@ def upload(vcl_id: str, file_id: str, local_path: str) -> dict:
 `status_note`. `GET /v2/voice-clones` lists every request in your workspace as
 `{"object": "list", "data": [...]}`, newest first. The status changes when our
 team moves the request along, so there's no need to check often. When it is
-`ready`, `voice_id` holds your new voice.
+`ready`, `voice_id` names your new voice, and we'll help you move your agents
+onto it.
 
 ### Change or delete a request
 
@@ -414,7 +421,7 @@ While a request is `draft` or `needs_changes`, `PATCH /v2/voice-clones/{id}`
 changes any of the fields from step 1; at any other status it answers
 `409 not_editable`. Adding and removing files works in those two statuses
 only. `DELETE /v2/voice-clones/{id}/files/{file_id}` answers
-`{"id": "vcf_…", "deleted": true}`.
+`{"id": "vcf_…", "object": "voice_clone_file", "deleted": true}`.
 
 `DELETE /v2/voice-clones/{id}` works at any status. It deletes every recording
 and the consent clip, and answers:
@@ -445,8 +452,12 @@ Errors use the [standard envelope](/v2/errors).
 | `400` | `invalid_request` | A field is missing or out of range. The message names it. |
 | `400` | `bad_chunk` | A chunk is the wrong size. Every chunk but the last must be exactly `chunk_bytes`. |
 | `404` | `not_found` | No such request or file in your workspace. |
-| `409` | `limit_reached` | Your workspace already has five open requests. |
+| `409` | `limit_reached` | Your workspace already has five open requests, or the request already has 60 files, 3 GB of audio or a consent clip. |
 | `409` | `not_editable` | The request has been sent, so it can't be changed. You can still delete it. |
-| `409` | `incomplete` | You finished a file with chunks still missing. The error names them. |
+| `409` | `incomplete` | You finished a file with chunks still missing. `error.missing_chunks` lists them. |
+| `409` | `file_complete` | That file is already finished, so it takes no more chunks. |
+| `409` | `assembling` | We're joining that file's chunks right now. Wait a moment, then check the file. |
+| `413` | `file_too_large` | The file is over 1 GB, or the consent clip is over 50 MB. |
+| `415` | `unsupported_file_type` | We can't take that file type. Send WAV, FLAC, MP3, M4A, AAC, MP4, OGG, Opus or WebM. |
 | `422` | `not_ready` | The request isn't ready to send. The message says what's missing. |
 | `507` | `insufficient_storage` | We can't take more audio right now. Try again later. |
