@@ -45,11 +45,15 @@ knowledge base can serve many agents.
     **Fetching · 12 of 40**, then **Ready**. A website with many pages takes
     longer than one file. If a source fails, the reason appears under its name.
   </Step>
-  <Step title="Try a question">
-    Under **Try a question**, type something the way a caller would say it, in
-    any language. You see the passages your agent would read and which source
-    each came from. If the right passage is missing, see
-    [Tips for good answers](#tips-for-good-answers).
+  <Step title="Ask it like a caller">
+    Under **Ask it like a caller**, type a question in English the way a caller
+    would say it, and choose the language your caller speaks: English, Hindi,
+    Gujarati, Marathi, Bengali, Tamil, Telugu, Kannada, Malayalam, Punjabi or
+    Odia. For any language but English, we first put your question into that
+    language, written the way a caller's words reach your agent on a call. You
+    see what the caller says, the question your agent understood, and the
+    passages it would read with the source each came from. If the right passage
+    is missing, see [Tips for good answers](#tips-for-good-answers).
   </Step>
   <Step title="Attach it to an agent">
     Open the agent in **Agent Studio** and choose the **Knowledge** tab. Tick
@@ -209,13 +213,17 @@ curl --fail-with-body -X POST "$MIRAI_API_BASE/v2/knowledge-bases/$MIRAI_KB_ID/s
 5. The answer lists the passages an agent would read, best first. Each hit has
 at least `text`, `title`, `source_id` and `score`. `ms` breaks down how long
 the search took in milliseconds (`embed`, `dense`, `lexical`, `rerank` and
-`total`). Abridged:
+`total`). `understood_as` is the question the search took from the words, or
+`null` when it took none. Abridged:
 
 ```json
 {
   "object": "knowledge_search",
   "knowledge_base_id": "kb_01JZT4M8Q2X7N3K5R9W6Y1B0CD",
   "version": 1,
+  "query": "सूरत में डिलीवरी होती है क्या?",
+  "language": null,
+  "understood_as": "Do you deliver to Surat?",
   "hits": [
     {
       "source_id": "ks_01JZT4N5V2D9F6H3K8M1P4R7T0",
@@ -226,6 +234,23 @@ the search took in milliseconds (`embed`, `dense`, `lexical`, `rerank` and
   ]
 }
 ```
+
+To try a question the way a caller speaking another language would ask it,
+type it in English and add `language`: `hi`, `gu`, `mr`, `bn`, `ta`, `te`,
+`kn`, `ml`, `pa` or `od` (`en` searches the question as typed). We first put
+the question into that language, in its own script, and search that. `query`
+in the answer is the translation, the words that were searched:
+
+```bash
+curl --fail-with-body -X POST "$MIRAI_API_BASE/v2/knowledge-bases/$MIRAI_KB_ID/search" \
+  -H "Authorization: Bearer $MIRAI_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "query": "do you deliver to Surat?", "language": "gu" }'
+```
+
+If the question can't be put into that language right now, search answers
+`503 upstream_unavailable`; try again, or search without `language`. This is
+for testing only: on a call, your agent searches the caller's own words.
 
 Before the first source is ready, search answers `409 not_ready`. To see every
 passage a source was split into, call
