@@ -1,0 +1,452 @@
+---
+title: "Custom voices: request a professional voice clone"
+sidebarTitle: "Custom voices"
+description: "Get a voice built from recordings of one real person, with their consent. What to record, how consent works, what each status means, and how to send a request from the console or the API."
+---
+
+A professional voice clone is a voice we build for your workspace from
+recordings of one real person. You upload 30 minutes to 2 hours of them
+talking, plus a short clip of them agreeing to it, and our team builds a voice
+your agents can use on calls.
+
+It's worth it when none of the [catalogue voices](/v2/voices) sounds like you:
+
+- Your brand already has a voice, such as the person in your ads or the
+  support lead your customers know by name.
+- You need an accent the catalogue doesn't have, such as Australian English.
+- You want a voice that is at home in your languages: Gujarati, Tamil, Telugu,
+  or the Hindi and English mix your customers actually speak.
+
+If a catalogue voice already sounds right, use it. It's ready today, and nobody
+has to spend an afternoon talking to a microphone.
+
+## Who can request one, and what it costs
+
+Any workspace can send a request, from the console or the API. In the
+[console](https://sandbox.voice.miraiminds.co), sign in with your work email
+first; the page stays locked while you're only looking around. A workspace can
+have five requests open at a time. Requests that are ready or not accepted
+don't count towards that.
+
+Custom voices come with a volume commitment on our Enterprise plan. See
+[Billing & tiers](/general/tiers). Sending a request doesn't charge your
+wallet: our team gets in touch to agree pricing with you before training
+starts.
+
+## Before you record
+
+We build the voice from these recordings, so how they sound is how your agent
+will sound.
+
+### The speaker
+
+- One speaker only. Every file must be the same person. If someone else talks
+  during a session, for example to prompt the speaker with questions, cut them
+  out before you upload.
+- Speak the way the agent should sound on calls: conversational, at a natural
+  pace, as if talking to a customer. A script read in a newsreader voice gets
+  you a newsreader.
+- Use the languages, and the mix, you want the voice to speak. If the speaker
+  talks to customers in Hinglish, record Hinglish.
+
+### The room and the microphone
+
+- Record in a quiet room.
+- Use the same microphone, at the same distance from the speaker, for every
+  session.
+- Send the audio as it was recorded: no music, no voices in the background,
+  no heavy noise reduction and no effects. Trimming silences and false starts
+  is fine.
+
+### How much, and in what format
+
+- Record 30 minutes at least and 2 hours at most. We add up the length of all
+  your recordings, and a request can't be sent with less than 30 minutes or
+  more than 2 hours. Trim long silences, so that the 30 minutes is the speaker
+  talking.
+- Split long sessions into several files if you like. Each file can be up to
+  1 GB, with 3 GB in total.
+- WAV or FLAC at 44.1 kHz or higher is best. MP3 at 192 kbps or better is
+  fine. We also accept M4A, AAC, MP4, OGG, Opus and WebM.
+
+## Consent
+
+We only build a voice with the speaker's permission, and every request
+carries it twice.
+
+First, whoever sends the request confirms that the speaker has agreed, in
+writing, to us building a voice from their recordings. You give your name and
+your relationship to the speaker: yourself, an employee, a contractor or
+someone else. Keep the written agreement where you can find it.
+
+Second, the speaker records a short consent statement in their own voice. The
+console shows the sentence to read and can record it in your browser, or you
+can upload a recording of them reading it.
+
+<Warning>
+Never upload a voice from another platform, a celebrity's voice, or the voice
+of anyone who hasn't agreed. We don't accept a request without the speaker's
+consent.
+</Warning>
+
+The speaker can withdraw consent at any time. Delete the request, whatever its
+status, and we delete its recordings and its consent clip. We keep the
+request's details, without any audio, in our records for audit.
+
+A voice is personal data. Make sure your agreement with the speaker says how
+the voice will be used on your calls.
+
+## Request a voice in the console
+
+<Steps>
+  <Step title="Start a request">
+    Open **Custom voices** in the sidebar, under **Workspace**, and click
+    **Request a voice clone**.
+  </Step>
+  <Step title="Tell us about the voice">
+    Give the voice a name of up to 60 characters; this is how it appears in
+    your list. Add the speaker's name and the languages the voice should speak:
+    Hindi, English, Gujarati, Tamil or Telugu. Gender, accent (such as
+    Australian English) and notes for our team are optional.
+  </Step>
+  <Step title="Confirm consent">
+    Tick the consent statement, and add your name and your relationship to the
+    speaker. Then have the speaker read the consent sentence, recorded in the
+    browser or uploaded as a file.
+  </Step>
+  <Step title="Upload the recordings">
+    Add the recording files. You need between 30 minutes and 2 hours in total.
+    Until you send it, the request is a draft, so you can come back and add
+    more later.
+  </Step>
+  <Step title="Submit">
+    Send the request. If something is missing, the console says what, for
+    example "Add at least 30 minutes of recordings. You have 24 minutes so
+    far."
+  </Step>
+</Steps>
+
+## What each status means
+
+There's no fixed turnaround. Our team reviews the recordings and updates the
+status as the request moves along. Anything we need you to know comes as a note
+on the request.
+
+| Console | `status` | What it means |
+| :--- | :--- | :--- |
+| Draft | `draft` | You're still putting it together. You can edit it and add or remove recordings. |
+| Sent | `submitted` | We have it, and it's waiting for our team. You can't edit it now. |
+| In review | `in_review` | Our team is reviewing the recordings. We get in touch about pricing before training starts. |
+| Training | `training` | We're building the voice. |
+| Ready | `ready` | The voice is built. The request shows its `voice_id`. |
+| Needs changes | `needs_changes` | We need something from you, and the note says what. Edit the request or its recordings, then send it again. |
+| Not accepted | `rejected` | We can't build a voice from this request. The note says why. |
+
+When a request is ready, use its `voice_id` on an agent the same way as a
+catalogue voice. See [Setting a voice on an agent](/v2/voices#setting-a-voice-on-an-agent).
+
+## Request a voice with the API
+
+Base URL `https://sandbox.voice.miraiminds.co`. All endpoints require
+`Authorization: Bearer sk_live_…`, and a request belongs to the workspace of
+the key that created it.
+
+```bash
+export MIRAI_API_BASE="https://sandbox.voice.miraiminds.co"
+export MIRAI_API_KEY="sk_live_YOUR_API_KEY"
+```
+
+| Method | Path | What it does |
+| :--- | :--- | :--- |
+| `POST` | `/v2/voice-clones` | Create a request. It starts as a `draft`. |
+| `GET` | `/v2/voice-clones` | List your workspace's requests, newest first. |
+| `GET` | `/v2/voice-clones/{id}` | Get one request, with its files. |
+| `PATCH` | `/v2/voice-clones/{id}` | Change any of the fields you sent on create. Draft or needs changes only. |
+| `DELETE` | `/v2/voice-clones/{id}` | Delete the request and all its audio, at any status. |
+| `POST` | `/v2/voice-clones/{id}/files` | Register a recording or the consent clip before uploading it. |
+| `PUT` | `/v2/voice-clones/{id}/files/{file_id}/chunks/{index}` | Upload one chunk of a file. |
+| `POST` | `/v2/voice-clones/{id}/files/{file_id}/complete` | Finish a file once every chunk is in. |
+| `DELETE` | `/v2/voice-clones/{id}/files/{file_id}` | Remove a file. Draft or needs changes only. |
+| `POST` | `/v2/voice-clones/{id}/submit` | Send the request to our team. |
+
+Files are large, so they go up in chunks of 16 MiB (16,777,216 bytes): you
+register the file, upload its chunks, mark it complete, and submit the request
+when everything is in.
+
+### 1. Create a request
+
+```bash
+curl --fail-with-body -X POST "$MIRAI_API_BASE/v2/voice-clones" \
+  -H "Authorization: Bearer $MIRAI_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Priya (support)",
+    "speaker_name": "Priya Sharma",
+    "languages": ["hi", "en"],
+    "gender": "female",
+    "notes": "Warm and unhurried. She mixes Hindi and English on calls.",
+    "consent": {
+      "attested": true,
+      "attested_by": "Rahul Mehta",
+      "relationship": "employee"
+    }
+  }'
+```
+
+| Field | Type | Description |
+| :--- | :--- | :--- |
+| `name` | string | **Required.** The voice's display name, 1 to 60 characters. |
+| `speaker_name` | string | **Required.** The person whose voice it is, 1 to 100 characters. |
+| `languages` | array | **Required.** At least one of `hi`, `en`, `gu`, `ta` and `te`. |
+| `gender` | string | Optional. `female`, `male` or `other`. |
+| `accent` | string | Optional, up to 100 characters, such as `Australian English`. |
+| `notes` | string | Optional notes for our team, up to 2,000 characters. |
+| `consent.attested` | boolean | `true` confirms the speaker agreed in writing. It must be `true` before you can submit. |
+| `consent.attested_by` | string | Your name, 1 to 100 characters. |
+| `consent.relationship` | string | The speaker is `self`, an `employee`, a `contractor` or `other`. |
+
+The response is `201 Created`. `attested_at` is the time we recorded your
+confirmation.
+
+```json
+{
+  "id": "vcl_01K8C2W7H4M9P3R6T1V5X8Z0QA",
+  "object": "voice_clone",
+  "status": "draft",
+  "name": "Priya (support)",
+  "speaker_name": "Priya Sharma",
+  "languages": ["hi", "en"],
+  "gender": "female",
+  "accent": "",
+  "notes": "Warm and unhurried. She mixes Hindi and English on calls.",
+  "consent": {
+    "attested": true,
+    "attested_by": "Rahul Mehta",
+    "relationship": "employee",
+    "attested_at": "2026-10-21T17:10:00Z"
+  },
+  "sample_seconds": 0,
+  "min_sample_seconds": 1800,
+  "max_sample_seconds": 7200,
+  "files": [],
+  "voice_id": null,
+  "status_note": "",
+  "created_at": "2026-10-21T17:10:00Z",
+  "updated_at": "2026-10-21T17:10:00Z",
+  "submitted_at": null
+}
+```
+
+```bash
+export MIRAI_VCL_ID="vcl_01K8C2W7H4M9P3R6T1V5X8Z0QA"
+```
+
+### 2. Register a recording
+
+Tell us about the file before you send it. `bytes` must be the file's exact
+size. `duration_seconds` is its length; for a WAV file we read the length from
+the file itself when you finish it, and for other formats we use the number you
+send. `ffprobe -v error -show_entries format=duration -of csv=p=0 session-1.mp3`
+prints it.
+
+```bash
+FILE=session-1.wav
+BYTES=$(wc -c < "$FILE" | tr -d ' ')
+
+curl --fail-with-body -X POST "$MIRAI_API_BASE/v2/voice-clones/$MIRAI_VCL_ID/files" \
+  -H "Authorization: Bearer $MIRAI_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d "{ \"kind\": \"sample\", \"filename\": \"$FILE\", \"bytes\": $BYTES,
+        \"content_type\": \"audio/wav\", \"duration_seconds\": 1201.4 }"
+```
+
+`kind` is `sample` for a recording and `consent` for the consent clip. The
+response is `201 Created`, and `chunks` says how many pieces to send:
+
+```json
+{
+  "id": "vcf_01K8C2X3B6D9F2H5K8M1P4R7T0",
+  "object": "voice_clone_file",
+  "kind": "sample",
+  "filename": "session-1.wav",
+  "content_type": "audio/wav",
+  "bytes": 211812352,
+  "received_bytes": 0,
+  "chunk_bytes": 16777216,
+  "chunks": 13,
+  "received_chunks": [],
+  "duration_seconds": 1201.4,
+  "duration_source": "client",
+  "sha256": "",
+  "status": "uploading",
+  "created_at": "2026-10-21T17:12:30Z"
+}
+```
+
+```bash
+export MIRAI_VCF_ID="vcf_01K8C2X3B6D9F2H5K8M1P4R7T0"
+```
+
+### 3. Upload the chunks
+
+Send chunk `0` to `chunks - 1` as raw bytes. Every chunk is exactly
+`chunk_bytes` long except the last, which is whatever is left. Chunks can go in
+any order, and sending one again overwrites it.
+
+```bash
+CHUNKS=13   # "chunks" from step 2
+for i in $(seq 0 $((CHUNKS - 1))); do
+  dd if="$FILE" bs=16777216 skip="$i" count=1 2>/dev/null |
+  curl --fail-with-body -X PUT \
+    "$MIRAI_API_BASE/v2/voice-clones/$MIRAI_VCL_ID/files/$MIRAI_VCF_ID/chunks/$i" \
+    -H "Authorization: Bearer $MIRAI_API_KEY" \
+    -H "Content-Type: application/octet-stream" \
+    --data-binary @-
+done
+```
+
+Each `PUT` answers `200` with the file, and `received_chunks` lists the chunks
+we have so far.
+
+### 4. Finish the file
+
+```bash
+curl --fail-with-body -X POST \
+  "$MIRAI_API_BASE/v2/voice-clones/$MIRAI_VCL_ID/files/$MIRAI_VCF_ID/complete" \
+  -H "Authorization: Bearer $MIRAI_API_KEY"
+```
+
+We put the chunks together into one file. The response is the file with
+`status` `complete` and its `sha256`. For a WAV file, `duration_seconds` now
+comes from the file and `duration_source` is `header`. If any chunk is missing,
+you get `409 incomplete` naming the missing chunks; send those and call
+`complete` again.
+
+Repeat steps 2 to 4 for each recording. The request's `sample_seconds` adds up
+the length of every finished recording.
+
+### 5. Add the consent clip
+
+Upload the speaker's consent statement the same way, with `"kind": "consent"`.
+A request holds one consent clip, up to 50 MB. To replace it, delete the old
+one first.
+
+```bash
+FILE=consent.wav
+BYTES=$(wc -c < "$FILE" | tr -d ' ')
+
+curl --fail-with-body -X POST "$MIRAI_API_BASE/v2/voice-clones/$MIRAI_VCL_ID/files" \
+  -H "Authorization: Bearer $MIRAI_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d "{ \"kind\": \"consent\", \"filename\": \"$FILE\", \"bytes\": $BYTES,
+        \"content_type\": \"audio/wav\", \"duration_seconds\": 10 }"
+```
+
+Then upload its chunks and finish it as in steps 3 and 4.
+
+### 6. Submit
+
+```bash
+curl --fail-with-body -X POST "$MIRAI_API_BASE/v2/voice-clones/$MIRAI_VCL_ID/submit" \
+  -H "Authorization: Bearer $MIRAI_API_KEY"
+```
+
+The response is the request with `status` `submitted`. To submit, the request
+needs `consent.attested` set to `true`, one finished consent clip, between
+1,800 and 7,200 seconds of finished recordings, and no file still uploading.
+If something is missing, you get `422 not_ready` with a message that says what:
+
+```json title="422 Unprocessable Entity"
+{
+  "error": {
+    "code": "not_ready",
+    "message": "Add at least 30 minutes of recordings. You have 24 minutes so far."
+  }
+}
+```
+
+### Resume an upload
+
+If an upload stops partway, get the request and look at the file in `files`:
+
+```bash
+curl --fail-with-body "$MIRAI_API_BASE/v2/voice-clones/$MIRAI_VCL_ID" \
+  -H "Authorization: Bearer $MIRAI_API_KEY"
+```
+
+`received_chunks` lists the chunks we already have. Send the others, then
+finish the file. This Python function does both, and you can run it again
+after any failure:
+
+```python
+import os, httpx
+
+base = os.environ["MIRAI_API_BASE"]
+auth = {"Authorization": f"Bearer {os.environ['MIRAI_API_KEY']}"}
+
+def upload(vcl_id: str, file_id: str, local_path: str) -> dict:
+    vc = httpx.get(f"{base}/v2/voice-clones/{vcl_id}", headers=auth, timeout=30).raise_for_status().json()
+    f = next(x for x in vc["files"] if x["id"] == file_id)
+    url = f"{base}/v2/voice-clones/{vcl_id}/files/{file_id}"
+    have = set(f["received_chunks"])
+    with open(local_path, "rb") as src:
+        for i in range(f["chunks"]):
+            if i in have:
+                continue
+            src.seek(i * f["chunk_bytes"])
+            httpx.put(f"{url}/chunks/{i}", content=src.read(f["chunk_bytes"]),
+                      headers={**auth, "Content-Type": "application/octet-stream"},
+                      timeout=300).raise_for_status()
+    return httpx.post(f"{url}/complete", headers=auth, timeout=300).raise_for_status().json()
+```
+
+### Follow the status
+
+`GET /v2/voice-clones/{id}` returns the request with its `status` and our
+`status_note`. `GET /v2/voice-clones` lists every request in your workspace as
+`{"object": "list", "data": [...]}`, newest first. The status changes when our
+team moves the request along, so there's no need to check often. When it is
+`ready`, `voice_id` holds your new voice.
+
+### Change or delete a request
+
+While a request is `draft` or `needs_changes`, `PATCH /v2/voice-clones/{id}`
+changes any of the fields from step 1; at any other status it answers
+`409 not_editable`. Adding and removing files works in those two statuses
+only. `DELETE /v2/voice-clones/{id}/files/{file_id}` answers
+`{"id": "vcf_…", "deleted": true}`.
+
+`DELETE /v2/voice-clones/{id}` works at any status. It deletes every recording
+and the consent clip, and answers:
+
+```json
+{ "id": "vcl_01K8C2W7H4M9P3R6T1V5X8Z0QA", "object": "voice_clone", "deleted": true }
+```
+
+## Limits
+
+| Limit | Value |
+| :--- | :--- |
+| Recordings per request | 30 minutes to 2 hours in total |
+| File size | 1 GB per file, 3 GB per request |
+| Files per request | 60 |
+| Consent clip | One per request, up to 50 MB |
+| Chunk size | 16 MiB (16,777,216 bytes); the last chunk is the remainder |
+| Open requests per workspace | 5 (ready and not accepted requests don't count) |
+| Languages | `hi`, `en`, `gu`, `ta`, `te` |
+| File types | `.wav`, `.flac`, `.mp3`, `.m4a`, `.aac`, `.mp4`, `.ogg`, `.opus`, `.webm` |
+
+## Errors
+
+Errors use the [standard envelope](/v2/errors).
+
+| Status | `code` | Meaning |
+| :--- | :--- | :--- |
+| `400` | `invalid_request` | A field is missing or out of range. The message names it. |
+| `400` | `bad_chunk` | A chunk is the wrong size. Every chunk but the last must be exactly `chunk_bytes`. |
+| `404` | `not_found` | No such request or file in your workspace. |
+| `409` | `limit_reached` | Your workspace already has five open requests. |
+| `409` | `not_editable` | The request has been sent, so it can't be changed. You can still delete it. |
+| `409` | `incomplete` | You finished a file with chunks still missing. The error names them. |
+| `422` | `not_ready` | The request isn't ready to send. The message says what's missing. |
+| `507` | `insufficient_storage` | We can't take more audio right now. Try again later. |
