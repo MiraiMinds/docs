@@ -16631,7 +16631,7 @@
           },
           "voice": {
             "additionalProperties": false,
-            "description": "When omitted on create, voice_id defaults to neha. Supplied blocks must include voice_id.",
+            "description": "When omitted on create, voice_id defaults to shruti. Supplied blocks must include voice_id.",
             "properties": {
               "language": {
                 "type": "string"

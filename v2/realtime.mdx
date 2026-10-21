@@ -117,7 +117,7 @@ side, next to each other, and your process only moves audio.
 
 Optional:
     MIRA_AGENT_ID      start from one of your agents (prompt, tools, voice)
-    MIRA_VOICE         a Mirai voice: neha (default), ashu, shruti, sameer
+    MIRA_VOICE         a Mirai voice: shruti (default), ashu, neha, sameer
     MIRA_LANGUAGE      the caller's language, e.g. hi, en (default: auto)
     MIRA_REALTIME_URL  another endpoint (default: production); a sandbox key
                        needs wss://sandbox.voice.miraiminds.co/v2/realtime
@@ -178,7 +178,7 @@ async def main():
                 # when you have finished speaking.
                 turn_detection=TurnDetection(),
             ),
-            output=AudioOutput(voice=os.getenv("MIRA_VOICE", "neha")),
+            output=AudioOutput(voice=os.getenv("MIRA_VOICE", "shruti")),
         ),
     )
 
