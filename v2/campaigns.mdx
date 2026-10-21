@@ -600,11 +600,10 @@ voice, or be understood in a different language.
 - [List contacts](#list-contacts) returns them, and a duplicated campaign
   keeps them.
 
-<Note>
-The console's CSV upload doesn't read per-contact voice and language yet. To
-give contacts their own, send `call_settings` with each contact through the
-API.
-</Note>
+In a CSV upload, the columns `call_settings.voice_id`, `call_settings.language`
+and `call_settings.secondary_languages` set the same keys. Separate secondary
+languages with commas, for example `hi,en`. An existing `language` column stays a
+variable.
 
 ### Errors
 

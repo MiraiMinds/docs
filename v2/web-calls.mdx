@@ -432,7 +432,7 @@ Both end a live browser call, but they behave differently.
 | Browser audio | Closed after the goodbye has played | Closed immediately |
 | Final status | `completed`, `ended_reason: "api-ended-call"` | `aborted`, `ended_reason: "aborted-by-api"` |
 | Terminal webhook | `call.completed` | `call.aborted` |
-| Billing | Billed like any completed call | Not billed |
+| Billing | Billed like any completed call | Billed for the time it was connected, like any other call |
 
 Use `close` for a graceful ending the user hears. Use `abort` when the
 conversation must stop now. If a `close`, an `abort`, the user leaving, and a

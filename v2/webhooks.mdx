@@ -205,8 +205,9 @@ bills as two 10-second blocks: ₹1.00 on T3. See
 ```
 
 `aborted-by-api` is the only `ended_reason` an abort produces, whether you
-cancelled the call in the queue, mid-ring or mid-conversation. Aborted calls are
-never billed.
+cancelled the call in the queue, mid-ring or mid-conversation. An aborted call is
+billed for the time it was connected; one cancelled in the queue or while ringing
+costs nothing.
 
 ### Wallet balance on call-ending events
 
