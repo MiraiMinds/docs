@@ -359,7 +359,7 @@ minimum.
 | :--- | :--- | :--- |
 | `401 unauthorized` | Missing `Bearer ` prefix, or a copy-paste with a newline | Re-copy the key; check `Authorization: Bearer sk_live_…` |
 | `402 insufficient_balance` | Wallet cannot cover one minute at your tier (₹5 on T5) | Check `GET /v2/wallet`; add credit from the console's **Billing** page, or ask your Mirai contact before you go live |
-| `400 invalid_request` on `voice_id` | The voice is not in the catalogue | Use `ashu`, `neha`, `shruti` or `sameer`, which work on every tier; see [Voices](/v2/voices) |
+| `400 invalid_request` on `voice_id` | The voice is not in the catalogue | Use `ashu`, `neha`, `shruti`, `sameer`, `munshi` or `tanvi`, which work on every tier; see [Voices](/v2/voices) |
 | `400 invalid_request` on `to` | Number not E.164 | Use `+919876543210`, not `9876543210` or `091 98765 43210` |
 | Call ends instantly, `status: no_answer` | Number unreachable or DND-blocked | Try another handset; see [compliance](/v2/limits#india-calling-rules) |
 | No webhook arrives | URL not publicly reachable, or not HTTPS | Test with `curl -X POST` against your own URL first |

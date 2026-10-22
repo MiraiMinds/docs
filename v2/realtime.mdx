@@ -117,7 +117,8 @@ side, next to each other, and your process only moves audio.
 
 Optional:
     MIRA_AGENT_ID      start from one of your agents (prompt, tools, voice)
-    MIRA_VOICE         a Mirai voice: shruti (default), ashu, neha, sameer
+    MIRA_VOICE         a Mirai voice: shruti (default), ashu, neha, sameer,
+                       munshi, tanvi
     MIRA_LANGUAGE      the caller's language, e.g. hi, en (default: auto)
     MIRA_REALTIME_URL  another endpoint (default: production); a sandbox key
                        needs wss://sandbox.voice.miraiminds.co/v2/realtime
@@ -312,7 +313,7 @@ ignored. Any other event type returns an `error` with code `invalid_event`.
 | :--- | :--- | :--- |
 | `instructions` | Yes, at any time | The system prompt. Replaces the agent's prompt when you passed `agent_id`. Used exactly as written: `{{placeholders}}` in it are not filled in. If neither the agent nor you supply one, the session uses a short default prompt. |
 | `tools`, `tool_choice` | Yes, at any time | Function tools only. The Chat Completions shape (`{"type": "function", "function": {…}}`) is accepted too. `tool_choice` is `auto`, `none`, `required` or `{"type": "function", "name": "…"}`. |
-| `audio.output.voice` | Yes, at any time | A Mirai voice: `neha`, `ashu`, `shruti` or `sameer` ([listen](/v2/voices)). An unknown voice keeps the agent's or workspace's voice. |
+| `audio.output.voice` | Yes, at any time | A Mirai voice: `neha`, `ashu`, `shruti`, `sameer`, `munshi` or `tanvi` ([listen](/v2/voices)). An unknown voice keeps the agent's or workspace's voice. |
 | `audio.input.turn_detection` | Yes, at any time | `server_vad` and `semantic_vad` both use Mirai's turn detection. `create_response: false` makes us wait for your `response.create` after each turn. `interrupt_response: false` stops the caller's speech from cutting the agent off. `null` means you decide when the caller has finished: send `input_audio_buffer.commit` and `response.create` yourself. |
 | `max_output_tokens` | Yes, at any time | 1 to 4096, or `"inf"`. Caps the length of each reply. |
 | `audio.input.transcription.language` | First update only | The caller's language, such as `hi` or `en`. Leave it out to detect it. |
