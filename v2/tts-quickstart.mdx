@@ -103,9 +103,11 @@ curl https://sandbox.voice.miraiminds.co/v2/voices \
   -H "Authorization: Bearer $MIRA_API_KEY"
 ```
 
-The voices today are `ashu`, `neha`, `shruti` and `sameer`. All four are Hindi
-voices that code-switch into English the way real Indian speech does. `shruti` is
-the default if you omit `voice`. Each entry gives the `voice_id`, the voice's
+The voices today are `ashu`, `neha`, `shruti`, `sameer`, `munshi` and `tanvi`.
+`ashu`, `neha`, `shruti` and `sameer` are Hindi voices that code-switch into
+English the way real Indian speech does. `munshi` and `tanvi` speak Hindi,
+English, Gujarati, Tamil and Telugu. `shruti` is the default if you omit
+`voice`. Each entry gives the `voice_id`, the voice's
 name and its language. To hear a voice before you choose, use the voice picker
 in the console's Agent Studio. An unknown voice returns a 400 that names the
 allowed set; we never swap in another voice silently. Gujarati, Tamil and

@@ -471,7 +471,7 @@ curl -X POST https://sandbox.voice.miraiminds.co/v2/calls \
 
 | Key | Description |
 | :--- | :--- |
-| `voice_id` | The voice the agent speaks in. It takes the same values as an agent's `voice.voice_id`: `ashu`, `neha`, `shruti` or `sameer`. See [Voices](/v2/voices). |
+| `voice_id` | The voice the agent speaks in. It takes the same values as an agent's `voice.voice_id`: `ashu`, `neha`, `shruti`, `sameer`, `munshi` or `tanvi`. See [Voices](/v2/voices). |
 | `language` | The call's main language, written the way an agent's `language` is (`hi`, `gu`, `en-IN`), up to 35 characters. Speech recognition listens for it. |
 | `secondary_languages` | Other languages the caller may speak. Up to 4 of `hi`, `en`, `gu`, `mr`, `bn`, `ta`, `te`, `kn`, `ml`, `pa` and `od`. A regional tag is read as its base code (`gu-IN` is `gu`), and duplicates and the main language are dropped. `[]` listens for the main language only. |
 
@@ -514,7 +514,7 @@ message names the key and, where there is a fixed list, the values allowed:
 {
   "error": {
     "code": "invalid_request",
-    "message": "call_settings.voice_id \"priya\" is not a voice; it must be one of ashu, neha, sameer, shruti"
+    "message": "call_settings.voice_id \"priya\" is not a voice; it must be one of ashu, munshi, neha, sameer, shruti, tanvi"
   }
 }
 ```

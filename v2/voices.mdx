@@ -16,10 +16,14 @@ change with your plan.
 | `neha` | Female |
 | `shruti` | Female |
 | `sameer` | Male |
+| `munshi` | Male |
+| `tanvi` | Female |
 
-All four are Hindi voices that code-switch into English the way real Indian
-speech does. The [Mira TTS page](https://voice.miraiminds.co/models/text-to-speech)
-has samples and more about the model behind them.
+`ashu`, `neha`, `shruti` and `sameer` are Hindi voices that code-switch into
+English the way real Indian speech does. `munshi` and `tanvi` speak Hindi,
+English, Gujarati, Tamil and Telugu. The
+[Mira TTS page](https://voice.miraiminds.co/models/text-to-speech) has samples
+and more about the model behind them.
 
 Need a voice the catalogue doesn't have, such as your brand's own voice or an
 Australian English accent? You can
@@ -33,7 +37,7 @@ the allowed set:
 {
   "error": {
     "code": "invalid_request",
-    "message": "unknown voice_id \"priya\" — voice.voice_id must be one of ashu, neha, sameer, shruti"
+    "message": "unknown voice_id \"priya\" — voice.voice_id must be one of ashu, munshi, neha, sameer, shruti, tanvi"
   }
 }
 ```
@@ -58,7 +62,9 @@ catalogue grows monthly, so if this page and the API disagree, trust the API.
     { "voice_id": "ashu", "name": "आशु", "language": "hi" },
     { "voice_id": "neha", "name": "नेहा", "language": "hi" },
     { "voice_id": "shruti", "name": "श्रुति", "language": "hi" },
-    { "voice_id": "sameer", "name": "समीर", "language": "hi" }
+    { "voice_id": "sameer", "name": "समीर", "language": "hi" },
+    { "voice_id": "munshi", "name": "मुंशी", "language": "hi" },
+    { "voice_id": "tanvi", "name": "तन्वी", "language": "hi" }
   ]
 }
 ```
