@@ -71,8 +71,19 @@ TAG_ORDER = ("Agents", "Calls", "Flows", "Tools and secrets", "Campaigns", "Do-n
 #: collection has no requests for them yet. Add them in mirai-voice
 #: scripts/postman/spec and drop these lines; the pages then generate.
 KNOWLEDGE_PENDING = "no Postman request yet (knowledge bases)"
+VOICE_CLONES_PENDING = "no Postman request yet (voice clones; see v2/custom-voices)"
 
 SKIP_CONTRACT = {
+    ("DELETE", "/v2/voice-clones/{id}"): VOICE_CLONES_PENDING,
+    ("DELETE", "/v2/voice-clones/{id}/files/{file_id}"): VOICE_CLONES_PENDING,
+    ("GET", "/v2/voice-clones"): VOICE_CLONES_PENDING,
+    ("GET", "/v2/voice-clones/{id}"): VOICE_CLONES_PENDING,
+    ("PATCH", "/v2/voice-clones/{id}"): VOICE_CLONES_PENDING,
+    ("POST", "/v2/voice-clones"): VOICE_CLONES_PENDING,
+    ("POST", "/v2/voice-clones/{id}/files"): VOICE_CLONES_PENDING,
+    ("POST", "/v2/voice-clones/{id}/files/{file_id}/complete"): VOICE_CLONES_PENDING,
+    ("POST", "/v2/voice-clones/{id}/submit"): VOICE_CLONES_PENDING,
+    ("PUT", "/v2/voice-clones/{id}/files/{file_id}/chunks/{index}"): VOICE_CLONES_PENDING,
     ("POST", "/v2/telephony/test-calls"): "not served on the public hosts",
     ("GET", "/v2/whatsapp/numbers"): "not served on the public hosts",
     ("POST", "/v2/whatsapp/numbers"): "not served on the public hosts",

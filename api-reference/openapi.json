@@ -15468,24 +15468,98 @@
           "content": {
             "application/json": {
               "schema": {
-                "additionalProperties": false,
+                "additionalProperties": true,
+                "description": "OpenAI's audio/speech shape; fields an OpenAI SDK sends that this API does not use (instructions) are ignored.",
                 "properties": {
+                  "bitrate": {
+                    "default": 128,
+                    "description": "kbps, for mp3, opus and aac only (\"128k\" is accepted). Without it, the most the codec carries at a low rate when that is under 128 (mp3 at 8 kHz: 64).",
+                    "enum": [
+                      32,
+                      48,
+                      64,
+                      96,
+                      128,
+                      160,
+                      192
+                    ],
+                    "type": [
+                      "integer",
+                      "string"
+                    ]
+                  },
                   "input": {
+                    "description": "The text to speak.",
+                    "minLength": 1,
                     "type": "string"
+                  },
+                  "loudness": {
+                    "default": 1,
+                    "description": "Linear gain (2.0 is +6 dB), held under full scale by a limiter.",
+                    "maximum": 2,
+                    "minimum": 0.5,
+                    "type": [
+                      "number",
+                      "string"
+                    ]
                   },
                   "model": {
+                    "default": "mira-tts",
                     "type": "string"
                   },
+                  "pace": {
+                    "default": 1,
+                    "description": "Another name for speed (send one, or the same value in both).",
+                    "maximum": 2,
+                    "minimum": 0.5,
+                    "type": [
+                      "number",
+                      "string"
+                    ]
+                  },
+                  "pitch": {
+                    "default": 0,
+                    "description": "Pitch shift in semitones, without changing the tempo.",
+                    "maximum": 6,
+                    "minimum": -6,
+                    "type": [
+                      "number",
+                      "string"
+                    ]
+                  },
                   "response_format": {
+                    "default": "pcm",
+                    "description": "pcm, wav, mulaw (ulaw), alaw, mp3, opus, aac or flac; or pcm_<rate>, mulaw_<rate>, alaw_<rate>, mp3_<rate>_<kbps>, opus_<rate>_<kbps>. The compressed formats are HTTP-only and need an encoder on the server (503 format_unavailable otherwise).",
                     "type": "string"
                   },
                   "sample_rate": {
+                    "description": "Output rate. Default 48000 (8000 for mulaw/alaw). mulaw/alaw: 8000 or 16000; opus: 8000, 16000, 24000 or 48000.",
+                    "enum": [
+                      8000,
+                      16000,
+                      22050,
+                      24000,
+                      44100,
+                      48000
+                    ],
                     "type": "integer"
                   },
+                  "speed": {
+                    "default": 1,
+                    "description": "Tempo, without changing the pitch: 0.5 is half as fast, 2.0 twice as fast.",
+                    "maximum": 2,
+                    "minimum": 0.5,
+                    "type": [
+                      "number",
+                      "string"
+                    ]
+                  },
                   "text": {
+                    "description": "Another name for input.",
                     "type": "string"
                   },
                   "voice": {
+                    "default": "shruti",
                     "type": "string"
                   }
                 },
