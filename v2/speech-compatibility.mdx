@@ -32,6 +32,21 @@ Any other value returns `404 model_not_found`. Request-log rows and the
 socket's `session.begin` name the build that served you, for example
 `mira-stt:v5-realtime`, whichever name you sent.
 
+## Parameters from OpenAI, Sarvam and ElevenLabs
+
+The speech endpoint accepts the voice controls and format names other
+providers use, so a client written for them needs fewer changes.
+
+| From | You send | What happens |
+| :--- | :--- | :--- |
+| OpenAI | `speed` | Honoured, from `0.5` to `2.0`. OpenAI allows `0.25` to `4.0`; a value outside our range returns a 400 instead of being clamped. |
+| OpenAI | `response_format: "mp3"` (also `opus`, `aac`, `flac`) | Returns that format. See [output formats](/v2/tts-quickstart#output-formats). Leaving `response_format` out still returns `pcm`, not OpenAI's default `mp3`. |
+| Sarvam | `pace` | Accepted as another name for `speed`, with the same range. Sending both with different values returns a 400. |
+| ElevenLabs | `response_format: "mp3_44100_128"`, `"opus_48000_64"` | Accepted. The sample rate and bitrate in the name apply. |
+
+`pitch` and `loudness` are our own fields. See
+[Speed, pitch and loudness](/v2/tts-quickstart#speed-pitch-and-loudness).
+
 ## Browser stream tokens
 
 A browser cannot set headers on a WebSocket, and your API key must never reach

@@ -125,7 +125,7 @@ nothing. The socket stays open.
 
 | `type` | Fields | What it does |
 | :--- | :--- | :--- |
-| `session.update` | `voice`, `response_format`, `sample_rate`, `audio_transport`, `model`, all optional | Changes the settings for sentences cut after it. Answered with `session.updated`. |
+| `session.update` | `voice`, `response_format`, `sample_rate`, `speed`, `pitch`, `loudness`, `audio_transport`, `model`, all optional | Changes the settings for sentences cut after it. Answered with `session.updated`. |
 | `text` | `context_id`, `text`, optional `flush` | Adds text to a context. Every sentence it completes is queued for synthesis. `"flush": true` also flushes. |
 | `flush` | `context_id` | Sends whatever text the context still holds, however short. You get `context.done` once everything sent so far for that context has been spoken. |
 | `cancel` | `context_id` | Stops the context now. See [Barge-in](#barge-in). Answered with `context.cancelled`. |
@@ -135,9 +135,12 @@ nothing. The socket stays open.
 
 | Field | Values | Default |
 | :--- | :--- | :--- |
-| `voice` | `ashu`, `neha`, `shruti`, `sameer`, `munshi` or `tanvi`. See [Voices](/v2/voices). | `neha` |
-| `response_format` | `pcm`, `mulaw` (also `ulaw`, `pcm_mulaw`), `alaw` (also `pcm_alaw`), or a value with the rate built in: `pcm_8000`, `pcm_16000`, `pcm_22050`, `pcm_24000`, `pcm_44100`, `pcm_48000`, `ulaw_8000`, `ulaw_16000`, `alaw_8000`, `alaw_16000`. `wav` is not available on a stream. | `pcm` |
+| `voice` | `ashu`, `neha`, `shruti`, `sameer`, `munshi` or `tanvi`. See [Voices](/v2/voices). | `shruti` |
+| `response_format` | `pcm`, `mulaw` (also `ulaw`, `pcm_mulaw`), `alaw` (also `pcm_alaw`), or a value with the rate built in: `pcm_8000`, `pcm_16000`, `pcm_22050`, `pcm_24000`, `pcm_44100`, `pcm_48000`, `ulaw_8000`, `ulaw_16000`, `alaw_8000`, `alaw_16000`. `wav` is not available on a stream, and neither are `mp3`, `opus`, `aac` or `flac`. | `pcm` |
 | `sample_rate` | `8000`, `16000`, `22050`, `24000`, `44100` or `48000`. μ-law and A-law come at `8000` or `16000` only. | `48000` for `pcm`, `8000` for μ-law and A-law |
+| `speed` | `0.5` to `2.0`. `pace` is accepted as another name. | `1.0` |
+| `pitch` | `-6` to `+6` semitones. | `0` |
+| `loudness` | `0.5` to `2.0`, a linear gain with a soft limiter. | `1.0` |
 | `audio_transport` | `binary` sends audio as binary frames. `base64` sends it inside `audio.chunk` events. | `binary` |
 | `model` | `mira-tts` | `mira-tts` |
 
@@ -153,7 +156,14 @@ sentences already cut keeps the settings it was cut with, and every
 `audio.start` tells you what its audio is.
 
 `wav` is refused because a WAV header has to state the length of audio that
-does not exist yet. Ask for `pcm` at the rate you need.
+does not exist yet. Ask for `pcm` at the rate you need. The compressed formats
+(`mp3`, `opus`, `aac`, `flac`) are for [HTTP requests](/v2/tts-quickstart#output-formats)
+only and are refused on the socket.
+
+`speed`, `pitch` and `loudness` use the same ranges as on
+[HTTP](/v2/tts-quickstart#speed-pitch-and-loudness). They apply to sentences
+cut after the update, so audio already queued keeps its old settings. A value
+outside its range returns an `invalid_request` error and changes nothing.
 
 ### `text`
 

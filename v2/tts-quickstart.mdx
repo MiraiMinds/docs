@@ -54,22 +54,33 @@ on our side as the audio streams:
 | `mulaw` (also `ulaw`, `pcm_mulaw`) | Raw G.711 μ-law, 1 byte per sample. What most phone lines carry. | Yes |
 | `alaw` (also `pcm_alaw`) | Raw G.711 A-law, 1 byte per sample. | Yes |
 | `wav` | A playable file: 16-bit mono PCM with a WAV header. | No. It arrives in one piece once synthesis finishes. |
+| `mp3` | MP3 (`audio/mpeg`). | Yes |
+| `opus` | Opus in an Ogg container (`audio/ogg`). | Yes |
+| `aac` | AAC in ADTS frames (`audio/aac`). | Yes |
+| `flac` | FLAC (`audio/flac`), lossless. | Yes |
 
 Send the rate in `sample_rate`, or use a value with the rate built in:
 
 | Field | Values | Default |
 | :--- | :--- | :--- |
-| `sample_rate` | `8000`, `16000`, `22050`, `24000`, `44100` or `48000`. μ-law and A-law come at `8000` or `16000` only. | `48000` for `pcm` and `wav`, `8000` for μ-law and A-law |
-| `response_format` with a rate | `pcm_8000`, `pcm_16000`, `pcm_22050`, `pcm_24000`, `pcm_44100`, `pcm_48000`, `ulaw_8000` (or `mulaw_8000`), `ulaw_16000` (or `mulaw_16000`), `alaw_8000`, `alaw_16000` | |
+| `sample_rate` | `8000`, `16000`, `22050`, `24000`, `44100` or `48000`. μ-law and A-law come at `8000` or `16000` only. `opus` comes at `8000`, `16000`, `24000` or `48000` only. | `48000`, except `8000` for μ-law and A-law |
+| `bitrate` | `32`, `48`, `64`, `96`, `128`, `160` or `192` (kbps). A string such as `"128k"` also works. Only for `mp3`, `opus` and `aac`; with any other format it returns a 400. Low sample rates carry less: MP3 tops out at 160 below 32 kHz and at 64 below 16 kHz, and AAC at about 6 kbps per kHz (48 at 8 kHz, 96 at 16 kHz). Asking for more returns a 400 that names the most you can have. | `128`, or the most the codec carries at a lower sample rate |
+| `response_format` with a rate | `pcm_8000`, `pcm_16000`, `pcm_22050`, `pcm_24000`, `pcm_44100`, `pcm_48000`, `ulaw_8000` (or `mulaw_8000`), `ulaw_16000` (or `mulaw_16000`), `alaw_8000`, `alaw_16000`, and for compressed audio `mp3_44100_128`, `opus_48000_64` and the other `mp3_<rate>_<kbps>` and `opus_<rate>_<kbps>` combinations | |
 
 If `response_format` includes a rate, leave `sample_rate` out or send the same
 value; a different one returns a 400. For a WAV at another rate, send `wav`
 with `sample_rate`, for example `"sample_rate": 16000`. Values are not case
 sensitive.
 
-Any other value, including OpenAI's default `mp3`, returns a 400 whose message
-lists the values we accept. Always send `response_format` explicitly. Without
-it you get `pcm` at 48 kHz.
+Any other value returns a 400 whose message lists the values we accept.
+OpenAI's default format, `mp3`, works here. If you omit `response_format` you
+still get `pcm` at 48 kHz, so send it explicitly.
+
+Compressed formats are for HTTP requests. The
+[WebSocket endpoint](/v2/tts-websocket) streams `pcm`, μ-law and A-law only. If
+our server cannot encode a compressed format, the request returns
+`503 format_unavailable` and nothing is charged. `GET /v1/models` lists the
+compressed formats only when they are available.
 
 ```bash title="Phone-ready audio: 8 kHz μ-law"
 curl https://sandbox.voice.miraiminds.co/v1/audio/speech \
@@ -85,6 +96,54 @@ curl https://sandbox.voice.miraiminds.co/v1/audio/speech \
 ```
 
 Play it with `ffplay -f mulaw -ar 8000 speech.ulaw`.
+
+```bash title="Compressed audio: MP3 at 64 kbps"
+curl https://sandbox.voice.miraiminds.co/v1/audio/speech \
+  -H "Authorization: Bearer $MIRA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "mira-tts",
+    "voice": "shruti",
+    "response_format": "mp3",
+    "bitrate": 64,
+    "input": "नमस्ते, आपका ऑर्डर कल तक पहुँच जाएगा।"
+  }' \
+  --output speech.mp3
+```
+
+`"response_format": "mp3_44100_64"` asks for the same thing in one field.
+
+### Speed, pitch and loudness
+
+Three optional fields change how the voice sounds. All three work on
+`/v1/audio/speech` and `/v2/tts`, and on the
+[WebSocket endpoint](/v2/tts-websocket#session-update).
+
+| Field | Range | Default | Notes |
+| :--- | :--- | :--- | :--- |
+| `speed` | `0.5` to `2.0` | `1.0` | `pace` is accepted as another name for it. If you send both with different values, you get a 400. |
+| `pitch` | `-6` to `+6` semitones | `0` | Negative is lower, positive is higher. |
+| `loudness` | `0.5` to `2.0` | `1.0` | A linear gain. A soft limiter keeps loud audio from clipping. |
+
+```bash
+curl https://sandbox.voice.miraiminds.co/v1/audio/speech \
+  -H "Authorization: Bearer $MIRA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "mira-tts",
+    "voice": "neha",
+    "response_format": "wav",
+    "speed": 0.9,
+    "pitch": -1,
+    "loudness": 1.2,
+    "input": "आपका ऑर्डर कल तक पहुँच जाएगा।"
+  }' \
+  --output speech.wav
+```
+
+A value outside its range, or one that is not a number, returns a 400 that
+names the range. If you leave all three out, the audio is the same as before
+these fields existed.
 
 <Note>
 `sample_rate` used to be ignored. If your code already sends it, check the
@@ -126,8 +185,9 @@ pin a build without a second request:
 | `X-Chars-Billed` | Characters counted for billing. |
 | `X-Cost-Paise` | What this request costs, in paise, once it completes. |
 | `X-Sample-Rate` | The sample rate of the audio you received, for example `8000` or `48000`. |
-| `X-Audio-Encoding` | How the samples are encoded: `pcm_s16le` (for `pcm` and `wav`), `mulaw` or `alaw`. |
-| `Content-Type` | `audio/pcm` for `pcm` at any rate, `audio/wav`, `audio/PCMU;rate=8000` for μ-law or `audio/PCMA;rate=8000` for A-law (with `16000` at 16 kHz). |
+| `X-Audio-Encoding` | How the samples are encoded: `pcm_s16le` (for `pcm` and `wav`), `mulaw`, `alaw`, `mp3`, `opus`, `aac` or `flac`. |
+| `X-Audio-Bitrate` | The bitrate in kbps. Sent for `mp3`, `opus` and `aac` only. |
+| `Content-Type` | `audio/pcm` for `pcm` at any rate, `audio/wav`, `audio/PCMU;rate=8000` for μ-law or `audio/PCMA;rate=8000` for A-law (with `16000` at 16 kHz), `audio/mpeg`, `audio/ogg`, `audio/aac` or `audio/flac`. |
 | `X-Mira-Model` | The build that produced the audio, for example `miraiminds/mira-tts-v53`. Pin it when you compare quality across releases. |
 
 Read `X-Sample-Rate` and `X-Audio-Encoding` before you play the audio. Raw
@@ -140,7 +200,7 @@ failed request.
 
 ## 3. Stream it
 
-`pcm`, μ-law and A-law stream: the first bytes arrive while the rest is still
+`pcm`, μ-law, A-law and the compressed formats stream: the first bytes arrive while the rest is still
 being synthesised. With the OpenAI SDK, read them as they come:
 
 ```python
@@ -317,8 +377,8 @@ Shared endpoint. No contractual SLA. Monthly commitments are credited to your wa
 Each request is rounded up to the paisa, and we charge only for completed
 audio. If the engine fails, the stream stalls or your client disconnects
 part-way, nothing is charged and no ledger row is written. The request still
-appears in your log, with a status that says why. The output format and sample
-rate do not change the price.
+appears in your log, with a status that says why. The output format, sample
+rate, bitrate, speed, pitch and loudness do not change the price.
 
 On the [WebSocket endpoint](/v2/tts-websocket#request-log), each sentence is
 charged on its own, and fractions of a paisa carry over between sentences, so a
@@ -443,7 +503,7 @@ rather check it there than poll the API.
 
 | Status | `code` | Cause |
 | :--- | :--- | :--- |
-| 400 | `invalid_request` | Empty `input`, more than 2,000 characters, an unknown voice, an unsupported `response_format` or `sample_rate`, or a `sample_rate` that conflicts with the rate in `response_format`. The message names the valid values. |
+| 400 | `invalid_request` | Empty `input`, more than 2,000 characters, an unknown voice, an unsupported `response_format` or `sample_rate`, a `sample_rate` that conflicts with the rate in `response_format`, a `bitrate` on a format that has none or above what the codec carries at that sample rate, or a `speed`, `pitch` or `loudness` outside its range. The message names the valid values. |
 | 401 | `unauthorized` | Missing or unknown key. Check the `Authorization: Bearer sk_live_…` header. |
 | 402 | `insufficient_balance` | The wallet cannot cover this request. Nothing was synthesised and nothing was charged. |
 | 404 | `model_not_found` | `model` is neither `mira-tts` nor the `mira-tts-v51` alias. |
@@ -451,6 +511,7 @@ rather check it there than poll the API.
 | 429 | `rate_limited` | Per-key request rate. Honour `Retry-After`, and see [Limits](/v2/limits). |
 | 502 | `upstream_error` | The engine refused, returned no audio, or the stream stalled past its timeout. Nothing was charged; the message says which. Retry. |
 | 503 | `fleet_offline` | No speech capacity is online. Nothing was charged. Honour `Retry-After`. |
+| 503 | `format_unavailable` | You asked for `mp3`, `opus`, `aac` or `flac` and our server cannot encode it right now. Nothing was charged. Ask for `pcm` or `wav`, or retry later. |
 | 503 | `maintenance_window` | Rare. Text to speech is down for planned maintenance. `Retry-After` counts the seconds until it is back. Nothing was charged. See [Availability](/v2/speech#availability). |
 
 Errors use the same envelope as the rest of the API. See
