@@ -1,15 +1,15 @@
 ---
 title: "Text-to-speech language roadmap"
 sidebarTitle: "TTS languages"
-description: "Text to speech is live in Hindi, English, Hinglish, Gujarati, Tamil and Telugu. Marathi, Kannada and Bengali come next. See why, and how to get early access."
+description: "Text to speech is live in Hindi, English, Hinglish, Gujarati, Tamil and Telugu, with Kannada and Malayalam in beta. Marathi and Bengali come next. See why, and how to get early access."
 ---
 
 Today the engine speaks **Hindi, English and the Hinglish** that most real
-calls are in, plus **Gujarati, Tamil and Telugu**. Three more come next:
-**Marathi, Kannada and Bengali**.
+calls are in, plus **Gujarati, Tamil and Telugu**. **Kannada and Malayalam**
+are in beta. **Marathi and Bengali** come next.
 
-<img className="block dark:hidden" src="/images/tts/language-roadmap-light.svg" alt="Roadmap: Hindi, Hinglish, English, Gujarati, Tamil and Telugu are live today in text to speech and speech to text; Bengali, Marathi and Kannada come next, dates to be announced per language." />
-<img className="hidden dark:block" src="/images/tts/language-roadmap-dark.svg" alt="Roadmap: Hindi, Hinglish, English, Gujarati, Tamil and Telugu are live today in text to speech and speech to text; Bengali, Marathi and Kannada come next, dates to be announced per language." />
+<img className="block dark:hidden" src="/images/tts/language-roadmap-light.svg" alt="Roadmap: Hindi, Hinglish, English, Gujarati, Tamil and Telugu are live today in text to speech and speech to text; Kannada and Malayalam are in beta; Bengali and Marathi come next, dates to be announced per language." />
+<img className="hidden dark:block" src="/images/tts/language-roadmap-dark.svg" alt="Roadmap: Hindi, Hinglish, English, Gujarati, Tamil and Telugu are live today in text to speech and speech to text; Kannada and Malayalam are in beta; Bengali and Marathi come next, dates to be announced per language." />
 
 We announce each language's date as it clears evaluation. Everything on the
 [roadmap](/general/roadmap) follows the same rule: dates are targets, and if a
@@ -31,10 +31,28 @@ send.
 - **Speech recognition is live too.** Mira STT transcribes the same languages
   with `gu-IN`, `ta-IN` and `te-IN`. See [STT languages](/v2/stt-languages).
 
+## Kannada and Malayalam
+
+**Beta.** All six voices speak Kannada and Malayalam. It works the same way as
+Gujarati, Tamil and Telugu: send the text in its own script and you get audio
+in that language from the same [speech endpoint](/v2/tts-quickstart), at the
+same price, with no language parameter. An agent whose `language` is `kn` or
+`ml` speaks it on phone and web calls.
+
+- **Send text in its own script**: Kannada in ಕನ್ನಡ, Malayalam in മലയാളം.
+  English words stay in Latin script.
+- **Where it works today**: phone and web calls, `POST /v1/audio/speech`, and
+  the playground in the console. The streaming socket and realtime sessions
+  come later.
+- **Speech recognition is in preview.** Mira STT accepts `kn-IN` and `ml-IN`.
+  See [STT languages](/v2/stt-languages).
+- **Beta** means the voices are ready to try and we are still tuning them on
+  real calls. Tell your account contact what you hear.
+
 ## Why these six
 
-Gujarati, Tamil and Telugu are live; Marathi, Kannada and Bengali come next.
-Together these six languages are the mother tongue of **429 million people**,
+Gujarati, Tamil and Telugu are live, Kannada is in beta, and Marathi and
+Bengali come next. Together these six languages are the mother tongue of **429 million people**,
 roughly every third Indian. For most of them, Hindi is no substitute. The
 census records how many speakers of each language also speak Hindi, and for
 four of the six the answer is *almost none*.
@@ -49,7 +67,7 @@ four of the six the answer is *almost none*.
 | Telugu · **live** | 81.1M | 5.7% | **76.5M** |
 | Tamil · **live** | 69.0M | 1.5% | **68.0M** |
 | Gujarati · **live** | 55.5M | 39.0% | **33.8M** |
-| Kannada | 43.7M | 4.7% | **41.7M** |
+| Kannada · **beta** | 43.7M | 4.7% | **41.7M** |
 | **Total** | **429.5M** | | **357.3M** |
 
 **357 million people cannot be called in Hindi at all**, so a voice agent that
@@ -76,11 +94,11 @@ are the most recent official figures. The next census is due in 2027.
   the text.
 - **Speech recognition alongside.** Gujarati, Tamil and Telugu are live in
   [speech to text](/v2/stt-languages) as well as in text to speech. Marathi,
-  Kannada and Bengali are in preview there today.
+  Kannada, Malayalam and Bengali are in preview there today.
 
 ## Get early access
 
 Each language runs an alpha with a small set of customers before it goes
-live. If calls in Marathi, Kannada or Bengali matter to your business, tell
+live. If calls in Marathi or Bengali matter to your business, tell
 your account contact which one. We allocate alpha slots in the order customers
 ask, and we tune the final voices on alpha customers' text.
