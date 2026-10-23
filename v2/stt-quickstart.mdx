@@ -64,7 +64,7 @@ Send the audio as a multipart form:
 </Tabs>
 
 ```json title="200 OK"
-{ "text": "નમસ્તે મારે કાલે સાંજે પાંચ વાગ્યાની appointment બુક કરવી છે" }
+{ "text": "નમસ્તે મારે કાલે સાંજે પાંચ વાગ્યાની appointment બુક કરવી છે", "language": "gu-IN" }
 ```
 
 The answer arrives once the whole clip is transcribed. HTTP sends no partial
@@ -78,7 +78,8 @@ so give your client a timeout of 120 seconds.
 | :--- | :--- | :--- |
 | `file` | The audio, up to 25 MB and 120 seconds. WAV, raw PCM, μ-law or A-law, or a compressed format such as MP3, M4A, OGG/Opus or FLAC, which we convert. Stereo is mixed down to mono. | Required |
 | `model` | `mira-stt` | `mira-stt` |
-| `language` | One of the [ten languages](/v2/stt-languages), as `gu-IN` or `gu`, in any case. There is no automatic detection, so name the language you expect. | `hi-IN` |
+| `language` | One of the [ten languages](/v2/stt-languages), as `gu-IN` or `gu`, in any case. Or `auto` (also `unknown`) when you don't know it: Mira STT works out the language of each utterance. See [Languages](/v2/stt-languages#choose-how-mira-stt-picks-the-language). | `hi-IN` |
+| `secondary_languages` | Only with a named `language`. Up to three more of the ten, comma-separated (`hi-IN,en-IN`), that callers may switch to. `language` stays the default. See [Secondary languages](/v2/stt-languages#secondary-languages). | None |
 | `response_format` | `json`, `verbose_json` or `text`. See below. | `json` |
 | `encoding`, `sample_rate` | Only for raw audio with no header: `linear16`, `mulaw` or `alaw`, at `8000` or `16000`. Leave them out for WAV and compressed files. | |
 
@@ -95,13 +96,61 @@ curl https://sandbox.voice.miraiminds.co/v1/audio/transcriptions \
   -F sample_rate=8000
 ```
 
+### When callers switch languages
+
+If you know the language, pass it: a fixed language is the most accurate and
+the fastest. When callers mostly speak one language but may switch to others
+you know, add `secondary_languages`. When you don't know the language,
+send `language=auto`.
+
+<Tabs>
+  <Tab title="cURL">
+    ```bash
+    # Gujarati, with callers who sometimes switch to Hindi or English
+    curl https://sandbox.voice.miraiminds.co/v1/audio/transcriptions \
+      -H "Authorization: Bearer $MIRA_API_KEY" \
+      -F file=@call.wav \
+      -F model=mira-stt \
+      -F language=gu-IN \
+      -F secondary_languages=hi-IN,en-IN
+
+    # Any of the ten languages
+    curl https://sandbox.voice.miraiminds.co/v1/audio/transcriptions \
+      -H "Authorization: Bearer $MIRA_API_KEY" \
+      -F file=@call.wav \
+      -F model=mira-stt \
+      -F language=auto
+    ```
+  </Tab>
+  <Tab title="Python (OpenAI SDK)">
+    ```python
+    # client is the OpenAI client from step 2
+    with open("call.wav", "rb") as f:
+        result = client.audio.transcriptions.create(
+            model="mira-stt",
+            file=f,
+            language="gu",
+            response_format="verbose_json",
+            extra_body={"secondary_languages": ["hi-IN", "en-IN"]},
+        )
+    print(result.language, result.text)
+    ```
+  </Tab>
+</Tabs>
+
+The answer's `language` is the language of most of the speech in the clip.
+With `verbose_json`, each segment also says its own. An utterance that
+switches language can take a little longer to transcribe.
+
 ### Response formats
 
-`json`, the default, is the text alone. `text` is the same text as a plain
-body (`text/plain; charset=utf-8`), with no JSON around it. `verbose_json` adds
-the language as its full code, such as `gu-IN` even when you sent `gu`, the
-audio's length in seconds, and one segment for each utterance we found, with
-where it starts and ends in the clip. `srt` and `vtt` are not offered.
+`json`, the default, is the text and its language. The language is the full
+code, such as `gu-IN` even when you sent `gu`; with `auto` or
+`secondary_languages`, it is the language of most of the speech. `text` is the
+text alone as a plain body (`text/plain; charset=utf-8`), with no JSON around
+it. `verbose_json` adds the audio's length in seconds and one segment for each
+utterance we found, with where it starts and ends in the clip and its own
+language. `srt` and `vtt` are not offered.
 
 ```json title="verbose_json"
 {
@@ -109,8 +158,8 @@ where it starts and ends in the clip. `srt` and `vtt` are not offered.
   "language": "hi-IN",
   "duration": 6.84,
   "segments": [
-    { "id": 0, "start": 0.0, "end": 3.92, "text": "नमस्ते मुझे कल शाम पाँच बजे का appointment book करना है" },
-    { "id": 1, "start": 4.31, "end": 6.84, "text": "क्या आप confirm कर सकते हैं" }
+    { "id": 0, "start": 0.0, "end": 3.92, "text": "नमस्ते मुझे कल शाम पाँच बजे का appointment book करना है", "language": "hi-IN" },
+    { "id": 1, "start": 4.31, "end": 6.84, "text": "क्या आप confirm कर सकते हैं", "language": "hi-IN" }
   ]
 }
 ```
@@ -137,6 +186,11 @@ the words are recognised, then one final transcript for each utterance:
 ```text
 wss://sandbox.voice.miraiminds.co/v1/audio/transcriptions/stream?language_code=gu-IN&sample_rate=16000&endpointing=manual
 ```
+
+For callers who switch languages, add `&secondary_languages=hi-IN,en-IN`, or
+connect with `language_code=auto` when you don't know the language. Each
+transcript then carries the `language` it was heard in. See
+[Languages](/v2/stt-languages#choose-how-mira-stt-picks-the-language).
 
 Send your key in the `Authorization: Bearer` header, as on every other
 request. This script streams a WAV file as if it were live: it opens an
@@ -244,7 +298,9 @@ stt = MiraiSTTService(api_key=os.environ["MIRA_API_KEY"], language="gu-IN")
 
 It opens one socket per call, uses your pipeline's VAD to mark the start and
 end of each utterance, sends 8 kHz phone audio as it is, and reconnects without
-losing what the caller said. See [Pipecat](/v2/pipecat#transcribe-with-miraisttservice).
+losing what the caller said. From pipecat-mirai 0.7.0 it also takes
+`language="auto"` and `secondary_languages=[...]`. See
+[Pipecat](/v2/pipecat#transcribe-with-miraisttservice).
 
 ## For phone calls
 
@@ -424,7 +480,7 @@ the API:
 | Status | `code` | Cause |
 | :--- | :--- | :--- |
 | 400 | `invalid_request` | No `file` in the form. |
-| 400 | `invalid_config` | A field is out of range: a `language` outside the [ten](/v2/stt-languages) (including `auto`), a `response_format` other than `json`, `verbose_json` or `text` (such as `srt` or `vtt`), or `encoding` and `sample_rate` that don't fit. The message names the field. |
+| 400 | `invalid_config` | A field is out of range: a `language` that is neither `auto` nor one of the [ten](/v2/stt-languages), `secondary_languages` with `auto`, with a code outside the ten or with more than three languages, a `response_format` other than `json`, `verbose_json` or `text` (such as `srt` or `vtt`), or `encoding` and `sample_rate` that don't fit. The message names the field. |
 | 401 | `unauthorized` | Missing or unknown key. Check the `Authorization: Bearer sk_live_…` header. |
 | 402 | `insufficient_balance` | Your wallet is empty. Nothing was transcribed and nothing was charged. |
 | 404 | `model_not_found` | `model` is not `mira-stt` or one of its [other names](/v2/speech-compatibility#other-model-names). |
