@@ -1,7 +1,7 @@
 ---
 title: "Speech to text languages: Hindi, Gujarati, Tamil, Telugu and six more"
 sidebarTitle: "STT languages"
-description: "The ten Indian languages Mira STT transcribes, how to pass the language code, how English inside an Indian language comes back, and each language's status."
+description: "The ten Indian languages Mira STT transcribes, how to pass the language code, secondary languages and automatic language identification, how English inside an Indian language comes back, and each language's status."
 ---
 
 Mira STT transcribes ten languages, on HTTP and on the socket alike:
@@ -43,18 +43,94 @@ in any case. When you leave it out, we transcribe Hindi.
 | [WebSocket](/v2/speech-to-text#query-parameters) | `language_code` on the URL: `?language_code=gu-IN`. |
 | [Pipecat](/v2/pipecat#transcribe-with-miraisttservice) | `MiraiSTTService(language="gu-IN")` |
 
-A code outside the ten is refused with `400 invalid_config`.
+A code outside the ten, other than `auto`, is refused with
+`400 invalid_config`.
 
-### No automatic detection
+## Choose how Mira STT picks the language
 
-Mira STT does not guess the language. `auto` and `unknown` are refused with
-`400 invalid_config`, so pass the language you expect. If you don't know it
-before the call, start with the language most of your callers speak.
+| Your callers | Send | Example |
+| :--- | :--- | :--- |
+| Speak one language you know | That language | `language=gu-IN` |
+| Mostly speak one language, and some switch to others you know | The main language, plus up to three `secondary_languages` | `language=hi-IN`, `secondary_languages=en-IN` |
+| Speak a language you don't know in advance | `auto` | `language=auto` |
 
-On the socket you can change it mid-session. Send
-`{"event": "config.update", "language_code": "ta-IN"}` and it applies from the
-next utterance; the utterance in progress finishes in the language it started
-with. On HTTP, each request carries its own `language`.
+If you know the caller's language, pass it. A fixed language is the most
+accurate and the fastest. Use `secondary_languages` when callers switch
+between languages you know, such as Hindi and English, or Gujarati and Hindi.
+Use `auto` only when you don't know the language.
+
+When an utterance switches to a different language, its final transcript can
+take a little longer to come back. Only that one final is slower.
+
+### Secondary languages
+
+`secondary_languages` lists up to three more of the ten codes, next to an
+explicit `language`. It means "callers mostly speak `language`, but may switch
+to these". Your `language` stays the default. An utterance moves to a
+secondary language only when Mira STT is confident it is in that language. The
+session remembers what it has heard, so a caller who switches is followed into
+the new language.
+
+| Where | How |
+| :--- | :--- |
+| HTTP | Comma-separated in a form field: `-F language=gu-IN -F secondary_languages=hi-IN,en-IN`. |
+| WebSocket | Comma-separated on the URL: `?language_code=gu-IN&secondary_languages=hi-IN,en-IN`. |
+| Pipecat | `MiraiSTTService(language="gu-IN", secondary_languages=["hi-IN", "en-IN"])`, from pipecat-mirai 0.7.0 |
+
+Codes take the same forms as `language` (`hi` works too). A duplicate, or the
+main language repeated, is dropped. A code outside the ten, more than three
+languages, or `secondary_languages` with `auto` is refused with
+`400 invalid_config`.
+
+English words inside Hindi or Gujarati need no secondary language (see
+[below](#english-inside-an-indian-language)). Add `en-IN` when callers may
+switch to speaking English throughout.
+
+A voice agent's [`secondary_languages`](/v2/agents#fields) reach Mira STT in
+the same way.
+
+### Automatic language identification
+
+With `language=auto`, Mira STT works out the language of each utterance among
+the ten and remembers what it heard earlier in the session. `unknown` means
+the same, for clients written for Sarvam.
+
+| Where | How |
+| :--- | :--- |
+| HTTP | `-F language=auto` |
+| WebSocket | `?language_code=auto` |
+| Pipecat | `MiraiSTTService(language="auto")`, from pipecat-mirai 0.7.0 |
+
+### The language in the answer
+
+| Where | Field |
+| :--- | :--- |
+| HTTP | `language` in the `json` and `verbose_json` answers: the language of most of the speech in the clip. In `verbose_json`, each segment also has its own `language`. |
+| WebSocket | `language` on `transcript.partial` and `transcript.final`, in an `auto` or secondary-language session: the language of that utterance. |
+| Pipecat | `TranscriptionFrame.language`, the language of that utterance. |
+
+```json title="HTTP, language=auto"
+{ "text": "નમસ્તે મારે કાલે સાંજે પાંચ વાગ્યાની appointment બુક કરવી છે", "language": "gu-IN" }
+```
+
+```json title="WebSocket, language_code=auto"
+{ "event": "transcript.final", "utterance_idx": 3, "text": "हाँ ठीक है कल शाम को आ जाइए", "language": "hi-IN" }
+```
+
+### Change the language mid-session
+
+On the socket, send `config.update` with `language_code`,
+`secondary_languages` or both. It applies from the next utterance; the
+utterance in progress finishes with the settings it started with:
+
+```json
+{ "event": "config.update", "language_code": "ta-IN", "secondary_languages": "en-IN" }
+```
+
+`"secondary_languages": ""` clears the list. To move to `auto` from a session
+with secondary languages, clear them in the same message:
+`{"event": "config.update", "language_code": "auto", "secondary_languages": ""}`.
+On HTTP, each request carries its own `language` and `secondary_languages`.
 
 ## English inside an Indian language
 
@@ -77,9 +153,9 @@ English inside Hindi or Gujarati is part of that language, so you don't need
 
 [Offline transcription](/v2/transcriptions) is a separate service for
 recordings that already exist. Use it when you need speaker labels, timestamps
-across a long call, or recordings of up to two hours. It takes `auto`, which
-detects the main language, and its own codes: `hi`, `gu`, `en`, `mr`, `pa`,
-`bn` and `ur`. For one clip of up to two minutes, or live audio, use the
+across a long call, or recordings of up to two hours. It has its own `auto`,
+which detects the main language of the recording, and its own codes: `hi`,
+`gu`, `en`, `mr`, `pa`, `bn` and `ur`. For one clip of up to two minutes, or live audio, use the
 [speech-to-text API](/v2/stt-quickstart).
 
 ## Ask for a language

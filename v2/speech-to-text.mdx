@@ -38,10 +38,15 @@ Pass the language in `language_code`. The default is `hi-IN`.
 `hi-IN` (Hindi, including Hinglish), `en-IN`, `gu-IN`, `mr-IN`, `pa-IN`,
 `bn-IN`, `ta-IN`, `te-IN`, `kn-IN` and `ml-IN` are accepted, and so are the
 same codes without `-IN`. Mira STT writes speech the way it was spoken, with
-English words in Latin script, never translated. There is no automatic
-language detection: name the language, and change it mid-call with
-[`config.update`](#messages-you-send) if the caller switches.
-[Languages](/v2/stt-languages) has the status of each one.
+English words in Latin script, never translated.
+
+If you know the caller's language, name it: a fixed language is the most
+accurate and the fastest. When callers may switch to other languages you know,
+add up to three of them in `secondary_languages`. When you don't know the
+language, connect with `language_code=auto` and Mira STT works out the
+language of each utterance. In both cases each transcript carries the
+`language` it was heard in. [Languages](/v2/stt-languages) explains the three
+choices and has the status of each language.
 
 ## Connect
 
@@ -75,7 +80,8 @@ Everything about the session is set on the URL, checked before the upgrade:
 
 | Parameter | Values | Default |
 | :--- | :--- | :--- |
-| `language_code` | One of the codes under [Languages](#languages). | `hi-IN` |
+| `language_code` | One of the codes under [Languages](#languages), or `auto` (also `unknown`) to have Mira STT work out the language of each utterance. | `hi-IN` |
+| `secondary_languages` | Up to three more of those codes, comma-separated (`hi-IN,en-IN`), that callers may switch to. Only with a named `language_code`, not with `auto`. See [Secondary languages](/v2/stt-languages#secondary-languages). | None |
 | `model` | `mira-stt` | `mira-stt` |
 | `encoding` | `linear16` (signed 16-bit little-endian PCM), `mulaw` or `alaw` (G.711). | `linear16` |
 | `sample_rate` | `8000` or `16000`. | `16000` |
@@ -221,7 +227,7 @@ Every message is a JSON text frame with an `event` field.
 | `speech_start` | none | `manual` only. Opens an utterance. |
 | `speech_end` | none | `manual` only. Closes the open utterance; its final follows. |
 | `flush` | none | `manual` only. The same as `speech_end`. |
-| `config.update` | Any of `language_code`, `stream_type`, `endpointing`, `threshold`, `silence_duration_ms`, `min_speech_duration_ms` | Changes settings mid-session. Answered with `config.updated`. |
+| `config.update` | Any of `language_code`, `secondary_languages`, `stream_type`, `endpointing`, `threshold`, `silence_duration_ms`, `min_speech_duration_ms` | Changes settings mid-session. Answered with `config.updated`. |
 | `ping` | none | Answered with `pong`. Keeps a quiet socket open. |
 | `end` | none | Finishes the open utterance, sends its final and `session.end`, then closes the socket. |
 
@@ -246,8 +252,12 @@ Every message is a JSON text frame with an `event` field.
 Keys go at the top level, beside `event`. We check every key before applying
 any of them, so a bad value changes nothing and you get an `invalid_config`
 error. `threshold`, `silence_duration_ms` and `min_speech_duration_ms` apply at
-once. `language_code`, `stream_type` and `endpointing` apply from the next
-utterance, so an utterance in progress keeps the settings it started with.
+once. `language_code`, `secondary_languages`, `stream_type` and `endpointing`
+apply from the next utterance, so an utterance in progress keeps the settings
+it started with. `secondary_languages` is a comma-separated string, as on the
+URL, and `""` clears it. A session with secondary languages that moves to
+`auto` clears them in the same message:
+`{"event": "config.update", "language_code": "auto", "secondary_languages": ""}`.
 `encoding`, `sample_rate` and `model` are fixed for the life of the socket:
 open a new one to change them.
 
@@ -258,8 +268,8 @@ open a new one to change them.
 | `session.begin` | `request_id`, `session_id`, `config`, `capabilities`, `limits` | First message after you connect. |
 | `vad.speech_start` | `utterance_idx`, `confidence` | `vad` only. Speech began. |
 | `vad.speech_end` | `utterance_idx`, `confidence` | `vad` only. The silence after speech reached `silence_duration_ms`. |
-| `transcript.partial` | `utterance_idx`, `text` | While an utterance is open. `text` is the whole utterance so far. |
-| `transcript.final` | `utterance_idx`, `text` | Once per utterance, after it ends. |
+| `transcript.partial` | `utterance_idx`, `text`; `language` in an `auto` or secondary-language session | While an utterance is open. `text` is the whole utterance so far. |
+| `transcript.final` | `utterance_idx`, `text`; `language` in an `auto` or secondary-language session | Once per utterance, after it ends. |
 | `config.updated` | `applied`, `config` | After a valid `config.update`. |
 | `pong` | none | After your `ping`. |
 | `session.draining` | `reason`; from the recogniser also `audio_samples_received`, `sample_rate` | We are ending the session: a restart, the 1-hour limit or an empty wallet. See [Closing](#closing). |
@@ -287,7 +297,7 @@ open a new one to change them.
     "turn_detection": "manual"
   },
   "capabilities": {
-    "audio_language_identification": false,
+    "audio_language_identification": true,
     "final_orthography": "off",
     "provisional_finals": false,
     "provisional_policy": "off"
@@ -321,6 +331,16 @@ A partial can rewrite words it sent earlier. Replace what you show with each
 new partial instead of appending to it, and replace the partials with the
 final. `utterance_idx` counts from 0 for each session. An utterance with no
 recognisable speech still gets its final, with `text` set to `""`.
+
+In a session opened with `language_code=auto` or with `secondary_languages`,
+partials and finals also carry `language`, the language Mira STT heard that
+utterance in. A partial's `language` can differ from its final's, the way its
+words can, so go by the final. When an utterance switches to a different
+language, its final can take a little longer.
+
+```json title="transcript.final, language_code=auto"
+{ "event": "transcript.final", "utterance_idx": 4, "text": "நாளைக்கு காலை பத்து மணிக்கு வாங்க", "language": "ta-IN" }
+```
 
 ```json title="config.updated"
 {

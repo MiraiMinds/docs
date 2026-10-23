@@ -271,6 +271,27 @@ more. It also:
   themselves;
 - turns a fatal error from Mirai into an `ErrorFrame`.
 
+### Languages
+
+From pipecat-mirai 0.7.0, the service also takes `secondary_languages` and
+`language="auto"`:
+
+```python
+# Hindi, with callers who sometimes switch to English
+stt = MiraiSTTService(api_key=os.environ["MIRA_API_KEY"], language="hi-IN", secondary_languages=["en-IN"])
+
+# Any of the ten languages
+stt = MiraiSTTService(api_key=os.environ["MIRA_API_KEY"], language="auto")
+```
+
+If you know your callers' language, pass it: a fixed language is the most
+accurate and the fastest. Add up to three `secondary_languages` when callers
+switch between languages you know. `language` stays the default, and an
+utterance moves to a secondary language only when Mira STT is confident. Use
+`"auto"` only when you don't know the language. In these sessions each
+`TranscriptionFrame` has `language` set to the language Mira STT heard, such
+as `Language.GU_IN`. See [STT languages](/v2/stt-languages).
+
 ### Endpointing
 
 When your pipeline has a VAD, such as a `vad_analyzer` on the user aggregator

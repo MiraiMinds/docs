@@ -158,8 +158,10 @@ same ones, so you change the URL and the key and keep the rest:
 - `mode` (`transcribe` or `codemix`) and `stream_type` (`balanced` or `fast`)
   are accepted. Both values of each behave the same today.
 
-Mira STT has no automatic language detection, so pass the language you expect
-in `language_code`. See [Languages](/v2/stt-languages).
+`language_code=unknown`, Sarvam's value for a language you don't know, is
+read as `auto`: Mira STT works out the language of each utterance among its
+ten. If you know the language, pass it instead, because a fixed language is
+the most accurate and the fastest. See [Languages](/v2/stt-languages).
 
 ## The original speech endpoint
 
