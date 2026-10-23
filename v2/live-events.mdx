@@ -587,8 +587,8 @@ live control with `400 unsupported_channel`. To stop a phone call, use
 - Live events work the same with `recording_enabled: false`. No audio is
   stored, and the text still streams.
 - Events are kept for one hour after the call ends. For the stored transcript,
-  use [`GET /v2/calls/{id}/transcript`](/v2/calls#get-the-transcript) or
-  [final results](/v2/webhooks#final-results).
+  use [`GET /v2/calls/{id}/transcript`](/v2/calls#get-the-transcript) or the
+  call's [terminal webhook event](/v2/webhooks#call-results).
 
 ## Related
 

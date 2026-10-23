@@ -802,7 +802,7 @@ tool arguments. Builtins currently include:
 | `skip_call` | `pre_call` | Prevent dialing when a condition holds. |
 | `end_call` | `on_call` | End the conversation. |
 | `schedule_callback` | `on_call`, `post_call` | Arrange a later call. |
-| `webhook` | `post_call` | Send the finished call and analysis to an additional HTTPS URL supplied in `builtin.url`. |
+| `webhook` | `post_call` | Send the finished call to an additional HTTPS URL supplied in `builtin.url`: the call, its analysis, the transcript and the [recording](/v2/webhooks#call-results) with its link. |
 
 An explicit `end_call` tool can use `builtin.enabled`, `builtin.message`, and
 `builtin.confirm` to override the agent's [ending settings](/v2/agents#ending-a-call).

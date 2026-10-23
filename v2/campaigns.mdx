@@ -452,7 +452,7 @@ POST /v2/campaigns
 | `phone_number_id` | string \| null | no | One of your own [phone numbers](/v2/phone-numbers) to call from. `null` clears it. |
 | `pool_id` | string \| null | no | A [phone pool](/v2/phone-numbers) to call from, spreading calls across its numbers at its pace. Exclusive with `phone_number_id` and `caller_ids`. `null` clears it. The campaign object returns `pool_id` and a `calls_from` object that names where its number comes from. |
 | `always_on` | boolean | no | Default `false`. `true` keeps the campaign open after its list is done, so you can keep adding contacts. See [always-on campaigns](#always-on-campaigns). |
-| `final_results` | boolean | no | Default `true`. Each call ends with one [`call.processed`](/v2/webhooks#final-results) carrying the transcript, the after-call results and the contact's `metadata`. `false` sends the shorter events only. Change it while the campaign is a draft or paused. |
+| `final_results` | boolean | no | Retired. Accepted and ignored: each call's terminal webhook carries the transcript, recording, analysis and the contact's `metadata`. See [call results](/v2/webhooks#call-results). |
 | `contacts` | array | no | Up to **1000** rows per request. `{phone, variables?, metadata?, call_settings?, id?}`. Add more later. |
 
 ```bash
@@ -687,7 +687,7 @@ PATCH /v2/campaigns/{id}
 While the campaign is `draft` or `paused` you can change: `name`, `slots`,
 `start_date`, `end_date`, `max_concurrent`, `retry_count`,
 `re_attempt_period_secs`, `max_duration_secs`, `budget_paise`, `webhook_url`,
-`skip_called_before`, `final_results` and `always_on`. Not patchable:
+`skip_called_before` and `always_on`. Not patchable:
 `agent_id`, `tier`, `timezone`.
 
 While it is running, only the pacing can change: `max_concurrent` and `slots`.
@@ -1064,12 +1064,13 @@ be. `data.campaign.always_on` is on every campaign event.
 
 Every `call.*` event of a campaign call names the campaign and the contact in
 `data.call.campaign_id` and `data.call.contact_id`, and carries the contact's
-[`metadata`](#your-own-fields-metadata) in `data.call.metadata`. With
-`final_results` on (the default), each call also ends with one
-[`call.processed`](/v2/webhooks#final-results) that has the transcript and the
-after-call results, so you don't need to fetch anything. An agent with
-`emit_processed_webhook: false` sends no `call.processed`, whatever the
-campaign says. Verification, retries and replay protection are identical; see
+[`metadata`](#your-own-fields-metadata) in `data.call.metadata`. Each call's
+terminal event also carries the transcript, the recording link and the
+analysis, so you don't need to fetch anything. An analysis that is not ready in
+time arrives later in `call.processed`; see
+[call results](/v2/webhooks#call-results). An agent with
+`emit_processed_webhook: false` sends no `call.processed`. Verification,
+retries and replay protection are identical; see
 [Webhooks](/v2/webhooks#signature-verification).
 
 <Tip>

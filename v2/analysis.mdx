@@ -12,8 +12,9 @@ agent a list of message templates, the template to send next with its slots
 filled in from the conversation.
 
 Analysis runs after the call, so it never slows the conversation down. The
-result is on the call, on its own endpoint and in the
-[`call.processed`](/v2/webhooks#final-results) webhook.
+result is on the call, on its own endpoint and in the call's
+[terminal webhook event](/v2/webhooks#call-results), or in `call.processed`
+when it finishes after that event is sent.
 
 Base URL `https://sandbox.voice.miraiminds.co`. All endpoints require
 `Authorization: Bearer sk_live_…`.

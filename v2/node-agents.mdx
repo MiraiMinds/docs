@@ -1237,7 +1237,6 @@ your backend with `channel: "web"` and the variables the nodes read.
           "delivery_date": "Friday, 3 October",
           "delivery_window": "10 AM and 1 PM"
         },
-        "final_results": true,
         "webhook_url": "https://example.com/mirai/webhook"
       }'
     ```
@@ -1257,7 +1256,6 @@ your backend with `channel: "web"` and the variables the nodes read.
             "agent_id": agent["id"],
             "channel": "web",
             "variables": test_vars,
-            "final_results": True,
             "webhook_url": "https://example.com/mirai/webhook",
         },
         timeout=30,
@@ -1285,7 +1283,6 @@ your backend with `channel: "web"` and the variables the nodes read.
         agent_id: agent.id,
         channel: "web",
         variables: testVars,
-        final_results: true,
         webhook_url: "https://example.com/mirai/webhook",
       }),
     });
@@ -1379,7 +1376,6 @@ The same agent takes phone calls. Send `to` instead of `channel: "web"`.
           "delivery_window": "10 AM and 1 PM"
         },
         "metadata": { "order_id": "AC-88213" },
-        "final_results": true,
         "webhook_url": "https://example.com/mirai/webhook"
       }'
     ```
@@ -1394,7 +1390,6 @@ The same agent takes phone calls. Send `to` instead of `channel: "web"`.
             "to": "+919876543210",
             "variables": test_vars,
             "metadata": {"order_id": "AC-88213"},
-            "final_results": True,
             "webhook_url": "https://example.com/mirai/webhook",
         },
         timeout=30,
@@ -1416,7 +1411,6 @@ The same agent takes phone calls. Send `to` instead of `channel: "web"`.
         to: "+919876543210",
         variables: testVars,
         metadata: { order_id: "AC-88213" },
-        final_results: true,
         webhook_url: "https://example.com/mirai/webhook",
       }),
     });
@@ -1442,7 +1436,7 @@ A node-based agent's call carries a `flow` block: where the call finished, the
 steps it went through, and every extracted value. It is on
 [`GET /v2/calls/{id}`](/v2/calls#flow-outcome), on each call in
 `GET /v2/calls`, and at `data.call.flow` in
-[`call.processed`](/v2/webhooks#final-results).
+[`call.processed`](/v2/webhooks#call-results).
 
 ```json
 {
