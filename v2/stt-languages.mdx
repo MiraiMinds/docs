@@ -101,6 +101,19 @@ the same, for clients written for Sarvam.
 | WebSocket | `?language_code=auto` |
 | Pipecat | `MiraiSTTService(language="auto")`, from pipecat-mirai 0.7.0 |
 
+### What to expect
+
+- Mira STT needs a little speech before it switches. A short turn such as
+  "hello" or "haan" says little about the language, so the first few turns of
+  a caller who speaks a secondary language can come back in your main language
+  until Mira STT is sure.
+- Mira STT can't yet reliably tell Indian English apart from Tamil, Telugu,
+  Kannada or Malayalam. When English and one of those are both possible, it
+  keeps whichever of them you listed first. With `auto` that is English, so
+  `auto` does not pick out Tamil, Telugu, Kannada or Malayalam. For callers who
+  speak those languages, name the language, or add it to
+  `secondary_languages` without `en-IN`.
+
 ### The language in the answer
 
 | Where | Field |
