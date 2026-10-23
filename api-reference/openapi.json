@@ -2217,7 +2217,7 @@
                     "type": "string"
                   },
                   "final_results": {
-                    "description": "Send one consolidated call.processed after the call ends, once its transcript, any analysis or post-call tools and a flow agent's outcome settle, carrying data.transcript, data.recording (and data.call.flow for a flow agent). Default true when webhook_url is set, false otherwise; false keeps the ordinary call.processed, which still carries data.transcript and data.recording when the agent has analysis or post-call tools.",
+                    "description": "Retired, accepted and ignored. Every call's ending event (call.completed, call.failed, call.voicemail, call.aborted) carries data.transcript, data.recording and data.call.analysis; an analysis that is not finished within 15 seconds of the call ending arrives in call.processed.",
                     "type": "boolean"
                   },
                   "first_message": {

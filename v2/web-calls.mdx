@@ -36,8 +36,8 @@ The base URL is `https://sandbox.voice.miraiminds.co`. API requests use
 4. While the call runs, the page shows each turn and the agent's state. Your
    backend can [send an instruction or close the call](#live-control).
 5. The call ends. The page receives `call.ended` on the event stream. Your
-   webhook receives one terminal event and then, if you opted in,
-   `call.processed` with the [final transcript](#ending-and-results).
+   webhook receives one terminal event with the transcript, the recording link
+   and the analysis. See [ending and results](#ending-and-results).
 
 ```mermaid
 sequenceDiagram
@@ -55,8 +55,8 @@ sequenceDiagram
     Note over Page,API: conversation, live text, agent state
     Backend->>API: POST /v2/calls/{id}/control (optional)
     API-->>Page: call.ended
-    API-->>Backend: call.completed (or call.failed / call.aborted)
-    API-->>Backend: call.processed (final results)
+    API-->>Backend: call.completed with transcript (or call.failed / call.aborted)
+    API-->>Backend: call.processed (agents with analysis or post-call tools)
 ```
 
 A browser call never rings anything, so it skips `dialing`: it stays `queued`
@@ -86,8 +86,7 @@ is in [Calls](/v2/calls#request).
 | `max_duration_secs` | Hard cap for this call. `600` is a 10-minute call. |
 | `timing` | Wrap up, close and silence timers. See [timing policy](#timing-policy). |
 | `recording_enabled` | `false` stores no audio for this call. The transcript and live text still work. |
-| `final_results` | `true` sends one `call.processed` webhook with the finished transcript. See [ending and results](#ending-and-results). |
-| `webhook_url` | Where this call's events go. Applies to this call only. |
+| `webhook_url` | Where this call's events go, including the terminal event with the transcript. Applies to this call only. See [ending and results](#ending-and-results). |
 
 Send an `Idempotency-Key` derived from your own session, so a retried request
 never creates a second call.
@@ -115,7 +114,6 @@ never creates a second call.
           "user_silence_message": "It seems you have stepped away, so I will end here. Goodbye!"
         },
         "recording_enabled": false,
-        "final_results": true,
         "webhook_url": "https://example.com/mirai/webhook"
       }'
     ```
@@ -146,7 +144,6 @@ never creates a second call.
                 "user_silence_message": "It seems you have stepped away, so I will end here. Goodbye!",
             },
             "recording_enabled": False,
-            "final_results": True,
             "webhook_url": "https://example.com/mirai/webhook",
         },
         timeout=30,
@@ -184,7 +181,6 @@ never creates a second call.
           user_silence_message: "It seems you have stepped away, so I will end here. Goodbye!",
         },
         recording_enabled: false,
-        final_results: true,
         webhook_url: "https://example.com/mirai/webhook",
       }),
     });
@@ -713,7 +709,6 @@ app.post("/api/voice-sessions", requireUser, async (req, res) => {
         user_silence_message: "It seems you have stepped away, so I will end here. Goodbye!",
       },
       recording_enabled: false,
-      final_results: true,
       webhook_url: "https://example.com/mirai/webhook",
     }),
   });
@@ -741,7 +736,7 @@ app.post("/api/voice-sessions/:id/end", requireUser, async (req, res) => {
   res.status(r.status === 409 ? 200 : r.status).json(await r.json());
 });
 
-// 3. Webhooks: "the session is over", then "process the transcript".
+// 3. Webhooks: the terminal event ends the session and carries the transcript.
 app.post("/mirai/webhook", express.raw({ type: "application/json" }), async (req, res) => {
   const signature = req.get("X-Mirai-Signature") ?? "";
   if (!verifySignature(req.body, signature, process.env.MIRAI_WEBHOOK_SECRET)) {
@@ -758,8 +753,6 @@ app.post("/mirai/webhook", express.raw({ type: "application/json" }), async (req
     case "call.failed":
     case "call.aborted":
       await db.sessions.update(sessionId, { ended: true, callStatus: call.status });
-      break;
-    case "call.processed":
       // Slow work off the request: store turns, score, notify.
       await queue.add("process-transcript", {
         sessionId,
@@ -783,29 +776,28 @@ order:
 
 1. `call.queued`, only if it is enabled for your workspace.
 2. `call.started`, when the page connects its audio.
-3. Exactly one terminal event:
+3. Exactly one terminal event, carrying the transcript, the recording link and
+   the analysis:
    - `call.completed`: the conversation finished because the user left, the
      agent ended it, or a `close`, timed close or silence close ended it.
    - `call.failed`: the call never connected (`status: failed`,
      `ended_reason: "no-media"`, not billed), it hit the hard cap
      (`status: timeout`, billed), or it failed on our side (not billed).
    - `call.aborted`: you called [`POST /abort`](/v2/calls#abort-a-call).
-4. `call.processed`, when you set `final_results: true` (or the agent has
-   analysis or post-call tools). With `final_results`, it carries the finished
-   transcript.
+4. `call.processed`, when the agent has analysis or post-call tools. It
+   carries an analysis that was not ready for the terminal event.
 
 Which event to act on:
 
 | You want to | Use |
 | :--- | :--- |
 | Mark the session as over | Any terminal event: `call.completed`, `call.failed` or `call.aborted`. In the page, `call.ended` on the event stream. |
-| Process the transcript | `call.processed` with `final_results: true`. Read [`data.transcript`](/v2/webhooks#final-results). |
+| Process the transcript | The terminal event. Read [`data.transcript`](/v2/webhooks#call-results). |
+| Act on the analysis | `data.call.analysis` on the terminal event; on `call.processed` when its `state` is `pending`. |
 
-Do not treat `call.processed` as the "session over" signal. It arrives after
-the terminal event: the transcript settles within about 2 minutes of the call
-ending, plus the time analysis and post-call tools take when the agent has them.
-Mark the session over on the terminal event, and start your transcript
-processing on `call.processed`.
+Mark the session over and process the transcript on the terminal event. It
+waits at most 15 seconds after the call ends for the transcript and the
+analysis, and anything not ready by then is sent as `pending`.
 
 `data.transcript.status` is one of:
 
@@ -814,6 +806,7 @@ processing on `call.processed`.
 | `ready` | `data.transcript.turns` holds the final turns, `{role, text, start_ms, end_ms}`. Process them. |
 | `empty` | Nobody spoke. There is nothing to process. |
 | `failed` | The transcript could not be produced. Record it; do not wait for another event. |
+| `pending` | The transcript was not stored in time. It arrives in `call.processed` when the agent has analysis or post-call tools; otherwise fetch it with [`GET /v2/calls/{id}/transcript`](/v2/calls#get-the-transcript). |
 | `fetch_required` | The transcript is larger than 512 KB, so it is not inline. Fetch it with [`GET /v2/calls/{id}/transcript`](/v2/calls#get-the-transcript). It is never truncated. |
 
 {/* FLOW-OUTCOME */}

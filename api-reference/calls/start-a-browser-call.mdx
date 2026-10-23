@@ -31,7 +31,6 @@ curl -X POST https://sandbox.voice.miraiminds.co/v2/calls \
     "variables": { "first_name": "Asha" },
     "metadata": { "session_id": "sess_8f2c41", "user_id": "usr_1042" },
     "max_duration_secs": 600,
-    "final_results": true,
     "webhook_url": "https://example.com/mirai/webhook"
   }'
 ```
@@ -51,7 +50,6 @@ r = httpx.post(
         "variables": {"first_name": "Asha"},
         "metadata": {"session_id": "sess_8f2c41", "user_id": "usr_1042"},
         "max_duration_secs": 600,
-        "final_results": True,
         "webhook_url": "https://example.com/mirai/webhook",
     },
     timeout=30,
@@ -74,7 +72,6 @@ const res = await fetch("https://sandbox.voice.miraiminds.co/v2/calls", {
     variables: { first_name: "Asha" },
     metadata: { session_id: "sess_8f2c41", user_id: "usr_1042" },
     max_duration_secs: 600,
-    final_results: true,
     webhook_url: "https://example.com/mirai/webhook",
   }),
 });
@@ -150,8 +147,8 @@ which is always last. Your server can read the same stream with its key at
   `instruction` the agent follows from its next reply, or a `close` with a
   goodbye line.
 - **Results** arrive as webhooks to `webhook_url`, the same as a phone call.
-  With `final_results: true` you also get one `call.processed` carrying the
-  finished transcript. See [Webhooks](/v2/webhooks).
+  The terminal event carries the transcript, the recording link and the
+  analysis. See [call results](/v2/webhooks#call-results).
 - **Billing** starts when audio goes live and follows the same per-minute rate
   as a phone call.
 

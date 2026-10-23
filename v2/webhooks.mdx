@@ -1,7 +1,7 @@
 ---
 title: "Webhooks: signed call events"
 sidebarTitle: "Webhooks"
-description: "Get a signed event each time a call moves on: event types, payloads, final results with the transcript, signature checks, retries and dedupe."
+description: "Get a signed event each time a call moves on: event types, payloads, the transcript, recording and analysis on the ending event, signature checks, retries and dedupe."
 ---
 
 
@@ -48,8 +48,8 @@ Every event has the same shape.
 | `data.call.metadata` | The [`metadata`](/v2/calls#metadata) you set when creating the call, unchanged, on every event for that call. Absent when the call has none. |
 | `data.call.call_settings` | The voice and languages of the call, with who chose each. `call.queued` has them before pre-call tools run; every later event has the ones the call used. See [call settings](/v2/calls#on-the-call-object). |
 | `data.wallet` | Your wallet balance right after the call was billed. Only on the four terminal events. See [wallet balance](#wallet-balance-on-call-ending-events). |
-| `data.transcript` | The conversation. Only on `call.processed` and `call.analysis.*`. See [transcript and recording](#transcript-and-recording). |
-| `data.recording` | Whether the call's audio was stored, and the link to it. Only on `call.processed` and `call.analysis.*`. See [transcript and recording](#transcript-and-recording). |
+| `data.transcript` | The conversation. On the four terminal events, `call.processed` and `call.analysis.*`. See [call results](#call-results). |
+| `data.recording` | Whether the call's audio was stored, and the link to it. On the same events as `data.transcript`. See [call results](#call-results). |
 
 Treat the envelope as **additive**: new fields appear without a version bump.
 Ignore what you do not recognise.
@@ -61,28 +61,29 @@ Ignore what you do not recognise.
 | `call.queued` | The call is admitted to the queue. This event is opt-in: ask your Mirai contact to enable it. | `queued` |
 | `call.started` | Media is live; the conversation has begun. | `in_progress` |
 | `call.completed` | The call connected and finished normally. | `completed` |
-| `call.processed` | Everything after the call is done: the transcript, analysis and post-call tools. With [final results](#final-results), which a call with a webhook has by default, it fires once all of them are ready. | Unchanged terminal status |
+| `call.processed` | Analysis and post-call tool processing finished, for an agent with analysis, post-call tools or a node flow. An analysis that was not ready for the terminal event arrives here. | Unchanged terminal status |
 | `call.analysis.completed` | The [post-call analysis](/v2/analysis) finished. `call.analysis.failed` and `call.analysis.skipped` report the other outcomes. Only for agents with analysis enabled. | Unchanged terminal status |
 | `call.voicemail` | An answering machine answered. | `voicemail` |
 | `call.failed` | The call did not connect, or the pipeline errored. | `no_answer`, `busy`, `failed`, `timeout` |
 | `call.aborted` | You cancelled it with [`POST /abort`](/v2/calls#abort-a-call), whether it was queued, ringing or mid-conversation. | `aborted` |
 
 Exactly one terminal event fires per call: `call.completed`, `call.voicemail`,
-`call.failed` or `call.aborted`.
+`call.failed` or `call.aborted`. It carries the whole call: the transcript, the
+recording link and the analysis. See [call results](#call-results).
 
 `call.processed` is a separate processing event, not another terminal event.
 It includes `data.processing.version`, analysis status, and post-call tool status.
 Explicit reruns produce a new version. Background on-call tools can finish
 later; read their receipts separately. See [Tools: call.processed](/v2/tools#receive-call-processed).
-It carries the call's transcript and recording, and so does `call.analysis.*`.
-See [transcript and recording](#transcript-and-recording).
+It also carries the transcript and the recording link, and it is where an
+analysis that took longer than the terminal event's wait arrives.
 
 {/* FLOW-OUTCOME */}
 
 A call run by a [node-based agent](/v2/node-agents) always sends
 `call.processed` when it has a `webhook_url`, with the flow's outcome at
 `data.call.flow`, unless the agent sets `emit_processed_webhook: false`. See
-[final results](#final-results).
+[call results](#call-results).
 
 {/* /FLOW-OUTCOME */}
 
@@ -260,115 +261,86 @@ the four terminal events, never on `call.queued`, `call.started`,
 
 ---
 
-## Transcript and recording
+## Call results
 
-`call.processed` and every `call.analysis.*` event carry the conversation and
-its audio, so you do not need a second request to get them.
+A customer wires a webhook to receive the call, so the terminal event
+(`call.completed`, `call.failed`, `call.voicemail` or `call.aborted`) carries
+everything about it: the call object, the transcript, the recording link and
+the post-call analysis. You do not need a second request.
 
-```json title="data.transcript and data.recording"
-{
-  "transcript": {
-    "status": "ready",
-    "turns": [
-      { "role": "assistant", "text": "Hello, Sunrise Clinic. How can I help?", "start_ms": 0, "end_ms": 2900 },
-      { "role": "user", "text": "I want to move my appointment to Friday.", "start_ms": 3400, "end_ms": 6100 }
-    ]
-  },
-  "recording": {
-    "status": "available",
-    "url": "https://sandbox.voice.miraiminds.co/v2/calls/call_01K8B2M4Q6S8T0V2X4Z6A8C0EG/recording"
-  }
-}
-```
-
-| Field | Description |
-| :--- | :--- |
-| `data.transcript.status` | `ready`, `empty`, `failed`, `pending` or `fetch_required`. See [final results](#final-results) for each. `pending` appears only outside final results, on a call whose transcript is still being stored: read it later with [`GET /v2/calls/{id}/transcript`](/v2/calls#get-the-transcript). |
-| `data.transcript.turns` | The turns when `ready`, in the same shape as `GET /v2/calls/{id}/transcript`. `[]` otherwise. |
-| `data.recording.status` | `available`: the audio was stored. `disabled`: recording was off for this call. `not_available`: no audio was stored, for example because the call never connected. |
-| `data.recording.url` | Only when `available`. It is [`GET /v2/calls/{id}/recording`](/v2/calls#get-the-recording): request it with your API key and follow the redirect to the audio. You can store this link and use it for as long as the recording is kept (90 days). The signed link it redirects to expires in 15 minutes. |
-
----
-
-## Final results
-
-Final results are one `call.processed` event with everything about the
-finished call: the call object, the transcript, the recording, and the status
-of analysis and post-call tools. Start processing a conversation when this
-event arrives.
-
-They are on by default wherever a call has a webhook:
-
-- a call you create with a `webhook_url` (send `final_results: false` to turn
-  them off),
-- an incoming call to a [phone number](/v2/phone-numbers) that has a
-  `webhook_url`,
-- every [campaign](/v2/campaigns#webhooks) call.
-
-An agent with `emit_processed_webhook: false` sends no `call.processed`.
-
-```json title="call.processed with final results"
+```json title="call.completed"
 {
   "id": "evt_01K8B4R2T4V6X8Z0B2D4F6H8K0",
-  "type": "call.processed",
-  "created_at": "2026-09-27T10:10:41Z",
+  "type": "call.completed",
+  "created_at": "2026-10-23T10:01:56Z",
   "data": {
     "call": {
       "id": "call_01K8B2M4Q6S8T0V2X4Z6A8C0EG",
       "object": "call",
       "agent_id": "agt_01K7Q9F3K7M2N5P9R4T6V8W0XZ",
       "status": "completed",
-      "ended_reason": "time-limit-close",
-      "started_at": "2026-09-27T10:00:04Z",
-      "ended_at": "2026-09-27T10:09:34Z",
-      "duration_secs": 570,
-      "cost": { "amount_inr": 28.5, "per_min_inr": 3, "billing_block_secs": 10 },
-      "transcript_status": "ready",
-      "metadata": { "session_id": "sess_8f2c41", "user_id": "usr_1042" }
-    },
-    "processing": {
-      "transcript": "ready",
-      "analysis": "not_enabled",
-      "post_call_tools": "not_enabled",
-      "version": 1
+      "ended_reason": "customer-ended-call",
+      "started_at": "2026-10-23T10:00:16Z",
+      "ended_at": "2026-10-23T10:01:52Z",
+      "duration_secs": 96,
+      "cost": { "amount_inr": 5, "per_min_inr": 3, "billing_block_secs": 10 },
+      "metadata": { "lead_id": "L-1042" },
+      "analysis": {
+        "status": "done",
+        "state": "completed",
+        "generation": 1,
+        "agent_revision": 4,
+        "completed_at": "2026-10-23T10:01:54Z",
+        "summary": "The customer moved their delivery to Friday morning.",
+        "success": true,
+        "data": { "new_slot": "Friday 10-12" }
+      }
     },
     "transcript": {
       "status": "ready",
       "turns": [
-        {
-          "role": "assistant",
-          "text": "Hi Asha, thanks for joining. Shall we start?",
-          "start_ms": 380,
-          "end_ms": 3120
-        },
-        { "role": "user", "text": "Yes, let's start.", "start_ms": 3900, "end_ms": 5010 }
+        { "role": "assistant", "text": "Hi Asha, this is about your delivery tomorrow.", "start_ms": 380, "end_ms": 3120 },
+        { "role": "user", "text": "Can it come on Friday instead?", "start_ms": 3900, "end_ms": 5810 }
       ]
     },
     "recording": {
       "status": "available",
       "url": "https://sandbox.voice.miraiminds.co/v2/calls/call_01K8B2M4Q6S8T0V2X4Z6A8C0EG/recording"
-    }
+    },
+    "wallet": { "balance_inr": 18432.5 }
   }
 }
 ```
 
 | Field | Description |
 | :--- | :--- |
-| `data.call` | The [call object](/v2/calls#the-call-object) in its final state, with your `metadata` and the `analysis` result. |
-| `data.transcript.status` | `ready`, `empty`, `failed` or `fetch_required`. See below. |
-| `data.transcript.turns` | Present when `ready`: the final user and agent turns, in exactly the same shape as [`GET /v2/calls/{id}/transcript`](/v2/calls#get-the-transcript) (`role`, `text`, `start_ms`, `end_ms`). |
-| `data.recording` | The audio's status and link. See [transcript and recording](#transcript-and-recording). |
-| `data.processing` | One status per part: `transcript`, `analysis` and `post_call_tools`, plus `version`. A part that is off for this call reports `not_enabled`. |
+| `data.transcript.status` | `ready`, `empty`, `failed`, `pending` or `fetch_required`. See below. |
+| `data.transcript.turns` | The turns when `ready`, in exactly the same shape as [`GET /v2/calls/{id}/transcript`](/v2/calls#get-the-transcript) (`role`, `text`, `start_ms`, `end_ms`). `[]` otherwise. |
+| `data.recording.status` | `available`: the audio was stored. `disabled`: recording was off for this call. `not_available`: no audio was stored, for example because the call never connected. |
+| `data.recording.url` | Only when `available`. It is [`GET /v2/calls/{id}/recording`](/v2/calls#get-the-recording): request it with your API key and follow the redirect to the audio. You can store this link and use it for as long as the recording is kept (90 days). The signed link it redirects to expires in 15 minutes. |
+| `data.call.analysis` | The [post-call analysis](/v2/analysis): `summary`, `success` and your extracted `data` when the agent has analysis enabled. `state` is `completed` or `failed`; `skipped` when the agent has no analysis or the call never connected; `pending` when it was not finished in time (see below). |
 
 | `data.transcript.status` | Meaning |
 | :--- | :--- |
 | `ready` | The turns are inline. They are the same turns `GET /v2/calls/{id}/transcript` returns. |
-| `empty` | Nobody spoke. There are no turns. |
+| `empty` | Nobody spoke, or the call never connected. There are no turns. |
 | `failed` | The transcript could not be produced. |
+| `pending` | The transcript was not stored yet. It arrives in `call.processed` when the agent has analysis or post-call tools; otherwise read it with `GET /v2/calls/{id}/transcript`. |
 | `fetch_required` | The transcript is larger than the 512 KB inline limit, so no turns are included. Fetch them with `GET /v2/calls/{id}/transcript`. The transcript is never truncated. |
 
-`analysis` is `done`, `failed`, `skipped` or `not_enabled`. `post_call_tools` is
-`done`, `partial` or `failed` when the agent has post-call tools. See
+**When it arrives.** The terminal event waits for the transcript and the
+analysis, for at most 15 seconds after the call ends. The analysis is usually
+ready 1 to 4 seconds after the call ends. Anything not ready by then goes out
+as `pending`.
+
+**A late analysis arrives in `call.processed`.** When `data.call.analysis.state`
+is `pending`, wait for `call.processed`: it carries the finished analysis, the
+transcript and the recording link. An agent with analysis or post-call tools
+always sends it, unless it sets `emit_processed_webhook: false`.
+
+`call.processed` and the `call.analysis.*` events carry `data.transcript` and
+`data.recording` in the same shape. `call.processed` adds `data.processing`:
+one status per part (`analysis`, `post_call_tools`) plus `version`. See
 [Tools: call.processed](/v2/tools#receive-call-processed).
 
 **Analysis and the follow-up message.** When the agent has
@@ -377,7 +349,7 @@ An agent with `emit_processed_webhook: false` sends no `call.processed`.
 [`analysis.templates`](/v2/analysis#pick-a-follow-up-message), it holds the
 template chosen for the follow-up message:
 
-```json title="data.call.analysis on call.processed"
+```json title="data.call.analysis"
 {
   "status": "done",
   "state": "completed",
@@ -402,14 +374,13 @@ template chosen for the follow-up message:
 fails the analysis: `analysis.status` stays `done` and the summary still
 arrives. Check `template.missing` before you send. See
 [the result](/v2/analysis#the-result-analysis-template) for every field and
-error code. Choosing the template happens before this event is sent, so it adds
-the time of one model call, plus your template fetch when you use one.
+error code. Choosing the template is part of the analysis, so it counts toward the
+terminal event's 15-second wait.
 
 {/* FLOW-OUTCOME */}
 
 **Node-based agents.** For a call run by a [node-based agent](/v2/node-agents),
-`data.call.flow` holds the flow's outcome, in the ordinary `call.processed` and
-in final results alike:
+`data.call.flow` holds the flow's outcome, in `call.processed`:
 
 ```json title="data.call.flow"
 {
@@ -426,7 +397,7 @@ The fields are described in [flow outcome](/v2/calls#flow-outcome).
 `tags` are omitted when unknown.
 
 A node-based agent's call sends `call.processed` whenever the call has a
-`webhook_url`, even without analysis, post-call tools or `final_results`.
+`webhook_url`, even without analysis or post-call tools.
 
 The outcome is usually recorded within seconds of the call ending.
 `call.processed` waits up to 2 minutes for it and is then sent without `flow`.
@@ -434,27 +405,18 @@ In that case, read [`GET /v2/calls/{id}`](/v2/calls#get-a-call) later.
 
 {/* /FLOW-OUTCOME */}
 
-**When it arrives.** It comes after the terminal event, once the transcript has
-settled (within about 2 minutes of the call ending) and any analysis and
-post-call tools have finished, which can take longer. Do not wait for it to
-decide that a conversation is over.
-
-**One event, stable ID.** With final results, this is the call's
-`call.processed`. It replaces the ordinary one, so you never get a second.
-Retries keep its `id`, so dedupe on it as usual. An explicit
-[post-call rerun](/v2/tools#rerun-post-call-tools) produces a new `version`.
-
-Final results are delivered only to the call's `webhook_url`, or the number's
-for an incoming call.
+**`final_results` is retired.** Every call now ends with its results, so the
+option has no effect. Requests that still send it are accepted.
 
 ### Which event to act on
 
 | You want to | Use |
 | :--- | :--- |
-| Know the conversation ended | The terminal event: `call.completed`, `call.failed`, `call.aborted` (or `call.voicemail` on phone calls). It arrives promptly and is never delayed by processing. |
-| Process the transcript now | `call.processed`, when `data.transcript.status` is `ready`. On `fetch_required`, fetch the transcript instead. |
-| Keep the recording | `data.recording.url` on `call.processed`, when `data.recording.status` is `available`. |
-| Send the follow-up message | `call.processed`, at `data.call.analysis.template`, when the agent has [analysis templates](/v2/analysis#pick-a-follow-up-message). |
+| Know the conversation ended | The terminal event: `call.completed`, `call.failed`, `call.aborted` (or `call.voicemail` on phone calls). |
+| Process the transcript | The terminal event, when `data.transcript.status` is `ready`. On `fetch_required`, fetch the transcript instead. |
+| Keep the recording | `data.recording.url` on the terminal event, when `data.recording.status` is `available`. |
+| Act on the analysis | `data.call.analysis` on the terminal event; when its `state` is `pending`, on `call.processed`. |
+| Send the follow-up message | `data.call.analysis.template`, on the same event as the analysis, when the agent has [analysis templates](/v2/analysis#pick-a-follow-up-message). |
 | Watch your balance | `data.wallet.balance_inr` on the terminal event. |
 
 For the whole browser-call flow, see

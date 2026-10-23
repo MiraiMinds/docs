@@ -52,8 +52,8 @@ sequenceDiagram
     Mod->>App: "slow down" / "end now"
     App->>Mirai: POST /v2/calls/{id}/control
     Mirai-->>Page: call.ended
-    Mirai-->>App: call.completed
-    Mirai-->>App: call.processed (transcript + score)
+    Mirai-->>App: call.completed (transcript + score)
+    Mirai-->>App: call.processed (a late score, if any)
 ```
 
 | Time after audio starts | What happens | Set by |
@@ -323,8 +323,7 @@ interview record, and gives the page two links.
 | `max_duration_secs` | `600` | The hard stop. |
 | `timing` | wrap up at 8:00, goodbye at 9:30, close after 60 s of silence | [Timing policy](/v2/web-calls#timing-policy). |
 | `recording_enabled` | `false` | Store no audio. Captions and the transcript still work. |
-| `final_results` | `true` | One `call.processed` webhook with the transcript and the score. |
-| `webhook_url` | Your webhook route | Where this interview's events go. |
+| `webhook_url` | Your webhook route | Where this interview's events go, including the transcript and the score. |
 
 Send an `Idempotency-Key` built from your interview ID. If the request is
 retried, you get the same call back instead of a second one.
@@ -391,7 +390,6 @@ retried, you get the same call back instead of a second one.
                                             "the interview here. Goodbye!",
                 },
                 "recording_enabled": False,
-                "final_results": True,
                 "webhook_url": WEBHOOK_URL,
             },
         )
@@ -453,7 +451,6 @@ retried, you get the same call back instead of a second one.
             user_silence_message: "It seems you've stepped away, so I'll end the interview here. Goodbye!",
           },
           recording_enabled: false,
-          final_results: true,
           webhook_url: process.env.PUBLIC_WEBHOOK_URL,
         }),
       });
@@ -842,11 +839,14 @@ Your webhook receives these events for each interview, in order:
 
 1. **`call.started`** when the candidate's audio connects. Use it to start any
    time checks from step 4.
-2. **A terminal event** as soon as the interview ends: `call.completed`,
-   `call.failed` or `call.aborted`. Mark the interview as over.
-3. **`call.processed`**, after the transcript has settled (within about two
-   minutes) and the score is ready. It carries the transcript in
-   `data.transcript` and the score in `data.call.analysis`.
+2. **A terminal event** when the interview ends: `call.completed`,
+   `call.failed` or `call.aborted`. Mark the interview as over. It carries the
+   transcript in `data.transcript` and the score in `data.call.analysis`. It
+   waits up to 15 seconds after the interview ends for both; the score is
+   usually ready in 1 to 4 seconds.
+3. **`call.processed`**, once the score is ready. It carries the transcript and
+   the score again. If the terminal event's `data.call.analysis.state` was
+   `pending`, this is where the score arrives.
 
 Every event carries your `metadata`, so you can find the interview without a
 lookup table. Verify the signature on every delivery, and ignore any event whose
@@ -883,31 +883,38 @@ lookup table. Verify the signature on every delivery, and ignore any event whose
         elif event["type"] in ("call.completed", "call.failed", "call.aborted"):
             await db.interviews.update(interview_id, status="ended",
                                        ended_reason=call["ended_reason"])
-        elif event["type"] == "call.processed":
             # Answer fast; do the work in the background.
+            await queue.enqueue("store_interview_result", interview_id=interview_id,
+                                call_id=call["id"], event=event)
+        elif event["type"] == "call.processed":
+            # A score that was not ready for the terminal event arrives here.
             await queue.enqueue("store_interview_result", interview_id=interview_id,
                                 call_id=call["id"], event=event)
         return Response(status_code=200)
 
 
     async def store_interview_result(interview_id: str, call_id: str, event: dict):
+        fields = {}
         transcript = event["data"].get("transcript") or {}
         status = transcript.get("status")
         if status == "fetch_required":  # longer than the inline limit
             r = await mirai.get(f"/v2/calls/{call_id}/transcript")
-            turns, status = r.json()["turns"], "ready"
-        else:
-            turns = transcript.get("turns") or []
+            fields.update(transcript_status="ready", transcript=r.json()["turns"])
+        elif status != "pending":  # a pending transcript arrives in call.processed
+            fields.update(
+                transcript_status=status,                # ready | empty | failed
+                transcript=transcript.get("turns") or [],  # [{role, text, start_ms, end_ms}]
+            )
 
         analysis = event["data"]["call"].get("analysis") or {}
-        await db.interviews.update(
-            interview_id,
-            transcript_status=status,  # ready | empty | failed
-            transcript=turns,          # [{role, text, start_ms, end_ms}]
-            summary=analysis.get("summary"),
-            usable=analysis.get("success"),
-            scores=analysis.get("data"),  # the shape of your output_schema
-        )
+        if analysis.get("state") != "pending":  # a late score arrives in call.processed
+            fields.update(
+                summary=analysis.get("summary"),
+                usable=analysis.get("success"),
+                scores=analysis.get("data"),  # the shape of your output_schema
+            )
+        if fields:
+            await db.interviews.update(interview_id, **fields)
     ```
   </Tab>
   <Tab title="Node.js">
@@ -932,42 +939,48 @@ lookup table. Verify the signature on every delivery, and ignore any event whose
         await onCallStarted(event); // optional time checks, step 4
       } else if (["call.completed", "call.failed", "call.aborted"].includes(event.type)) {
         await db.interviews.update(interviewId, { status: "ended", endedReason: call.ended_reason });
-      } else if (event.type === "call.processed") {
         // Answer fast; do the work in the background.
+        await queue.add("store-interview-result", { interviewId, callId: call.id, event });
+      } else if (event.type === "call.processed") {
+        // A score that was not ready for the terminal event arrives here.
         await queue.add("store-interview-result", { interviewId, callId: call.id, event });
       }
       res.sendStatus(200);
     });
 
     export async function storeInterviewResult({ interviewId, callId, event }) {
-      let { status, turns = [] } = event.data.transcript ?? {};
+      const fields = {};
+      const { status, turns = [] } = event.data.transcript ?? {};
       if (status === "fetch_required") { // longer than the inline limit
         const r = await fetch(`${API}/v2/calls/${callId}/transcript`, { headers: auth });
-        ({ turns } = await r.json());
-        status = "ready";
+        fields.transcriptStatus = "ready";
+        fields.transcript = (await r.json()).turns;
+      } else if (status !== "pending") { // a pending transcript arrives in call.processed
+        fields.transcriptStatus = status; // ready | empty | failed
+        fields.transcript = turns;        // [{role, text, start_ms, end_ms}]
       }
       const analysis = event.data.call.analysis ?? {};
-      await db.interviews.update(interviewId, {
-        transcriptStatus: status, // ready | empty | failed
-        transcript: turns,        // [{role, text, start_ms, end_ms}]
-        summary: analysis.summary,
-        usable: analysis.success,
-        scores: analysis.data,    // the shape of your output_schema
-      });
+      if (analysis.state !== "pending") { // a late score arrives in call.processed
+        fields.summary = analysis.summary;
+        fields.usable = analysis.success;
+        fields.scores = analysis.data;    // the shape of your output_schema
+      }
+      if (Object.keys(fields).length) await db.interviews.update(interviewId, fields);
     }
     ```
   </Tab>
 </Tabs>
 
-What the parts of `call.processed` mean for an interview:
+What the parts of these events mean for an interview:
 
 | Field | Values | What to do |
 | :--- | :--- | :--- |
-| `data.transcript.status` | `ready`, `empty`, `failed`, `fetch_required` | `ready`: store the turns. `empty`: the candidate never spoke. `failed`: record it and do not wait. `fetch_required`: fetch the turns with [`GET /v2/calls/{id}/transcript`](/v2/calls#get-the-transcript). |
+| `data.transcript.status` | `ready`, `empty`, `failed`, `pending`, `fetch_required` | `ready`: store the turns. `empty`: the candidate never spoke. `failed`: record it and do not wait. `pending`: the turns arrive in `call.processed`. `fetch_required`: fetch the turns with [`GET /v2/calls/{id}/transcript`](/v2/calls#get-the-transcript). |
+| `data.call.analysis.state` | `completed`, `failed`, `skipped`, `pending` | `pending`: the score was not ready in time and arrives in `call.processed`. |
 | `data.call.analysis.data` | Your `output_schema` | The scores for review. |
 | `data.call.analysis.success` | `true`, `false` or `null` | Whether the interview met your `success_criteria`, for example whether enough areas were covered to review it. |
 | `data.call.ended_reason` | `time-limit-close`, `assistant-ended-call`, `user-silence-close`, `api-ended-call`, `customer-ended-call`, … | How it ended. See [ended reasons](/v2/calls#ended-reasons). |
-| `data.processing.analysis` | `done`, `failed`, `skipped` | Whether the score was produced. |
+| `data.processing.analysis` | `done`, `failed`, `skipped` | On `call.processed`: whether the score was produced. |
 
 If your webhook was down, deliveries are [retried](/v2/webhooks#retries). You
 can also read `GET /v2/calls/{id}` (it reports `transcript_status`) and
@@ -998,7 +1011,7 @@ Run three interviews:
 
 1. **Talk for the full two minutes.** At 1:00 the interviewer stops starting new
    topics. At 1:40 it says the close message and the page shows "Time's up".
-   Your webhook receives `call.completed`, then `call.processed` with
+   Your webhook receives `call.completed` with
    `ended_reason: "time-limit-close"`, the transcript and a score.
 2. **Say one sentence, then stay silent.** About 30 seconds later the
    interviewer says the silence message and the interview ends as
@@ -1014,8 +1027,8 @@ Run three interviews:
 | The interviewer hears itself | Echo cancellation is off, or the candidate uses speakers without it | Keep `echoCancellation: true`; suggest headphones. |
 | A control returns `409 call_not_active` | The page has not connected yet, or the interview already ended | Treat it as "nothing to steer". |
 | The interviewer ignores the wrap-up | The prompt does not say what "time is nearly up" means | Keep the **Timekeeping** section from step 1. |
-| No `call.processed` arrives | `final_results` or `webhook_url` missing on the call | Set both on every interview. |
-| `call.processed` has no score | `analysis.enabled` is off on the agent | Enable it (step 1). New interviews pick it up. |
+| No events arrive | `webhook_url` missing on the call | Set it on every interview. |
+| The terminal event has no score | `analysis.enabled` is off on the agent | Enable it (step 1). New interviews pick it up. |
 
 ---
 
@@ -1046,14 +1059,14 @@ Run three interviews:
 - [ ] `metadata` carries your interview and candidate IDs; your database stores
   the returned call `id`.
 - [ ] Every create uses an `Idempotency-Key` built from your interview ID.
-- [ ] `max_duration_secs`, `timing`, `recording_enabled: false`,
-  `final_results: true` and `webhook_url` are set on every interview.
+- [ ] `max_duration_secs`, `timing`, `recording_enabled: false` and
+  `webhook_url` are set on every interview.
 - [ ] Moderator routes check that the caller is your staff and use idempotency
   keys.
 - [ ] The webhook verifies signatures, ignores repeated event IDs, answers
-  quickly and processes `call.processed` in the background.
-- [ ] Your interview status is driven by the terminal event, and your
-  transcript processing by `call.processed`.
+  quickly and stores the result in the background.
+- [ ] Your interview status and transcript processing are driven by the
+  terminal event, and a late score by `call.processed`.
 - [ ] Candidates see an AI disclosure and give consent before the interview
   starts.
 - [ ] You ran the three test interviews above on the tier you will use in
@@ -1110,20 +1123,19 @@ Run three interviews:
   </Accordion>
   <Accordion title="Which webhook means the session is over, and which means process it now?">
   The terminal event (`call.completed`, `call.failed` or `call.aborted`) means
-  the conversation is over. `call.processed`, sent when you create the call with
-  `final_results: true`, means "everything is ready": it carries the transcript
-  and the score. Process the session on `call.processed`. See
+  the conversation is over, and it carries the transcript and the score.
+  Process the session on it. If its `data.call.analysis.state` is `pending`,
+  the score arrives in `call.processed`. See
   [step 5](#step-5-receive-the-transcript-and-the-score).
   </Accordion>
   <Accordion title="Can the webhook URL be set per call?">
   Yes. `webhook_url` on the call applies to that call only.
   </Accordion>
   <Accordion title="How do we get the transcript, and when is it ready?">
-  It arrives inline in `call.processed` (`data.transcript.turns`), and you can
-  fetch it any time with `GET /v2/calls/{id}/transcript`. It is normally ready
-  by the time the terminal webhook arrives; `transcript_status` on the call
-  says `ready`. `call.processed` follows within about two minutes of the call
-  ending, plus the time scoring takes.
+  It arrives inline in the terminal event (`data.transcript.turns`), and you
+  can fetch it any time with `GET /v2/calls/{id}/transcript`. The terminal
+  event waits up to 15 seconds after the call ends for the transcript and the
+  score. `call.processed` carries them again once scoring finishes.
   </Accordion>
   <Accordion title="Can we keep text only, with no audio?">
   Yes. Create the call with `recording_enabled: false`: no audio is stored, and
@@ -1144,7 +1156,7 @@ Run three interviews:
     Audio format, live events, live control and timing reference.
   </Card>
   <Card title="Webhooks" icon="bell" href="/v2/webhooks">
-    Event types, signature verification, retries and final results.
+    Event types, call results, signature verification and retries.
   </Card>
   <Card title="Agents" icon="robot" href="/v2/agents">
     Every agent field, voices and ending a call.

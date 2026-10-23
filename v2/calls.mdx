@@ -101,7 +101,7 @@ a key from a workspace that has not gone live is refused with
 A call run by a [node-based agent](/v2/node-agents) also carries `flow`: where
 the flow finished, the steps it went through and the values it extracted. It
 appears here, on each call in [`GET /v2/calls`](#list-calls), and at
-`data.call.flow` in [`call.processed`](/v2/webhooks#final-results). A call run by
+`data.call.flow` in [`call.processed`](/v2/webhooks#call-results). A call run by
 a single-prompt agent has no `flow` field.
 
 ```json
@@ -252,7 +252,7 @@ POST /v2/calls
 | `max_duration_secs` | integer | no | Overrides the agent's cap for this call only. |
 | `timing` | object | no | Wrap-up, timed-close and user-silence timers for this call. Phone and browser calls. See [timing policy](/v2/web-calls#timing-policy). |
 | `recording_enabled` | boolean | no | Default `true`. `false` stores no audio for this call: no recording, `recording_available: false`. If your workspace has recording turned off, the default is `false` and `true` is refused with `403 recording_disabled`. |
-| `final_results` | boolean | no | Default `true` when you set `webhook_url`, otherwise `false`. Sends one [`call.processed`](/v2/webhooks#final-results) with the finished transcript and recording after the call ends. `false` keeps the ordinary `call.processed`, which still carries the transcript and recording when the agent has analysis or post-call tools. |
+| `final_results` | boolean | no | Retired. Accepted and ignored: every call's terminal webhook carries the transcript, recording and analysis. See [call results](/v2/webhooks#call-results). |
 | `tier` | string | no | `t1` \| `t3` \| `t5`. Defaults to your key's tier, which is your company's plan, so leave it out. Any other tier is refused with `403 contract_unavailable`. Before your company goes live, every call runs at `t5`, whatever you send. See [tiers](/general/tiers#setting-the-tier). |
 
 <Tabs>
@@ -714,8 +714,8 @@ curl https://sandbox.voice.miraiminds.co/v2/calls/call_01K7Q9B4M8N3P6R2S5T7V9W1Y
 `404 not_found` while the call is still running, and for a call that produced no
 speech at all. Check `transcript_status` on the
 [call object](#the-call-object) to tell them apart: `pending`, `empty` or
-`failed`. For browser calls, [final results](/v2/webhooks#final-results) deliver
-the same turns by webhook as soon as they are ready.
+`failed`. A call with a `webhook_url` also gets the same turns in its
+[terminal webhook event](/v2/webhooks#call-results).
 
 ```json title="404 Not Found"
 {
