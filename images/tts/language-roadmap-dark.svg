@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="900" height="400" viewBox="0 0 900 400" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, 'Noto Sans', sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="452" viewBox="0 0 900 452" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, 'Noto Sans', sans-serif">
   <!-- timeline axis -->
   <line x1="60" y1="44" x2="840" y2="44" stroke="#2E332F" stroke-width="2"/>
   <rect x="500" y="34" width="330" height="20" rx="10" fill="#07C983" opacity="0.14"/>
@@ -9,7 +9,7 @@
   <line x1="665" y1="56" x2="665" y2="84" stroke="#3A423C" stroke-width="1.5" stroke-dasharray="3 3"/>
 
   <!-- live-now card: 2 cols -->
-  <rect x="60" y="84" width="408" height="216" rx="12" fill="#1B201C" stroke="#2E3A33" stroke-width="1.5"/>
+  <rect x="60" y="84" width="408" height="268" rx="12" fill="#1B201C" stroke="#2E3A33" stroke-width="1.5"/>
   <text x="84" y="118" font-size="11" font-weight="700" fill="#07C983" letter-spacing="1.5">LIVE NOW</text>
   <!-- Hindi -->
   <rect x="84" y="134" width="172" height="44" rx="8" fill="#212823" stroke="#33413A"/>
@@ -41,9 +41,19 @@
   <text x="286" y="266" font-size="17" fill="#E8EAE8">తెలుగు</text>
   <text x="354" y="260" font-size="13" font-weight="600" fill="#E8EAE8">Telugu</text>
   <text x="354" y="275" font-size="11" fill="#9AA39D">TTS and STT</text>
+  <!-- Kannada -->
+  <rect x="84" y="290" width="172" height="44" rx="8" fill="#212823" stroke="#33413A"/>
+  <text x="98" y="318" font-size="17" fill="#E8EAE8">ಕನ್ನಡ</text>
+  <text x="166" y="312" font-size="13" font-weight="600" fill="#E8EAE8">Kannada</text>
+  <text x="166" y="327" font-size="11" fill="#9AA39D">TTS beta</text>
+  <!-- Malayalam -->
+  <rect x="272" y="290" width="172" height="44" rx="8" fill="#212823" stroke="#33413A"/>
+  <text x="286" y="317" font-size="13" fill="#E8EAE8">മലയാളം</text>
+  <text x="354" y="312" font-size="13" font-weight="600" fill="#E8EAE8">Malayalam</text>
+  <text x="354" y="327" font-size="11" fill="#9AA39D">TTS beta</text>
 
   <!-- next card -->
-  <rect x="500" y="84" width="340" height="216" rx="12" fill="#17211B" stroke="#07C983" stroke-width="1.5" stroke-dasharray="5 4"/>
+  <rect x="500" y="84" width="340" height="268" rx="12" fill="#17211B" stroke="#07C983" stroke-width="1.5" stroke-dasharray="5 4"/>
   <text x="524" y="118" font-size="11" font-weight="700" fill="#07C983" letter-spacing="1.5">NEXT · DATES TO BE ANNOUNCED</text>
   <!-- Bengali -->
   <rect x="524" y="134" width="292" height="44" rx="8" fill="#212823" stroke="#33413A"/>
@@ -55,13 +65,8 @@
   <text x="538" y="214" font-size="17" fill="#E8EAE8">मराठी</text>
   <text x="606" y="208" font-size="13" font-weight="600" fill="#E8EAE8">Marathi</text>
   <text x="606" y="223" font-size="11" fill="#9AA39D">83M speakers</text>
-  <!-- Kannada -->
-  <rect x="524" y="238" width="292" height="44" rx="8" fill="#212823" stroke="#33413A"/>
-  <text x="538" y="266" font-size="17" fill="#E8EAE8">ಕನ್ನಡ</text>
-  <text x="606" y="260" font-size="13" font-weight="600" fill="#E8EAE8">Kannada</text>
-  <text x="606" y="275" font-size="11" fill="#9AA39D">44M speakers</text>
 
   <!-- footer -->
-  <text x="450" y="340" text-anchor="middle" font-size="13" fill="#9AA39D">Each language ships when it clears the same quality bar as our Hindi voices —</text>
-  <text x="450" y="360" text-anchor="middle" font-size="13" fill="#9AA39D">dates are announced here as they land.</text>
+  <text x="450" y="392" text-anchor="middle" font-size="13" fill="#9AA39D">Each language ships when it clears the same quality bar as our Hindi voices —</text>
+  <text x="450" y="412" text-anchor="middle" font-size="13" fill="#9AA39D">dates are announced here as they land.</text>
 </svg>
