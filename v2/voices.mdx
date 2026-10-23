@@ -27,17 +27,19 @@ and more about the model behind them.
 
 Need a voice the catalogue doesn't have, such as your brand's own voice or an
 Australian English accent? You can
-[request a professional voice clone](/v2/custom-voices).
+[make an instant voice](/v2/custom-voices#instant-voices) from a short clip in
+about a minute, or
+[request a professional voice clone](/v2/custom-voices#professional-voice-clones).
 
-**`voice` is required** when you create an agent. A voice outside
-the catalogue is rejected when you create the agent, with an error that names
-the allowed set:
+**`voice` is required** when you create an agent. A voice that is neither in
+the catalogue nor one of your workspace's [custom voices](/v2/custom-voices) is
+rejected when you create the agent, with an error that names the allowed set:
 
 ```json title="400 Bad Request"
 {
   "error": {
     "code": "invalid_request",
-    "message": "unknown voice_id \"priya\" — voice.voice_id must be one of ashu, munshi, neha, sameer, shruti, tanvi"
+    "message": "unknown voice_id \"priya\" — voice.voice_id must be one of ashu, munshi, neha, sameer, shruti, tanvi, or one of your custom voices (GET /v2/custom-voices)"
   }
 }
 ```
@@ -69,6 +71,17 @@ catalogue grows monthly, so if this page and the API disagree, trust the API.
 }
 ```
 
+If your workspace has [custom voices](/v2/custom-voices), the same list shows
+them after the built-in voices. Their `voice_id` starts with `cv_`, and they
+also carry `kind`, `accent` and `gender`:
+
+```json title="A custom voice in GET /v2/voices"
+{ "voice_id": "cv_01k8c4n2q7r9t3v5x7z9b1d3f5", "name": "Jack (Sydney)", "language": "en", "accent": "australian", "gender": "male", "kind": "instant" }
+```
+
+To hear one of your instant voices, use its
+[preview](/v2/custom-voices#hear-a-voice).
+
 <Tip>
 **Listen before you pick.** Voice choice affects answer-through rates more than
 prompt wording does.
@@ -87,7 +100,7 @@ prompt wording does.
 
 | Field | Type | Description |
 | :--- | :--- | :--- |
-| `voice_id` | string | **Required.** A voice from [the catalogue](#the-catalogue), which is the same on every tier. An unknown voice returns `400`. |
+| `voice_id` | string | **Required.** A voice from [the catalogue](#the-catalogue), which is the same on every tier, or the `id` of one of your [custom voices](/v2/custom-voices) (`cv_…`). An unknown voice returns `400`. |
 | `language` | string | Rendering language. Omit it to inherit the agent's top-level `language`. **Accepted and stored, but not yet honoured.** See below. |
 
 Change it later with `PATCH /v2/agents/{id}`:
@@ -126,3 +139,6 @@ agent's `language`, or the call's own
 [`call_settings.language`](/v2/calls#call-settings) when it has one. A
 language it doesn't carry, Hinglish and automatic detection are pronounced as
 Hindi.
+
+An [instant voice](/v2/custom-voices#instant-voices) always speaks the
+language it was made with.

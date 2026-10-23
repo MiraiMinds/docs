@@ -1,8 +1,368 @@
 ---
-title: "Custom voices: request a professional voice clone"
+title: "Custom voices: instant voices and professional clones"
 sidebarTitle: "Custom voices"
-description: "Get a voice built from recordings of one real person, with their consent. What to record, how consent works, what each status means, and how to send a request from the console or the API."
+description: "Make a voice from a short clip of one consenting speaker in about a minute, or have our team build one from hours of recordings. Consent, recording tips, limits and the API for both."
 ---
+
+Your agents can speak in a voice made from recordings of one real person, with
+that person's consent. There are two ways to get one:
+
+| | Instant voice | Professional voice clone |
+| :--- | :--- | :--- |
+| What you record | 10 to 60 seconds | 30 minutes to 2 hours |
+| Ready | In about a minute | When our team has built it |
+| Who makes it | You, in the console or with the API | Our team, from your request |
+| Languages | One per voice | One or more of Hindi, English, Gujarati, Tamil and Telugu |
+
+An instant voice puts a voice of your own on calls today, such as an agent
+with an Australian accent. A professional clone takes longer. Choose it when
+one voice has to speak several languages, such as the mix of Hindi and English
+your customers use.
+
+## Instant voices
+
+An instant voice is made from a short clip of one person speaking. You upload
+or record the clip, and the voice is ready in about a minute. It keeps the
+speaker's accent, so a clip of an Australian speaker gives you an Australian
+voice.
+
+### Where instant voices work
+
+An instant voice speaks on phone calls, campaign calls included, and on
+[browser calls](/v2/web-calls). [Realtime sessions](/v2/realtime) and the
+[text-to-speech API](/v2/tts-quickstart) use the built-in voices only.
+
+On a call, an instant voice says numbers, dates and amounts the same way the
+built-in voices do. If it fails partway through a call, we say the interrupted
+sentence again in a built-in voice and keep that voice until the call ends:
+`sameer` if the voice's `gender` is `male`, `shruti` otherwise.
+
+### Record a good clip
+
+- One speaker only. If anyone else talks, even to prompt the speaker, cut them
+  out.
+- Record in a quiet room without echo, with no music or other voices in the
+  background.
+- Speak the way the agent should sound on calls: conversational, at a natural
+  pace, as if talking to a customer.
+- Record in the language the voice will speak.
+- Ten seconds is enough to start. A clip of 30 to 60 seconds keeps the
+  speaker's accent best.
+- Pick a speaker who already has the accent you want. The voice takes its
+  accent from the clip, and the `accent` field only labels it in your list.
+
+### Consent for an instant voice
+
+An instant voice copies a real person's voice, so we only make one when that
+person has agreed. With every clip, you tell us:
+
+- the speaker's name;
+- your relationship to them: yourself, an employee, a contractor, a customer
+  or someone else;
+- that the speaker agreed to Mirai creating a synthetic version of their
+  voice, which our speech providers may process.
+
+We keep the clip, these details and the time you confirmed them as the record
+of the speaker's consent. Keep your own record of their agreement as well.
+Instant voices don't need the spoken consent statement that
+[professional clones](#consent) do.
+
+<Warning>
+Never upload a clip of a celebrity, a voice taken from another platform, or
+anyone who hasn't agreed.
+</Warning>
+
+The speaker can withdraw consent at any time. Move your agents to another
+voice, then [delete the voice](#delete-a-voice). We delete the voice and its
+clip, and keep the voice's details, without any audio, in our records for
+audit. A voice is personal data, so make sure your agreement with the speaker
+says how the voice will be used on your calls.
+
+### Make an instant voice in the console
+
+Sign in to the [console](https://sandbox.voice.miraiminds.co) with your work
+email first. The page stays locked while you're only looking around.
+
+<Steps>
+  <Step title="Open Custom voices">
+    Open **Custom voices** in the sidebar, under **Workspace**. **Instant
+    voice** is the first section.
+  </Step>
+  <Step title="Add the clip">
+    Record the speaker in your browser, or upload a clip of 10 to 60 seconds.
+  </Step>
+  <Step title="Describe the voice">
+    Give the voice a name and pick its language. The accent and the voice type
+    (female or male) are optional. For English you can pick Australian,
+    British, American or Indian; for other languages, type the accent. The
+    voice type decides which built-in voice takes over if the instant voice
+    fails on a call.
+  </Step>
+  <Step title="Confirm consent">
+    Add the speaker's name and your relationship to them, and tick the box to
+    confirm that they agreed.
+  </Step>
+  <Step title="Create the voice">
+    About a minute later the voice appears as a card. From the card you can
+    **Play sample**, **Rename** or **Delete** it.
+  </Step>
+</Steps>
+
+To use the voice, open an agent in Agent Studio and pick it from **Your
+voices** in the voice list.
+
+### Make an instant voice with the API
+
+Base URL `https://sandbox.voice.miraiminds.co`. All endpoints require
+`Authorization: Bearer sk_live_…`, and a voice belongs to the workspace of the
+key that made it.
+
+```bash
+export MIRAI_API_BASE="https://sandbox.voice.miraiminds.co"
+export MIRAI_API_KEY="sk_live_YOUR_API_KEY"
+```
+
+| Method | Path | What it does |
+| :--- | :--- | :--- |
+| `POST` | `/v2/custom-voices` | Make an instant voice from a clip. |
+| `GET` | `/v2/custom-voices` | List your workspace's voices, newest first. |
+| `GET` | `/v2/custom-voices/{id}` | Get one voice. |
+| `PATCH` | `/v2/custom-voices/{id}` | Rename a voice or change its `gender`. |
+| `POST` | `/v2/custom-voices/{id}/preview` | Hear the voice say a sentence, as WAV audio. |
+| `DELETE` | `/v2/custom-voices/{id}` | Delete a voice and its clip. |
+
+#### Create a voice
+
+Send the clip and its details as `multipart/form-data`. The response comes
+back when the voice is ready, about a minute later, so give your HTTP client a
+timeout of 90 seconds or more.
+
+<Tabs>
+  <Tab title="cURL">
+    ```bash
+    curl --fail-with-body -X POST "$MIRAI_API_BASE/v2/custom-voices" \
+      -H "Authorization: Bearer $MIRAI_API_KEY" \
+      -F clip=@jack.wav \
+      -F name="Jack (Sydney)" \
+      -F language=en \
+      -F accent=australian \
+      -F gender=male \
+      -F consent_name="Jack Smith" \
+      -F consent_relationship=employee \
+      -F consent_attested=true
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    import os
+
+    import httpx
+
+    base = os.environ["MIRAI_API_BASE"]
+    auth = {"Authorization": f"Bearer {os.environ['MIRAI_API_KEY']}"}
+
+    with open("jack.wav", "rb") as clip:
+        r = httpx.post(
+            f"{base}/v2/custom-voices",
+            headers=auth,
+            files={"clip": ("jack.wav", clip, "audio/wav")},
+            data={
+                "name": "Jack (Sydney)",
+                "language": "en",
+                "accent": "australian",
+                "gender": "male",
+                "consent_name": "Jack Smith",
+                "consent_relationship": "employee",
+                "consent_attested": "true",
+            },
+            timeout=90,  # the answer comes once the voice is ready
+        )
+    voice = r.json()
+    if r.status_code != 201:
+        raise RuntimeError(f"{voice['error']['code']}: {voice['error']['message']}")
+    print(voice["id"])  # cv_01k8c4n2q7r9t3v5x7z9b1d3f5
+    ```
+  </Tab>
+  <Tab title="Node.js">
+    ```javascript
+    import { readFile } from "node:fs/promises";
+
+    const API = process.env.MIRAI_API_BASE;
+    const auth = { Authorization: `Bearer ${process.env.MIRAI_API_KEY}` };
+
+    const form = new FormData();
+    form.append("clip", new Blob([await readFile("jack.wav")], { type: "audio/wav" }), "jack.wav");
+    form.append("name", "Jack (Sydney)");
+    form.append("language", "en");
+    form.append("accent", "australian");
+    form.append("gender", "male");
+    form.append("consent_name", "Jack Smith");
+    form.append("consent_relationship", "employee");
+    form.append("consent_attested", "true");
+
+    const res = await fetch(`${API}/v2/custom-voices`, {
+      method: "POST",
+      headers: auth,
+      body: form,
+      signal: AbortSignal.timeout(90_000), // the answer comes once the voice is ready
+    });
+    const voice = await res.json();
+    if (res.status !== 201) throw new Error(`${voice.error.code}: ${voice.error.message}`);
+    console.log(voice.id); // cv_01k8c4n2q7r9t3v5x7z9b1d3f5
+    ```
+  </Tab>
+</Tabs>
+
+| Field | Type | Description |
+| :--- | :--- | :--- |
+| `clip` | file | **Required.** 10 to 60 seconds of one speaker, up to 16 MB. WAV, FLAC, MP3, OGG or WebM. |
+| `name` | string | **Required.** The voice's display name, 1 to 60 characters. |
+| `language` | string | **Required.** The language the voice speaks: `en`, `hi`, `gu`, `ta`, `te`, `bn`, `kn`, `ml`, `mr` or `pa`. |
+| `accent` | string | Optional label for your list, up to 40 characters, such as `australian`, `british`, `american` or `indian`. The accent you hear comes from the clip. |
+| `gender` | string | Optional. `female` or `male`. It picks the built-in voice that takes over if the instant voice fails on a call: `sameer` for `male`, `shruti` otherwise. |
+| `consent_name` | string | **Required.** The speaker's name. |
+| `consent_relationship` | string | **Required.** The speaker is `self`, an `employee`, a `contractor`, a `customer` or `other`. |
+| `consent_attested` | string | **Required.** Must be `true`. It confirms that the speaker agreed to Mirai creating a synthetic version of their voice, which our speech providers may process. |
+
+The response is `201 Created`, with the voice:
+
+```json
+{
+  "id": "cv_01k8c4n2q7r9t3v5x7z9b1d3f5",
+  "object": "custom_voice",
+  "kind": "instant",
+  "name": "Jack (Sydney)",
+  "language": "en",
+  "accent": "australian",
+  "gender": "male",
+  "status": "ready",
+  "created_at": "2026-10-22T11:04:12Z",
+  "updated_at": "2026-10-22T11:04:12Z",
+  "clip": { "filename": "jack.wav", "bytes": 812344, "seconds": 24.6 },
+  "consent": {
+    "name": "Jack Smith",
+    "relationship": "employee",
+    "attested_at": "2026-10-22T11:04:12Z"
+  }
+}
+```
+
+| Field | Description |
+| :--- | :--- |
+| `id` | The voice's ID, starting with `cv_`. Use it as an agent's `voice.voice_id`. |
+| `kind` | `instant` for a voice made from a clip. A voice our team adds to your workspace for you has a different `kind`, and no clip or consent details. |
+| `language` | The language the voice speaks. |
+| `accent`, `gender` | What you sent, or `null`. |
+| `status` | `ready`. The voice works on calls as soon as it's created. |
+| `clip` | The clip's file name, its size in bytes and its length in seconds. We measure the length of WAV clips only, so `seconds` is `null` for other formats. |
+| `consent` | The speaker's name, your relationship to them, and when you confirmed their consent. |
+
+```bash
+export MIRAI_CV_ID="cv_01k8c4n2q7r9t3v5x7z9b1d3f5"
+```
+
+#### List and get voices
+
+```bash
+curl --fail-with-body "$MIRAI_API_BASE/v2/custom-voices" \
+  -H "Authorization: Bearer $MIRAI_API_KEY"
+```
+
+The response is `{"object": "list", "data": [...]}`, newest first. Deleted
+voices are left out. `GET /v2/custom-voices/{id}` returns one voice. A deleted
+voice, or one from another workspace, answers `404 not_found`.
+
+#### Rename a voice
+
+`PATCH` takes `name`, `gender` or both, and returns the updated voice. A new
+`gender` also changes which built-in voice takes over if the instant voice
+fails on a call. The clip and the language can't change; make a new voice for
+those.
+
+```bash
+curl --fail-with-body -X PATCH "$MIRAI_API_BASE/v2/custom-voices/$MIRAI_CV_ID" \
+  -H "Authorization: Bearer $MIRAI_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "name": "Jack (support line)" }'
+```
+
+#### Hear a voice
+
+```bash
+curl --fail-with-body -X POST "$MIRAI_API_BASE/v2/custom-voices/$MIRAI_CV_ID/preview" \
+  -H "Authorization: Bearer $MIRAI_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "text": "Hi, this is Jack from the support team. How can I help you today?" }' \
+  --output jack-preview.wav
+```
+
+The response body is the audio itself (`audio/wav`, 16-bit PCM at 24 kHz).
+Keep `--output`, or curl prints the audio into your terminal. `text` is
+optional and takes up to 300 characters. Send `{}` instead to hear a short
+sentence we pick in the voice's language. Previews have their own rate limit
+per workspace, so if you get `429`, wait a few seconds and try again.
+
+#### Use it on an agent
+
+Set the voice's `id` as the agent's `voice.voice_id`:
+
+```bash
+curl --fail-with-body -X PATCH "$MIRAI_API_BASE/v2/agents/agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ" \
+  -H "Authorization: Bearer $MIRAI_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "voice": { "voice_id": "cv_01k8c4n2q7r9t3v5x7z9b1d3f5" } }'
+```
+
+The same ID works when you create an agent, and in `call_settings.voice_id` to
+use the voice on [one call](/v2/voices#a-different-voice-for-one-call). The
+voice must belong to the agent's workspace. Any other ID returns
+`400 invalid_request`. An instant voice always speaks the `language` you made
+it with, so use it on agents that talk in that language.
+
+#### Delete a voice
+
+```bash
+curl --fail-with-body -X DELETE "$MIRAI_API_BASE/v2/custom-voices/$MIRAI_CV_ID" \
+  -H "Authorization: Bearer $MIRAI_API_KEY"
+```
+
+The response is `204 No Content`, and the voice and its clip are gone. While an
+agent still uses the voice, you get `409 voice_in_use` with a message that
+names the agents. Give them another voice first.
+
+### Instant voice limits
+
+| Limit | Value |
+| :--- | :--- |
+| Voices per workspace | 10 at a time. Deleted voices don't count. |
+| Clip length | 10 to 60 seconds. 30 to 60 seconds keeps an accent best. We measure WAV clips and refuse one under 5 seconds or over 60. We don't check the length of other formats. |
+| Clip size | Up to 16 MB |
+| Clip formats | `.wav`, `.flac`, `.mp3`, `.mpeg`, `.mpga`, `.ogg`, `.oga`, `.webm` |
+| Speakers | One per clip |
+| Languages | One per voice: `en`, `hi`, `gu`, `ta`, `te`, `bn`, `kn`, `ml`, `mr`, `pa` |
+| Name | 1 to 60 characters |
+| Accent label | Up to 40 characters |
+| Preview text | Up to 300 characters |
+
+### Instant voice errors
+
+Errors use the [standard envelope](/v2/errors).
+
+| Status | `code` | Meaning |
+| :--- | :--- | :--- |
+| `400` | `invalid_request` | A field is missing or out of range, such as a name over 60 characters or `consent_attested` that isn't `true`. The message names it. |
+| `404` | `not_found` | No such voice in your workspace, or it was deleted. |
+| `409` | `limit_reached` | Your workspace already has 10 voices. Delete one you don't use, then try again. |
+| `409` | `voice_in_use` | An agent still speaks in this voice. The message names the agents. Give them another voice, then delete it. |
+| `422` | `clip_rejected` | We couldn't make a voice from this clip. The message says why. Record a cleaner clip of one speaker and try again. |
+| `502` | `upstream_error` | Making the voice failed or took too long on our side. Nothing was saved, so try again. |
+| `503` | `instant_voices_unavailable` | Instant voices aren't available right now, so you can't make or preview one. Voices you already have keep working on calls, and you can still list and delete them. Try again later. |
+
+A clip over 16 MB, or in a format that isn't in the
+[limits](#instant-voice-limits), is refused before we make anything, and the
+message says which.
+
+## Professional voice clones
 
 A professional voice clone is a voice we build for your workspace from
 recordings of one real person. You upload 30 minutes to 2 hours of them
@@ -20,7 +380,7 @@ It's worth it when none of the [catalogue voices](/v2/voices) sounds like you:
 If a catalogue voice already sounds right, use it. It's ready today, and nobody
 has to spend an afternoon talking to a microphone.
 
-## Who can request one, and what it costs
+### Who can request one, and what it costs
 
 Any workspace can send a request, from the console or the API. In the
 [console](https://sandbox.voice.miraiminds.co), sign in with your work email
@@ -33,12 +393,12 @@ Custom voices come with a volume commitment on our Enterprise plan. See
 wallet: our team gets in touch to agree pricing with you before training
 starts.
 
-## Before you record
+### Before you record
 
 We build the voice from these recordings, so how they sound is how your agent
 will sound.
 
-### The speaker
+#### The speaker
 
 - One speaker only. Every file must be the same person. If someone else talks
   during a session, for example to prompt the speaker with questions, cut them
@@ -49,7 +409,7 @@ will sound.
 - Use the languages, and the mix, you want the voice to speak. If the speaker
   talks to customers in Hinglish, record Hinglish.
 
-### The room and the microphone
+#### The room and the microphone
 
 - Record in a quiet room.
 - Use the same microphone, at the same distance from the speaker, for every
@@ -58,7 +418,7 @@ will sound.
   no heavy noise reduction and no effects. Trimming silences and false starts
   is fine.
 
-### How much, and in what format
+#### How much, and in what format
 
 - Record 30 minutes at least and 2 hours at most. We add up the length of all
   your recordings, and a request can't be sent with less than 30 minutes or
@@ -69,7 +429,7 @@ will sound.
 - WAV or FLAC at 44.1 kHz or higher is best. MP3 at 192 kbps or better is
   fine. We also accept M4A, AAC, MP4, OGG, Opus and WebM.
 
-## Consent
+### Consent
 
 We only build a voice with the speaker's permission, and every request
 carries it twice.
@@ -100,7 +460,7 @@ any audio, in our records for audit.
 A voice is personal data. Make sure your agreement with the speaker says how
 the voice will be used on your calls.
 
-## Request a voice in the console
+### Request a voice in the console
 
 <Steps>
   <Step title="Start a request">
@@ -130,7 +490,7 @@ the voice will be used on your calls.
   </Step>
 </Steps>
 
-## What each status means
+### What each status means
 
 There's no fixed turnaround. Our team reviews the recordings and updates the
 status as the request moves along. Anything we need you to know comes as a note
@@ -150,7 +510,7 @@ When a request is ready, our team gets in touch to switch your agents to the
 new voice. Its `voice_id` is on the request so you can tell it apart from the
 catalogue voices.
 
-## Request a voice with the API
+### Request a voice with the API
 
 Base URL `https://sandbox.voice.miraiminds.co`. All endpoints require
 `Authorization: Bearer sk_live_…`, and a request belongs to the workspace of
@@ -178,7 +538,7 @@ Files are large, so they go up in chunks of 16 MiB (16,777,216 bytes): you
 register the file, upload its chunks, mark it complete, and submit the request
 when everything is in.
 
-### 1. Create a request
+#### 1. Create a request
 
 ```bash
 curl --fail-with-body -X POST "$MIRAI_API_BASE/v2/voice-clones" \
@@ -246,7 +606,7 @@ confirmation.
 export MIRAI_VCL_ID="vcl_01K8C2W7H4M9P3R6T1V5X8Z0QA"
 ```
 
-### 2. Register a recording
+#### 2. Register a recording
 
 Tell us about the file before you send it. `bytes` must be the file's exact
 size. `duration_seconds` is its length; for a WAV file we read the length from
@@ -292,7 +652,7 @@ response is `201 Created`, and `chunks` says how many pieces to send:
 export MIRAI_VCF_ID="vcf_01K8C2X3B6D9F2H5K8M1P4R7T0"
 ```
 
-### 3. Upload the chunks
+#### 3. Upload the chunks
 
 Send chunk `0` to `chunks - 1` as raw bytes. Every chunk is exactly
 `chunk_bytes` long except the last, which is whatever is left. Chunks can go in
@@ -313,7 +673,7 @@ done
 Each `PUT` answers `200` with the file, and `received_chunks` lists the chunks
 we have so far.
 
-### 4. Finish the file
+#### 4. Finish the file
 
 ```bash
 curl --fail-with-body -X POST \
@@ -330,7 +690,7 @@ you get `409 incomplete` naming the missing chunks; send those and call
 Repeat steps 2 to 4 for each recording. The request's `sample_seconds` adds up
 the length of every finished recording.
 
-### 5. Add the consent clip
+#### 5. Add the consent clip
 
 Upload the speaker reading the [consent sentence](#consent) the same way, with
 `"kind": "consent"`.
@@ -350,7 +710,7 @@ curl --fail-with-body -X POST "$MIRAI_API_BASE/v2/voice-clones/$MIRAI_VCL_ID/fil
 
 Then upload its chunks and finish it as in steps 3 and 4.
 
-### 6. Submit
+#### 6. Submit
 
 ```bash
 curl --fail-with-body -X POST "$MIRAI_API_BASE/v2/voice-clones/$MIRAI_VCL_ID/submit" \
@@ -371,7 +731,7 @@ If something is missing, you get `422 not_ready` with a message that says what:
 }
 ```
 
-### Resume an upload
+#### Resume an upload
 
 If an upload stops partway, get the request and look at the file in `files`:
 
@@ -406,7 +766,7 @@ def upload(vcl_id: str, file_id: str, local_path: str) -> dict:
     return httpx.post(f"{url}/complete", headers=auth, timeout=300).raise_for_status().json()
 ```
 
-### Follow the status
+#### Follow the status
 
 `GET /v2/voice-clones/{id}` returns the request with its `status` and our
 `status_note`. `GET /v2/voice-clones` lists every request in your workspace as
@@ -415,7 +775,7 @@ team moves the request along, so there's no need to check often. When it is
 `ready`, `voice_id` names your new voice, and we'll help you move your agents
 onto it.
 
-### Change or delete a request
+#### Change or delete a request
 
 While a request is `draft` or `needs_changes`, `PATCH /v2/voice-clones/{id}`
 changes any of the fields from step 1; at any other status it answers
@@ -430,7 +790,7 @@ and the consent clip, and answers:
 { "id": "vcl_01K8C2W7H4M9P3R6T1V5X8Z0QA", "object": "voice_clone", "deleted": true }
 ```
 
-## Limits
+### Limits
 
 | Limit | Value |
 | :--- | :--- |
@@ -443,7 +803,7 @@ and the consent clip, and answers:
 | Languages | `hi`, `en`, `gu`, `ta`, `te` |
 | File types | `.wav`, `.flac`, `.mp3`, `.m4a`, `.aac`, `.mp4`, `.ogg`, `.opus`, `.webm` |
 
-## Errors
+### Errors
 
 Errors use the [standard envelope](/v2/errors).
 
