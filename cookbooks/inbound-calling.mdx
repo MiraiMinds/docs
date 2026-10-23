@@ -335,7 +335,10 @@ jq --arg url 'https://your-backend.example/voice/events' \
 ```
 
 Replace the example URL with your actual receiver before running this request.
-Verify events using the webhook secret associated with the workspace key that
+Each incoming call then sends its terminal event and, once the call is
+processed, one [`call.processed`](/v2/webhooks#final-results) with the
+transcript, the analysis and the recording link, so your backend does not
+need to fetch them. Verify events using the webhook secret associated with the workspace key that
 created the Plivo integration. The integration retains that signing secret;
 coordinate key or provider credential rotation with support. See
 [webhook verification](/v2/webhooks#signature-verification) for the signing format,
