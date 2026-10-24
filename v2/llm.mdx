@@ -427,7 +427,7 @@ message.
 | Limit | Value | Over the limit |
 | :--- | :--- | :--- |
 | Messages per request | **20** | `400 invalid_request`. Trim older turns. |
-| Text per request | **8,000 characters**, counted over every message's `content` | `400 invalid_request`. |
+| Text per request | **24,000 characters**, counted over every message's `content`. An agent's full prompt (up to 12,000 characters) fits as the system message, with as much again for the conversation. | `400 invalid_request`. |
 | Tools per request | **6** | `400 invalid_request`. |
 | Reply length | **400 tokens** | The reply stops with `finish_reason: "length"`. |
 | Request rate | The same limit as the rest of the API (see [Limits](/v2/limits#rate-limits)) | `429 rate_limited` with `Retry-After`. |
