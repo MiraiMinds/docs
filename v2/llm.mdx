@@ -1,14 +1,14 @@
 ---
 title: "Language model API: mira-llm on OpenAI's chat completions"
 sidebarTitle: "Language model API"
-description: "Call mira-llm on the OpenAI-compatible POST /v1/chat/completions: one request, streaming, tool calls, Python, Pipecat, limits and the request log. ₹15 input, ₹9.30 cached input and ₹55 output per million tokens."
+description: "Call mira-llm on the OpenAI-compatible POST /v2/chat/completions: one request, streaming, tool calls, Python, Pipecat, limits and the request log. ₹15 input, ₹9.30 cached input and ₹55 output per million tokens."
 ---
 
 `mira-llm` is the language model our voice agents run on, offered on its own.
-It answers on OpenAI's `POST /v1/chat/completions`, so the stock `openai`
-package and any framework with an OpenAI LLM integration can call it. You
-change the base URL, the key and the model name, and the rest of your code
-stays as it is.
+It answers on `POST /v2/chat/completions`, with the same request and response
+as OpenAI's chat completions, so the stock `openai` package and any framework
+with an OpenAI LLM integration can call it. You change the base URL, the key
+and the model name, and the rest of your code stays as it is.
 
 It was built for voice agents in India. It does best with the Hinglish real
 customers speak, Hindi and English in one sentence, in either script, and it
@@ -19,14 +19,20 @@ already run on this model.
 
 | | |
 | :--- | :--- |
-| Base URL | `https://sandbox.voice.miraiminds.co/v1`, or `https://prod.voice.miraiminds.co/v1` once your company has [gone live](/general/tiers#your-plan) |
-| Route | `POST /v1/chat/completions` |
+| Base URL | `https://sandbox.voice.miraiminds.co/v2`, or `https://prod.voice.miraiminds.co/v2` once your company has [gone live](/general/tiers#your-plan) |
+| Route | `POST /v2/chat/completions` |
 | Auth | `Authorization: Bearer sk_live_…` |
 | Model | `mira-llm` |
 | Price | ₹15 input, ₹9.30 cached input, ₹55 output per 1,000,000 tokens ([details](#price)) |
 
 On the production address, a key from a workspace that has not gone live gets
 `403 production_workspace_required`.
+
+<Note>
+`POST /v1/chat/completions`, OpenAI's own path, still works and behaves
+exactly the same. Code already pointed at a `/v1` base URL does not need to
+change. Use `/v2` for new code, like the rest of the API.
+</Note>
 
 ## 1. Get a key
 
@@ -42,7 +48,7 @@ app. There is no browser token for this route.
 ## 2. One request
 
 ```bash
-curl https://sandbox.voice.miraiminds.co/v1/chat/completions \
+curl https://sandbox.voice.miraiminds.co/v2/chat/completions \
   -H "Authorization: Bearer $MIRA_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -97,7 +103,7 @@ Add `"stream": true`. The reply comes back as server-sent events
 line:
 
 ```bash
-curl --no-buffer https://sandbox.voice.miraiminds.co/v1/chat/completions \
+curl --no-buffer https://sandbox.voice.miraiminds.co/v2/chat/completions \
   -H "Authorization: Bearer $MIRA_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -144,7 +150,7 @@ applies, it answers with `tool_calls` instead of text and stops with
 `finish_reason: "tool_calls"`:
 
 ```bash
-curl https://sandbox.voice.miraiminds.co/v1/chat/completions \
+curl https://sandbox.voice.miraiminds.co/v2/chat/completions \
   -H "Authorization: Bearer $MIRA_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -263,7 +269,7 @@ from openai import OpenAI
 
 client = OpenAI(
     api_key=os.environ["MIRA_API_KEY"],
-    base_url="https://sandbox.voice.miraiminds.co/v1",
+    base_url="https://sandbox.voice.miraiminds.co/v2",
 )
 
 TOOLS = [{
@@ -360,7 +366,7 @@ class MiraiLLMService(OpenAILLMService):
 
 llm = MiraiLLMService(
     api_key=os.environ["MIRA_API_KEY"],
-    base_url="https://sandbox.voice.miraiminds.co/v1",
+    base_url="https://sandbox.voice.miraiminds.co/v2",
     settings=MiraiLLMService.Settings(model="mira-llm"),
 )
 
