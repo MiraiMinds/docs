@@ -278,10 +278,11 @@ audio — see [STT billing](/v2/stt-quickstart#billing). The LLM is priced per t
 
 | Token type | Price per 1,000,000 tokens | USD reference |
 | --- | --- | --- |
-| Input | ₹14.38 | $0.15 |
-| Output | ₹57.52 | $0.60 |
+| Input | ₹15 | $0.15 |
+| Cached input | ₹9.30 | $0.093 |
+| Output | ₹55 | $0.55 |
 
-Input and output tokens are priced separately. Prices are billed in INR; USD amounts are provided for reference. Top-ups use the same rates.
+Input, cached input and output tokens are priced separately. Cached input is the part of a prompt that repeats the start of a recent request, so it is read from cache instead of processed again. Prices are billed in INR; USD amounts are provided for reference. Top-ups use the same rates.
 
 | Plan | Monthly commitment | Requests per minute |
 | --- | --- | --- |
