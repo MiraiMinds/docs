@@ -393,9 +393,9 @@ your TTS service. Three things to know on a real call:
   Trim the context as the call goes on: keep the system message and the latest
   turns. Pipecat's context summarization can do this if you set its thresholds
   below our limits.
-- **Only some settings reach the model.** Pipecat also sends `top_p`, `seed`,
-  the penalties and `stream_options`; we ignore them. `temperature` and
-  `max_tokens` work. See [What the API reads](#what-the-api-reads).
+- **Only some settings reach the model.** Pipecat also sends `top_p`, `seed`
+  and the penalties; we ignore them. `temperature`, `max_tokens` and
+  `stream_options.include_usage` work. See [What the API reads](#what-the-api-reads).
 
 This page was checked against Pipecat 1.8.1, where passing `model=` to the
 constructor still works but is deprecated in favour of
@@ -403,7 +403,7 @@ constructor still works but is deprecated in favour of
 
 ## What the API reads
 
-We read seven fields and ignore everything else, so a body written for another
+We read eight fields and ignore everything else, so a body written for another
 provider still runs, with fewer of its settings in effect:
 
 | Field | Values | Default |
@@ -415,10 +415,11 @@ provider still runs, with fewer of its settings in effect:
 | `temperature` | 0 to 1.5. A value outside the range is clamped to it. | `0.3` |
 | `max_tokens` | 1 to 400. A larger value is lowered to 400. | `400` |
 | `stream` | `true` for server-sent events. | `false` |
+| `stream_options` | `{"include_usage": true}` adds a last chunk, before `[DONE]`, with an empty `choices` and the request's `usage`. Other keys are ignored. | No usage chunk |
 
 `top_p`, `stop`, `seed`, `n`, `frequency_penalty`, `presence_penalty`,
-`response_format`, `parallel_tool_calls`, `stream_options`,
-`max_completion_tokens` and `user` are ignored. So is the `name` field on a
+`response_format`, `parallel_tool_calls`, `max_completion_tokens` and `user`
+are ignored. So is the `name` field on a
 message.
 
 ## Limits
@@ -448,16 +449,22 @@ stay the same (system prompt, tool definitions, reference text) at the start,
 in the same order, and put what changes at the end. Prices are billed in INR
 and exclude GST; USD amounts are for reference.
 
-While the model is in beta, requests are not yet debited from your wallet.
-When billing starts, these are the rates it uses. The request rate limit
-applies either way.
+Usage is charged to your workspace wallet. We add up each workspace's tokens
+over ten-minute windows and charge each window once, a few minutes after it
+closes; it shows on your statement under **Language model**. A request that
+fails on our side is not charged. If you close a stream early, you pay for the
+tokens generated up to that point.
+
+When your wallet is empty, counting usage that has not been charged yet,
+requests return `402 insufficient_balance` until you add funds. The request
+rate limit applies as well.
 
 ## Your request log
 
 Every request your keys make is logged, whether it completed or failed. Open
 the console's **Language Model** page and choose **Logs**. Each row shows the
 time and request id, a preview of the last user message, the time to the first
-token, the total time, the tokens in and out when the model reported them,
+token, the total time, the tokens in (and how many were cached) and out when the model reported them,
 tool calls, and the status. Requests from the console's playground are in the
 same table, tagged. Pick 24 hours, 7 days or 30 days.
 
@@ -496,6 +503,7 @@ Errors use the same [envelope](/v2/errors) as the rest of the API:
 | :--- | :--- | :--- |
 | 400 | `invalid_request` | The body is not a JSON object, `model` is not `mira-llm`, a message or tool breaks the rules in [What the API reads](#what-the-api-reads), or the request is over a [limit](#limits). The message says which. |
 | 401 | `unauthorized` | Missing or unknown key. Check the `Authorization: Bearer sk_live_…` header. |
+| 402 | `insufficient_balance` | Your wallet is empty, counting usage not yet charged. Add funds and retry. |
 | 403 | `forbidden` | The key was revoked. |
 | 403 | `production_workspace_required` | A key from a workspace that has not gone live was sent to `https://prod.voice.miraiminds.co`. |
 | 429 | `rate_limited` | Request rate. Honour `Retry-After`. |
