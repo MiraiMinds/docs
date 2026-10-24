@@ -1,7 +1,7 @@
 ---
 title: "Language model API: mira-llm on OpenAI's chat completions"
 sidebarTitle: "Language model API"
-description: "Call mira-llm on the OpenAI-compatible POST /v1/chat/completions: one request, streaming, tool calls, Python, Pipecat, limits and the request log. Free while in beta."
+description: "Call mira-llm on the OpenAI-compatible POST /v1/chat/completions: one request, streaming, tool calls, Python, Pipecat, limits and the request log. ₹15 input, ₹9.30 cached input and ₹55 output per million tokens."
 ---
 
 `mira-llm` is the language model our voice agents run on, offered on its own.
@@ -23,7 +23,7 @@ already run on this model.
 | Route | `POST /v1/chat/completions` |
 | Auth | `Authorization: Bearer sk_live_…` |
 | Model | `mira-llm` |
-| Price | Free while the model is in beta |
+| Price | ₹15 input, ₹9.30 cached input, ₹55 output per 1,000,000 tokens ([details](#price)) |
 
 On the production address, a key from a workspace that has not gone live gets
 `403 production_workspace_required`.
@@ -429,8 +429,22 @@ Each refusal says which limit you hit.
 
 ## Price
 
-Free while the model is in beta. A request does not check or debit your
-wallet, and it writes no ledger row. The request rate limit still applies.
+| Tokens | Price per 1,000,000 tokens | USD reference |
+| --- | --- | --- |
+| Input | ₹15 | $0.15 |
+| Cached input | ₹9.30 | $0.093 |
+| Output | ₹55 | $0.55 |
+
+Cached input is the part of a prompt that repeats the start of a recent
+request, so the model reads it from cache instead of processing it again. To
+get the cached rate on more of your tokens, keep the parts of the prompt that
+stay the same (system prompt, tool definitions, reference text) at the start,
+in the same order, and put what changes at the end. Prices are billed in INR
+and exclude GST; USD amounts are for reference.
+
+While the model is in beta, requests are not yet debited from your wallet.
+When billing starts, these are the rates it uses. The request rate limit
+applies either way.
 
 ## Your request log
 
