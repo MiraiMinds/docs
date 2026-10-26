@@ -187,7 +187,7 @@ See the [STT quickstart](/v2/stt-quickstart#limits) and the
 | Thing | Limit |
 | :--- | :--- |
 | Request body | 1 MB |
-| `system_prompt` | 12,000 characters, on the agent or [per call](/v2/calls#per-call-prompt) |
+| `system_prompt` | 16,000 characters, on the agent or [per call](/v2/calls#per-call-prompt) |
 | `first_message` | 500 characters, on the agent or per call |
 | `variables` | 32 keys, 512 characters per value |
 | `metadata` | 16 keys; key 1–40 characters (ASCII letters, digits, `_` `.` `:` `-`; starts with a letter, digit or `_`); value 256 characters; 4 KB serialized |
@@ -196,7 +196,7 @@ See the [STT quickstart](/v2/stt-quickstart#limits) and the
 | Idempotency key | 255 characters, 24-hour window |
 | TTS `input` | 2,000 characters per request |
 | Speech-to-text clip | 25 MB and 120 seconds of audio per `POST /v1/audio/transcriptions` |
-| [Language model](/v2/llm#limits) request | 200 messages, 100,000 characters of message text and 32 tools per `POST /v2/chat/completions`, within the model's 32,768-token context; replies stop at 400 tokens, or up to 2,048 with `max_tokens` |
+| [Language model](/v2/llm#limits) request | 100 messages, 16,000 characters of message text and 16 tools per `POST /v2/chat/completions`; replies stop at 400 tokens, or up to 1,024 with `max_tokens`; 16 requests running at once per workspace |
 
 Invalid values return `400 invalid_request`.
 
@@ -246,7 +246,7 @@ generation or transcription request over its limits returns
 | Transitions | 1–40 |
 | Graph size | 100 KB as JSON, with each non-ASCII character counted as its 6-byte escape |
 | Node `name` | 80 characters |
-| Node `prompt` | 12,000 characters |
+| Node `prompt` | 16,000 characters |
 | `greeting` | 1,500 characters |
 | Extraction variables | 12 per node; `prompt` 2,000 characters |
 | Transition `condition` | 2,000 characters |

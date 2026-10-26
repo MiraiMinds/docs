@@ -1020,7 +1020,7 @@
                         "type": "array"
                       },
                       "system_prompt": {
-                        "maxLength": 12000,
+                        "maxLength": 16000,
                         "type": "string"
                       },
                       "tools": {
@@ -2260,7 +2260,7 @@
                   },
                   "system_prompt": {
                     "description": "Replaces the agent's system prompt for this call only; the agent, its revision and every other setting stay the agent's. {{var}} placeholders are filled from this call's variables and validated like the agent's system_prompt (with an input_schema, each must be a declared input, a system variable or a pre-call tool output). Stored with the call but never returned on the call object or in webhooks. Not accepted for channel realtime (400 invalid_request) or for a flow agent (409 flow_system_prompt_unsupported).",
-                    "maxLength": 12000,
+                    "maxLength": 16000,
                     "minLength": 1,
                     "type": "string"
                   },
@@ -16253,7 +16253,7 @@
             "type": "array"
           },
           "system_prompt": {
-            "maxLength": 12000,
+            "maxLength": 16000,
             "type": "string"
           },
           "tools": {
@@ -16745,7 +16745,7 @@
             "type": "array"
           },
           "system_prompt": {
-            "maxLength": 12000,
+            "maxLength": 16000,
             "type": "string"
           },
           "tools": {
@@ -17194,7 +17194,7 @@
             "type": "array"
           },
           "system_prompt": {
-            "maxLength": 12000,
+            "maxLength": 16000,
             "type": "string"
           },
           "tools": {
@@ -18475,7 +18475,7 @@
           },
           "prompt": {
             "description": "The node's instructions, including when to call each outgoing transition. {{variables}} are rendered per call.",
-            "maxLength": 12000,
+            "maxLength": 16000,
             "minLength": 1,
             "type": "string"
           },

@@ -245,7 +245,7 @@ POST /v2/calls
 | `variables` | object | no | Flat string map substituted into the agent's prompt. See [variables](#variables). |
 | `metadata` | object | no | Your own identifiers, up to 16 string keys and values. Returned unchanged on the call and in every webhook. Never shown to the agent. See [metadata](#metadata). |
 | `first_message` | string | no | The opening line for this call only, up to 500 characters. Replaces the agent's `first_message`; `{{variable}}` placeholders work the same way. Refused for a [node-based agent](/v2/node-agents), whose start node opens the call. |
-| `system_prompt` | string | no | The agent's instructions for this call only, 1 to 12,000 characters. Replaces the agent's `system_prompt`; `{{variable}}` placeholders are filled from `variables`. Refused on `channel: "realtime"` and for a [node-based agent](/v2/node-agents). Never returned on the call or in webhooks. See [per-call prompt](#per-call-prompt). |
+| `system_prompt` | string | no | The agent's instructions for this call only, 1 to 16,000 characters. Replaces the agent's `system_prompt`; `{{variable}}` placeholders are filled from `variables`. Refused on `channel: "realtime"` and for a [node-based agent](/v2/node-agents). Never returned on the call or in webhooks. See [per-call prompt](#per-call-prompt). |
 | `call_settings` | object | no | The voice and languages for this call only: `voice_id`, `language` and `secondary_languages`. The agent is not changed. See [call settings](#call-settings). |
 | `webhook_url` | string | no | HTTPS URL for [lifecycle events](/v2/webhooks). Applies to this call only. |
 | `phone_number_id` / `pool_id` | string | no | Phone calls only. Ring from one of your own [phone numbers](/v2/phone-numbers), or from the number a pool picks. Without either, the call uses the agent's `calls_from`, then your default pool, then the Mirai shared line. Send one, not both. |
@@ -433,7 +433,7 @@ curl -X POST https://sandbox.voice.miraiminds.co/v2/calls \
   }'
 ```
 
-- It holds 1 to 12,000 characters, the same ceiling as the agent's prompt. A
+- It holds 1 to 16,000 characters, the same ceiling as the agent's prompt. A
   blank or longer prompt returns `400 invalid_request`.
 - `{{variable}}` placeholders are filled from the call's `variables`, as they
   are in the agent's prompt, and checked by the same rule. If the agent
