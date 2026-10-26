@@ -387,12 +387,13 @@ your TTS service. Three things to know on a real call:
   set changes mid-call or a function runs with `cancel_on_interruption=False`.
   This API refuses a `developer` message with `400 invalid_request`. The
   subclass above has Pipecat send those messages as `user` messages instead.
-- **A long call passes the [conversation limits](#limits).** Pipecat keeps the
-  whole conversation in its context, and each turn adds at least two messages,
-  so after about ten turns a request goes over 20 messages and is refused.
-  Trim the context as the call goes on: keep the system message and the latest
-  turns. Pipecat's context summarization can do this if you set its thresholds
-  below our limits.
+- **A very long call can outgrow the model's context.** Pipecat keeps the
+  whole conversation in its context, and each turn adds at least two messages.
+  A request takes up to 200 messages, and the messages plus `max_tokens` must
+  fit in 32,768 tokens (see [Limits](#limits)). Most calls never get close. For
+  longer ones, use Pipecat's context summarization with thresholds below those
+  limits. Keep the system message, and change the start of the conversation as
+  rarely as you can, because cached input only applies to a start that repeats.
 - **Only some settings reach the model.** Pipecat also sends `top_p`, `seed`
   and the penalties; we ignore them. `temperature`, `max_tokens` and
   `stream_options.include_usage` work. See [What the API reads](#what-the-api-reads).
@@ -409,11 +410,11 @@ provider still runs, with fewer of its settings in effect:
 | Field | Values | Default |
 | :--- | :--- | :--- |
 | `model` | `mira-llm` | Required |
-| `messages` | 1 to 20 messages. `role` is `system`, `user`, `assistant` or `tool`. `content` is a string; an array of content parts (images, audio) is refused. An `assistant` message may leave `content` out when it carries `tool_calls`. A `tool` message needs `tool_call_id`. | Required |
-| `tools` | Up to 6, each `{"type": "function", "function": {"name", "description", "parameters"}}`. Other keys inside a tool are dropped. | None |
+| `messages` | 1 to 200 messages. `role` is `system`, `user`, `assistant` or `tool`. `content` is a string; an array of content parts (images, audio) is refused. An `assistant` message may leave `content` out when it carries `tool_calls`. A `tool` message needs `tool_call_id`. | Required |
+| `tools` | Up to 32, each `{"type": "function", "function": {"name", "description", "parameters"}}`. Other keys inside a tool are dropped. | None |
 | `tool_choice` | `auto`, `none`, `required`, or `{"type": "function", "function": {"name": …}}`. Any other value is dropped. Ignored without `tools`. | Left to the model |
 | `temperature` | 0 to 1.5. A value outside the range is clamped to it. | `0.3` |
-| `max_tokens` | 1 to 400. A larger value is lowered to 400. | `400` |
+| `max_tokens` | 1 to 2,048. A larger value is lowered to 2,048. | `400` |
 | `stream` | `true` for server-sent events. | `false` |
 | `stream_options` | `{"include_usage": true}` adds a last chunk, before `[DONE]`, with an empty `choices` and the request's `usage`. Other keys are ignored. | No usage chunk |
 
@@ -426,10 +427,11 @@ message.
 
 | Limit | Value | Over the limit |
 | :--- | :--- | :--- |
-| Messages per request | **20** | `400 invalid_request`. Trim older turns. |
-| Text per request | **8,000 characters**, counted over every message's `content` | `400 invalid_request`. |
-| Tools per request | **6** | `400 invalid_request`. |
-| Reply length | **400 tokens** | The reply stops with `finish_reason: "length"`. |
+| Context | **32,768 tokens**: the messages, tools and `max_tokens` together | `400 invalid_request` that names the context. Not charged. |
+| Messages per request | **200** | `400 invalid_request`. Trim older turns. |
+| Text per request | **100,000 characters**, counted over every message's `content` | `400 invalid_request`. |
+| Tools per request | **32** | `400 invalid_request`. |
+| Reply length | **400 tokens** by default, up to **2,048** with `max_tokens` | The reply stops with `finish_reason: "length"`. |
 | Request rate | The same limit as the rest of the API (see [Limits](/v2/limits#rate-limits)) | `429 rate_limited` with `Retry-After`. |
 
 Each refusal says which limit you hit.
@@ -483,6 +485,8 @@ system prompt and switch three demo tools on or off (`book_slot`,
 playground shows the arguments it extracted and the raw messages going each
 way. The tool results are simulated: nothing is booked, looked up or sent.
 **Code for this message** gives you the cURL command for what you just sent.
+The playground keeps smaller limits than the API: 20 messages, 8,000
+characters and 6 tools per request, and replies of up to 400 tokens.
 
 ## Postman
 
