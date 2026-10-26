@@ -130,7 +130,6 @@ and reads every call of that agent that connected.
 | — | `first_message` | The opening line for this call only. |
 | — | `max_duration_secs` | Overrides the agent's cap for this call. |
 | — | `phone_number_id` / `pool_id` | Ring from one of your own numbers or a pool. |
-| — | `final_results` | One `call.processed` with the transcript after the call. |
 | — | `Idempotency-Key` header | A retried request never places a second call. |
 
 ```diff title="v1 → v2 call request"
@@ -243,7 +242,7 @@ a test vector.
 | `call.rescheduled` | No event: the campaign contact goes back to `pending` for its retry |
 | `call.aborted` | `call.aborted` |
 | — | `call.voicemail` (**new**) |
-| `end-of-call` | `call.processed`, with the analysis at `data.call.analysis` |
+| `end-of-call` | The terminal event, with the analysis at `data.call.analysis`. A late analysis arrives in `call.processed`. |
 | `call.lifecycle-ended` | For a single call, the terminal event is the last word. In a campaign, read the contact's [status](/v2/campaigns#contact-statuses): `exhausted` means its retries ran out. |
 | `action` | No event. Extract the fields with `analysis.output_schema`, choose a message with `analysis.templates`, or act from a [post-call tool](/v2/tools#after-a-call-send-the-outcome-to-your-crm). |
 
@@ -261,9 +260,9 @@ Exactly one terminal event fires per call: `call.completed`, `call.voicemail`,
 | `event.data.call.status` | `data.call.status` (see [Statuses](#statuses)) |
 | `startedAt` / `endedAt` | `data.call.started_at` / `data.call.ended_at` |
 | `durationSeconds` | `data.call.duration_secs` |
-| `recordingUrl` | [`GET /v2/calls/{id}/recording`](/v2/calls#get-the-recording), an authenticated request that redirects to a 15-minute signed URL |
+| `recordingUrl` | `data.recording.url` on the terminal event: [`GET /v2/calls/{id}/recording`](/v2/calls#get-the-recording), an authenticated request that redirects to a 15-minute signed URL |
 | `detailUrl` | — |
-| `analysis.summary` | `data.call.analysis.summary` on `call.processed` |
+| `analysis.summary` | `data.call.analysis.summary` on the terminal event |
 | `analysis.success` | `data.call.analysis.success` |
 | `analysis.insights` | `data.call.analysis.data`, in the shape of your `output_schema` |
 | `analysis.insights.template` | `data.call.analysis.template`. See [below](#message-templates-after-the-call). |
@@ -309,9 +308,11 @@ cost and `wallet.balance_inr` is what is left after it. The balance is a
 snapshot taken when the call was billed, and it is left out when we could not
 read it.
 
-The analysis moves from `end-of-call` to `call.processed`, which follows the
-terminal event once the analysis and any post-call tools have finished. Turn
-on `final_results` to get the transcript in the same event.
+The analysis moves from `end-of-call` to the terminal event. `call.completed`
+carries it at `data.call.analysis`, with the transcript at `data.transcript`
+and the recording link at `data.recording.url`. An analysis that is not ready
+within 15 seconds of the hangup arrives in `call.processed` instead. See
+[call results](/v2/webhooks#call-results).
 
 ## Message templates after the call
 

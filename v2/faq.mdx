@@ -81,8 +81,9 @@ spoken goodbye, and let it wrap up on time with a
 
 **Can I get the recording or transcript?**
 Yes. Fetch them with [`GET /v2/calls/{id}/transcript`](/v2/calls#get-the-transcript)
-and [`GET /v2/calls/{id}/recording`](/v2/calls#get-the-recording), or receive the
-transcript in a webhook with [final results](/v2/webhooks#final-results). To
+and [`GET /v2/calls/{id}/recording`](/v2/calls#get-the-recording), or set a
+`webhook_url` and receive the transcript and the recording link in the call's
+[terminal webhook event](/v2/webhooks#call-results). To
 store no audio, create calls with `recording_enabled: false`. Retention is on
 the [limits page](/v2/limits#data-retention).
 

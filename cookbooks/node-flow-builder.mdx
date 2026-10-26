@@ -540,7 +540,6 @@ const callBody = {
   variables,
   max_duration_secs: 120,
   recording_enabled: false,
-  final_results: true,
 };
 
 // Persist both values BEFORE sending in a hosted application.
@@ -568,9 +567,11 @@ Keep these records in your backend database in a hosted product.
 greeting through variables. A flow needs voice: text-only calls are not
 supported. To add browser audio, follow the
 [browser calls guide](https://docs.miraiminds.co/v2/web-calls). For a server
-notification when final results are ready, add a `webhook_url`, keep
-`final_results: true`, and verify the signed `call.processed` event as described
-in the [webhook guide](https://docs.miraiminds.co/v2/webhooks).
+notification when the call ends, add a `webhook_url` and verify the signed
+events as described in the [webhook guide](https://docs.miraiminds.co/v2/webhooks).
+The terminal event carries the transcript, the recording link and the
+analysis, and `call.processed` carries the flow's outcome. See
+[call results](https://docs.miraiminds.co/v2/webhooks#call-results).
 
 ## Test it
 
