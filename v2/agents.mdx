@@ -74,7 +74,7 @@ only `pre_call` and `post_call` tools are allowed. See
 | `first_message` | string | yes, unless `flow` is set | Spoken the moment the callee answers, before the model runs. Keep it short, because it sets your first-audio latency. Unused on a node-based agent: its start node's `greeting` opens the call. |
 | `voice` | object | yes | See [Voice](#voice). |
 | `language` | string | yes | BCP-47 conversation language, e.g. `hi-IN`, `en-IN`. Drives ASR and the model's default output language. |
-| `secondary_languages` | array | no | Other languages callers may speak: up to 4 of `hi`, `en`, `gu`, `mr`, `bn`, `ta`, `te`, `kn`, `ml`, `pa` and `od`. Speech recognition listens for them as well as `language`. Always returned, `[]` when there are none. |
+| `secondary_languages` | array | no | Other languages callers may speak: up to 4 of `hi`, `en`, `gu`, `mr`, `bn`, `ta`, `te`, `kn`, `ml`, `pa` and `od`. Speech recognition listens for them as well as `language`: `language` stays the default, and an utterance moves to a secondary language only when Mira STT is confident it is in that language. Mira STT takes the first three that are among its [ten languages](/v2/stt-languages). Always returned, `[]` when there are none. |
 | `max_duration_secs` | integer | no | Hard cap. When it is reached, the call ends with `ended_reason: exceeded-max-duration`. Minimum `30`, maximum `1800`, default `300`. |
 | `tools` | array | no | Tool definitions for this agent. See [Tools](/v2/tools). PATCH replaces the full list. |
 | `analysis` | object | no | What to work out after each call: a summary, a success verdict, extracted fields and the follow-up message to send. See [Analysis](#analysis). PATCH replaces the whole object. |

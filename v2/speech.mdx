@@ -70,7 +70,9 @@ curl https://sandbox.voice.miraiminds.co/v1/audio/transcriptions \
   -F language=hi-IN
 ```
 
-The second command prints the transcript as JSON, `{"text": "…"}`.
+The second command prints the transcript and its language as JSON,
+`{"text": "…", "language": "hi-IN"}`. Send `language=auto` instead when you
+don't know the language; see [STT languages](/v2/stt-languages).
 
 ## Pipecat
 
