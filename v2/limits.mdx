@@ -322,8 +322,8 @@ tuned for prompts in the hundreds of tokens, not thousands.
 
 | Data | Retained |
 | :--- | :--- |
-| Call record (status, duration, cost) | 90 days |
-| Call recordings and transcripts | 90 days, then deleted |
+| Call record (status, duration, cost) | For as long as your account exists. The API and console return the last 12 months. |
+| Call recordings and transcripts | For as long as your account exists, until you ask us to delete them. The API and console return the last 12 months. |
 | Wallet ledger | 12 months |
 | Campaigns and their contact rows | For the life of the workspace |
 | Offline transcription audio | Not kept. An upload passes through a temporary file that is deleted when the request ends, a file sent by link is fetched once, and the transcription service deletes the recording once it has decoded it. |
@@ -331,10 +331,13 @@ tuned for prompts in the hundreds of tokens, not thousands.
 
 You can fetch recordings and transcripts through the API with
 [`GET /v2/calls/{id}/recording`](/v2/calls#get-the-recording) and
-[`/transcript`](/v2/calls#get-the-transcript). Pull anything you need to keep
-beyond 90 days into your own system. To store no audio, create calls with
-`recording_enabled: false`, or ask us to turn recording off for your whole
-workspace.
+[`/transcript`](/v2/calls#get-the-transcript). Copy anything you need after
+12 months into your own system. To have calls, recordings or transcripts
+deleted, write to sneh@miraiminds.co and we delete them within 30 days. To
+store no audio, create calls with `recording_enabled: false`, or ask us to turn
+recording off for your whole workspace; the text transcript is still kept. Our
+[terms](https://voice.miraiminds.co/terms#keeping) say where call data is
+stored and which providers process it.
 
 Save your own copy of each offline transcript when its job completes. If a
 transcript is no longer available, its job still reads `completed` with its
