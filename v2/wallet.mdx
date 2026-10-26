@@ -329,6 +329,15 @@ A credit appears as a `credit` row and takes effect immediately. Your live
 balance is always `GET /v2/wallet`, and on the **Developers** page of the
 console. There is no top-up endpoint in the API.
 
+## Low balance alerts
+
+Subscribe an endpoint to `wallet.balance_low`, `wallet.depleted` and
+`wallet.balance_restored` to hear when your balance drops below an alert level
+you choose (₹500 by default), when a call or campaign is refused for balance,
+and when you are back above the level. `payment.succeeded` and
+`payment.failed` report top-ups and failed debits. See
+[webhook subscriptions](/v2/webhook-subscriptions#wallet-and-payments).
+
 ## `402` insufficient balance
 
 Before dialling, we check the wallet can cover at least one minute at the

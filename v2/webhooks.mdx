@@ -13,6 +13,12 @@ it runs, turn by turn, read its [live events](/v2/live-events).
 Your endpoint must be **public HTTPS** and must return a **2xx** quickly. Any
 other status, or a connection failure, triggers [retries](#retries).
 
+<Tip>
+To receive events for every call of an agent or of your whole workspace, campaign
+events, low-balance alerts and payment notices without a URL on each call, use
+[webhook subscriptions](/v2/webhook-subscriptions).
+</Tip>
+
 ## Event envelope
 
 Every event has the same shape.
