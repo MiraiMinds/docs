@@ -72,7 +72,8 @@
               "v2/phone-numbers",
               "general/campaign",
               "v2/dnc",
-              "v2/webhooks"
+              "v2/webhooks",
+            "v2/webhook-subscriptions"
             ]
           },
           {

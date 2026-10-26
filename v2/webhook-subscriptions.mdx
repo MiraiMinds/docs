@@ -1,0 +1,346 @@
+---
+title: "Webhook subscriptions: call, campaign, wallet and payment events"
+sidebarTitle: "Webhook subscriptions"
+description: "Subscribe one HTTPS endpoint to the events you care about, for one agent or the whole workspace: calls, campaigns, low balance, refused calls and payments."
+---
+
+A webhook subscription sends events to your HTTPS endpoint without a URL on every call.
+You register an endpoint once, then pick the events it should receive:
+
+- every call of one agent, or of the whole workspace, including inbound calls to your numbers and WhatsApp calls
+- campaign lifecycle: started, paused, resumed, finished, stopped
+- wallet alerts: balance low, calls refused for balance, balance back up
+- payments: payment received, payment failed
+
+The per-call `webhook_url`, the campaign `webhook_url` and a phone number's `webhook_url` keep working as described in [Webhooks](/v2/webhooks).
+If you use both for the same call or campaign, both receive it.
+
+<Tip>
+In the console, open **Webhooks** to add an endpoint and tick events from a checklist. Everything on this page is the same feature through the API.
+</Tip>
+
+## Set it up
+
+All routes use your API key and act on the key's workspace.
+
+<Steps>
+  <Step title="Create an endpoint">
+    ```bash
+    curl https://sandbox.voice.miraiminds.co/v2/webhooks/endpoints \
+      -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+      -H "Content-Type: application/json" \
+      -H "Idempotency-Key: crm-endpoint-1" \
+      -d '{"name": "CRM", "url": "https://crm.example.com/mirai/events"}'
+    ```
+
+    ```json Response (201)
+    {
+      "id": "whe_3f9c2a71d4b84e0f9a6b1c2d3e4f5a6b",
+      "object": "webhook_endpoint",
+      "name": "CRM",
+      "url": "https://crm.example.com/mirai/events",
+      "method": "POST",
+      "header_names": [],
+      "enabled": true,
+      "revision": 1,
+      "created_at": "2026-10-26T06:10:00Z",
+      "signing_secret": "whsec_…",
+      "signing_key_version": 1
+    }
+    ```
+
+    <Warning>
+    `signing_secret` is shown only in this response. Store it now. Reads never return it again.
+    </Warning>
+
+    The URL must be HTTPS on port 443. Optional `headers` (up to 16) are stored encrypted, and reads show only their names.
+  </Step>
+  <Step title="Subscribe it to events">
+    ```bash
+    curl https://sandbox.voice.miraiminds.co/v2/webhooks/subscriptions \
+      -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "endpoint_id": "whe_3f9c2a71d4b84e0f9a6b1c2d3e4f5a6b",
+        "scope": {"type": "workspace"},
+        "event_types": ["wallet.balance_low", "wallet.depleted", "campaign.completed", "call.completed"]
+      }'
+    ```
+
+    For one agent only, use `"scope": {"type": "agent", "agent_id": "agt_…"}`. Wallet and payment events belong to the whole workspace, so an agent subscription cannot list them (the API answers `400`).
+  </Step>
+  <Step title="Send a test">
+    ```bash
+    curl https://sandbox.voice.miraiminds.co/v2/webhooks/endpoints/whe_3f9c2a71d4b84e0f9a6b1c2d3e4f5a6b/test \
+      -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+      -H "Content-Type: application/json" \
+      -d '{"if_revision": 1, "event_type": "wallet.balance_low"}'
+    ```
+
+    This sends a real, signed request to your endpoint with made-up data and `"test": true`. The `202` response is the queued delivery. Look it up under [deliveries](#deliveries-and-retries).
+  </Step>
+</Steps>
+
+`GET /v2/webhooks/event-types` lists every event with its label, group, one-line description, `scopes`, JSON schema and an example payload.
+
+## Event types
+
+### Calls
+
+Scope: one agent or the whole workspace.
+
+| Event | When |
+| :--- | :--- |
+| `call.queued` | The call was accepted and is waiting to connect. |
+| `call.started` | The call connected and the conversation began. |
+| `call.completed` | The call ended normally. Analysis may still be running. |
+| `call.failed` | No answer, busy, or a connection problem. |
+| `call.aborted` | The call was cancelled before it finished. |
+| `call.voicemail` | The call reached voicemail. |
+| `call.recording.ready` | The recording is stored and can be downloaded. |
+| `call.analysis.completed` / `.failed` / `.skipped` | Call analysis reached a final state. |
+| `call.processed` | Analysis and post-call actions finished for this pass. |
+| `call.processing.completed` | Recording, transcript, analysis and post-call actions have all finished, including failures. |
+
+`data.call` is the [call object](/v2/calls).
+
+### Campaigns
+
+Scope: one agent (the campaigns that agent runs) or the whole workspace.
+
+| Event | When |
+| :--- | :--- |
+| `campaign.started` | The campaign started calling. |
+| `campaign.paused` | The campaign paused. `pause_reason` says why, for example `insufficient_balance`. |
+| `campaign.resumed` | A paused campaign started calling again. |
+| `campaign.completed` | The campaign called every contact it could and finished. |
+| `campaign.stopped` | The campaign was stopped before it finished. |
+
+`data.campaign` is the same object, with the same event `id`, that the campaign's own `webhook_url` receives.
+
+### Wallet and payments
+
+Scope: the whole workspace only.
+
+| Event | When |
+| :--- | :--- |
+| `wallet.balance_low` | Your balance fell below your [alert level](#low-balance-alert-level). Sent once each time it crosses. |
+| `wallet.depleted` | A call could not start, or a campaign paused, because the wallet cannot cover it. Sent once, then not again until the balance can cover such a call. |
+| `wallet.balance_restored` | Your balance is back at or above the alert level after it was low. |
+| `payment.succeeded` | A payment was received and credited. |
+| `payment.failed` | An automatic debit or a plan renewal failed. |
+
+The balance in these events is the one [`GET /v2/wallet`](/v2/wallet) shows: what you can spend, after calls in progress. We check it about once a minute, so `wallet.balance_low` reaches you within a minute of the crossing. A top-up, a call or an API charge can each cause one.
+
+If several workspaces share your company's wallet, each workspace with a subscription receives the payment events.
+
+## Low balance alert level
+
+The alert level is ₹500 until you change it.
+
+```bash
+curl -X PATCH https://sandbox.voice.miraiminds.co/v2/webhooks/settings \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"low_balance_threshold_inr": 2000}'
+```
+
+```json Response
+{
+  "object": "webhook_settings",
+  "low_balance_threshold_inr": 2000,
+  "revision": 1,
+  "updated_at": "2026-10-26T06:12:00Z"
+}
+```
+
+`GET /v2/webhooks/settings` reads it. Set it to `0` to turn `wallet.balance_low` off; `wallet.depleted` still fires. Pass `if_revision` if you want a stale write refused.
+
+## Payloads
+
+Every event has the same envelope.
+
+| Field | Meaning |
+| :--- | :--- |
+| `id` | Unique event id. Deduplicate on it. |
+| `type` | The event type. |
+| `created_at` | When the event happened (RFC 3339, UTC). |
+| `schema_version` | `2026-09-22`. |
+| `workspace_id` | Your workspace. |
+| `subject` | `{type, id}`: the call, campaign, wallet (your workspace id) or payment the event is about. |
+| `source_id` | What produced the event. Repeats of the same occurrence share it. |
+| `test` | `true` for synthetic tests, test calls and test-mode payments. |
+| `data` | The event's content. |
+
+<AccordionGroup>
+  <Accordion title="wallet.balance_low">
+    ```json
+    {
+      "id": "evt_9a1f…",
+      "type": "wallet.balance_low",
+      "created_at": "2026-10-26T06:20:41Z",
+      "schema_version": "2026-09-22",
+      "workspace_id": "ws_8c2e…",
+      "subject": {"type": "wallet", "id": "ws_8c2e…"},
+      "source_id": "wallet:low:3",
+      "test": false,
+      "data": {
+        "wallet": {"balance_inr": 420.5, "threshold_inr": 500, "currency": "INR"}
+      }
+    }
+    ```
+  </Accordion>
+  <Accordion title="wallet.depleted">
+    ```json
+    {
+      "id": "evt_4c7d…",
+      "type": "wallet.depleted",
+      "created_at": "2026-10-26T07:02:10Z",
+      "schema_version": "2026-09-22",
+      "workspace_id": "ws_8c2e…",
+      "subject": {"type": "wallet", "id": "ws_8c2e…"},
+      "source_id": "wallet:depleted:1",
+      "test": false,
+      "data": {
+        "wallet": {"balance_inr": 12, "threshold_inr": 500, "required_inr": 30, "currency": "INR"},
+        "call": {"id": "call_01M5…", "channel": "phone", "direction": "outbound", "campaign_id": "cmp_01M5…"}
+      }
+    }
+    ```
+
+    `required_inr` is what the refused call needed to start. `data.call` is absent when a campaign paused before placing a call.
+  </Accordion>
+  <Accordion title="campaign.completed">
+    ```json
+    {
+      "id": "evt_01M5…",
+      "type": "campaign.completed",
+      "created_at": "2026-10-26T09:45:00Z",
+      "schema_version": "2026-09-22",
+      "workspace_id": "ws_8c2e…",
+      "subject": {"type": "campaign", "id": "cmp_01M5…"},
+      "source_id": "evt_01M5…",
+      "test": false,
+      "data": {
+        "campaign": {
+          "id": "cmp_01M5…",
+          "object": "campaign",
+          "name": "Renewals October",
+          "agent_id": "agt_01M5…",
+          "status": "completed",
+          "counters": {"completed": 812, "failed": 96, "pending": 0},
+          "dialed": 1043,
+          "always_on": false
+        }
+      }
+    }
+    ```
+  </Accordion>
+  <Accordion title="payment.succeeded">
+    ```json
+    {
+      "id": "evt_77e0…",
+      "type": "payment.succeeded",
+      "created_at": "2026-10-26T10:05:13Z",
+      "schema_version": "2026-09-22",
+      "workspace_id": "ws_8c2e…",
+      "subject": {"type": "payment", "id": "pay_Q1w2E3r4"},
+      "source_id": "razorpay:live:pay_Q1w2E3r4",
+      "test": false,
+      "data": {
+        "payment": {
+          "id": "pay_Q1w2E3r4",
+          "amount_inr": 5000,
+          "currency": "INR",
+          "kind": "top_up",
+          "description": "Prepaid voice credit · pay_Q1w2E3r4"
+        },
+        "wallet": {"balance_inr": 5420.5, "currency": "INR"}
+      }
+    }
+    ```
+
+    `kind` is `top_up`, `monthly_payment`, `plan_upgrade` or `subscription`. `amount_inr` is the amount credited, before GST. `payment.failed` carries the same `payment` object with a `reason` in the bank's words.
+  </Accordion>
+</AccordionGroup>
+
+Each event type's full JSON schema is in `GET /v2/webhooks/event-types`.
+
+## Verify the signature
+
+Every delivery is signed with the endpoint's `signing_secret`, using the same scheme as [call webhooks](/v2/webhooks#signature-verification):
+
+```http
+X-Mirai-Signature: t=1785057398,v1=771bca27e1647dfbe59ff5d8f32d9de69be246f6e604c05bddcbaefd8604ccb3
+X-Mirai-Delivery-ID: whd_…
+X-Mirai-Attempt: 1
+X-Mirai-Key-Version: 1
+```
+
+`v1` is the lowercase hex `HMAC-SHA256(signing_secret, "<t>.<raw_body>")`. Reject a timestamp more than 300 seconds from now, and compare in constant time.
+
+<CodeGroup>
+```js Node.js
+import crypto from "node:crypto";
+
+export function verify(rawBody, header, secret) {
+  const parts = Object.fromEntries(header.split(",").map((p) => p.split("=")));
+  const t = Number(parts.t);
+  if (!t || Math.abs(Date.now() / 1000 - t) > 300) return false;
+  const expected = crypto.createHmac("sha256", secret).update(`${t}.`).update(rawBody).digest("hex");
+  const given = Buffer.from(parts.v1 ?? "", "hex");
+  const want = Buffer.from(expected, "hex");
+  return given.length === want.length && crypto.timingSafeEqual(given, want);
+}
+```
+
+```python Python
+import hashlib, hmac, time
+
+def verify(raw_body: bytes, header: str, secret: str) -> bool:
+    parts = dict(p.split("=", 1) for p in header.split(","))
+    t = int(parts.get("t", "0"))
+    if not t or abs(time.time() - t) > 300:
+        return False
+    expected = hmac.new(secret.encode(), f"{t}.".encode() + raw_body, hashlib.sha256).hexdigest()
+    return hmac.compare_digest(expected, parts.get("v1", ""))
+```
+</CodeGroup>
+
+Verify the raw bytes you received, before parsing the JSON.
+
+**Rotating the secret.** `POST /v2/webhooks/endpoints/{id}/rotate-secret` with `{"if_revision": N}` returns a new secret that starts signing five minutes later. Install it alongside the old one before then, and keep the old one for an hour. `X-Mirai-Key-Version` tells you which secret signed a delivery.
+
+## Deliveries and retries
+
+Delivery is at least once. Return any `2xx` after you have stored the event; store `id` with a unique constraint so a repeat does nothing. Events can arrive out of order, so act on `created_at` and the object's state, not arrival order.
+
+A failed delivery is retried after 1 second, 7 seconds, 49 seconds, about 6 minutes, then every 30 minutes, for up to 24 hours. A `Retry-After` header from you is respected.
+
+| Route | Use |
+| :--- | :--- |
+| `GET /v2/webhooks/deliveries` | Delivery history. Filter by `endpoint_id`, `agent_id`, `call_id`, `event_type`, `status`, `from`, `to`. |
+| `GET /v2/webhooks/deliveries/{id}/attempts` | Every attempt, with status code, error and latency. |
+| `POST /v2/webhooks/deliveries/{id}/retry` | Send a failed delivery again with the same event id and bytes. Body: `{"if_revision": N}`. |
+| `GET /v2/webhooks/events` | Every event from the last 30 days, including ones no subscription matched. |
+
+## Manage endpoints and subscriptions
+
+| Route | Use |
+| :--- | :--- |
+| `GET /v2/webhooks/endpoints` | List endpoints with delivery health. |
+| `PATCH /v2/webhooks/endpoints/{id}` | Change `name`, `url`, `headers` or `enabled` (`if_revision` required). `enabled: false` pauses sending; queued deliveries wait. |
+| `DELETE /v2/webhooks/endpoints/{id}?if_revision=N` | Remove an endpoint and its subscriptions. Unsent deliveries are cancelled. |
+| `GET /v2/webhooks/subscriptions` | List subscriptions; filter by `endpoint_id` or `agent_id`. |
+| `PATCH /v2/webhooks/subscriptions/{id}` | Change `event_types` or `enabled` (`if_revision` required). Endpoint and scope are fixed; create a new subscription to change them. |
+| `DELETE /v2/webhooks/subscriptions/{id}?if_revision=N` | Stop future events. Deliveries already queued still go out. |
+
+Creating an endpoint, rotating, testing and retrying accept an `Idempotency-Key` header, so a retried request never creates a second endpoint or secret. Two subscriptions that match the same event for the same endpoint produce one delivery.
+
+## Checklist
+
+- Endpoint is public HTTPS on port 443 and answers `2xx` within a few seconds.
+- `signing_secret` stored; signature checked on the raw body; old timestamps rejected.
+- Events stored by `id` with a unique constraint.
+- Alert level set to the balance at which you want to top up.
+- A test event sent and seen in your logs.
