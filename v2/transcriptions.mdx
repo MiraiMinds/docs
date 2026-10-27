@@ -85,7 +85,7 @@ A finished job, as `GET /v2/transcriptions/{id}` returns it:
     ]
   },
   "error": null,
-  "cost": { "status": "charged", "amount_inr": 0.12, "rate_inr_per_hour": 18 }
+  "cost": { "status": "charged", "amount_inr": 0.1, "rate_inr_per_hour": 15 }
 }
 ```
 
@@ -226,7 +226,7 @@ listed here, and show `error.message` if you need a sentence for a person.
     "code": "audio_too_long",
     "message": "the recording is longer than 120 minutes, the most one job takes"
   },
-  "cost": { "status": "free", "amount_inr": 0, "rate_inr_per_hour": 18 }
+  "cost": { "status": "free", "amount_inr": 0, "rate_inr_per_hour": 15 }
 }
 ```
 
@@ -418,7 +418,7 @@ Location: /v2/transcriptions/trn_01M3XRSFXW77RHEQ85979AJXAF
   "diarize": true,
   "words": false,
   "error": null,
-  "cost": { "status": "pending", "amount_inr": null, "rate_inr_per_hour": 18 }
+  "cost": { "status": "pending", "amount_inr": null, "rate_inr_per_hour": 15 }
 }
 ```
 
@@ -556,7 +556,7 @@ job is `merging`, it carries `draft`:
     }
   ],
   "error": null,
-  "cost": { "status": "pending", "amount_inr": null, "rate_inr_per_hour": 18 }
+  "cost": { "status": "pending", "amount_inr": null, "rate_inr_per_hour": 15 }
 }
 ```
 
@@ -655,7 +655,7 @@ job by its ID for those.
       "diarize": true,
       "words": false,
       "error": null,
-      "cost": { "status": "charged", "amount_inr": 0.12, "rate_inr_per_hour": 18 }
+      "cost": { "status": "charged", "amount_inr": 0.1, "rate_inr_per_hour": 15 }
     },
     {
       "id": "trn_01M3XRCR5F4BYY0SSEQCCT01BX",
@@ -673,7 +673,7 @@ job by its ID for those.
       "diarize": true,
       "words": true,
       "error": null,
-      "cost": { "status": "charged", "amount_inr": 0.12, "rate_inr_per_hour": 18 }
+      "cost": { "status": "charged", "amount_inr": 0.1, "rate_inr_per_hour": 15 }
     }
   ],
   "has_more": true,
@@ -689,16 +689,16 @@ that is not a transcription ID, or an unknown `status` returns
 
 ## Billing
 
-Transcription costs ₹18 per hour of audio, charged once when a job completes.
+Transcription costs ₹15 per hour of audio, charged once when a job completes.
 A degraded or failed job is free. The charge is the length of the recording in
 milliseconds times the rate, rounded up to the paisa:
 
 ```python
-def cost_paise(duration_ms: int, rate_inr_per_hour: float = 18) -> int:
+def cost_paise(duration_ms: int, rate_inr_per_hour: float = 15) -> int:
     paise_per_hour = round(rate_inr_per_hour * 100)
     return -(-duration_ms * paise_per_hour // 3_600_000)  # rounded up to the paisa
 
-cost_paise(23_140)  # 12 paise, ₹0.12
+cost_paise(23_140)  # 10 paise, ₹0.10
 ```
 
 Use the formula to forecast. `cost.amount_inr` on the job and the wallet
@@ -709,8 +709,8 @@ transaction are what was charged:
   "id": "txn_01M3XRSP44KR3116AZ578NC2F1",
   "object": "wallet_transaction",
   "type": "debit",
-  "amount_inr": 0.12,
-  "balance_after_inr": 8762.06,
+  "amount_inr": 0.1,
+  "balance_after_inr": 8762.08,
   "call_id": null,
   "description": "Transcription · 23s of audio · mira-transcribe-offline-1",
   "created_at": "2026-10-02T07:38:26Z",

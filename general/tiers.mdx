@@ -280,6 +280,7 @@ by the character over HTTP. The LLM is sold by the token.
 | --- | --- | --- |
 | Text to speech | ₹1.80 per 1,000 characters | ₹0.90 per minute connected |
 | Speech to text | ₹0.30 per minute of audio | ₹0.30 per minute of audio |
+| Speech to text, offline batch | ₹15 per hour of audio | — |
 | LLM | ₹15 input, ₹9.30 cached input, ₹55 output per 1,000,000 tokens | — |
 
 On the text-to-speech WebSocket you pay for time, not text: every second the socket is open is billed at the per-minute rate, and the speech it carries is not charged again by the character. HTTP requests are billed by the character. Speech to text is billed per second of audio you send, on HTTP and on the WebSocket alike. All prices exclude GST.
@@ -316,10 +317,10 @@ Contact us to activate your LLM plan. Your workspace's agreed contract determine
 
 ### Offline transcription
 
-[Transcribing a recorded call](/v2/transcribe-recorded-calls) costs ₹18 per
+[Transcribing a recorded call](/v2/transcribe-recorded-calls) costs ₹15 per
 hour of audio on every tier. A job is charged once, when it completes, for the
 length of the recording to the millisecond, rounded up to the paisa: a
-five-minute call costs ₹1.50. Degraded and failed jobs are free. See
+five-minute call costs ₹1.25. Degraded and failed jobs are free. See
 [pricing](/v2/transcribe-recorded-calls#pricing).
 
 {/* Hand-written section: kept outside the generated pricing blocks above. Update it by hand when flow generation rates change. */}

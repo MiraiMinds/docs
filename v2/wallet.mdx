@@ -309,7 +309,7 @@ Tell a transcription from a draft by its `reference` prefix, `ftr_` or `fgen_`.
 ### An offline transcription row
 
 Each completed [offline transcription](/v2/transcribe-recorded-calls#pricing)
-is one debit with `kind: "transcription"`, at ₹18 per hour of audio. Degraded
+is one debit with `kind: "transcription"`, at ₹15 per hour of audio. Degraded
 and failed jobs write no row.
 
 ```json
@@ -317,8 +317,8 @@ and failed jobs write no row.
   "id": "txn_01M3XRSP44KR3116AZ578NC2F1",
   "object": "wallet_transaction",
   "type": "debit",
-  "amount_inr": 0.12,
-  "balance_after_inr": 8762.06,
+  "amount_inr": 0.1,
+  "balance_after_inr": 8762.08,
   "call_id": null,
   "kind": "transcription",
   "reference": "trn_01M3XRSFXW77RHEQ85979AJXAF",
