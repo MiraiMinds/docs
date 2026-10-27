@@ -261,8 +261,15 @@ losing what the caller said. See [Pipecat](/v2/pipecat#transcribe-with-miraistts
 
 ## Billing
 
-**₹18 per hour of audio**, on HTTP and on the socket. That is 0.5 paise a
-second.
+{/* pricing:stt:start */}
+
+**₹0.30 per minute of audio** (₹18 an hour), on HTTP and on the WebSocket. Top-ups use the same rate.
+
+Speech to text is billed per second of audio you send, on HTTP and on the WebSocket alike. Shared endpoint. No contractual SLA. Monthly commitments are credited to your wallet. Unused credit never expires. All prices exclude GST.
+
+{/* pricing:stt:end */}
+
+That is 0.5 paise a second.
 
 We charge on the seconds of audio we received, rounded up to the next second,
 with a minimum of 1 second, and round the price up to the next paisa. A
@@ -309,8 +316,8 @@ from:
 | `quantity` | Seconds billed. |
 
 Live and offline transcription cost the same: [offline
-transcription](/v2/transcribe-recorded-calls#pricing) of recordings is ₹18 per
-hour too, charged once when the job completes.
+transcription](/v2/transcribe-recorded-calls#pricing) of recordings is ₹0.30 a
+minute (₹18 an hour) too, charged once when the job completes.
 
 ## Limits
 

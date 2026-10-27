@@ -178,8 +178,8 @@ The ledger. One row per credit or debit, newest first.
 | `balance_after_inr` | number | Balance immediately after this row. |
 | `call_id` | string \| null | Set on call debits, `null` on top-ups and adjustments. |
 | `kind` | string | The transaction category: `call`, `tts`, `stt`, `flow_generation`, `transcription`, `number_rental`, `promotion` or `monthly_minimum`. **Branch on this**, never on `description`, and tolerate new categories. |
-| `reference` | string | The id of the thing billed: the `tts_…` request id on a `tts` row; the `fgen_…` generation id, or the `ftr_…` transcription id, on a `flow_generation` row; the `trn_…` job id on a `transcription` row. |
-| `quantity` | number | How much was billed: characters on a `tts` row, tokens (input plus output) on a `flow_generation` row, seconds of audio (rounded up) on a `transcription` row. |
+| `reference` | string | The id of the thing billed: the `tts_…` request id on a `tts` row (on a text-to-speech stream row, the socket's `session_id` and `#` the row's number); the `fgen_…` generation id, or the `ftr_…` transcription id, on a `flow_generation` row; the `trn_…` job id on a `transcription` row. |
+| `quantity` | number | How much was billed: characters on an HTTP `tts` row (a stream row has none and carries `billed_seconds` and `per_min_inr` instead), tokens (input plus output) on a `flow_generation` row, seconds of audio (rounded up) on a `transcription` row. |
 | `description` | string | Human-readable. Do not parse it. |
 | `promotional_inr` | number | Promotional credit granted on a `promotion` row, or the portion of a debit paid with promotional credit. Omitted when zero. Promotional credit does not count towards a monthly minimum. |
 | `pricing` | object | The rates snapshotted when the call was admitted: voice AI, optional T1 insights, and any managed provider rate and billing block. Absent on historical rows. |
@@ -199,8 +199,8 @@ Reconcile against `call_id`: every billable call produces exactly one debit row.
 
 ### A text-to-speech row
 
-[Speech requests](/v2/tts-quickstart#billing) debit the same wallet, at
-₹1.80 per 1,000 characters, and only when the audio was delivered in full:
+[Speech requests](/v2/tts-quickstart#billing) over HTTP debit the same wallet,
+at ₹1.80 per 1,000 characters, and only when the audio was delivered in full:
 
 ```json
 {
@@ -222,11 +222,34 @@ Reconcile against `call_id`: every billable call produces exactly one debit row.
 reconciles against your [request log](/v2/tts-quickstart#your-request-log) the
 way a call row reconciles against `call_id`.
 
-On a [WebSocket stream](/v2/tts-websocket#request-log), each spoken sentence is its
-own row, and `reference` is the `request_id` from that sentence's `audio.done`
-event. Fractions of a paisa carry over between sentences on a socket, so a
-sentence whose share rounds to nothing has a request-log row but no wallet
-row.
+### A text-to-speech stream row
+
+A [WebSocket stream](/v2/tts-websocket#billing) is billed for the time it is
+open, ₹0.90 a minute. Each full minute is one row, charged when the minute
+ends, and the last part-minute is one more row when the socket closes:
+
+```json
+{
+  "id": "txn_01K8F2B4D6G8J0L2N4Q6S8U0W2",
+  "object": "wallet_transaction",
+  "type": "debit",
+  "amount_inr": 0.9,
+  "balance_after_inr": 493.98,
+  "call_id": null,
+  "kind": "tts",
+  "reference": "ttsws_01K6Z8M3Q4R7T9V2X5Y8A1B4C7#1",
+  "billed_seconds": 60,
+  "per_min_inr": 0.9,
+  "description": "Text to speech stream · 60 s · ₹0.90/min",
+  "created_at": "2026-10-27T09:16:39Z"
+}
+```
+
+`reference` is the socket's `session_id` from `session.ready`, then `#` and the
+row's number on that socket, starting at 1. `billed_seconds` is the time the
+row covers and `per_min_inr` the minute price the socket opened with. A stream
+row has no `quantity`: the sentences on the socket are free, and each still
+has its own row in your request log.
 
 ### A flow generation row
 

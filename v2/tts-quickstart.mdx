@@ -362,7 +362,9 @@ is public, so you can run it yourself.
 
 {/* pricing:tts:start */}
 
-**₹1.80 per 1,000 characters.** Top-ups use the same rate.
+**HTTP: ₹1.80 per 1,000 characters. WebSocket: ₹0.90 per minute connected.** Top-ups use the same rates.
+
+On the text-to-speech WebSocket you pay for time, not text: every second the socket is open is billed at the per-minute rate, and the speech it carries is not charged again by the character. HTTP requests are billed by the character.
 
 | Plan | Monthly commitment | Concurrent requests | Top-ups |
 | --- | --- | --- | --- |
@@ -375,15 +377,16 @@ Shared endpoint. No contractual SLA. Monthly commitments are credited to your wa
 
 {/* pricing:tts:end */}
 
-Each request is rounded up to the paisa, and we charge only for completed
-audio. If the engine fails, the stream stalls or your client disconnects
-part-way, nothing is charged and no ledger row is written. The request still
+Over HTTP, each request is rounded up to the paisa, and we charge only for
+completed audio. If the engine fails, the stream stalls or your client
+disconnects part-way, nothing is charged and no ledger row is written. The request still
 appears in your log, with a status that says why. The output format, sample
 rate, bitrate, speed, pitch and loudness do not change the price.
 
-On the [WebSocket endpoint](/v2/tts-websocket#request-log), each sentence is
-charged on its own, and fractions of a paisa carry over between sentences, so a
-streamed reply never costs more than the same text sent in one request.
+On the [WebSocket endpoint](/v2/tts-websocket#billing) you pay for the time
+the socket is open, ₹0.90 a minute counted per second, and not for the
+characters it speaks. Each full minute is one wallet row, and the last
+part-minute is charged when the socket closes.
 
 The charge is one debit row on the same [wallet](/v2/wallet) your calls draw
 from, and it appears on the console billing statement under **Text to speech**:

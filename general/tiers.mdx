@@ -34,6 +34,8 @@ T3 and T1 are minimum monthly spend plans, funded upfront. Paid workspace usage 
 
 Your workspace's agreed contract determines your charges. Advertised rates do not replace an existing contract. T5 and T3 include Mirai phone calling and call insights. T1 adds optional Mirai phone calling at ₹0.30 / minute only on Mirai-managed phone calls. BYO telco, WhatsApp and browser calls have no Mirai telco charge. T1 call insights are on by default at ₹0.20 / minute and can be turned off in Billing.
 
+The Realtime API is priced like an agent call: your plan's rate per minute, metered in the same billing blocks.
+
 {/* pricing:agents:end */}
 
 ## One stack on every tier
@@ -270,9 +272,24 @@ places inherits it.
 
 ## Model API pricing
 
-Text to speech is priced per character — see
-[TTS billing](/v2/tts-quickstart#billing). Speech to text is priced per second of
-audio — see [STT billing](/v2/stt-quickstart#billing). The LLM is priced per token:
+The model APIs draw on the same wallet as your calls. Speech to text is sold by
+the minute of audio. Text to speech is sold by the minute on the WebSocket and
+by the character over HTTP. The LLM is sold by the token.
+
+{/* pricing:models:start */}
+
+| API | HTTP | WebSocket |
+| --- | --- | --- |
+| Text to speech | ₹1.80 per 1,000 characters | ₹0.90 per minute connected |
+| Speech to text | ₹0.30 per minute of audio | ₹0.30 per minute of audio |
+| LLM | ₹15 input, ₹9.30 cached input, ₹55 output per 1,000,000 tokens | — |
+
+On the text-to-speech WebSocket you pay for time, not text: every second the socket is open is billed at the per-minute rate, and the speech it carries is not charged again by the character. HTTP requests are billed by the character. Speech to text is billed per second of audio you send, on HTTP and on the WebSocket alike. All prices exclude GST.
+
+{/* pricing:models:end */}
+
+How each one is metered: [TTS billing](/v2/tts-quickstart#billing),
+[STT billing](/v2/stt-quickstart#billing). The LLM in detail:
 
 {/* pricing:llm:start */}
 

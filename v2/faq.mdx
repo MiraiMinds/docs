@@ -138,6 +138,14 @@ Calls are billed in 10-second blocks, rounded up, with a one-block minimum. On
 T3, a 96-second call costs ₹5.00 and an 8-second call costs ₹0.50. See
 [Billing & tiers](/general/tiers).
 
+**What do the model APIs cost?**
+Text to speech costs ₹0.90 a minute on the WebSocket, for as long as the socket
+is open, or ₹1.80 per 1,000 characters over HTTP. Speech to text costs ₹0.30 a
+minute of audio on both. The LLM costs ₹15 per 1,000,000 input tokens, ₹9.30
+cached and ₹55 output. A [Realtime](/v2/realtime#billing) session is billed
+like a call, at your plan's rate. See
+[Model API pricing](/general/tiers#model-api-pricing).
+
 **Am I charged for calls that do not connect?**
 No. `no_answer`, `busy`, `failed` and `aborted` are free. `completed`,
 `voicemail` and `timeout` are billed.

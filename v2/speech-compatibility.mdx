@@ -126,6 +126,10 @@ good for one socket. It checks the wallet before minting, so an empty wallet
 gets `402 insufficient_balance` here instead of at the socket. Ignore
 `edge_url`: it is `null`, and you connect to `url`.
 
+The text-to-speech mint checks the wallet too: a socket costs ₹0.90 a minute,
+so it needs one minute's price before it mints. See
+[WebSocket billing](/v2/tts-websocket#billing).
+
 A token that is unknown, expired or already used fails the upgrade with
 `401 invalid_token`. Mint a new one for each connection, including a reconnect.
 
