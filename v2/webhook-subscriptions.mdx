@@ -150,12 +150,11 @@ curl -X PATCH https://sandbox.voice.miraiminds.co/v2/webhooks/settings \
   "object": "webhook_settings",
   "low_balance_threshold_inr": 2000,
   "revision": 1,
-  "updated_at": "2026-10-26T06:12:00Z",
-  "call_webhook_urls": []
+  "updated_at": "2026-10-26T06:12:00Z"
 }
 ```
 
-`GET /v2/webhooks/settings` reads it, along with `call_webhook_urls`, the `webhook_url`s your calls used in the last 7 days ([details](/v2/webhook-secrets#read-per-call-deliveries-with-the-api)). Set it to `0` to turn `wallet.balance_low` off; `wallet.depleted` still fires. Pass `if_revision` if you want a stale write refused.
+`GET /v2/webhooks/settings` reads it, and also returns `call_webhook_urls`, the `webhook_url`s your calls used in the last 7 days ([details](/v2/webhook-secrets#read-per-call-deliveries-with-the-api)). Set it to `0` to turn `wallet.balance_low` off; `wallet.depleted` still fires. Pass `if_revision` if you want a stale write refused.
 
 ## Payloads
 
