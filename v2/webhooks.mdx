@@ -434,8 +434,16 @@ X-Mirai-Signature: t=1785057398,v1=771bca27e1647dfbe59ff5d8f32d9de69be246f6e604c
 | `v1` | Lowercase hex `HMAC-SHA256(secret, "<t>.<raw_body>")`. |
 
 The signed string is the timestamp, a literal `.`, then the **raw request body
-bytes**. The secret is your per-workspace `whsec_…`, shown once when your key is
-issued.
+bytes**. The secret is your API key's Call webhook secret, the `whsec_…` shown
+once when your key is issued. If the `webhook_url` is also one of your
+[destinations](/v2/webhook-subscriptions), the destination's secret signs it
+instead. `X-Mirai-Signed-With` names the secret that signed each delivery:
+
+```http
+X-Mirai-Signed-With: api_key
+```
+
+See [Which webhook secret do I use?](/v2/webhook-secrets)
 
 Verification takes four steps:
 
@@ -723,6 +731,9 @@ Some consequences to plan for:
 - **A `401` from your signature check is a retryable failure to us.** We do
   this on purpose, so that a transient secret-loading bug on your side does not
   lose the event.
+  Every attempt is listed in the console under **Webhooks**, in the
+  **Call webhook_url** panel. For a failed check, see
+  [A webhook failed its signature check](/v2/webhook-secrets#a-webhook-failed-its-signature-check).
 
 ## Linking an event to your own records
 
