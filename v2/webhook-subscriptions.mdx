@@ -13,7 +13,7 @@ You register an endpoint once, then pick the events it should receive:
 - payments: payment received, payment failed
 
 The per-call `webhook_url`, the campaign `webhook_url` and a phone number's `webhook_url` keep working as described in [Webhooks](/v2/webhooks).
-If you use both for the same call or campaign, both receive it.
+If you use both for the same call or campaign with different URLs, both receive it. If a call's `webhook_url` is the same URL as a destination, that URL receives each event once, signed with the destination's secret. See [Which webhook secret do I use?](/v2/webhook-secrets)
 
 <Tip>
 In the console, open **Webhooks** to add an endpoint and tick events from a checklist. Everything on this page is the same feature through the API.
@@ -150,11 +150,12 @@ curl -X PATCH https://sandbox.voice.miraiminds.co/v2/webhooks/settings \
   "object": "webhook_settings",
   "low_balance_threshold_inr": 2000,
   "revision": 1,
-  "updated_at": "2026-10-26T06:12:00Z"
+  "updated_at": "2026-10-26T06:12:00Z",
+  "call_webhook_urls": []
 }
 ```
 
-`GET /v2/webhooks/settings` reads it. Set it to `0` to turn `wallet.balance_low` off; `wallet.depleted` still fires. Pass `if_revision` if you want a stale write refused.
+`GET /v2/webhooks/settings` reads it, along with `call_webhook_urls`, the `webhook_url`s your calls used in the last 7 days ([details](/v2/webhook-secrets#read-per-call-deliveries-with-the-api)). Set it to `0` to turn `wallet.balance_low` off; `wallet.depleted` still fires. Pass `if_revision` if you want a stale write refused.
 
 ## Payloads
 
@@ -268,13 +269,14 @@ Each event type's full JSON schema is in `GET /v2/webhooks/event-types`.
 
 ## Verify the signature
 
-Every delivery is signed with the endpoint's `signing_secret`, using the same scheme as [call webhooks](/v2/webhooks#signature-verification):
+Every delivery is signed with the endpoint's `signing_secret` (the Destination secret), using the same scheme as [call webhooks](/v2/webhooks#signature-verification):
 
 ```http
 X-Mirai-Signature: t=1785057398,v1=771bca27e1647dfbe59ff5d8f32d9de69be246f6e604c05bddcbaefd8604ccb3
 X-Mirai-Delivery-ID: whd_…
 X-Mirai-Attempt: 1
 X-Mirai-Key-Version: 1
+X-Mirai-Signed-With: whe_3f9c2a71d4b84e0f9a6b1c2d3e4f5a6b
 ```
 
 `v1` is the lowercase hex `HMAC-SHA256(signing_secret, "<t>.<raw_body>")`. Reject a timestamp more than 300 seconds from now, and compare in constant time.
@@ -307,7 +309,7 @@ def verify(raw_body: bytes, header: str, secret: str) -> bool:
 ```
 </CodeGroup>
 
-Verify the raw bytes you received, before parsing the JSON.
+Verify the raw bytes you received, before parsing the JSON. `X-Mirai-Signed-With` names the destination whose secret signed the delivery. If a check fails, see [A webhook failed its signature check](/v2/webhook-secrets#a-webhook-failed-its-signature-check).
 
 **Rotating the secret.** `POST /v2/webhooks/endpoints/{id}/rotate-secret` with `{"if_revision": N}` returns a new secret that starts signing five minutes later. Install it alongside the old one before then, and keep the old one for an hour. `X-Mirai-Key-Version` tells you which secret signed a delivery.
 
@@ -323,6 +325,7 @@ A failed delivery is retried after 1 second, 7 seconds, 49 seconds, about 6 minu
 | `GET /v2/webhooks/deliveries/{id}/attempts` | Every attempt, with status code, error and latency. |
 | `POST /v2/webhooks/deliveries/{id}/retry` | Send a failed delivery again with the same event id and bytes. Body: `{"if_revision": N}`. |
 | `GET /v2/webhooks/events` | Every event from the last 30 days, including ones no subscription matched. |
+| `GET /v2/webhooks/call-deliveries` | Attempts to deliver to the `webhook_url` passed on calls. See [per-call deliveries](/v2/webhook-secrets#read-per-call-deliveries-with-the-api). |
 
 ## Manage endpoints and subscriptions
 
