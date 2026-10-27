@@ -74,6 +74,10 @@
       "description": "Your prepaid balance and every line that moved it. Calls, text to speech, flow drafts, transcriptions and number rentals all debit the same wallet."
     },
     {
+      "name": "Webhooks",
+      "description": "Get call events at your own HTTPS URL, signed, retried and kept for 30 days.\n\n1. [Create a destination](/api-reference/webhooks/create-a-destination) with your URL. Save the `signing_secret` from that answer: it is shown once.\n2. [Subscribe a destination to events](/api-reference/webhooks/subscribe-a-destination-to-events), for one agent or the whole workspace. `call.completed` arrives when a call ends; `call.processing.completed` when the recording, transcript, results and post-call tools have all settled.\n3. [Send a test event](/api-reference/webhooks/send-a-test-event). It is a real POST to your URL with made-up call data and `test: true`. No call is placed.\n\nEvery request carries `X-Mirai-Signature: t=<unix>,v1=<hex>`, an HMAC-SHA256 of `<unix>.<raw body>`, and `X-Mirai-Signed-With`, which names the secret that signed it. A destination's requests are signed with its own Destination secret; the `webhook_url` you pass when creating a call is signed with your Call webhook secret, the one shown with your API keys. A URL that is both gets each event once, with one secret. Delivery is at least once, so keep each event `id` and skip ones you've already handled.\n\nChanges send the resource's current `revision` (`if_revision`); a stale one is a 409 and changes nothing. Until the webhook release reaches your workspace these routes answer 404. The same settings are in the console under Webhooks, and on each agent in Agent Studio."
+    },
+    {
       "name": "Reference",
       "description": "The voice catalogue, and the API contract as a machine-readable document."
     }
@@ -1020,7 +1024,7 @@
                         "type": "array"
                       },
                       "system_prompt": {
-                        "maxLength": 16000,
+                        "maxLength": 48000,
                         "type": "string"
                       },
                       "tools": {
@@ -1958,6 +1962,7 @@
           {
             "in": "query",
             "name": "until",
+            "required": false,
             "schema": {
               "type": "string"
             }
@@ -2196,7 +2201,7 @@
                         "type": "array"
                       },
                       "voice_id": {
-                        "description": "The voice the agent speaks in on this call: one of the voices an agent's voice.voice_id accepts. Same as the older voice.voice_id; both with different values is 400.",
+                        "description": "The voice the agent speaks in on this call: one of the voices an agent's voice.voice_id accepts, including your own custom voices (cv_...) except on channel realtime (422 voice_not_supported). Same as the older voice.voice_id; both with different values is 400.",
                         "minLength": 1,
                         "type": "string"
                       }
@@ -2259,7 +2264,7 @@
                     "type": "string"
                   },
                   "system_prompt": {
-                    "description": "Replaces the agent's system prompt for this call only; the agent, its revision and every other setting stay the agent's. {{var}} placeholders are filled from this call's variables and validated like the agent's system_prompt (with an input_schema, each must be a declared input, a system variable or a pre-call tool output). Stored with the call but never returned on the call object or in webhooks. Not accepted for channel realtime (400 invalid_request) or for a flow agent (409 flow_system_prompt_unsupported).",
+                    "description": "Replaces the agent's system prompt for this call only; the agent, its revision and every other setting stay the agent's. {{var}} placeholders are filled from this call's variables and validated like the agent's system_prompt (with an input_schema, each must be a declared input, a system variable or a pre-call tool output). Stored with the call but never returned on the call object or in webhooks. Not accepted for channel realtime (400 invalid_request) or for a flow agent (409 flow_system_prompt_unsupported). A sync pre_call tool may set the call's prompt instead (a top-level system_prompt string in its result, up to 48000 characters); one sent here wins over the tool's.",
                     "maxLength": 16000,
                     "minLength": 1,
                     "type": "string"
@@ -2313,6 +2318,8 @@
                   },
                   "variables": {
                     "additionalProperties": {},
+                    "description": "The agent's inputs for this call, checked against its input_schema (without one, string values only). Each value, as text (an object or array as its JSON), is at most 512 characters, except an input the agent's input_schema declares as an object, an array or a string with maxLength above 512, which may be up to 49152 characters. At most 65536 bytes in all. An over-long value is 400 invalid_request naming the key and its limit.",
+                    "maxProperties": 32,
                     "type": "object"
                   },
                   "voice": {
@@ -5325,12 +5332,13 @@
           {
             "name": "if_revision",
             "in": "query",
-            "required": false,
+            "required": true,
             "description": "Optional. The agent revision you read.",
             "schema": {
-              "type": "string"
+              "minimum": 1,
+              "type": "integer"
             },
-            "example": "1"
+            "example": 1
           }
         ],
         "requestBody": {
@@ -6577,12 +6585,13 @@
           {
             "name": "if_revision",
             "in": "query",
-            "required": false,
+            "required": true,
             "description": "Only remove it if the agent is still at this revision.",
             "schema": {
-              "type": "string"
+              "minimum": 1,
+              "type": "integer"
             },
-            "example": "1"
+            "example": 1
           }
         ],
         "responses": {
@@ -7195,6 +7204,3662 @@
         }
       }
     },
+    "/v2/webhooks/event-types": {
+      "get": {
+        "operationId": "list_webhook_event_types",
+        "summary": "List event types",
+        "description": "Every event you can subscribe to, in display order, with its group, a plain description, its JSON schema and a sample payload.",
+        "tags": [
+          "Webhooks"
+        ],
+        "responses": {
+          "200": {
+            "description": "The catalogue",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "items": {
+                        "properties": {
+                          "description": {
+                            "type": "string"
+                          },
+                          "example": {
+                            "properties": {
+                              "created_at": {
+                                "format": "date-time",
+                                "type": "string"
+                              },
+                              "data": {
+                                "additionalProperties": {},
+                                "type": "object"
+                              },
+                              "id": {
+                                "type": "string"
+                              },
+                              "schema_version": {
+                                "type": "string"
+                              },
+                              "source_id": {
+                                "type": "string"
+                              },
+                              "subject": {
+                                "properties": {
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "type": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "type",
+                                  "id"
+                                ],
+                                "type": "object"
+                              },
+                              "test": {
+                                "type": "boolean"
+                              },
+                              "type": {
+                                "type": "string"
+                              },
+                              "workspace_id": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "type",
+                              "created_at",
+                              "schema_version",
+                              "workspace_id",
+                              "subject",
+                              "source_id",
+                              "test",
+                              "data"
+                            ],
+                            "type": "object"
+                          },
+                          "group": {
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": "string"
+                          },
+                          "schema": {
+                            "additionalProperties": {},
+                            "type": "object"
+                          },
+                          "scopes": {
+                            "items": {
+                              "type": "string"
+                            },
+                            "type": "array"
+                          },
+                          "type": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "label",
+                          "group",
+                          "description",
+                          "scopes",
+                          "schema",
+                          "example"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "has_more": {
+                      "type": "boolean"
+                    },
+                    "next_cursor": {
+                      "type": "string"
+                    },
+                    "object": {
+                      "enum": [
+                        "list"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "object",
+                    "data",
+                    "has_more"
+                  ],
+                  "type": "object"
+                },
+                "examples": {
+                  "The catalogue": {
+                    "summary": "200 — the catalogue",
+                    "value": {
+                      "object": "list",
+                      "data": [
+                        {
+                          "type": "call.completed",
+                          "label": "Call completed",
+                          "group": "call",
+                          "description": "The call ended normally. Analysis and post-call actions may still be running.",
+                          "schema": {
+                            "type": "object"
+                          },
+                          "example": {
+                            "id": "evt_01K9V2E6G8J0M2P4R6T8W0Y2A4",
+                            "type": "call.completed",
+                            "created_at": "2026-10-10T06:30:12.481Z",
+                            "schema_version": "2026-09-22",
+                            "workspace_id": "ws_example",
+                            "subject": {
+                              "type": "call",
+                              "id": "call_01K9V1Z9X7V5T3R1P9N7M5K3H1"
+                            },
+                            "source_id": "call_01K9V1Z9X7V5T3R1P9N7M5K3H1:processing:1",
+                            "test": true,
+                            "data": {
+                              "call": {
+                                "id": "call_01K9V1Z9X7V5T3R1P9N7M5K3H1",
+                                "agent_id": "agt_01K2M4P7QRSTVWXYZ0A1B2C3",
+                                "status": "completed"
+                              },
+                              "processing": {
+                                "version": 1,
+                                "state": "completed",
+                                "outcome": "completed",
+                                "stages": {
+                                  "analysis": {
+                                    "state": "completed",
+                                    "generation": 1
+                                  },
+                                  "recording": {
+                                    "state": "completed",
+                                    "generation": 1
+                                  },
+                                  "transcript": {
+                                    "state": "completed",
+                                    "generation": 1
+                                  },
+                                  "post_call_tools": {
+                                    "state": "skipped",
+                                    "generation": 1
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        },
+                        {
+                          "type": "call.processing.completed",
+                          "label": "All processing finished",
+                          "group": "processing",
+                          "description": "Recording, transcript, analysis and post-call actions have all finished, including any failures.",
+                          "schema": {
+                            "type": "object"
+                          },
+                          "example": {
+                            "id": "evt_01K9V2E6G8J0M2P4R6T8W0Y2A4",
+                            "type": "call.processing.completed",
+                            "created_at": "2026-10-10T06:30:12.481Z",
+                            "schema_version": "2026-09-22",
+                            "workspace_id": "ws_example",
+                            "subject": {
+                              "type": "call",
+                              "id": "call_01K9V1Z9X7V5T3R1P9N7M5K3H1"
+                            },
+                            "source_id": "call_01K9V1Z9X7V5T3R1P9N7M5K3H1:processing:1",
+                            "test": true,
+                            "data": {
+                              "call": {
+                                "id": "call_01K9V1Z9X7V5T3R1P9N7M5K3H1",
+                                "agent_id": "agt_01K2M4P7QRSTVWXYZ0A1B2C3",
+                                "status": "completed"
+                              },
+                              "processing": {
+                                "version": 1,
+                                "state": "completed",
+                                "outcome": "completed",
+                                "stages": {
+                                  "analysis": {
+                                    "state": "completed",
+                                    "generation": 1
+                                  },
+                                  "recording": {
+                                    "state": "completed",
+                                    "generation": 1
+                                  },
+                                  "transcript": {
+                                    "state": "completed",
+                                    "generation": 1
+                                  },
+                                  "post_call_tools": {
+                                    "state": "skipped",
+                                    "generation": 1
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      ],
+                      "has_more": false
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not on this workspace yet",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "Not on this workspace yet": {
+                    "summary": "404 — not on this workspace yet",
+                    "value": {
+                      "error": {
+                        "code": "not_found",
+                        "message": "Webhooks are not available on this workspace yet."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/webhooks/endpoints": {
+      "post": {
+        "operationId": "create_webhook_endpoint",
+        "summary": "Create a destination",
+        "description": "A reusable HTTPS address (port 443) that events are POSTed to. Optional `headers` (up to 16) are stored encrypted; reads only show their names.\n\nThe answer includes `signing_secret`. Store it in your server's environment now; ordinary reads never return it.",
+        "tags": [
+          "Webhooks"
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "description": "Up to 255 characters. The same key within 24 hours replays the first answer and creates nothing new. Build it from your own record, such as `order-8842-reminder-1`.",
+            "schema": {
+              "maxLength": 200,
+              "type": "string"
+            },
+            "example": "order-8842-reminder-1"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "enabled": {
+                    "type": "boolean"
+                  },
+                  "headers": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "maxProperties": 16,
+                    "type": "object"
+                  },
+                  "method": {
+                    "enum": [
+                      "POST"
+                    ],
+                    "type": "string"
+                  },
+                  "name": {
+                    "maxLength": 100,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "url": {
+                    "format": "uri",
+                    "maxLength": 2048,
+                    "minLength": 1,
+                    "pattern": "^https://",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name",
+                  "url"
+                ],
+                "type": "object"
+              },
+              "examples": {
+                "Create a destination": {
+                  "summary": "Create a destination",
+                  "value": {
+                    "name": "Customer CRM",
+                    "url": "https://crm.example.com/mirai/webhooks",
+                    "headers": {
+                      "Authorization": "Bearer REPLACE_ME"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "created_at": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "enabled": {
+                      "type": "boolean"
+                    },
+                    "header_names": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "health": {
+                      "additionalProperties": {
+                        "type": "integer"
+                      },
+                      "type": "object"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "method": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "object": {
+                      "type": "string"
+                    },
+                    "revision": {
+                      "type": "integer"
+                    },
+                    "signing_key_version": {
+                      "type": "integer"
+                    },
+                    "signing_secret": {
+                      "type": "string"
+                    },
+                    "url": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "object",
+                    "name",
+                    "url",
+                    "method",
+                    "header_names",
+                    "enabled",
+                    "revision",
+                    "created_at",
+                    "signing_secret",
+                    "signing_key_version"
+                  ],
+                  "type": "object"
+                },
+                "examples": {
+                  "Created": {
+                    "summary": "201 — created",
+                    "value": {
+                      "id": "whe_01K9V2C4E6G8J0M2P4R6T8W0Y2",
+                      "object": "webhook_endpoint",
+                      "name": "Customer CRM",
+                      "url": "https://crm.example.com/mirai/webhooks",
+                      "method": "POST",
+                      "header_names": [
+                        "Authorization"
+                      ],
+                      "enabled": true,
+                      "revision": 1,
+                      "created_at": "2026-10-10T06:30:12.481Z",
+                      "signing_secret": "whsec_REPLACE_ME",
+                      "signing_key_version": 1
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Not an HTTPS URL",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "Not an HTTPS URL": {
+                    "summary": "400 — not an HTTPS URL",
+                    "value": {
+                      "error": {
+                        "code": "invalid_request",
+                        "message": "url must be an https URL on port 443"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "list_webhook_endpoints",
+        "summary": "List destinations",
+        "description": "Every destination in the workspace. Header values and signing secrets are never shown.",
+        "tags": [
+          "Webhooks"
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "1 to 100; 20 when left out",
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "example": 20
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "next_cursor from the previous page",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "items": {
+                        "properties": {
+                          "created_at": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "enabled": {
+                            "type": "boolean"
+                          },
+                          "header_names": {
+                            "items": {
+                              "type": "string"
+                            },
+                            "type": "array"
+                          },
+                          "health": {
+                            "additionalProperties": {
+                              "type": "integer"
+                            },
+                            "type": "object"
+                          },
+                          "id": {
+                            "type": "string"
+                          },
+                          "method": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "object": {
+                            "type": "string"
+                          },
+                          "revision": {
+                            "type": "integer"
+                          },
+                          "url": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "object",
+                          "name",
+                          "url",
+                          "method",
+                          "header_names",
+                          "enabled",
+                          "revision",
+                          "created_at"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "has_more": {
+                      "type": "boolean"
+                    },
+                    "next_cursor": {
+                      "type": "string"
+                    },
+                    "object": {
+                      "enum": [
+                        "list"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "object",
+                    "data",
+                    "has_more"
+                  ],
+                  "type": "object"
+                },
+                "examples": {
+                  "One page": {
+                    "summary": "200 — one page",
+                    "value": {
+                      "object": "list",
+                      "data": [
+                        {
+                          "id": "whe_01K9V2C4E6G8J0M2P4R6T8W0Y2",
+                          "object": "webhook_endpoint",
+                          "name": "Customer CRM",
+                          "url": "https://crm.example.com/mirai/webhooks",
+                          "method": "POST",
+                          "header_names": [
+                            "Authorization"
+                          ],
+                          "enabled": true,
+                          "revision": 1,
+                          "created_at": "2026-10-10T06:30:12.481Z"
+                        }
+                      ],
+                      "has_more": false
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/webhooks/endpoints/{webhook_endpoint_id}": {
+      "get": {
+        "operationId": "get_webhook_endpoint",
+        "summary": "Get a destination",
+        "description": "One destination with its `revision` and recent delivery health.",
+        "tags": [
+          "Webhooks"
+        ],
+        "parameters": [
+          {
+            "name": "webhook_endpoint_id",
+            "in": "path",
+            "required": true,
+            "description": "",
+            "schema": {
+              "type": "string"
+            },
+            "example": "whe_01K9V2C4E6G8J0M2P4R6T8W0Y2"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The destination",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "created_at": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "enabled": {
+                      "type": "boolean"
+                    },
+                    "header_names": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "health": {
+                      "additionalProperties": {
+                        "type": "integer"
+                      },
+                      "type": "object"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "method": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "object": {
+                      "type": "string"
+                    },
+                    "revision": {
+                      "type": "integer"
+                    },
+                    "url": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "object",
+                    "name",
+                    "url",
+                    "method",
+                    "header_names",
+                    "enabled",
+                    "revision",
+                    "created_at"
+                  ],
+                  "type": "object"
+                },
+                "examples": {
+                  "The destination": {
+                    "summary": "200 — the destination",
+                    "value": {
+                      "id": "whe_01K9V2C4E6G8J0M2P4R6T8W0Y2",
+                      "object": "webhook_endpoint",
+                      "name": "Customer CRM",
+                      "url": "https://crm.example.com/mirai/webhooks",
+                      "method": "POST",
+                      "header_names": [
+                        "Authorization"
+                      ],
+                      "enabled": true,
+                      "revision": 1,
+                      "created_at": "2026-10-10T06:30:12.481Z"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not in this workspace",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "Not in this workspace": {
+                    "summary": "404 — not in this workspace",
+                    "value": {
+                      "error": {
+                        "code": "not_found",
+                        "message": "Webhook resource not found."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "update_webhook_endpoint",
+        "summary": "Update a destination",
+        "description": "Rename it, move it to a new URL, replace its headers or pause it (`enabled: false`). Pausing holds queued requests; their 24-hour deadline keeps running. Send the current `if_revision`.",
+        "tags": [
+          "Webhooks"
+        ],
+        "parameters": [
+          {
+            "name": "webhook_endpoint_id",
+            "in": "path",
+            "required": true,
+            "description": "",
+            "schema": {
+              "type": "string"
+            },
+            "example": "whe_01K9V2C4E6G8J0M2P4R6T8W0Y2"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "enabled": {
+                    "type": "boolean"
+                  },
+                  "headers": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "maxProperties": 16,
+                    "type": "object"
+                  },
+                  "if_revision": {
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  "name": {
+                    "maxLength": 100,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "url": {
+                    "format": "uri",
+                    "maxLength": 2048,
+                    "minLength": 1,
+                    "pattern": "^https://",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "if_revision"
+                ],
+                "type": "object"
+              },
+              "examples": {
+                "Update a destination": {
+                  "summary": "Update a destination",
+                  "value": {
+                    "if_revision": 1,
+                    "url": "https://crm.example.com/mirai/v2/webhooks"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "created_at": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "enabled": {
+                      "type": "boolean"
+                    },
+                    "header_names": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "health": {
+                      "additionalProperties": {
+                        "type": "integer"
+                      },
+                      "type": "object"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "method": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "object": {
+                      "type": "string"
+                    },
+                    "revision": {
+                      "type": "integer"
+                    },
+                    "url": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "object",
+                    "name",
+                    "url",
+                    "method",
+                    "header_names",
+                    "enabled",
+                    "revision",
+                    "created_at"
+                  ],
+                  "type": "object"
+                },
+                "examples": {
+                  "Updated": {
+                    "summary": "200 — updated",
+                    "value": {
+                      "id": "whe_01K9V2C4E6G8J0M2P4R6T8W0Y2",
+                      "object": "webhook_endpoint",
+                      "name": "Customer CRM",
+                      "url": "https://crm.example.com/mirai/v2/webhooks",
+                      "method": "POST",
+                      "header_names": [
+                        "Authorization"
+                      ],
+                      "enabled": true,
+                      "revision": 2,
+                      "created_at": "2026-10-10T06:30:12.481Z"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Stale revision",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "Stale revision": {
+                    "summary": "409 — stale revision",
+                    "value": {
+                      "error": {
+                        "code": "conflict",
+                        "message": "The resource changed since you read it. Read it again, then retry with its revision."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "delete_webhook_endpoint",
+        "summary": "Delete a destination",
+        "description": "Removes it and its subscriptions and cancels unsent requests. Delivery history stays for 30 days.",
+        "tags": [
+          "Webhooks"
+        ],
+        "parameters": [
+          {
+            "name": "webhook_endpoint_id",
+            "in": "path",
+            "required": true,
+            "description": "",
+            "schema": {
+              "type": "string"
+            },
+            "example": "whe_01K9V2C4E6G8J0M2P4R6T8W0Y2"
+          },
+          {
+            "name": "if_revision",
+            "in": "query",
+            "required": true,
+            "description": "the destination's current revision",
+            "schema": {
+              "minimum": 1,
+              "type": "integer"
+            },
+            "example": 1
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "409": {
+            "description": "Stale revision",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "Stale revision": {
+                    "summary": "409 — stale revision",
+                    "value": {
+                      "error": {
+                        "code": "conflict",
+                        "message": "The resource changed since you read it. Read it again, then retry with its revision."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/webhooks/endpoints/{webhook_endpoint_id}/rotate-secret": {
+      "post": {
+        "operationId": "rotate_webhook_endpoint_secret",
+        "summary": "Rotate the signing secret",
+        "description": "Issues a new secret that starts signing five minutes later. Install it before then and accept both for the switch; keep the old one for an hour.",
+        "tags": [
+          "Webhooks"
+        ],
+        "parameters": [
+          {
+            "name": "webhook_endpoint_id",
+            "in": "path",
+            "required": true,
+            "description": "",
+            "schema": {
+              "type": "string"
+            },
+            "example": "whe_01K9V2C4E6G8J0M2P4R6T8W0Y2"
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "description": "Up to 255 characters. The same key within 24 hours replays the first answer and creates nothing new. Build it from your own record, such as `order-8842-reminder-1`.",
+            "schema": {
+              "maxLength": 200,
+              "type": "string"
+            },
+            "example": "order-8842-reminder-1"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "if_revision": {
+                    "minimum": 1,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "if_revision"
+                ],
+                "type": "object"
+              },
+              "examples": {
+                "Rotate the signing secret": {
+                  "summary": "Rotate the signing secret",
+                  "value": {
+                    "if_revision": 1
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "New secret",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "activates_at": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "endpoint_id": {
+                      "type": "string"
+                    },
+                    "revision": {
+                      "type": "integer"
+                    },
+                    "signing_key_version": {
+                      "type": "integer"
+                    },
+                    "signing_secret": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "endpoint_id",
+                    "revision",
+                    "signing_secret",
+                    "signing_key_version",
+                    "activates_at"
+                  ],
+                  "type": "object"
+                },
+                "examples": {
+                  "New secret": {
+                    "summary": "200 — new secret",
+                    "value": {
+                      "endpoint_id": "whe_01K9V2C4E6G8J0M2P4R6T8W0Y2",
+                      "revision": 2,
+                      "signing_secret": "whsec_REPLACE_ME",
+                      "signing_key_version": 2,
+                      "activates_at": "2026-10-10T06:35:12.481Z"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A rotation is already pending",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "A rotation is already pending": {
+                    "summary": "409 — a rotation is already pending",
+                    "value": {
+                      "error": {
+                        "code": "rotation_pending",
+                        "message": "A signing-secret rotation is already pending."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/webhooks/endpoints/{webhook_endpoint_id}/test": {
+      "post": {
+        "operationId": "test_webhook_endpoint",
+        "summary": "Send a test event",
+        "description": "Queues one signed event with made-up call data and `test: true`, sent for real to the destination's URL. No call is placed. The answer is the queued delivery; read it (and its attempts) to see what your server said.",
+        "tags": [
+          "Webhooks"
+        ],
+        "parameters": [
+          {
+            "name": "webhook_endpoint_id",
+            "in": "path",
+            "required": true,
+            "description": "",
+            "schema": {
+              "type": "string"
+            },
+            "example": "whe_01K9V2C4E6G8J0M2P4R6T8W0Y2"
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "description": "Up to 255 characters. The same key within 24 hours replays the first answer and creates nothing new. Build it from your own record, such as `order-8842-reminder-1`.",
+            "schema": {
+              "maxLength": 200,
+              "type": "string"
+            },
+            "example": "order-8842-reminder-1"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "event_type": {
+                    "enum": [
+                      "call.queued",
+                      "call.started",
+                      "call.completed",
+                      "call.failed",
+                      "call.aborted",
+                      "call.voicemail",
+                      "call.recording.ready",
+                      "call.analysis.completed",
+                      "call.analysis.failed",
+                      "call.analysis.skipped",
+                      "call.processed",
+                      "call.processing.completed",
+                      "campaign.started",
+                      "campaign.paused",
+                      "campaign.resumed",
+                      "campaign.completed",
+                      "campaign.stopped",
+                      "wallet.balance_low",
+                      "wallet.depleted",
+                      "wallet.balance_restored",
+                      "payment.succeeded",
+                      "payment.failed"
+                    ],
+                    "type": "string"
+                  },
+                  "if_revision": {
+                    "minimum": 1,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "if_revision",
+                  "event_type"
+                ],
+                "type": "object"
+              },
+              "examples": {
+                "Send a test event": {
+                  "summary": "Send a test event",
+                  "value": {
+                    "if_revision": 1,
+                    "event_type": "call.processing.completed"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Queued",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "attempts": {
+                      "type": "integer"
+                    },
+                    "created_at": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "cycle": {
+                      "type": "integer"
+                    },
+                    "cycle_attempts": {
+                      "type": "integer"
+                    },
+                    "deadline": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "endpoint_id": {
+                      "type": "string"
+                    },
+                    "endpoint_revision": {
+                      "type": "integer"
+                    },
+                    "event_id": {
+                      "type": "string"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "last_error": {
+                      "type": "string"
+                    },
+                    "last_http_status": {
+                      "type": "integer"
+                    },
+                    "next_attempt_at": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "object": {
+                      "type": "string"
+                    },
+                    "revision": {
+                      "type": "integer"
+                    },
+                    "state": {
+                      "type": "string"
+                    },
+                    "subscription_ids": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "object",
+                    "event_id",
+                    "endpoint_id",
+                    "endpoint_revision",
+                    "subscription_ids",
+                    "state",
+                    "revision",
+                    "cycle",
+                    "attempts",
+                    "cycle_attempts",
+                    "next_attempt_at",
+                    "deadline",
+                    "created_at"
+                  ],
+                  "type": "object"
+                },
+                "examples": {
+                  "Queued": {
+                    "summary": "202 — queued",
+                    "value": {
+                      "id": "whd_01K9V2F7H9K1N3Q5S7V9X1Z3B5",
+                      "object": "webhook_delivery",
+                      "event_id": "evt_01K9V2E6G8J0M2P4R6T8W0Y2A4",
+                      "endpoint_id": "whe_01K9V2C4E6G8J0M2P4R6T8W0Y2",
+                      "endpoint_revision": 1,
+                      "subscription_ids": [
+                        "whs_01K9V2D5F7H9K1N3Q5S7V9X1Z3"
+                      ],
+                      "state": "pending",
+                      "revision": 1,
+                      "cycle": 1,
+                      "attempts": 0,
+                      "cycle_attempts": 0,
+                      "last_http_status": 0,
+                      "next_attempt_at": "2026-10-10T06:30:12.481Z",
+                      "deadline": "2026-10-11T06:30:12.481Z",
+                      "created_at": "2026-10-10T06:30:12.481Z"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/webhooks/subscriptions": {
+      "post": {
+        "operationId": "create_webhook_subscription",
+        "summary": "Subscribe a destination to events",
+        "description": "Which events go to a destination, for one agent (`scope.type: agent`) or every agent in the workspace (`scope.type: workspace`). Inbound and outbound calls both count. Overlapping subscriptions to the same destination send one copy.",
+        "tags": [
+          "Webhooks"
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "description": "Up to 255 characters. The same key within 24 hours replays the first answer and creates nothing new. Build it from your own record, such as `order-8842-reminder-1`.",
+            "schema": {
+              "maxLength": 200,
+              "type": "string"
+            },
+            "example": "order-8842-reminder-1"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "enabled": {
+                    "type": "boolean"
+                  },
+                  "endpoint_id": {
+                    "type": "string"
+                  },
+                  "event_types": {
+                    "items": {
+                      "enum": [
+                        "call.queued",
+                        "call.started",
+                        "call.completed",
+                        "call.failed",
+                        "call.aborted",
+                        "call.voicemail",
+                        "call.recording.ready",
+                        "call.analysis.completed",
+                        "call.analysis.failed",
+                        "call.analysis.skipped",
+                        "call.processed",
+                        "call.processing.completed",
+                        "campaign.started",
+                        "campaign.paused",
+                        "campaign.resumed",
+                        "campaign.completed",
+                        "campaign.stopped",
+                        "wallet.balance_low",
+                        "wallet.depleted",
+                        "wallet.balance_restored",
+                        "payment.succeeded",
+                        "payment.failed"
+                      ],
+                      "type": "string"
+                    },
+                    "maxItems": 22,
+                    "minItems": 1,
+                    "type": "array",
+                    "uniqueItems": true
+                  },
+                  "scope": {
+                    "oneOf": [
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "type": {
+                            "const": "workspace"
+                          }
+                        },
+                        "required": [
+                          "type"
+                        ],
+                        "type": "object"
+                      },
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "agent_id": {
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "type": {
+                            "const": "agent"
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "agent_id"
+                        ],
+                        "type": "object"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "endpoint_id",
+                  "scope",
+                  "event_types"
+                ],
+                "type": "object"
+              },
+              "examples": {
+                "Subscribe a destination to events": {
+                  "summary": "Subscribe a destination to events",
+                  "value": {
+                    "endpoint_id": "whe_01K9V2C4E6G8J0M2P4R6T8W0Y2",
+                    "scope": {
+                      "type": "agent",
+                      "agent_id": "agt_01K2M4P7QRSTVWXYZ0A1B2C3"
+                    },
+                    "event_types": [
+                      "call.completed",
+                      "call.processing.completed"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Subscribed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "created_at": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "enabled": {
+                      "type": "boolean"
+                    },
+                    "endpoint_id": {
+                      "type": "string"
+                    },
+                    "event_types": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "object": {
+                      "type": "string"
+                    },
+                    "revision": {
+                      "type": "integer"
+                    },
+                    "scope": {
+                      "properties": {
+                        "agent_id": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "type"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "object",
+                    "endpoint_id",
+                    "scope",
+                    "event_types",
+                    "enabled",
+                    "revision",
+                    "created_at"
+                  ],
+                  "type": "object"
+                },
+                "examples": {
+                  "Subscribed": {
+                    "summary": "201 — subscribed",
+                    "value": {
+                      "id": "whs_01K9V2D5F7H9K1N3Q5S7V9X1Z3",
+                      "object": "webhook_subscription",
+                      "endpoint_id": "whe_01K9V2C4E6G8J0M2P4R6T8W0Y2",
+                      "scope": {
+                        "type": "agent",
+                        "agent_id": "agt_01K2M4P7QRSTVWXYZ0A1B2C3"
+                      },
+                      "event_types": [
+                        "call.completed",
+                        "call.processing.completed"
+                      ],
+                      "enabled": true,
+                      "revision": 1,
+                      "created_at": "2026-10-10T06:30:12.481Z"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "list_webhook_subscriptions",
+        "summary": "List subscriptions",
+        "description": "Every subscription, optionally for one destination or agent.",
+        "tags": [
+          "Webhooks"
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "1 to 100; 20 when left out",
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "example": 20
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "next_cursor from the previous page",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "endpoint_id",
+            "in": "query",
+            "required": false,
+            "description": "",
+            "schema": {
+              "type": "string"
+            },
+            "example": "whe_01K9V2C4E6G8J0M2P4R6T8W0Y2"
+          },
+          {
+            "name": "agent_id",
+            "in": "query",
+            "required": false,
+            "description": "",
+            "schema": {
+              "type": "string"
+            },
+            "example": "agt_01K2M4P7QRSTVWXYZ0A1B2C3"
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "items": {
+                        "properties": {
+                          "created_at": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "enabled": {
+                            "type": "boolean"
+                          },
+                          "endpoint_id": {
+                            "type": "string"
+                          },
+                          "event_types": {
+                            "items": {
+                              "type": "string"
+                            },
+                            "type": "array"
+                          },
+                          "id": {
+                            "type": "string"
+                          },
+                          "object": {
+                            "type": "string"
+                          },
+                          "revision": {
+                            "type": "integer"
+                          },
+                          "scope": {
+                            "properties": {
+                              "agent_id": {
+                                "type": "string"
+                              },
+                              "type": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "type"
+                            ],
+                            "type": "object"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "object",
+                          "endpoint_id",
+                          "scope",
+                          "event_types",
+                          "enabled",
+                          "revision",
+                          "created_at"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "has_more": {
+                      "type": "boolean"
+                    },
+                    "next_cursor": {
+                      "type": "string"
+                    },
+                    "object": {
+                      "enum": [
+                        "list"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "object",
+                    "data",
+                    "has_more"
+                  ],
+                  "type": "object"
+                },
+                "examples": {
+                  "One page": {
+                    "summary": "200 — one page",
+                    "value": {
+                      "object": "list",
+                      "data": [
+                        {
+                          "id": "whs_01K9V2D5F7H9K1N3Q5S7V9X1Z3",
+                          "object": "webhook_subscription",
+                          "endpoint_id": "whe_01K9V2C4E6G8J0M2P4R6T8W0Y2",
+                          "scope": {
+                            "type": "agent",
+                            "agent_id": "agt_01K2M4P7QRSTVWXYZ0A1B2C3"
+                          },
+                          "event_types": [
+                            "call.completed",
+                            "call.processing.completed"
+                          ],
+                          "enabled": true,
+                          "revision": 1,
+                          "created_at": "2026-10-10T06:30:12.481Z"
+                        }
+                      ],
+                      "has_more": false
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/webhooks/subscriptions/{webhook_subscription_id}": {
+      "get": {
+        "operationId": "get_webhook_subscription",
+        "summary": "Get a subscription",
+        "description": "One subscription and its `revision`.",
+        "tags": [
+          "Webhooks"
+        ],
+        "parameters": [
+          {
+            "name": "webhook_subscription_id",
+            "in": "path",
+            "required": true,
+            "description": "",
+            "schema": {
+              "type": "string"
+            },
+            "example": "whs_01K9V2D5F7H9K1N3Q5S7V9X1Z3"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The subscription",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "created_at": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "enabled": {
+                      "type": "boolean"
+                    },
+                    "endpoint_id": {
+                      "type": "string"
+                    },
+                    "event_types": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "object": {
+                      "type": "string"
+                    },
+                    "revision": {
+                      "type": "integer"
+                    },
+                    "scope": {
+                      "properties": {
+                        "agent_id": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "type"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "object",
+                    "endpoint_id",
+                    "scope",
+                    "event_types",
+                    "enabled",
+                    "revision",
+                    "created_at"
+                  ],
+                  "type": "object"
+                },
+                "examples": {
+                  "The subscription": {
+                    "summary": "200 — the subscription",
+                    "value": {
+                      "id": "whs_01K9V2D5F7H9K1N3Q5S7V9X1Z3",
+                      "object": "webhook_subscription",
+                      "endpoint_id": "whe_01K9V2C4E6G8J0M2P4R6T8W0Y2",
+                      "scope": {
+                        "type": "agent",
+                        "agent_id": "agt_01K2M4P7QRSTVWXYZ0A1B2C3"
+                      },
+                      "event_types": [
+                        "call.completed",
+                        "call.processing.completed"
+                      ],
+                      "enabled": true,
+                      "revision": 1,
+                      "created_at": "2026-10-10T06:30:12.481Z"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "update_webhook_subscription",
+        "summary": "Change events or pause",
+        "description": "Replace `event_types`, or pause with `enabled: false` (requests already queued still go). The destination and scope can't change: make another subscription.",
+        "tags": [
+          "Webhooks"
+        ],
+        "parameters": [
+          {
+            "name": "webhook_subscription_id",
+            "in": "path",
+            "required": true,
+            "description": "",
+            "schema": {
+              "type": "string"
+            },
+            "example": "whs_01K9V2D5F7H9K1N3Q5S7V9X1Z3"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "enabled": {
+                    "type": "boolean"
+                  },
+                  "event_types": {
+                    "items": {
+                      "enum": [
+                        "call.queued",
+                        "call.started",
+                        "call.completed",
+                        "call.failed",
+                        "call.aborted",
+                        "call.voicemail",
+                        "call.recording.ready",
+                        "call.analysis.completed",
+                        "call.analysis.failed",
+                        "call.analysis.skipped",
+                        "call.processed",
+                        "call.processing.completed",
+                        "campaign.started",
+                        "campaign.paused",
+                        "campaign.resumed",
+                        "campaign.completed",
+                        "campaign.stopped",
+                        "wallet.balance_low",
+                        "wallet.depleted",
+                        "wallet.balance_restored",
+                        "payment.succeeded",
+                        "payment.failed"
+                      ],
+                      "type": "string"
+                    },
+                    "maxItems": 22,
+                    "minItems": 1,
+                    "type": "array",
+                    "uniqueItems": true
+                  },
+                  "if_revision": {
+                    "minimum": 1,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "if_revision"
+                ],
+                "type": "object"
+              },
+              "examples": {
+                "Change events or pause": {
+                  "summary": "Change events or pause",
+                  "value": {
+                    "if_revision": 1,
+                    "event_types": [
+                      "call.completed",
+                      "call.analysis.completed"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "created_at": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "enabled": {
+                      "type": "boolean"
+                    },
+                    "endpoint_id": {
+                      "type": "string"
+                    },
+                    "event_types": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "object": {
+                      "type": "string"
+                    },
+                    "revision": {
+                      "type": "integer"
+                    },
+                    "scope": {
+                      "properties": {
+                        "agent_id": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "type"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "object",
+                    "endpoint_id",
+                    "scope",
+                    "event_types",
+                    "enabled",
+                    "revision",
+                    "created_at"
+                  ],
+                  "type": "object"
+                },
+                "examples": {
+                  "Updated": {
+                    "summary": "200 — updated",
+                    "value": {
+                      "id": "whs_01K9V2D5F7H9K1N3Q5S7V9X1Z3",
+                      "object": "webhook_subscription",
+                      "endpoint_id": "whe_01K9V2C4E6G8J0M2P4R6T8W0Y2",
+                      "scope": {
+                        "type": "agent",
+                        "agent_id": "agt_01K2M4P7QRSTVWXYZ0A1B2C3"
+                      },
+                      "event_types": [
+                        "call.completed",
+                        "call.analysis.completed"
+                      ],
+                      "enabled": true,
+                      "revision": 2,
+                      "created_at": "2026-10-10T06:30:12.481Z"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Stale revision",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "Stale revision": {
+                    "summary": "409 — stale revision",
+                    "value": {
+                      "error": {
+                        "code": "conflict",
+                        "message": "The resource changed since you read it. Read it again, then retry with its revision."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "delete_webhook_subscription",
+        "summary": "Delete a subscription",
+        "description": "Stops future matches. Deliveries already made keep their history.",
+        "tags": [
+          "Webhooks"
+        ],
+        "parameters": [
+          {
+            "name": "webhook_subscription_id",
+            "in": "path",
+            "required": true,
+            "description": "",
+            "schema": {
+              "type": "string"
+            },
+            "example": "whs_01K9V2D5F7H9K1N3Q5S7V9X1Z3"
+          },
+          {
+            "name": "if_revision",
+            "in": "query",
+            "required": true,
+            "description": "the subscription's current revision",
+            "schema": {
+              "minimum": 1,
+              "type": "integer"
+            },
+            "example": 1
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          }
+        }
+      }
+    },
+    "/v2/webhooks/events": {
+      "get": {
+        "operationId": "list_webhook_events",
+        "summary": "List events",
+        "description": "Every event in the last 30 days, including ones no subscription matched.",
+        "tags": [
+          "Webhooks"
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "1 to 100; 20 when left out",
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "example": 20
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "next_cursor from the previous page",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "agent_id",
+            "in": "query",
+            "required": false,
+            "description": "",
+            "schema": {
+              "type": "string"
+            },
+            "example": "agt_01K2M4P7QRSTVWXYZ0A1B2C3"
+          },
+          {
+            "name": "event_type",
+            "in": "query",
+            "required": false,
+            "description": "",
+            "schema": {
+              "type": "string"
+            },
+            "example": "call.completed"
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "endpoint_id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "call_id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "items": {
+                        "properties": {
+                          "created_at": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "data": {
+                            "additionalProperties": {},
+                            "type": "object"
+                          },
+                          "id": {
+                            "type": "string"
+                          },
+                          "schema_version": {
+                            "type": "string"
+                          },
+                          "source_id": {
+                            "type": "string"
+                          },
+                          "subject": {
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "type": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "type",
+                              "id"
+                            ],
+                            "type": "object"
+                          },
+                          "test": {
+                            "type": "boolean"
+                          },
+                          "type": {
+                            "type": "string"
+                          },
+                          "workspace_id": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "type",
+                          "created_at",
+                          "schema_version",
+                          "workspace_id",
+                          "subject",
+                          "source_id",
+                          "test",
+                          "data"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "has_more": {
+                      "type": "boolean"
+                    },
+                    "next_cursor": {
+                      "type": "string"
+                    },
+                    "object": {
+                      "enum": [
+                        "list"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "object",
+                    "data",
+                    "has_more"
+                  ],
+                  "type": "object"
+                },
+                "examples": {
+                  "One page": {
+                    "summary": "200 — one page",
+                    "value": {
+                      "object": "list",
+                      "data": [
+                        {
+                          "id": "evt_01K9V2E6G8J0M2P4R6T8W0Y2A4",
+                          "type": "call.processing.completed",
+                          "created_at": "2026-10-10T06:30:12.481Z",
+                          "schema_version": "2026-09-22",
+                          "workspace_id": "ws_example",
+                          "subject": {
+                            "type": "call",
+                            "id": "call_01K9V1Z9X7V5T3R1P9N7M5K3H1"
+                          },
+                          "source_id": "call_01K9V1Z9X7V5T3R1P9N7M5K3H1:processing:1",
+                          "test": false,
+                          "data": {
+                            "call": {
+                              "id": "call_01K9V1Z9X7V5T3R1P9N7M5K3H1",
+                              "agent_id": "agt_01K2M4P7QRSTVWXYZ0A1B2C3",
+                              "status": "completed"
+                            },
+                            "processing": {
+                              "version": 1,
+                              "state": "completed",
+                              "outcome": "completed",
+                              "stages": {
+                                "analysis": {
+                                  "state": "completed",
+                                  "generation": 1
+                                },
+                                "recording": {
+                                  "state": "completed",
+                                  "generation": 1
+                                },
+                                "transcript": {
+                                  "state": "completed",
+                                  "generation": 1
+                                },
+                                "post_call_tools": {
+                                  "state": "skipped",
+                                  "generation": 1
+                                }
+                              }
+                            }
+                          }
+                        }
+                      ],
+                      "has_more": false
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/webhooks/events/{webhook_event_id}": {
+      "get": {
+        "operationId": "get_webhook_event",
+        "summary": "Get an event",
+        "description": "The exact event body that was signed and sent. Kept for 30 days.",
+        "tags": [
+          "Webhooks"
+        ],
+        "parameters": [
+          {
+            "name": "webhook_event_id",
+            "in": "path",
+            "required": true,
+            "description": "",
+            "schema": {
+              "type": "string"
+            },
+            "example": "evt_01K9V2E6G8J0M2P4R6T8W0Y2A4"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The event",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "created_at": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "data": {
+                      "additionalProperties": {},
+                      "type": "object"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "schema_version": {
+                      "type": "string"
+                    },
+                    "source_id": {
+                      "type": "string"
+                    },
+                    "subject": {
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "id"
+                      ],
+                      "type": "object"
+                    },
+                    "test": {
+                      "type": "boolean"
+                    },
+                    "type": {
+                      "type": "string"
+                    },
+                    "workspace_id": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "type",
+                    "created_at",
+                    "schema_version",
+                    "workspace_id",
+                    "subject",
+                    "source_id",
+                    "test",
+                    "data"
+                  ],
+                  "type": "object"
+                },
+                "examples": {
+                  "The event": {
+                    "summary": "200 — the event",
+                    "value": {
+                      "id": "evt_01K9V2E6G8J0M2P4R6T8W0Y2A4",
+                      "type": "call.processing.completed",
+                      "created_at": "2026-10-10T06:30:12.481Z",
+                      "schema_version": "2026-09-22",
+                      "workspace_id": "ws_example",
+                      "subject": {
+                        "type": "call",
+                        "id": "call_01K9V1Z9X7V5T3R1P9N7M5K3H1"
+                      },
+                      "source_id": "call_01K9V1Z9X7V5T3R1P9N7M5K3H1:processing:1",
+                      "test": false,
+                      "data": {
+                        "call": {
+                          "id": "call_01K9V1Z9X7V5T3R1P9N7M5K3H1",
+                          "agent_id": "agt_01K2M4P7QRSTVWXYZ0A1B2C3",
+                          "status": "completed"
+                        },
+                        "processing": {
+                          "version": 1,
+                          "state": "completed",
+                          "outcome": "completed",
+                          "stages": {
+                            "analysis": {
+                              "state": "completed",
+                              "generation": 1
+                            },
+                            "recording": {
+                              "state": "completed",
+                              "generation": 1
+                            },
+                            "transcript": {
+                              "state": "completed",
+                              "generation": 1
+                            },
+                            "post_call_tools": {
+                              "state": "skipped",
+                              "generation": 1
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Expired or unknown",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "Expired or unknown": {
+                    "summary": "404 — expired or unknown",
+                    "value": {
+                      "error": {
+                        "code": "not_found",
+                        "message": "Webhook resource not found."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/webhooks/deliveries": {
+      "get": {
+        "operationId": "list_webhook_deliveries",
+        "summary": "List deliveries",
+        "description": "What was sent where, and how it went. Filter by destination, agent, call, event or status.",
+        "tags": [
+          "Webhooks"
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "1 to 100; 20 when left out",
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "example": 20
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "next_cursor from the previous page",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "agent_id",
+            "in": "query",
+            "required": false,
+            "description": "",
+            "schema": {
+              "type": "string"
+            },
+            "example": "agt_01K2M4P7QRSTVWXYZ0A1B2C3"
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "description": "",
+            "schema": {
+              "type": "string"
+            },
+            "example": "failed"
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "endpoint_id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "call_id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "event_type",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "items": {
+                        "properties": {
+                          "attempts": {
+                            "type": "integer"
+                          },
+                          "created_at": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "cycle": {
+                            "type": "integer"
+                          },
+                          "cycle_attempts": {
+                            "type": "integer"
+                          },
+                          "deadline": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "endpoint_id": {
+                            "type": "string"
+                          },
+                          "endpoint_revision": {
+                            "type": "integer"
+                          },
+                          "event_id": {
+                            "type": "string"
+                          },
+                          "id": {
+                            "type": "string"
+                          },
+                          "last_error": {
+                            "type": "string"
+                          },
+                          "last_http_status": {
+                            "type": "integer"
+                          },
+                          "next_attempt_at": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "object": {
+                            "type": "string"
+                          },
+                          "revision": {
+                            "type": "integer"
+                          },
+                          "state": {
+                            "type": "string"
+                          },
+                          "subscription_ids": {
+                            "items": {
+                              "type": "string"
+                            },
+                            "type": "array"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "object",
+                          "event_id",
+                          "endpoint_id",
+                          "endpoint_revision",
+                          "subscription_ids",
+                          "state",
+                          "revision",
+                          "cycle",
+                          "attempts",
+                          "cycle_attempts",
+                          "next_attempt_at",
+                          "deadline",
+                          "created_at"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "has_more": {
+                      "type": "boolean"
+                    },
+                    "next_cursor": {
+                      "type": "string"
+                    },
+                    "object": {
+                      "enum": [
+                        "list"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "object",
+                    "data",
+                    "has_more"
+                  ],
+                  "type": "object"
+                },
+                "examples": {
+                  "One page": {
+                    "summary": "200 — one page",
+                    "value": {
+                      "object": "list",
+                      "data": [
+                        {
+                          "id": "whd_01K9V2F7H9K1N3Q5S7V9X1Z3B5",
+                          "object": "webhook_delivery",
+                          "event_id": "evt_01K9V2E6G8J0M2P4R6T8W0Y2A4",
+                          "endpoint_id": "whe_01K9V2C4E6G8J0M2P4R6T8W0Y2",
+                          "endpoint_revision": 1,
+                          "subscription_ids": [
+                            "whs_01K9V2D5F7H9K1N3Q5S7V9X1Z3"
+                          ],
+                          "state": "delivered",
+                          "revision": 2,
+                          "cycle": 1,
+                          "attempts": 1,
+                          "cycle_attempts": 1,
+                          "last_http_status": 204,
+                          "next_attempt_at": "2026-10-10T06:30:12.481Z",
+                          "deadline": "2026-10-11T06:30:12.481Z",
+                          "created_at": "2026-10-10T06:30:12.481Z"
+                        },
+                        {
+                          "id": "whd_01K9V2F7H9K1N3Q5S7V9X1Z3B5",
+                          "object": "webhook_delivery",
+                          "event_id": "evt_01K9V2E6G8J0M2P4R6T8W0Y2A4",
+                          "endpoint_id": "whe_01K9V2C4E6G8J0M2P4R6T8W0Y2",
+                          "endpoint_revision": 1,
+                          "subscription_ids": [
+                            "whs_01K9V2D5F7H9K1N3Q5S7V9X1Z3"
+                          ],
+                          "state": "failed",
+                          "revision": 2,
+                          "cycle": 1,
+                          "attempts": 6,
+                          "cycle_attempts": 6,
+                          "last_http_status": 503,
+                          "next_attempt_at": "2026-10-10T06:30:12.481Z",
+                          "deadline": "2026-10-11T06:30:12.481Z",
+                          "created_at": "2026-10-10T06:30:12.481Z",
+                          "last_error": "http_error"
+                        }
+                      ],
+                      "has_more": false
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/webhooks/deliveries/{webhook_delivery_id}": {
+      "get": {
+        "operationId": "get_webhook_delivery",
+        "summary": "Get a delivery",
+        "description": "One delivery: its state, latest HTTP status, retry deadline and `revision`.",
+        "tags": [
+          "Webhooks"
+        ],
+        "parameters": [
+          {
+            "name": "webhook_delivery_id",
+            "in": "path",
+            "required": true,
+            "description": "",
+            "schema": {
+              "type": "string"
+            },
+            "example": "whd_01K9V2F7H9K1N3Q5S7V9X1Z3B5"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Delivered",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "attempts": {
+                      "type": "integer"
+                    },
+                    "created_at": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "cycle": {
+                      "type": "integer"
+                    },
+                    "cycle_attempts": {
+                      "type": "integer"
+                    },
+                    "deadline": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "endpoint_id": {
+                      "type": "string"
+                    },
+                    "endpoint_revision": {
+                      "type": "integer"
+                    },
+                    "event_id": {
+                      "type": "string"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "last_error": {
+                      "type": "string"
+                    },
+                    "last_http_status": {
+                      "type": "integer"
+                    },
+                    "next_attempt_at": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "object": {
+                      "type": "string"
+                    },
+                    "revision": {
+                      "type": "integer"
+                    },
+                    "state": {
+                      "type": "string"
+                    },
+                    "subscription_ids": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "object",
+                    "event_id",
+                    "endpoint_id",
+                    "endpoint_revision",
+                    "subscription_ids",
+                    "state",
+                    "revision",
+                    "cycle",
+                    "attempts",
+                    "cycle_attempts",
+                    "next_attempt_at",
+                    "deadline",
+                    "created_at"
+                  ],
+                  "type": "object"
+                },
+                "examples": {
+                  "Delivered": {
+                    "summary": "200 — delivered",
+                    "value": {
+                      "id": "whd_01K9V2F7H9K1N3Q5S7V9X1Z3B5",
+                      "object": "webhook_delivery",
+                      "event_id": "evt_01K9V2E6G8J0M2P4R6T8W0Y2A4",
+                      "endpoint_id": "whe_01K9V2C4E6G8J0M2P4R6T8W0Y2",
+                      "endpoint_revision": 1,
+                      "subscription_ids": [
+                        "whs_01K9V2D5F7H9K1N3Q5S7V9X1Z3"
+                      ],
+                      "state": "delivered",
+                      "revision": 2,
+                      "cycle": 1,
+                      "attempts": 1,
+                      "cycle_attempts": 1,
+                      "last_http_status": 204,
+                      "next_attempt_at": "2026-10-10T06:30:12.481Z",
+                      "deadline": "2026-10-11T06:30:12.481Z",
+                      "created_at": "2026-10-10T06:30:12.481Z"
+                    }
+                  },
+                  "Failed after retries": {
+                    "summary": "200 — failed after retries",
+                    "value": {
+                      "id": "whd_01K9V2F7H9K1N3Q5S7V9X1Z3B5",
+                      "object": "webhook_delivery",
+                      "event_id": "evt_01K9V2E6G8J0M2P4R6T8W0Y2A4",
+                      "endpoint_id": "whe_01K9V2C4E6G8J0M2P4R6T8W0Y2",
+                      "endpoint_revision": 1,
+                      "subscription_ids": [
+                        "whs_01K9V2D5F7H9K1N3Q5S7V9X1Z3"
+                      ],
+                      "state": "failed",
+                      "revision": 2,
+                      "cycle": 1,
+                      "attempts": 6,
+                      "cycle_attempts": 6,
+                      "last_http_status": 503,
+                      "next_attempt_at": "2026-10-10T06:30:12.481Z",
+                      "deadline": "2026-10-11T06:30:12.481Z",
+                      "created_at": "2026-10-10T06:30:12.481Z",
+                      "last_error": "http_error"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/webhooks/deliveries/{webhook_delivery_id}/attempts": {
+      "get": {
+        "operationId": "list_webhook_delivery_attempts",
+        "summary": "List delivery attempts",
+        "description": "Every request we made for this delivery, with your server's HTTP status and timing.",
+        "tags": [
+          "Webhooks"
+        ],
+        "parameters": [
+          {
+            "name": "webhook_delivery_id",
+            "in": "path",
+            "required": true,
+            "description": "",
+            "schema": {
+              "type": "string"
+            },
+            "example": "whd_01K9V2F7H9K1N3Q5S7V9X1Z3B5"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "1 to 100; 20 when left out",
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "example": 20
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "next_cursor from the previous page",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Attempts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "items": {
+                        "properties": {
+                          "cycle": {
+                            "type": "integer"
+                          },
+                          "ended_at": {
+                            "anyOf": [
+                              {
+                                "format": "date-time",
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "endpoint_revision": {
+                            "type": "integer"
+                          },
+                          "error": {
+                            "type": "string"
+                          },
+                          "http_status": {
+                            "type": "integer"
+                          },
+                          "latency_ms": {
+                            "type": "integer"
+                          },
+                          "number": {
+                            "type": "integer"
+                          },
+                          "request_id": {
+                            "type": "string"
+                          },
+                          "signing_key_version": {
+                            "type": "integer"
+                          },
+                          "started_at": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "number",
+                          "cycle",
+                          "started_at",
+                          "status",
+                          "latency_ms",
+                          "endpoint_revision",
+                          "signing_key_version",
+                          "request_id"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "has_more": {
+                      "type": "boolean"
+                    },
+                    "next_cursor": {
+                      "type": "string"
+                    },
+                    "object": {
+                      "enum": [
+                        "list"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "object",
+                    "data",
+                    "has_more"
+                  ],
+                  "type": "object"
+                },
+                "examples": {
+                  "Attempts": {
+                    "summary": "200 — attempts",
+                    "value": {
+                      "object": "list",
+                      "data": [
+                        {
+                          "number": 1,
+                          "cycle": 1,
+                          "started_at": "2026-10-10T06:30:12.481Z",
+                          "ended_at": "2026-10-10T06:30:12.623Z",
+                          "status": "delivered",
+                          "http_status": 204,
+                          "latency_ms": 142,
+                          "endpoint_revision": 1,
+                          "signing_key_version": 1,
+                          "request_id": "req_01K9V2G8J0M2P4R6T8W0Y2A4C6"
+                        }
+                      ],
+                      "has_more": false
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/webhooks/deliveries/{webhook_delivery_id}/retry": {
+      "post": {
+        "operationId": "retry_webhook_delivery",
+        "summary": "Retry a delivery",
+        "description": "Sends a failed delivery again with the same event ID and body; nothing about the call is rerun. `use_current_endpoint: true` uses the destination's current URL and headers instead of the ones it had at the time.",
+        "tags": [
+          "Webhooks"
+        ],
+        "parameters": [
+          {
+            "name": "webhook_delivery_id",
+            "in": "path",
+            "required": true,
+            "description": "",
+            "schema": {
+              "type": "string"
+            },
+            "example": "whd_01K9V2F7H9K1N3Q5S7V9X1Z3B5"
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "description": "Up to 255 characters. The same key within 24 hours replays the first answer and creates nothing new. Build it from your own record, such as `order-8842-reminder-1`.",
+            "schema": {
+              "maxLength": 200,
+              "type": "string"
+            },
+            "example": "order-8842-reminder-1"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "if_revision": {
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  "use_current_endpoint": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "if_revision"
+                ],
+                "type": "object"
+              },
+              "examples": {
+                "Retry a delivery": {
+                  "summary": "Retry a delivery",
+                  "value": {
+                    "if_revision": 2,
+                    "use_current_endpoint": false
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Queued again",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "attempts": {
+                      "type": "integer"
+                    },
+                    "created_at": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "cycle": {
+                      "type": "integer"
+                    },
+                    "cycle_attempts": {
+                      "type": "integer"
+                    },
+                    "deadline": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "endpoint_id": {
+                      "type": "string"
+                    },
+                    "endpoint_revision": {
+                      "type": "integer"
+                    },
+                    "event_id": {
+                      "type": "string"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "last_error": {
+                      "type": "string"
+                    },
+                    "last_http_status": {
+                      "type": "integer"
+                    },
+                    "next_attempt_at": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "object": {
+                      "type": "string"
+                    },
+                    "revision": {
+                      "type": "integer"
+                    },
+                    "state": {
+                      "type": "string"
+                    },
+                    "subscription_ids": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "object",
+                    "event_id",
+                    "endpoint_id",
+                    "endpoint_revision",
+                    "subscription_ids",
+                    "state",
+                    "revision",
+                    "cycle",
+                    "attempts",
+                    "cycle_attempts",
+                    "next_attempt_at",
+                    "deadline",
+                    "created_at"
+                  ],
+                  "type": "object"
+                },
+                "examples": {
+                  "Queued again": {
+                    "summary": "202 — queued again",
+                    "value": {
+                      "id": "whd_01K9V2F7H9K1N3Q5S7V9X1Z3B5",
+                      "object": "webhook_delivery",
+                      "event_id": "evt_01K9V2E6G8J0M2P4R6T8W0Y2A4",
+                      "endpoint_id": "whe_01K9V2C4E6G8J0M2P4R6T8W0Y2",
+                      "endpoint_revision": 1,
+                      "subscription_ids": [
+                        "whs_01K9V2D5F7H9K1N3Q5S7V9X1Z3"
+                      ],
+                      "state": "pending",
+                      "revision": 3,
+                      "cycle": 2,
+                      "attempts": 6,
+                      "cycle_attempts": 6,
+                      "last_http_status": 503,
+                      "next_attempt_at": "2026-10-10T06:30:12.481Z",
+                      "deadline": "2026-10-11T06:30:12.481Z",
+                      "created_at": "2026-10-10T06:30:12.481Z",
+                      "last_error": "http_error"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Not failed, or stale revision",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "Not failed, or stale revision": {
+                    "summary": "409 — not failed, or stale revision",
+                    "value": {
+                      "error": {
+                        "code": "conflict",
+                        "message": "The resource changed since you read it. Read it again, then retry with its revision."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/webhooks/settings": {
+      "get": {
+        "operationId": "get_webhook_settings",
+        "summary": "Get webhook settings",
+        "description": "Workspace-wide webhook settings. `low_balance_threshold_inr` is the balance, in rupees, below which `wallet.balance_low` is sent (and above which `wallet.balance_restored` follows a top-up). `call_webhook_urls` lists each `webhook_url` your calls passed in the last 7 days; `endpoint_id` is the destination with the same URL, which now delivers its events.",
+        "tags": [
+          "Webhooks"
+        ],
+        "responses": {
+          "200": {
+            "description": "Settings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "call_webhook_urls": {
+                      "anyOf": [
+                        {
+                          "items": {
+                            "properties": {
+                              "endpoint_id": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "failures_24h": {
+                                "type": "integer"
+                              },
+                              "last_hint": {
+                                "type": "string"
+                              },
+                              "last_http_status": {
+                                "type": "integer"
+                              },
+                              "last_status": {
+                                "type": "string"
+                              },
+                              "last_used_at": {
+                                "format": "date-time",
+                                "type": "string"
+                              },
+                              "url": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "url",
+                              "last_used_at",
+                              "endpoint_id",
+                              "last_status",
+                              "failures_24h"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "low_balance_threshold_inr": {
+                      "type": "number"
+                    },
+                    "object": {
+                      "type": "string"
+                    },
+                    "revision": {
+                      "type": "integer"
+                    },
+                    "updated_at": {
+                      "anyOf": [
+                        {
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "object",
+                    "low_balance_threshold_inr",
+                    "revision"
+                  ],
+                  "type": "object"
+                },
+                "examples": {
+                  "Settings": {
+                    "summary": "200 — settings",
+                    "value": {
+                      "object": "webhook_settings",
+                      "low_balance_threshold_inr": 500,
+                      "revision": 1,
+                      "call_webhook_urls": [
+                        {
+                          "url": "https://crm.example.com/mirai/webhooks",
+                          "last_used_at": "2026-10-27T09:16:38Z",
+                          "endpoint_id": "whe_01K9V2C4E6G8J0M2P4R6T8W0Y2",
+                          "last_status": "superseded",
+                          "failures_24h": 0
+                        },
+                        {
+                          "url": "https://hooks.example.com/mirai",
+                          "last_used_at": "2026-10-27T09:16:40Z",
+                          "endpoint_id": null,
+                          "last_status": "failed",
+                          "last_http_status": 401,
+                          "last_hint": "signature_rejected",
+                          "failures_24h": 3
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not on this workspace yet",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "Not on this workspace yet": {
+                    "summary": "404 — not on this workspace yet",
+                    "value": {
+                      "error": {
+                        "code": "not_found",
+                        "message": "Webhooks are not available on this workspace yet."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "update_webhook_settings",
+        "summary": "Set the low-balance alert level",
+        "description": "Change the balance that counts as low, in whole rupees (0 to 1,00,00,000). Send the settings' current `revision` as `if_revision`; a stale one is a 409.",
+        "tags": [
+          "Webhooks"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "if_revision": {
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  "low_balance_threshold_inr": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "low_balance_threshold_inr"
+                ],
+                "type": "object"
+              },
+              "examples": {
+                "Set the low-balance alert level": {
+                  "summary": "Set the low-balance alert level",
+                  "value": {
+                    "if_revision": 1,
+                    "low_balance_threshold_inr": 1000
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "call_webhook_urls": {
+                      "anyOf": [
+                        {
+                          "items": {
+                            "properties": {
+                              "endpoint_id": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "failures_24h": {
+                                "type": "integer"
+                              },
+                              "last_hint": {
+                                "type": "string"
+                              },
+                              "last_http_status": {
+                                "type": "integer"
+                              },
+                              "last_status": {
+                                "type": "string"
+                              },
+                              "last_used_at": {
+                                "format": "date-time",
+                                "type": "string"
+                              },
+                              "url": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "url",
+                              "last_used_at",
+                              "endpoint_id",
+                              "last_status",
+                              "failures_24h"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "low_balance_threshold_inr": {
+                      "type": "number"
+                    },
+                    "object": {
+                      "type": "string"
+                    },
+                    "revision": {
+                      "type": "integer"
+                    },
+                    "updated_at": {
+                      "anyOf": [
+                        {
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "object",
+                    "low_balance_threshold_inr",
+                    "revision"
+                  ],
+                  "type": "object"
+                },
+                "examples": {
+                  "Saved": {
+                    "summary": "200 — saved",
+                    "value": {
+                      "object": "webhook_settings",
+                      "low_balance_threshold_inr": 1000,
+                      "revision": 2
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Stale revision",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "Stale revision": {
+                    "summary": "409 — stale revision",
+                    "value": {
+                      "error": {
+                        "code": "conflict",
+                        "message": "The resource changed since you read it. Read it again, then retry with its revision."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/webhooks/call-deliveries": {
+      "get": {
+        "operationId": "list_call_webhook_deliveries",
+        "summary": "List call webhook_url deliveries",
+        "description": "Recent attempts to deliver to the `webhook_url` you pass when creating a call, newest first. Deliveries to destinations are under [List deliveries](/api-reference/webhooks/list-deliveries). `outcome` is `delivered` (your server answered 2xx), `failed`, or `superseded` (a destination with the same URL delivered the event instead). `signed_with` names the secret that signed it, the same value as `X-Mirai-Signed-With`: `api_key` (your Call webhook secret) or a destination's `whe_…` id. `hint: signature_rejected` means your server answered 401 or 403: verify with the secret `signed_with` names. The newest 500 records are kept, for up to 30 days.",
+        "tags": [
+          "Webhooks"
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "1 to 100; 50 when left out",
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "example": 20
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "next_cursor from the previous page",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "call_id",
+            "in": "query",
+            "required": false,
+            "description": "only this call's deliveries",
+            "schema": {
+              "type": "string"
+            },
+            "example": "call_01K2M4RB8CDEFGHJKMNPQRST"
+          },
+          {
+            "name": "outcome",
+            "in": "query",
+            "required": false,
+            "description": "delivered, failed or superseded",
+            "schema": {
+              "type": "string"
+            },
+            "example": "failed"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Recent attempts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "items": {
+                        "properties": {
+                          "at": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "attempt": {
+                            "type": "integer"
+                          },
+                          "call_id": {
+                            "type": "string"
+                          },
+                          "endpoint_id": {
+                            "type": "string"
+                          },
+                          "error": {
+                            "type": "string"
+                          },
+                          "event_id": {
+                            "type": "string"
+                          },
+                          "event_type": {
+                            "type": "string"
+                          },
+                          "hint": {
+                            "type": "string"
+                          },
+                          "http_status": {
+                            "type": "integer"
+                          },
+                          "id": {
+                            "type": "string"
+                          },
+                          "object": {
+                            "type": "string"
+                          },
+                          "outcome": {
+                            "type": "string"
+                          },
+                          "signed_with": {
+                            "type": "string"
+                          },
+                          "url": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "object",
+                          "call_id",
+                          "event_type",
+                          "url",
+                          "outcome",
+                          "attempt",
+                          "at"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "has_more": {
+                      "type": "boolean"
+                    },
+                    "next_cursor": {
+                      "type": "string"
+                    },
+                    "object": {
+                      "enum": [
+                        "list"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "object",
+                    "data",
+                    "has_more"
+                  ],
+                  "type": "object"
+                },
+                "examples": {
+                  "Recent attempts": {
+                    "summary": "200 — recent attempts",
+                    "value": {
+                      "object": "list",
+                      "data": [
+                        {
+                          "id": "wcd_01M5Z2Q9S5U7W9Y1A3C5E7G9J1",
+                          "object": "call_webhook_delivery",
+                          "call_id": "call_01K9V1Z9X7V5T3R1P9N7M5K3H1",
+                          "event_id": "evt_01K9V2E6G8J0M2P4R6T8W0Y2A4",
+                          "event_type": "call.processing.completed",
+                          "url": "https://crm.example.com/mirai/webhooks",
+                          "endpoint_id": "whe_01K9V2C4E6G8J0M2P4R6T8W0Y2",
+                          "signed_with": "whe_01K9V2C4E6G8J0M2P4R6T8W0Y2",
+                          "outcome": "superseded",
+                          "attempt": 1,
+                          "at": "2026-10-27T09:16:41Z"
+                        },
+                        {
+                          "id": "wcd_01M5Z2Q8R4T6V8X0Z2B4D6F8H0",
+                          "object": "call_webhook_delivery",
+                          "call_id": "call_01K9V1Z9X7V5T3R1P9N7M5K3H1",
+                          "event_id": "evt_01K9V2E6G8J0M2P4R6T8W0Y2A4",
+                          "event_type": "call.completed",
+                          "url": "https://hooks.example.com/mirai",
+                          "signed_with": "api_key",
+                          "outcome": "failed",
+                          "http_status": 401,
+                          "hint": "signature_rejected",
+                          "error": "http_401",
+                          "attempt": 3,
+                          "at": "2026-10-27T09:16:40Z"
+                        }
+                      ],
+                      "has_more": false
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not on this workspace yet",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "Not on this workspace yet": {
+                    "summary": "404 — not on this workspace yet",
+                    "value": {
+                      "error": {
+                        "code": "not_found",
+                        "message": "Webhooks are not available on this workspace yet."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v2/campaigns": {
       "post": {
         "operationId": "create_campaign",
@@ -7267,7 +10932,7 @@
                               "type": "array"
                             },
                             "voice_id": {
-                              "description": "The voice the agent speaks in on this call: one of the voices an agent's voice.voice_id accepts. Same as the older voice.voice_id; both with different values is 400.",
+                              "description": "The voice the agent speaks in on this call: one of the voices an agent's voice.voice_id accepts, including your own custom voices (cv_...) except on channel realtime (422 voice_not_supported). Same as the older voice.voice_id; both with different values is 400.",
                               "minLength": 1,
                               "type": "string"
                             }
@@ -7287,9 +10952,9 @@
                           "type": "string"
                         },
                         "variables": {
-                          "additionalProperties": {
-                            "type": "string"
-                          },
+                          "additionalProperties": {},
+                          "description": "The agent's inputs for this contact, checked against its input_schema like a call's variables. Each value is a string, or an object, array, number or boolean that is kept as its JSON text; a declared non-string input reads it back. Each value at most 512 characters, or 49152 for an input the agent's input_schema declares as an object, an array or a string with maxLength above 512; at most 65536 bytes in all.",
+                          "maxProperties": 32,
                           "type": "object"
                         }
                       },
@@ -7685,7 +11350,7 @@
                               "type": "array"
                             },
                             "voice_id": {
-                              "description": "The voice the agent speaks in on this call: one of the voices an agent's voice.voice_id accepts. Same as the older voice.voice_id; both with different values is 400.",
+                              "description": "The voice the agent speaks in on this call: one of the voices an agent's voice.voice_id accepts, including your own custom voices (cv_...) except on channel realtime (422 voice_not_supported). Same as the older voice.voice_id; both with different values is 400.",
                               "minLength": 1,
                               "type": "string"
                             }
@@ -7705,9 +11370,9 @@
                           "type": "string"
                         },
                         "variables": {
-                          "additionalProperties": {
-                            "type": "string"
-                          },
+                          "additionalProperties": {},
+                          "description": "The agent's inputs for this contact, checked against its input_schema like a call's variables. Each value is a string, or an object, array, number or boolean that is kept as its JSON text; a declared non-string input reads it back. Each value at most 512 characters, or 49152 for an input the agent's input_schema declares as an object, an array or a string with maxLength above 512; at most 65536 bytes in all.",
+                          "maxProperties": 32,
                           "type": "object"
                         }
                       },
@@ -12186,6 +15851,7 @@
           {
             "in": "query",
             "name": "cursor",
+            "required": false,
             "schema": {
               "type": "string"
             }
@@ -13303,11 +16969,11 @@
         }
       }
     },
-    "/v2/telephony/available-numbers": {
+    "/v2/telephony/available-cities": {
       "get": {
-        "operationId": "search_available_numbers",
-        "summary": "Search available numbers",
-        "description": "Numbers Plivo has free to rent in India right now (`country=IN` is required). `location` narrows by region and `pattern` matches digits in the number. Nothing is held for you: availability is checked again when you quote and when you buy. 20 per page; pass `next_cursor` back as `cursor`.\n\nThe rates are Plivo's, in USD. That's what Plivo bills when you rent through your own account. A Mirai rental is ₹500 a month whatever the number. `compliance_type` is the verification type the number needs.",
+        "operationId": "list_available_cities",
+        "summary": "List cities with numbers",
+        "description": "The Indian cities that have a landline free to rent right now (`country=IN` is required). Pass a city's `id` as `city` when you search numbers. `std_code` is the city's dialling code: every landline there starts with it. The list is checked at most every ten minutes.",
         "tags": [
           "Telephony"
         ],
@@ -13331,6 +16997,97 @@
               "type": "string"
             },
             "example": "IN"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cities in stock",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "Cities in stock": {
+                    "summary": "200 — cities in stock",
+                    "value": {
+                      "data": [
+                        {
+                          "id": "mumbai",
+                          "name": "Mumbai",
+                          "state": "Maharashtra",
+                          "std_code": "22"
+                        },
+                        {
+                          "id": "bengaluru",
+                          "name": "Bengaluru",
+                          "state": "Karnataka",
+                          "std_code": "80"
+                        }
+                      ],
+                      "has_more": false
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Not India",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "Not India": {
+                    "summary": "400 — not India",
+                    "value": {
+                      "error": {
+                        "code": "invalid_request",
+                        "message": "Choose India (IN)"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/telephony/available-numbers": {
+      "get": {
+        "operationId": "search_available_numbers",
+        "summary": "Search available numbers",
+        "description": "Numbers Plivo has free to rent in India right now (`country=IN` is required). `city` (an `id` from List cities with numbers) returns that city's landlines. Without it you can narrow by Plivo's `location` region, or by `pattern`, the digits the number starts with. Nothing is held for you: availability is checked again when you quote and when you buy. 20 per page; pass `next_cursor` back as `cursor`.\n\nThe rates are Plivo's, in USD. That's what Plivo bills when you rent through your own account. A Mirai rental is ₹500 a month whatever the number. `compliance_type` is the verification type the number needs.",
+        "tags": [
+          "Telephony"
+        ],
+        "parameters": [
+          {
+            "name": "account",
+            "in": "query",
+            "required": false,
+            "description": "mirai, or your connection id",
+            "schema": {
+              "type": "string"
+            },
+            "example": "mirai"
+          },
+          {
+            "name": "country",
+            "in": "query",
+            "required": false,
+            "description": "",
+            "schema": {
+              "type": "string"
+            },
+            "example": "IN"
+          },
+          {
+            "name": "city",
+            "in": "query",
+            "required": false,
+            "description": "a city id from List cities with numbers",
+            "schema": {
+              "type": "string"
+            },
+            "example": "mumbai"
           },
           {
             "name": "location",
@@ -15107,6 +18864,7 @@
           {
             "in": "query",
             "name": "via",
+            "required": false,
             "schema": {
               "type": "string"
             }
@@ -15683,6 +19441,7 @@
           {
             "in": "query",
             "name": "cursor",
+            "required": false,
             "schema": {
               "type": "string"
             }
@@ -15690,6 +19449,7 @@
           {
             "in": "query",
             "name": "from",
+            "required": false,
             "schema": {
               "type": "string"
             }
@@ -15697,6 +19457,7 @@
           {
             "in": "query",
             "name": "to",
+            "required": false,
             "schema": {
               "type": "string"
             }
@@ -15704,6 +19465,7 @@
           {
             "in": "query",
             "name": "source",
+            "required": false,
             "schema": {
               "type": "string"
             }
@@ -16253,7 +20015,7 @@
             "type": "array"
           },
           "system_prompt": {
-            "maxLength": 16000,
+            "maxLength": 48000,
             "type": "string"
           },
           "tools": {
@@ -16745,7 +20507,7 @@
             "type": "array"
           },
           "system_prompt": {
-            "maxLength": 16000,
+            "maxLength": 48000,
             "type": "string"
           },
           "tools": {
@@ -16758,7 +20520,7 @@
           },
           "voice": {
             "additionalProperties": false,
-            "description": "When omitted on create, voice_id defaults to shruti. Supplied blocks must include voice_id.",
+            "description": "When omitted on create, voice_id defaults to shruti. Supplied blocks must include voice_id: a built-in voice, or the id (cv_...) of one of your custom voices (GET /v2/custom-voices), which work on phone and web calls but not realtime sessions.",
             "properties": {
               "language": {
                 "type": "string"
@@ -17194,7 +20956,7 @@
             "type": "array"
           },
           "system_prompt": {
-            "maxLength": 16000,
+            "maxLength": 48000,
             "type": "string"
           },
           "tools": {
@@ -17527,7 +21289,7 @@
             "$ref": "#/components/schemas/CallSettingsEffective"
           },
           "calls_from_source": {
-            "description": "How an outbound phone call's number was chosen: request (the call's own phone_number_id, or its campaign's), agent (the agent's calls_from), shared (the Mirai shared line, shared with other customers and showing as Mirai) or trunk (a carrier line from a campaign's caller_ids). Absent on inbound, web and WhatsApp calls.",
+            "description": "How an outbound phone call's number was chosen: request (the call's own phone_number_id, or its campaign's), agent (the agent's calls_from), shared (the Mirai shared line, shared with other customers and showing as Mirai) or trunk (a Mirai line: one from a campaign's caller_ids, or the caller ID Mirai set up for your workspace's shared-line calls). Absent on inbound, web and WhatsApp calls.",
             "enum": [
               "request",
               "agent",
@@ -17800,7 +21562,7 @@
             "type": "array"
           },
           "voice_id": {
-            "description": "The voice the agent speaks in on this call: one of the voices an agent's voice.voice_id accepts. Same as the older voice.voice_id; both with different values is 400.",
+            "description": "The voice the agent speaks in on this call: one of the voices an agent's voice.voice_id accepts, including your own custom voices (cv_...) except on channel realtime (422 voice_not_supported). Same as the older voice.voice_id; both with different values is 400.",
             "minLength": 1,
             "type": "string"
           }
@@ -18648,7 +22410,7 @@
             "type": "boolean"
           },
           "cost": {
-            "description": "What the job costs: every simulated turn on the live-call model at the text channel's LLM rates (₹14.38 / ₹57.52 per million input / output tokens), every hosted call (the callers, a fallback, the reviews and revisions) at the provider's reported cost × ₹88 × 1.2 (its per-token rates when none is reported), rounded up once to a paisa. So far while running; once finished (succeeded, failed or canceled), the amount charged to the wallet in one flow_generation transaction described \"Flow test · <model> · … tokens\".",
+            "description": "What the job costs: every simulated turn on the live-call model at the text channel's LLM rates (₹15 / ₹55 per million input / output tokens, the LLM API's rates), every hosted call (the callers, a fallback, the reviews and revisions) at the provider's reported cost × ₹88 × 1.2 (its per-token rates when none is reported), rounded up once to a paisa. So far while running; once finished (succeeded, failed or canceled), the amount charged to the wallet in one flow_generation transaction described \"Flow test · <model> · … tokens\".",
             "properties": {
               "amount_inr": {
                 "minimum": 0,
@@ -19459,7 +23221,7 @@
             "description": "How the HTTP response becomes the tool's result and the values it promotes into variables.",
             "properties": {
               "select": {
-                "description": "Keys promoted into variables as <tool>.<key>, each at most 512 characters.",
+                "description": "Keys promoted into variables as <tool>.<key>, each at most 2048 characters.",
                 "items": {
                   "type": "string"
                 },
@@ -19472,7 +23234,7 @@
                 "type": "boolean"
               },
               "transform": {
-                "description": "jq, evaluated with a 100 ms budget and a 64 KB output cap. No input/inputs, no env, no modules. Paths start with a dot (.data.id, not data.id): a save refuses a transform it adds or changes that cannot compile. On a pre_call tool, a top-level call_settings object in the result (after transform) sets this call's voice and languages.",
+                "description": "jq, evaluated with a 100 ms budget and a 64 KB output cap. No input/inputs, no env, no modules. Paths start with a dot (.data.id, not data.id): a save refuses a transform it adds or changes that cannot compile. On a pre_call tool, a top-level call_settings object in the result (after transform) sets this call's voice and languages, and a top-level string system_prompt (at most 48000 characters) or first_message (at most 500) sets this call's system prompt or opening line, as a template whose {{var}} placeholders are filled from the call's variables and pre_call outputs (sync tools only; a request's own system_prompt or first_message wins; flow agents ignore them; a refused value is a receipt warning and never fails the call; never echoed on the call object; the receipt's call_prompt gives each one's length).",
                 "type": "string"
               }
             },
@@ -19648,7 +23410,7 @@
             "description": "How the HTTP response becomes the tool's result and the values it promotes into variables.",
             "properties": {
               "select": {
-                "description": "Keys promoted into variables as <tool>.<key>, each at most 512 characters.",
+                "description": "Keys promoted into variables as <tool>.<key>, each at most 2048 characters.",
                 "items": {
                   "type": "string"
                 },

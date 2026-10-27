@@ -73,7 +73,7 @@
               "general/campaign",
               "v2/dnc",
               "v2/webhooks",
-            "v2/webhook-subscriptions",
+              "v2/webhook-subscriptions",
               "v2/webhook-secrets"
             ]
           },
@@ -283,6 +283,7 @@
               "POST /v2/telephony/onboarding",
               "POST /v2/telephony/onboarding/{onboarding_id}/refresh",
               "GET /v2/telephony/compliances",
+              "GET /v2/telephony/available-cities",
               "GET /v2/telephony/available-numbers",
               "POST /v2/telephony/quotes",
               "POST /v2/telephony/rentals/{rental_id}/purchase",
@@ -328,6 +329,33 @@
             "pages": [
               "GET /v2/wallet",
               "GET /v2/wallet/transactions"
+            ]
+          },
+          {
+            "group": "Webhooks",
+            "pages": [
+              "GET /v2/webhooks/event-types",
+              "POST /v2/webhooks/endpoints",
+              "GET /v2/webhooks/endpoints",
+              "GET /v2/webhooks/endpoints/{webhook_endpoint_id}",
+              "PATCH /v2/webhooks/endpoints/{webhook_endpoint_id}",
+              "DELETE /v2/webhooks/endpoints/{webhook_endpoint_id}",
+              "POST /v2/webhooks/endpoints/{webhook_endpoint_id}/rotate-secret",
+              "POST /v2/webhooks/endpoints/{webhook_endpoint_id}/test",
+              "POST /v2/webhooks/subscriptions",
+              "GET /v2/webhooks/subscriptions",
+              "GET /v2/webhooks/subscriptions/{webhook_subscription_id}",
+              "PATCH /v2/webhooks/subscriptions/{webhook_subscription_id}",
+              "DELETE /v2/webhooks/subscriptions/{webhook_subscription_id}",
+              "GET /v2/webhooks/events",
+              "GET /v2/webhooks/events/{webhook_event_id}",
+              "GET /v2/webhooks/deliveries",
+              "GET /v2/webhooks/deliveries/{webhook_delivery_id}",
+              "GET /v2/webhooks/deliveries/{webhook_delivery_id}/attempts",
+              "POST /v2/webhooks/deliveries/{webhook_delivery_id}/retry",
+              "GET /v2/webhooks/settings",
+              "PATCH /v2/webhooks/settings",
+              "GET /v2/webhooks/call-deliveries"
             ]
           },
           {

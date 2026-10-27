@@ -63,7 +63,7 @@ INSERT_AFTER = {"POST /v2/calls": ["api-reference/calls/start-a-browser-call"]}
 #: Group order in the tab. A group not named here goes before "Reference".
 TAG_ORDER = ("Agents", "Calls", "Flows", "Tools and secrets", "Campaigns", "Do-not-call list",
              "Phone numbers", "Phone pools", "Telephony", "Transcriptions", "Speech to text",
-             "Text to speech", "Wallet", "Reference")
+             "Text to speech", "Wallet", "Webhooks", "Reference")
 
 #: Endpoints that exist in the contract but are not served on the public hosts
 #: (probed without a key: 404), or that are not v2 paths.
@@ -72,6 +72,7 @@ TAG_ORDER = ("Agents", "Calls", "Flows", "Tools and secrets", "Campaigns", "Do-n
 #: scripts/postman/spec and drop these lines; the pages then generate.
 KNOWLEDGE_PENDING = "no Postman request yet (knowledge bases)"
 VOICE_CLONES_PENDING = "no Postman request yet (voice clones; see v2/custom-voices)"
+PENDING = "no Postman request yet"
 
 SKIP_CONTRACT = {
     ("DELETE", "/v2/voice-clones/{id}"): VOICE_CLONES_PENDING,
@@ -102,6 +103,16 @@ SKIP_CONTRACT = {
     ("POST", "/v2/knowledge-bases/{id}/search"): KNOWLEDGE_PENDING,
     ("POST", "/v2/knowledge-bases/{id}/sources"): KNOWLEDGE_PENDING,
     ("POST", "/v2/knowledge-bases/{id}/sources/{source_id}/sync"): KNOWLEDGE_PENDING,
+    ("GET", "/v2/knowledge-bases/provided"): KNOWLEDGE_PENDING,
+    ("DELETE", "/v2/custom-voices/{id}"): VOICE_CLONES_PENDING,
+    ("GET", "/v2/custom-voices"): VOICE_CLONES_PENDING,
+    ("GET", "/v2/custom-voices/{id}"): VOICE_CLONES_PENDING,
+    ("PATCH", "/v2/custom-voices/{id}"): VOICE_CLONES_PENDING,
+    ("POST", "/v2/custom-voices"): VOICE_CLONES_PENDING,
+    ("POST", "/v2/custom-voices/{id}/preview"): VOICE_CLONES_PENDING,
+    ("GET", "/v2/models"): PENDING,
+    ("GET", "/v2/models/{id}"): PENDING,
+    ("GET", "/v2/telephony/inbound-misses"): PENDING,
 }
 
 #: Postman requests left out of the reference, with the reason. Each was
