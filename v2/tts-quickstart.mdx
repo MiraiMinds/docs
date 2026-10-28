@@ -171,9 +171,37 @@ name and its language. To hear a voice before you choose, use the voice picker
 in the console's Agent Studio. An unknown voice returns a 400 that names the
 allowed set; we never swap in another voice silently. Gujarati, Tamil and
 Telugu are live too: send the text in its own script and the same voices read
-it, with no language parameter. Kannada and Malayalam work the same way, in
-beta, on all six voices. Marathi and Bengali come next. See the
-[language roadmap](/v2/tts-languages).
+it, with no language parameter. Kannada, Malayalam and Bengali work the same
+way, in beta, on all six voices. Marathi is in beta too and needs one field;
+see [Marathi](#marathi) below. The [language roadmap](/v2/tts-languages) has
+the details.
+
+### Marathi
+
+Marathi is written in Devanagari, like Hindi, so the text alone doesn't say
+which one it is. Add `"language": "mr"` and the voice reads it as Marathi:
+
+```bash
+curl https://sandbox.voice.miraiminds.co/v1/audio/speech \
+  -H "Authorization: Bearer $MIRA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "mira-tts",
+    "voice": "shruti",
+    "language": "mr",
+    "response_format": "wav",
+    "input": "नमस्कार, मी मीरा बोलतेय. तुमची गाडी service साठी due आहे."
+  }' \
+  --output marathi.wav
+```
+
+`language` is optional, and today it matters only for Marathi. It also takes
+`mr-IN` or `Marathi`. Every other language is read from its script, so a
+`language` that disagrees with the text is ignored: Hindi text sent with
+`"language": "kn"` is still read as Hindi. A value we don't recognise is
+ignored too, and never fails the request. With the OpenAI SDK, pass it as
+`extra_body={"language": "mr"}`. The [streaming socket](/v2/tts-websocket) has
+no `language` field yet, so Marathi sent there is read as Hindi.
 
 ### What comes back
 
