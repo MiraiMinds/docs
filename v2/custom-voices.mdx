@@ -1,11 +1,13 @@
 ---
 title: "Custom voices: instant voices and professional clones"
 sidebarTitle: "Custom voices"
-description: "Make a voice from a short clip of one consenting speaker in about a minute, or have our team build one from hours of recordings. Consent, recording tips, limits and the API for both."
+description: "Make a voice from a short clip of one consenting speaker in about a minute, port a voice you already use at ElevenLabs or Cartesia in seconds, or have our team build one from hours of recordings. Consent, recording tips, limits and the API."
 ---
 
 Your agents can speak in a voice made from recordings of one real person, with
-that person's consent. There are two ways to get one:
+that person's consent. Already have a voice at ElevenLabs or Cartesia?
+[Port it](#port-a-voice-from-another-provider) in a few seconds. Otherwise
+there are two ways to get one:
 
 | | Instant voice | Professional voice clone |
 | :--- | :--- | :--- |
@@ -69,7 +71,8 @@ Instant voices don't need the spoken consent statement that
 
 <Warning>
 Never upload a clip of a celebrity, a voice taken from another platform, or
-anyone who hasn't agreed.
+anyone who hasn't agreed. To bring a voice you own at another provider, use
+[Port a voice](#port-a-voice-from-another-provider) instead.
 </Warning>
 
 The speaker can withdraw consent at any time. Move your agents to another
@@ -256,6 +259,7 @@ The response is `201 Created`, with the voice:
 | `status` | `ready`. The voice works on calls as soon as it's created. |
 | `clip` | The clip's file name, its size in bytes and its length in seconds. We measure the length of WAV clips only, so `seconds` is `null` for other formats. |
 | `consent` | The speaker's name, your relationship to them, and when you confirmed their consent. |
+| `source` | Where a [ported voice](#port-a-voice-from-another-provider) came from: `provider`, `provider_name`, and the `voice_id` and `name` it has there. `null` for every other voice. |
 
 ```bash
 export MIRAI_CV_ID="cv_01k8c4n2q7r9t3v5x7z9b1d3f5"
@@ -361,6 +365,122 @@ Errors use the [standard envelope](/v2/errors).
 A clip over 16 MB, or in a format that isn't in the
 [limits](#instant-voice-limits), is refused before we make anything, and the
 message says which.
+
+## Port a voice from another provider
+
+If your callers already know a voice you use at another text-to-speech
+provider, you can bring it here. Paste your API key from that provider, pick
+the voice, and press **Port**. It's ready in a few seconds and works like any
+other custom voice: same calls, same fallback, same limit of 10 per workspace.
+
+### What you can port
+
+| Provider | What ports | What doesn't |
+| :--- | :--- | :--- |
+| ElevenLabs | Voices you cloned yourself from your own recording (instant voice clones). We make the voice from that recording. | ElevenLabs' own voices and Voice Library voices. Professional and designed voices, because ElevenLabs doesn't share their recording: upload the recording you made them from as an [instant voice](#instant-voices). |
+| Cartesia | Public library voices, and voices you made in your own Cartesia account. | — |
+| Sarvam | — | Sarvam's speakers are Sarvam's own voices. |
+| Smallest | — | Smallest's own voices. Voices you cloned there, because Smallest doesn't share their recording: upload the recording you made them from as an [instant voice](#instant-voices). |
+
+We never copy a voice from audio another provider generated: ElevenLabs,
+Sarvam and Smallest don't allow their output to be used to build voices
+elsewhere. That's why only your own recordings and Cartesia voices port. The
+voice list still shows the others, so you can see why each one can't come
+across.
+
+### Your key and your rights
+
+- We use your API key for that one request: to read your voices, play a
+  sample and make the voice. We never store it, and it never appears in our
+  logs.
+- Playing a sample or porting a Cartesia voice you made may use a few credits
+  at that provider.
+- Before you port, you confirm that the voices are yours and that the person
+  who speaks in each one agreed. We record that confirmation with the voice.
+
+### Port a voice in the console
+
+<Steps>
+  <Step title="Open Custom voices">
+    Open **Custom voices** in the sidebar and press **Port a voice**.
+  </Step>
+  <Step title="Pick the provider and paste your key">
+    Choose ElevenLabs or Cartesia, paste your API key and press **Show my
+    voices**. Have a voice ID instead? Press **Have a voice ID? Paste it**.
+    A public Cartesia voice needs only its ID, no key.
+  </Step>
+  <Step title="Choose the voice">
+    Search the list and play any voice to hear it. **Speaks** sets the
+    language the ported voice will speak; **Auto** uses the voice's own
+    language, or English.
+  </Step>
+  <Step title="Port it">
+    Tick the box to confirm your rights, then press **Port** on the voice.
+    A few seconds later it appears under **Your voices**, ready to pick in
+    Agent Studio.
+  </Step>
+</Steps>
+
+### Port a voice with the API
+
+| Method | Path | What it does |
+| :--- | :--- | :--- |
+| `POST` | `/v2/custom-voices/port/voices` | List the voices you can port, or look one up by `voice_id`. |
+| `POST` | `/v2/custom-voices/port/preview` | Hear a voice before you port it. |
+| `POST` | `/v2/custom-voices/port` | Port one voice. |
+
+List your voices at the provider:
+
+```bash
+curl --fail-with-body -X POST "$MIRAI_API_BASE/v2/custom-voices/port/voices" \
+  -H "Authorization: Bearer $MIRAI_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "provider": "elevenlabs", "api_key": "YOUR_ELEVENLABS_KEY" }'
+```
+
+`provider` is `elevenlabs`, `cartesia`, `sarvam` or `smallest`. Add
+`voice_id` to look up one voice (a public Cartesia voice needs no `api_key`).
+Each voice in `data` has `voice_id`, `name`, `description`, `gender`,
+`accent`, `language`, `group` (`yours`, `public` or `stock`), `portable`,
+`reason_code` and `reason` when it can't be ported (`provider_terms` or
+`no_recording`), and `ported_id`, the custom voice you already made from it.
+
+Port it:
+
+```bash
+curl --fail-with-body -X POST "$MIRAI_API_BASE/v2/custom-voices/port" \
+  -H "Authorization: Bearer $MIRAI_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "provider": "elevenlabs",
+    "api_key": "YOUR_ELEVENLABS_KEY",
+    "voice_id": "YOUR_VOICE_ID",
+    "language": "hi",
+    "rights_attested": true
+  }'
+```
+
+The response is `201` with the [custom voice](#create-a-voice), its `source`
+set. `name`, `language`, `gender` and `accent` are optional and default to what
+the provider says; the language must end up one of `en`, `hi`, `gu`, `ta` or
+`te`. Give your HTTP client a timeout of 90 seconds.
+
+### Port errors
+
+| Status | `code` | Meaning |
+| :--- | :--- | :--- |
+| `400` | `key_required` | This provider needs your API key. |
+| `400` | `key_rejected` | The provider didn't accept the key. Copy it again from their dashboard. |
+| `400` | `invalid_request` | A field is missing or out of range, such as `rights_attested` that isn't `true`. |
+| `404` | `voice_not_found` | The provider has no such voice for this key. |
+| `409` | `already_ported` | You already ported this voice; `error.custom_voice_id` is its ID. |
+| `409` | `limit_reached` | Your workspace already has 10 voices. |
+| `422` | `not_portable` | This voice can't be ported. `error.reason_code` says why: `provider_terms` or `no_recording`. |
+| `422` | `provider_out_of_credits` | Your account at the provider is out of credits. |
+| `422` | `sample_rejected` | We couldn't make a voice from it. Try another voice. |
+| `429` | `provider_rate_limited` | The provider is limiting your key. Try again in a minute. |
+| `502` | `provider_unavailable` | We couldn't reach the provider. Try again. |
+| `502` | `upstream_error` | Making the voice failed on our side. Nothing was saved, so try again. |
 
 ## Professional voice clones
 
