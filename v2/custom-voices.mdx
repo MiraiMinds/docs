@@ -29,8 +29,16 @@ voice.
 ### Where instant voices work
 
 An instant voice speaks on phone calls, campaign calls included, and on
-[browser calls](/v2/web-calls). [Realtime sessions](/v2/realtime) and the
-[text-to-speech API](/v2/tts-quickstart) use the built-in voices only.
+[browser calls](/v2/web-calls). It also works in the
+[text-to-speech API](/v2/tts-quickstart), the
+[streaming socket](/v2/tts-websocket) and the console's **Text to Speech**
+playground, where it is listed under **Your voices**: send its `id` (`cv_…`)
+as `voice`. Text to speech costs the same in your own voice as in a built-in
+one. [Realtime sessions](/v2/realtime) use the built-in voices only.
+
+Text to speech never swaps in another voice. If your voice can't be used for a
+request, for example because it was deleted, the request fails and you are not
+charged.
 
 On a call, an instant voice says numbers, dates and amounts the same way the
 built-in voices do. If it fails partway through a call, we say the interrupted
