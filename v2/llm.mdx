@@ -1,7 +1,7 @@
 ---
 title: "Language model API: mira-llm on OpenAI's chat completions"
 sidebarTitle: "Language model API"
-description: "Call mira-llm on the OpenAI-compatible POST /v2/chat/completions: one request, streaming, tool calls, Python, Pipecat, limits and the request log. ₹15 input, ₹9.30 cached input and ₹55 output per million tokens."
+description: "Call mira-llm on the OpenAI-compatible POST /v2/chat/completions: one request, streaming, tool calls, Python, Pipecat, the Vercel AI SDK, limits and the request log. ₹15 input, ₹9.30 cached input and ₹55 output per million tokens."
 ---
 
 `mira-llm` is the language model our voice agents run on, offered on its own.
@@ -22,11 +22,15 @@ already run on this model.
 | Base URL | `https://sandbox.voice.miraiminds.co/v2`, or `https://prod.voice.miraiminds.co/v2` once your company has [gone live](/general/tiers#your-plan) |
 | Route | `POST /v2/chat/completions` |
 | Auth | `Authorization: Bearer sk_live_…` |
-| Model | `mira-llm` |
+| Model | `mira-llm`. `google/gemma-4-26b-a4b-it`, the open model it runs, is accepted too |
 | Price | ₹15 input, ₹9.30 cached input, ₹55 output per 1,000,000 tokens ([details](#price)) |
 
 On the production address, a key from a workspace that has not gone live gets
 `403 production_workspace_required`.
+
+`https://llm.scalefrequency.com/v2` serves the language model alone, from our
+edge in Delhi. It takes production keys, under the same rules as
+`prod.voice.miraiminds.co`.
 
 <Note>
 `POST /v1/chat/completions`, OpenAI's own path, still works and behaves
@@ -402,6 +406,62 @@ your TTS service. Three things to know on a real call:
 This page was checked against Pipecat 1.8.1, where passing `model=` to the
 constructor still works but is deprecated in favour of
 `settings=...Settings(model=...)`.
+
+## 7. Vercel AI SDK
+
+The AI SDK's OpenAI-compatible provider works with the base URL and key
+changed:
+
+```ts
+// npm install ai @ai-sdk/openai-compatible zod
+import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
+import { generateText, streamText, tool, stepCountIs, Output } from "ai";
+import { z } from "zod";
+
+const mira = createOpenAICompatible({
+  name: "mira",
+  baseURL: "https://sandbox.voice.miraiminds.co/v2",
+  apiKey: process.env.MIRA_API_KEY,
+  supportsStructuredOutputs: true, // response_format json_schema
+  includeUsage: true, // token usage on streams
+});
+const model = mira("mira-llm");
+
+// One answer.
+const { text } = await generateText({
+  model,
+  prompt: "Mera refund kab tak aayega? Order return किए चार दिन हो गए.",
+});
+
+// Streamed.
+const stream = streamText({ model, prompt: "UPI क्या है, दो लाइन में बताइए." });
+for await (const piece of stream.textStream) process.stdout.write(piece);
+
+// Tools: the SDK runs your function and sends the result back.
+const booked = await generateText({
+  model,
+  stopWhen: stepCountIs(3),
+  prompt: "कल शाम चार बजे के बाद service के लिए slot book कर दो, नाम Rakesh Sharma.",
+  tools: {
+    book_slot: tool({
+      description: "Book a service visit for a customer.",
+      inputSchema: z.object({ date: z.string(), name: z.string() }),
+      execute: async (args) => calendar.book(args), // your booking client
+    }),
+  },
+});
+
+// Structured output that matches a schema.
+const { output } = await generateText({
+  model,
+  prompt: "One Indian city and its state.",
+  output: Output.object({ schema: z.object({ city: z.string(), state: z.string() }) }),
+});
+```
+
+This was checked on 2026-10-28 with `ai` 7.0.155 and
+`@ai-sdk/openai-compatible` 3.0.80. `generateText`, `streamText`, a tool run
+over several steps and `Output.object` all work.
 
 ## What the API reads
 
