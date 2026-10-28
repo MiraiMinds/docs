@@ -486,8 +486,10 @@ another provider still runs, with fewer of its settings in effect:
 | `stream` | `true` for server-sent events. | `false` |
 | `stream_options` | `{"include_usage": true}` adds a last chunk, before `[DONE]`, with an empty `choices` and the request's `usage`. Other keys are ignored. | No usage chunk |
 
-`n`, `logprobs`, `logit_bias`, `parallel_tool_calls` and `user` are ignored.
-So is the `name` field on a message. A value of the wrong type for a field we
+`n`, `logprobs`, `logit_bias`, `parallel_tool_calls`, `reasoning`,
+`reasoning_effort` and `user` are ignored. So is the `name` field on a message.
+The model's thinking is never returned: an answer has no reasoning content and
+no reasoning tokens, only the reply and its tool calls. A value of the wrong type for a field we
 read (a `seed` that is not an integer, five `stop` strings) is
 `400 invalid_request`.
 
@@ -502,7 +504,9 @@ read (a `seed` that is not an integer, five `stop` strings) is
 | Requests running at once | **16 per workspace**, about 100 live calls. Ask us to raise it. | `429 rate_limited` with `Retry-After: 1`. |
 | Request rate | The same limit as the rest of the API (see [Limits](/v2/limits#rate-limits)) | `429 rate_limited` with `Retry-After`. |
 
-Each refusal says which limit you hit.
+Each refusal says which limit you hit. The model's context is 32,768 tokens,
+the request and the reply together. We can raise the text and reply limits for
+your account: ask us.
 
 ## Price
 
