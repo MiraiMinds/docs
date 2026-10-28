@@ -359,8 +359,9 @@ from pipecat.services.openai.llm import OpenAILLMService
 
 
 class MiraiLLMService(OpenAILLMService):
-    # mira-llm accepts system, user, assistant and tool messages. This makes
-    # Pipecat send its "developer" messages as "user" messages instead.
+    # mira-llm reads a "developer" message as a system message. This makes
+    # Pipecat send those messages as "user" messages, so the caller's turn
+    # carries them.
     supports_developer_role = False
 
 
@@ -385,8 +386,8 @@ your TTS service. Three things to know on a real call:
 
 - **Pipecat sometimes adds `developer` messages**, for example when the tool
   set changes mid-call or a function runs with `cancel_on_interruption=False`.
-  This API refuses a `developer` message with `400 invalid_request`. The
-  subclass above has Pipecat send those messages as `user` messages instead.
+  This API reads a `developer` message as a `system` message. The subclass
+  above has Pipecat send those messages as `user` messages instead.
 - **A long call can pass the [request limits](#limits).** Pipecat keeps the
   whole conversation in its context, and each turn adds at least two messages.
   A request takes up to 100 messages and 16,000 characters of message text.
@@ -394,9 +395,9 @@ your TTS service. Three things to know on a real call:
   summarization with thresholds below those limits. Keep the system message,
   and change the start of the conversation as rarely as you can, because cached
   input only applies to a start that repeats.
-- **Only some settings reach the model.** Pipecat also sends `top_p`, `seed`
-  and the penalties; we ignore them. `temperature`, `max_tokens` and
-  `stream_options.include_usage` work. See [What the API reads](#what-the-api-reads).
+- **Pipecat's sampling settings reach the model.** `temperature`, `top_p`,
+  `seed`, the penalties, `max_tokens` and `stream_options.include_usage` all
+  work. See [What the API reads](#what-the-api-reads).
 
 This page was checked against Pipecat 1.8.1, where passing `model=` to the
 constructor still works but is deprecated in favour of
@@ -404,24 +405,31 @@ constructor still works but is deprecated in favour of
 
 ## What the API reads
 
-We read eight fields and ignore everything else, so a body written for another
-provider still runs, with fewer of its settings in effect:
+We read the fields below and ignore everything else, so a body written for
+another provider still runs, with fewer of its settings in effect:
 
 | Field | Values | Default |
 | :--- | :--- | :--- |
 | `model` | `mira-llm` | Required |
-| `messages` | 1 to 100 messages. `role` is `system`, `user`, `assistant` or `tool`. `content` is a string; an array of content parts (images, audio) is refused. An `assistant` message may leave `content` out when it carries `tool_calls`. A `tool` message needs `tool_call_id`. | Required |
+| `messages` | 1 to 100 messages. `role` is `system`, `user`, `assistant` or `tool`; `developer` is read as `system`. `content` is a string, or an array of `{"type": "text", "text": …}` parts, which are joined with line breaks. Any other part (images, audio) is refused: the model reads text only. An `assistant` message may leave `content` out when it carries `tool_calls`. A `tool` message needs `tool_call_id`. | Required |
 | `tools` | Up to 16, each `{"type": "function", "function": {"name", "description", "parameters"}}`. Other keys inside a tool are dropped. | None |
 | `tool_choice` | `auto`, `none`, `required`, or `{"type": "function", "function": {"name": …}}`. Any other value is dropped. Ignored without `tools`. | Left to the model |
 | `temperature` | 0 to 1.5. A value outside the range is clamped to it. | `0.3` |
-| `max_tokens` | 1 to 1,024. A larger value is lowered to 1,024. | `400` |
+| `max_tokens` | 1 to 1,024. A larger value is lowered to 1,024. `max_completion_tokens` is read the same way when `max_tokens` is absent. | `400` |
+| `top_p`, `min_p` | 0 to 1, clamped. | The model's |
+| `top_k` | An integer, 0 to 1,000. `0` turns it off. | Off |
+| `frequency_penalty`, `presence_penalty` | -2 to 2, clamped. | `0` |
+| `repetition_penalty` | 0.01 to 2, clamped. | `1` |
+| `seed` | An integer. The same seed and request give the same answer on the same model build. | Random |
+| `stop` | A string or up to 4 strings of at most 128 characters. The answer ends before the first one. | None |
+| `response_format` | `{"type": "json_object"}` for any JSON object, or `{"type": "json_schema", "json_schema": {"name", "schema", "strict"}}` for an answer that matches your JSON Schema. `{"type": "text"}` is the default. | Text |
 | `stream` | `true` for server-sent events. | `false` |
 | `stream_options` | `{"include_usage": true}` adds a last chunk, before `[DONE]`, with an empty `choices` and the request's `usage`. Other keys are ignored. | No usage chunk |
 
-`top_p`, `stop`, `seed`, `n`, `frequency_penalty`, `presence_penalty`,
-`response_format`, `parallel_tool_calls`, `max_completion_tokens` and `user`
-are ignored. So is the `name` field on a
-message.
+`n`, `logprobs`, `logit_bias`, `parallel_tool_calls` and `user` are ignored.
+So is the `name` field on a message. A value of the wrong type for a field we
+read (a `seed` that is not an integer, five `stop` strings) is
+`400 invalid_request`.
 
 ## Limits
 
