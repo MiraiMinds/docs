@@ -94,15 +94,27 @@ or from `POST /v2/calls`. The first choice that applies wins:
    as the call's own.
 2. The agent's `calls_from`.
 3. Your workspace's default pool, the one with `default_for_campaigns: true`.
-4. The Mirai shared line.
+4. Your own number. If your workspace has a number that can place calls, the call
+   rings from it. The number the calling agent answers comes first. After that
+   comes a number any of your agents answers, so a person who calls back reaches
+   someone, and then any other number. The oldest number in each group goes first.
+   A number that is resting is used only if every number is resting, and the call
+   then waits for it. A number never calls itself.
+5. The Mirai shared line, only when your workspace has no number that can place
+   calls.
 
-The Mirai shared line is always listed, last, as **Mirai shared line**. It is
-shared with other customers and the person called sees it as Mirai. It stays in
-every picker so you can always see where a call would go when you choose
-nothing. A call from your own number shows your name. The line a call ends up
-using is written on the call, as `phone_number_id`, `from`, and
-`calls_from_source`. When a pool picked the number, `calls_from_source` is
-`pool` and the call also carries `pool_id`.
+Once you have a number of your own, the Mirai shared line is gone for your
+workspace. It is no longer offered under **Calls come from**, and a call that
+chooses nothing rings from your number. A workspace without a number of its own
+sees **Mirai shared line** last in every picker. That line is shared with other
+customers, and the person called sees it as Mirai. If your only number isn't
+turned on yet, the picker lists it as **Not on yet** and says where to turn it on.
+A number you rent from Mirai is on as soon as the rental completes.
+
+The line a call ends up using is written on the call, as `phone_number_id`,
+`from`, and `calls_from_source`. `calls_from_source` is `own` when your own
+number was used because nothing chose one. When a pool picked the number,
+`calls_from_source` is `pool` and the call also carries `pool_id`.
 
 A number or pool you chose is never replaced silently. If it cannot place the
 call, the request is refused with the reason (see [errors](#errors)).
