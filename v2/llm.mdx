@@ -470,7 +470,7 @@ another provider still runs, with fewer of its settings in effect:
 
 | Field | Values | Default |
 | :--- | :--- | :--- |
-| `model` | `mira-llm` | Required |
+| `model` | `mira-llm` or `google/gemma-4-26b-a4b-it` (any letter case). Answers name `mira-llm` either way. | Required |
 | `messages` | 1 to 100 messages. `role` is `system`, `user`, `assistant` or `tool`; `developer` is read as `system`. `content` is a string, or an array of `{"type": "text", "text": …}` parts, which are joined with line breaks. Any other part (images, audio) is refused: the model reads text only. An `assistant` message may leave `content` out when it carries `tool_calls`. A `tool` message needs `tool_call_id`. | Required |
 | `tools` | Up to 16, each `{"type": "function", "function": {"name", "description", "parameters"}}`. Other keys inside a tool are dropped. | None |
 | `tool_choice` | `auto`, `none`, `required`, or `{"type": "function", "function": {"name": …}}`. Any other value is dropped. Ignored without `tools`. | Left to the model |
