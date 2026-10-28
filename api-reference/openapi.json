@@ -831,7 +831,7 @@
                         ]
                       },
                       "calls_from": {
-                        "description": "The phone number this agent's outbound calls ring from when the call, or its campaign, does not choose one. Resolution is fixed: the call's (or campaign's) phone_number_id, else this, else the Mirai shared line. A number set here dials through its own provider connection (India destinations only) and is re-checked before every call: if it can no longer call, calls fail with 409 not_ready and campaigns pause, never falling back to the shared line. null unsets it. Kept across a rollback.",
+                        "description": "The phone number this agent's outbound calls ring from when the call, or its campaign, does not choose one. Resolution is fixed: the call's (or campaign's) phone_number_id or pool_id, else this, else the workspace's default pool, else the workspace's own number, else the Mirai shared line (only for a workspace with no number that can place calls). A number set here dials through its own provider connection (India destinations only) and is re-checked before every call: if it can no longer call, calls fail with 409 not_ready and campaigns pause, never falling back to the shared line. null unsets it. Kept across a rollback.",
                         "oneOf": [
                           {
                             "type": "null"
@@ -2839,7 +2839,7 @@
       "get": {
         "operationId": "stream_live_events",
         "summary": "Stream live events",
-        "description": "What's happening on a call, as it happens, over [Server-Sent Events](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events). Every call has it: phone calls (outbound, campaign and inbound), browser calls and realtime sessions.\n\n**This response doesn't finish on its own.** It stays open and sends each event as it occurs: `agent.state` (listening, processing, speaking), `transcript.turn` for every completed turn, `turn.metrics` with how fast each agent reply came (`latency_ms` from the caller stopping to the reply's audio, and each stage's first-byte time), `tool.started` and `tool.completed` for each tool the agent runs during the call (names and timings, never arguments or results), `flow.node.entered` and `flow.variables.extracted` for a node-based agent, and finally `call.ended`, after which the stream closes.\n\nEvery event has an `id`. To resume after a drop, send it back as `after` (or as the `Last-Event-ID` header) and the stream carries on after that event. Events are kept for an hour after the call ends, so opening a finished call replays it and closes. A reader already past `call.ended` gets `204`.\n\nA phone call's stream opens when it is placed and stays quiet while it rings; the first event arrives when the call is answered. A call that is never answered (busy, no answer) sends only `call.ended`, with the call's `status`.\n\nYour API key works here, from your backend, for any call in your workspace. A browser should open the `events_url` that creating the call returned, which carries its own token, so your key never reaches the page. A campaign or inbound call has no create response, so read its stream with your key.",
+        "description": "What's happening on a call, as it happens, over [Server-Sent Events](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events). Every call has it: phone calls (outbound, campaign and inbound), browser calls and realtime sessions.\n\n**This response doesn't finish on its own.** It stays open and sends each event as it occurs: `agent.state` (listening, processing, speaking), `transcript.turn` for every completed turn, `turn.metrics` with how fast each agent reply came (`latency_ms` from the caller stopping to the reply's audio, and each stage's first-byte time), `tool.started` and `tool.completed` for each tool the agent runs during the call (names and timings, never arguments or results), `flow.node.entered` and `flow.variables.extracted` for a node-based agent, `language.changed` when the call switches language because the caller asked for another one or spoke it (and `language.not_enabled` when they asked for one the agent does not have), and finally `call.ended`, after which the stream closes.\n\nEvery event has an `id`. To resume after a drop, send it back as `after` (or as the `Last-Event-ID` header) and the stream carries on after that event. Events are kept for an hour after the call ends, so opening a finished call replays it and closes. A reader already past `call.ended` gets `204`.\n\nA phone call's stream opens when it is placed and stays quiet while it rings; the first event arrives when the call is answered. A call that is never answered (busy, no answer) sends only `call.ended`, with the call's `status`.\n\nYour API key works here, from your backend, for any call in your workspace. A browser should open the `events_url` that creating the call returned, which carries its own token, so your key never reaches the page. A campaign or inbound call has no create response, so read its stream with your key.",
         "tags": [
           "Calls"
         ],
@@ -19824,7 +19824,7 @@
             "type": "object"
           },
           "calls_from": {
-            "description": "The phone number this agent's outbound calls ring from when the call or its campaign does not choose one; null when unset (the Mirai shared line).",
+            "description": "The phone number this agent's outbound calls ring from when the call or its campaign does not choose one; null when unset (the workspace's default pool, else its own number, else the Mirai shared line).",
             "oneOf": [
               {
                 "type": "null"
@@ -20319,7 +20319,7 @@
             ]
           },
           "calls_from": {
-            "description": "The phone number this agent's outbound calls ring from when the call, or its campaign, does not choose one. Resolution is fixed: the call's (or campaign's) phone_number_id, else this, else the Mirai shared line. A number set here dials through its own provider connection (India destinations only) and is re-checked before every call: if it can no longer call, calls fail with 409 not_ready and campaigns pause, never falling back to the shared line. null unsets it. Kept across a rollback.",
+            "description": "The phone number this agent's outbound calls ring from when the call, or its campaign, does not choose one. Resolution is fixed: the call's (or campaign's) phone_number_id or pool_id, else this, else the workspace's default pool, else the workspace's own number, else the Mirai shared line (only for a workspace with no number that can place calls). A number set here dials through its own provider connection (India destinations only) and is re-checked before every call: if it can no longer call, calls fail with 409 not_ready and campaigns pause, never falling back to the shared line. null unsets it. Kept across a rollback.",
             "oneOf": [
               {
                 "type": "null"
@@ -20763,7 +20763,7 @@
             ]
           },
           "calls_from": {
-            "description": "The phone number this agent's outbound calls ring from when the call, or its campaign, does not choose one. Resolution is fixed: the call's (or campaign's) phone_number_id, else this, else the Mirai shared line. A number set here dials through its own provider connection (India destinations only) and is re-checked before every call: if it can no longer call, calls fail with 409 not_ready and campaigns pause, never falling back to the shared line. null unsets it. Kept across a rollback.",
+            "description": "The phone number this agent's outbound calls ring from when the call, or its campaign, does not choose one. Resolution is fixed: the call's (or campaign's) phone_number_id or pool_id, else this, else the workspace's default pool, else the workspace's own number, else the Mirai shared line (only for a workspace with no number that can place calls). A number set here dials through its own provider connection (India destinations only) and is re-checked before every call: if it can no longer call, calls fail with 409 not_ready and campaigns pause, never falling back to the shared line. null unsets it. Kept across a rollback.",
             "oneOf": [
               {
                 "type": "null"
@@ -21289,10 +21289,12 @@
             "$ref": "#/components/schemas/CallSettingsEffective"
           },
           "calls_from_source": {
-            "description": "How an outbound phone call's number was chosen: request (the call's own phone_number_id, or its campaign's), agent (the agent's calls_from), shared (the Mirai shared line, shared with other customers and showing as Mirai) or trunk (a Mirai line: one from a campaign's caller_ids, or the caller ID Mirai set up for your workspace's shared-line calls). Absent on inbound, web and WhatsApp calls.",
+            "description": "How an outbound phone call's number was chosen: request (the call's own phone_number_id, or its campaign's), agent (the agent's calls_from), pool (a phone pool picked it), own (nothing chose one, so the workspace's own number), shared (the Mirai shared line, only for a workspace with no number that can place calls; shared with other customers and showing as Mirai) or trunk (a Mirai line: one from a campaign's caller_ids, or the caller ID Mirai set up for your workspace's shared-line calls). Absent on inbound, web and WhatsApp calls.",
             "enum": [
               "request",
               "agent",
+              "pool",
+              "own",
               "shared",
               "trunk"
             ],
