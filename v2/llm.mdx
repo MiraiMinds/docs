@@ -578,7 +578,7 @@ Errors use the same [envelope](/v2/errors) as the rest of the API:
 
 | Status | `code` | Cause |
 | :--- | :--- | :--- |
-| 400 | `invalid_request` | The body is not a JSON object, `model` is not `mira-llm`, a message or tool breaks the rules in [What the API reads](#what-the-api-reads), or the request is over a [limit](#limits). The message says which. |
+| 400 | `invalid_request` | The body is not a JSON object, `model` is neither `mira-llm` nor `google/gemma-4-26b-a4b-it`, a message or tool breaks the rules in [What the API reads](#what-the-api-reads), or the request is over a [limit](#limits). The message says which. |
 | 401 | `unauthorized` | Missing or unknown key. Check the `Authorization: Bearer sk_live_…` header. |
 | 402 | `insufficient_balance` | Your wallet is empty, counting usage not yet charged. Add funds and retry. |
 | 403 | `forbidden` | The key was revoked. |
