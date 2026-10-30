@@ -180,8 +180,11 @@ the details.
 
 ### Marathi
 
-Marathi is written in Devanagari, like Hindi, so the text alone doesn't say
-which one it is. Add `"language": "mr"` and the voice reads it as Marathi:
+Marathi is written in Devanagari, like Hindi, so its script alone doesn't say
+which one it is. Its words do: a line with Marathi words such as आहे, नाही or
+तुमच्या is read as Marathi without anything extra. A very short line with no
+Marathi word in it ("धन्यवाद") is read as Hindi. Add `"language": "mr"` to make
+every line Marathi:
 
 ```bash
 curl https://sandbox.voice.miraiminds.co/v1/audio/speech \
@@ -197,13 +200,14 @@ curl https://sandbox.voice.miraiminds.co/v1/audio/speech \
   --output marathi.wav
 ```
 
-`language` is optional, and today it matters only for Marathi. It also takes
-`mr-IN` or `Marathi`. Every other language is read from its script, so a
-`language` that disagrees with the text is ignored: Hindi text sent with
-`"language": "kn"` is still read as Hindi. A value we don't recognise is
-ignored too, and never fails the request. With the OpenAI SDK, pass it as
-`extra_body={"language": "mr"}`. The [streaming socket](/v2/tts-websocket) has
-no `language` field yet, so Marathi sent there is read as Hindi.
+`language` is optional, and today it matters only for Devanagari: `mr` makes a
+line Marathi and `hi` keeps it Hindi. It also takes `mr-IN` or `Marathi`. Every
+other language is read from its script, so a `language` that disagrees with
+the text is ignored: Hindi text sent with `"language": "kn"` is still read as
+Hindi. A value we don't recognise is ignored too, and never fails the request.
+With the OpenAI SDK, pass it as `extra_body={"language": "mr"}`. The
+[streaming socket](/v2/tts-websocket) has no `language` field yet, so there
+Marathi is recognised by its words alone, sentence by sentence.
 
 ### What comes back
 
