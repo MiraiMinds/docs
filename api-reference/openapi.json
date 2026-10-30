@@ -839,6 +839,60 @@
                           }
                         ]
                       },
+                      "booking": {
+                        "description": "The agent's booking window: which days a caller may book. With date awareness on, every day a caller names is marked as bookable or not before the agent replies (after the window, a closed weekday or date, already past), the agent is told the window in its prompt and offered the nearest bookable day, so it never confirms a day you cannot take. Absent when not set. A PATCH replaces the whole block (omitted fields take their defaults); null removes it.",
+                        "oneOf": [
+                          {
+                            "type": "null"
+                          },
+                          {
+                            "additionalProperties": false,
+                            "properties": {
+                              "closed_dates": {
+                                "default": [],
+                                "description": "Single days that cannot be booked, such as holidays, as YYYY-MM-DD. Saved unique and sorted; at most 100.",
+                                "items": {
+                                  "format": "date",
+                                  "type": "string"
+                                },
+                                "maxItems": 100,
+                                "type": "array"
+                              },
+                              "closed_weekdays": {
+                                "default": [],
+                                "description": "Days of the week that cannot be booked, lower case. Saved unique and in week order; closing all seven is 400.",
+                                "items": {
+                                  "enum": [
+                                    "monday",
+                                    "tuesday",
+                                    "wednesday",
+                                    "thursday",
+                                    "friday",
+                                    "saturday",
+                                    "sunday"
+                                  ],
+                                  "type": "string"
+                                },
+                                "maxItems": 6,
+                                "type": "array"
+                              },
+                              "same_day": {
+                                "default": true,
+                                "description": "Whether today itself can be booked. Default true.",
+                                "type": "boolean"
+                              },
+                              "window_days": {
+                                "default": 30,
+                                "description": "How far ahead a caller may book: from today (or tomorrow, without same_day) up to this many days after today. Default 30.",
+                                "maximum": 366,
+                                "minimum": 1,
+                                "type": "integer"
+                              }
+                            },
+                            "type": "object"
+                          }
+                        ]
+                      },
                       "calls_from": {
                         "description": "The phone number this agent's outbound calls ring from when the call, or its campaign, does not choose one. Resolution is fixed: the call's (or campaign's) phone_number_id or pool_id, else this, else the workspace's default pool, else the workspace's own number, else the Mirai shared line (only for a workspace with no number that can place calls). A number set here dials through its own provider connection (India destinations only) and is re-checked before every call: if it can no longer call, calls fail with 409 not_ready and campaigns pause, never falling back to the shared line. null unsets it. Kept across a rollback.",
                         "oneOf": [
@@ -19917,6 +19971,59 @@
             ],
             "type": "object"
           },
+          "booking": {
+            "additionalProperties": false,
+            "description": "The agent's booking window: which days a caller may book. With date awareness on, every day a caller names is marked as bookable or not before the agent replies (after the window, a closed weekday or date, already past), the agent is told the window in its prompt and offered the nearest bookable day, so it never confirms a day you cannot take. Absent when not set. A PATCH replaces the whole block (omitted fields take their defaults); null removes it. Present only on agents that have one.",
+            "properties": {
+              "closed_dates": {
+                "default": [],
+                "description": "Single days that cannot be booked, such as holidays, as YYYY-MM-DD. Saved unique and sorted; at most 100.",
+                "items": {
+                  "format": "date",
+                  "type": "string"
+                },
+                "maxItems": 100,
+                "type": "array"
+              },
+              "closed_weekdays": {
+                "default": [],
+                "description": "Days of the week that cannot be booked, lower case. Saved unique and in week order; closing all seven is 400.",
+                "items": {
+                  "enum": [
+                    "monday",
+                    "tuesday",
+                    "wednesday",
+                    "thursday",
+                    "friday",
+                    "saturday",
+                    "sunday"
+                  ],
+                  "type": "string"
+                },
+                "maxItems": 6,
+                "type": "array"
+              },
+              "same_day": {
+                "default": true,
+                "description": "Whether today itself can be booked. Default true.",
+                "type": "boolean"
+              },
+              "window_days": {
+                "default": 30,
+                "description": "How far ahead a caller may book: from today (or tomorrow, without same_day) up to this many days after today. Default 30.",
+                "maximum": 366,
+                "minimum": 1,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "window_days",
+              "same_day",
+              "closed_weekdays",
+              "closed_dates"
+            ],
+            "type": "object"
+          },
           "calls_from": {
             "description": "The phone number this agent's outbound calls ring from when the call or its campaign does not choose one; null when unset (the workspace's default pool, else its own number, else the Mirai shared line).",
             "oneOf": [
@@ -20483,6 +20590,60 @@
               }
             ]
           },
+          "booking": {
+            "description": "The agent's booking window: which days a caller may book. With date awareness on, every day a caller names is marked as bookable or not before the agent replies (after the window, a closed weekday or date, already past), the agent is told the window in its prompt and offered the nearest bookable day, so it never confirms a day you cannot take. Absent when not set. A PATCH replaces the whole block (omitted fields take their defaults); null removes it.",
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "closed_dates": {
+                    "default": [],
+                    "description": "Single days that cannot be booked, such as holidays, as YYYY-MM-DD. Saved unique and sorted; at most 100.",
+                    "items": {
+                      "format": "date",
+                      "type": "string"
+                    },
+                    "maxItems": 100,
+                    "type": "array"
+                  },
+                  "closed_weekdays": {
+                    "default": [],
+                    "description": "Days of the week that cannot be booked, lower case. Saved unique and in week order; closing all seven is 400.",
+                    "items": {
+                      "enum": [
+                        "monday",
+                        "tuesday",
+                        "wednesday",
+                        "thursday",
+                        "friday",
+                        "saturday",
+                        "sunday"
+                      ],
+                      "type": "string"
+                    },
+                    "maxItems": 6,
+                    "type": "array"
+                  },
+                  "same_day": {
+                    "default": true,
+                    "description": "Whether today itself can be booked. Default true.",
+                    "type": "boolean"
+                  },
+                  "window_days": {
+                    "default": 30,
+                    "description": "How far ahead a caller may book: from today (or tomorrow, without same_day) up to this many days after today. Default 30.",
+                    "maximum": 366,
+                    "minimum": 1,
+                    "type": "integer"
+                  }
+                },
+                "type": "object"
+              }
+            ]
+          },
           "calls_from": {
             "description": "The phone number this agent's outbound calls ring from when the call, or its campaign, does not choose one. Resolution is fixed: the call's (or campaign's) phone_number_id or pool_id, else this, else the workspace's default pool, else the workspace's own number, else the Mirai shared line (only for a workspace with no number that can place calls). A number set here dials through its own provider connection (India destinations only) and is re-checked before every call: if it can no longer call, calls fail with 409 not_ready and campaigns pause, never falling back to the shared line. null unsets it. Kept across a rollback.",
             "oneOf": [
@@ -20992,6 +21153,60 @@
                       "array",
                       "null"
                     ]
+                  }
+                },
+                "type": "object"
+              }
+            ]
+          },
+          "booking": {
+            "description": "The agent's booking window: which days a caller may book. With date awareness on, every day a caller names is marked as bookable or not before the agent replies (after the window, a closed weekday or date, already past), the agent is told the window in its prompt and offered the nearest bookable day, so it never confirms a day you cannot take. Absent when not set. A PATCH replaces the whole block (omitted fields take their defaults); null removes it.",
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "closed_dates": {
+                    "default": [],
+                    "description": "Single days that cannot be booked, such as holidays, as YYYY-MM-DD. Saved unique and sorted; at most 100.",
+                    "items": {
+                      "format": "date",
+                      "type": "string"
+                    },
+                    "maxItems": 100,
+                    "type": "array"
+                  },
+                  "closed_weekdays": {
+                    "default": [],
+                    "description": "Days of the week that cannot be booked, lower case. Saved unique and in week order; closing all seven is 400.",
+                    "items": {
+                      "enum": [
+                        "monday",
+                        "tuesday",
+                        "wednesday",
+                        "thursday",
+                        "friday",
+                        "saturday",
+                        "sunday"
+                      ],
+                      "type": "string"
+                    },
+                    "maxItems": 6,
+                    "type": "array"
+                  },
+                  "same_day": {
+                    "default": true,
+                    "description": "Whether today itself can be booked. Default true.",
+                    "type": "boolean"
+                  },
+                  "window_days": {
+                    "default": 30,
+                    "description": "How far ahead a caller may book: from today (or tomorrow, without same_day) up to this many days after today. Default 30.",
+                    "maximum": 366,
+                    "minimum": 1,
+                    "type": "integer"
                   }
                 },
                 "type": "object"
