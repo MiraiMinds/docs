@@ -176,7 +176,8 @@
                       "behavior": {
                         "interruptions": "normal",
                         "adaptive_interruptions": true,
-                        "pass_through": []
+                        "pass_through": [],
+                        "date_awareness": true
                       },
                       "secondary_languages": [
                         "en"
@@ -310,7 +311,8 @@
                           "behavior": {
                             "interruptions": "normal",
                             "adaptive_interruptions": true,
-                            "pass_through": []
+                            "pass_through": [],
+                            "date_awareness": true
                           },
                           "secondary_languages": [
                             "en"
@@ -409,7 +411,8 @@
                       "behavior": {
                         "interruptions": "normal",
                         "adaptive_interruptions": true,
-                        "pass_through": []
+                        "pass_through": [],
+                        "date_awareness": true
                       },
                       "secondary_languages": [
                         "en"
@@ -524,7 +527,8 @@
                       "behavior": {
                         "interruptions": "normal",
                         "adaptive_interruptions": true,
-                        "pass_through": []
+                        "pass_through": [],
+                        "date_awareness": true
                       },
                       "secondary_languages": [
                         "en"
@@ -787,7 +791,7 @@
                         ]
                       },
                       "behavior": {
-                        "description": "How the agent takes turns with the caller. Unlike other nested blocks, PATCH merges it field by field: omitted fields keep their current value and {} changes nothing; a sent pass_through replaces the whole list. null resets it to the defaults (interruptions normal, adaptive_interruptions true, pass_through []).",
+                        "description": "How the agent takes turns with the caller, and whether it knows the date. Unlike other nested blocks, PATCH merges it field by field: omitted fields keep their current value and {} changes nothing; a sent pass_through replaces the whole list. null resets it to the defaults (interruptions normal, adaptive_interruptions true, pass_through [], date_awareness true).",
                         "oneOf": [
                           {
                             "type": "null"
@@ -798,6 +802,11 @@
                               "adaptive_interruptions": {
                                 "default": true,
                                 "description": "Turn-taking, on by default. The agent decides when the caller has finished speaking: it waits through mid-thought pauses with a short \"hmm\", ignores quieter voices in the background (someone else in the room), and picks up a line it was cut off on if the interruption turns out to be nothing. Turn it off for fixed rules only: the interruptions setting decides how many words cut the agent off, and pass_through words never do.",
+                                "type": "boolean"
+                              },
+                              "date_awareness": {
+                                "default": true,
+                                "description": "Date awareness, on by default. The agent knows today's date in the call's timezone (the campaign's, else India), and whenever the caller names a day (\"Saturday\", \"शनिवार\", \"15 तारीख\", \"कल\", \"next Monday\", \"15 November\") it is told the exact date before it replies, so it never works out a date or a weekday itself. A day that does not exist (31 November) is flagged to the agent, and each resolved date is a row in the agent's Logs (prompt). Turn it off only if your own prompt or tools supply dates differently.",
                                 "type": "boolean"
                               },
                               "interruptions": {
@@ -878,6 +887,72 @@
                           },
                           "message": {
                             "default": "Thanks, have a good day",
+                            "type": "string"
+                          }
+                        },
+                        "type": "object"
+                      },
+                      "features": {
+                        "additionalProperties": false,
+                        "description": "Per-agent switches for platform behaviour still being tuned, by name. Each reaches the worker as a call variable of the same name, under the call's own variables: a variable the call supplies wins for that call. A switch the agent does not name keeps the platform's setting. Optional; {} or null clears every switch, and a PATCH replaces the whole object.",
+                        "properties": {
+                          "call_budget_secs": {
+                            "description": "How long this agent's calls usually last, in seconds, for llm_timeline voice's time-left cue (60 when not set). A whole number from 20 to 3600; a JSON number or its digits as a string.",
+                            "maximum": 3600,
+                            "minimum": 20,
+                            "type": "integer"
+                          },
+                          "llm_timeline": {
+                            "description": "on: each request to the reply model ends with the call's timeline (when each of the last six turns started, how long it ran, the silence before it) and the call time now. voice: the same, plus plain-word cues when they apply (the caller cut the agent off, keeps asking, answers slowly, has gone quiet, how much of call_budget_secs is left). Not on node flows or realtime sessions.",
+                            "enum": [
+                              "off",
+                              "on",
+                              "voice"
+                            ],
+                            "type": "string"
+                          },
+                          "repeat_counter": {
+                            "description": "on: the reply model is told what the caller has already heard the agent say several times on this call, so it words it differently. shadow: counted and logged, nothing sent. Not on node flows or realtime sessions.",
+                            "enum": [
+                              "off",
+                              "shadow",
+                              "on"
+                            ],
+                            "type": "string"
+                          },
+                          "tts_repeat_vary": {
+                            "description": "on: a sentence the caller already heard on this call is rendered fresh, a little faster or slower, instead of replaying the same audio. A JSON boolean is accepted (true is on).",
+                            "enum": [
+                              "off",
+                              "on"
+                            ],
+                            "type": "string"
+                          },
+                          "tts_rhythm": {
+                            "description": "How each sentence is paced, on our own voices. on: our rules (a routine line flows quicker, a value read back to the caller slower, with pauses where a person recalls it). llm: the reply model starts a sentence with [slow] or [fast], never spoken. off: the voice as it comes.",
+                            "enum": [
+                              "off",
+                              "on",
+                              "llm"
+                            ],
+                            "type": "string"
+                          },
+                          "turn_bc_choice": {
+                            "description": "With adaptive interruptions: on, the turn model chooses the short word the agent says while the caller pauses (\"जी\", \"हाँ\"). shadow: asks and logs, and says today's word.",
+                            "enum": [
+                              "off",
+                              "shadow",
+                              "on"
+                            ],
+                            "type": "string"
+                          },
+                          "turn_fusion": {
+                            "description": "With adaptive interruptions: on, the voice-end score and the turn model decide together when the caller has finished (a low score holds a reply, a high one answers at once). shadow: logs what it would have done.",
+                            "enum": [
+                              "off",
+                              "shadow",
+                              "on"
+                            ],
                             "type": "string"
                           }
                         },
@@ -1252,7 +1327,8 @@
                           "behavior": {
                             "interruptions": "normal",
                             "adaptive_interruptions": true,
-                            "pass_through": []
+                            "pass_through": [],
+                            "date_awareness": true
                           },
                           "secondary_languages": [
                             "en"
@@ -1293,7 +1369,8 @@
                           "behavior": {
                             "interruptions": "normal",
                             "adaptive_interruptions": true,
-                            "pass_through": []
+                            "pass_through": [],
+                            "date_awareness": true
                           },
                           "secondary_languages": [
                             "en"
@@ -1405,7 +1482,8 @@
                       "behavior": {
                         "interruptions": "normal",
                         "adaptive_interruptions": true,
-                        "pass_through": []
+                        "pass_through": [],
+                        "date_awareness": true
                       },
                       "secondary_languages": [
                         "en"
@@ -1555,7 +1633,8 @@
                       "behavior": {
                         "interruptions": "normal",
                         "adaptive_interruptions": true,
-                        "pass_through": []
+                        "pass_through": [],
+                        "date_awareness": true
                       },
                       "secondary_languages": [
                         "en"
@@ -1699,7 +1778,8 @@
                       "behavior": {
                         "interruptions": "normal",
                         "adaptive_interruptions": true,
-                        "pass_through": []
+                        "pass_through": [],
+                        "date_awareness": true
                       },
                       "secondary_languages": [
                         "en"
@@ -5524,7 +5604,8 @@
                       "behavior": {
                         "interruptions": "normal",
                         "adaptive_interruptions": true,
-                        "pass_through": []
+                        "pass_through": [],
+                        "date_awareness": true
                       },
                       "secondary_languages": [
                         "en"
@@ -6450,7 +6531,8 @@
                       "behavior": {
                         "interruptions": "normal",
                         "adaptive_interruptions": true,
-                        "pass_through": []
+                        "pass_through": [],
+                        "date_awareness": true
                       },
                       "secondary_languages": [
                         "en"
@@ -6634,7 +6716,8 @@
                       "behavior": {
                         "interruptions": "normal",
                         "adaptive_interruptions": true,
-                        "pass_through": []
+                        "pass_through": [],
+                        "date_awareness": true
                       },
                       "secondary_languages": [
                         "en"
@@ -19251,6 +19334,10 @@
                     "minLength": 1,
                     "type": "string"
                   },
+                  "language": {
+                    "description": "Optional. The input's language, where its script cannot tell: Marathi (mr) is written in Devanagari like Hindi, so send mr with Marathi text. Every other language is read from its script, and a language the script contradicts is ignored. One of hi, en, gu, mr, bn, ta, te, kn, ml, pa, od, a region allowed (mr-IN), or the language's English name (Marathi); anything else is ignored.",
+                    "type": "string"
+                  },
                   "loudness": {
                     "default": 1,
                     "description": "Linear gain (2.0 is +6 dB), held under full scale by a limiter.",
@@ -19318,6 +19405,7 @@
                   },
                   "voice": {
                     "default": "shruti",
+                    "description": "A built-in voice, or the id (cv_...) of one of your own custom voices (GET /v2/custom-voices).",
                     "type": "string"
                   }
                 },
@@ -19787,11 +19875,16 @@
           },
           "behavior": {
             "additionalProperties": false,
-            "description": "How the agent takes turns with the caller. Always present; agents saved before this block existed read back with the defaults.",
+            "description": "How the agent takes turns with the caller, and whether it knows the date. Always present; agents saved before this block existed read back with the defaults.",
             "properties": {
               "adaptive_interruptions": {
                 "default": true,
                 "description": "Turn-taking, on by default. The agent decides when the caller has finished speaking: it waits through mid-thought pauses with a short \"hmm\", ignores quieter voices in the background (someone else in the room), and picks up a line it was cut off on if the interruption turns out to be nothing. Turn it off for fixed rules only: the interruptions setting decides how many words cut the agent off, and pass_through words never do.",
+                "type": "boolean"
+              },
+              "date_awareness": {
+                "default": true,
+                "description": "Date awareness, on by default. The agent knows today's date in the call's timezone (the campaign's, else India), and whenever the caller names a day (\"Saturday\", \"शनिवार\", \"15 तारीख\", \"कल\", \"next Monday\", \"15 November\") it is told the exact date before it replies, so it never works out a date or a weekday itself. A day that does not exist (31 November) is flagged to the agent, and each resolved date is a row in the agent's Logs (prompt). Turn it off only if your own prompt or tools supply dates differently.",
                 "type": "boolean"
               },
               "interruptions": {
@@ -19819,7 +19912,8 @@
             "required": [
               "interruptions",
               "adaptive_interruptions",
-              "pass_through"
+              "pass_through",
+              "date_awareness"
             ],
             "type": "object"
           },
@@ -19879,6 +19973,71 @@
               },
               "message": {
                 "default": "Thanks, have a good day",
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "features": {
+            "additionalProperties": false,
+            "description": "The switches this agent sets, as the worker reads them: every value a string (call_budget_secs as its digits). Always returned: {} when there are none, including on agents saved before the field existed.",
+            "properties": {
+              "call_budget_secs": {
+                "description": "How long this agent's calls usually last, in seconds, as digits.",
+                "pattern": "^[0-9]+$",
+                "type": "string"
+              },
+              "llm_timeline": {
+                "description": "on: each request to the reply model ends with the call's timeline (when each of the last six turns started, how long it ran, the silence before it) and the call time now. voice: the same, plus plain-word cues when they apply (the caller cut the agent off, keeps asking, answers slowly, has gone quiet, how much of call_budget_secs is left). Not on node flows or realtime sessions.",
+                "enum": [
+                  "off",
+                  "on",
+                  "voice"
+                ],
+                "type": "string"
+              },
+              "repeat_counter": {
+                "description": "on: the reply model is told what the caller has already heard the agent say several times on this call, so it words it differently. shadow: counted and logged, nothing sent. Not on node flows or realtime sessions.",
+                "enum": [
+                  "off",
+                  "shadow",
+                  "on"
+                ],
+                "type": "string"
+              },
+              "tts_repeat_vary": {
+                "description": "on: a sentence the caller already heard on this call is rendered fresh, a little faster or slower, instead of replaying the same audio. A JSON boolean is accepted (true is on).",
+                "enum": [
+                  "off",
+                  "on"
+                ],
+                "type": "string"
+              },
+              "tts_rhythm": {
+                "description": "How each sentence is paced, on our own voices. on: our rules (a routine line flows quicker, a value read back to the caller slower, with pauses where a person recalls it). llm: the reply model starts a sentence with [slow] or [fast], never spoken. off: the voice as it comes.",
+                "enum": [
+                  "off",
+                  "on",
+                  "llm"
+                ],
+                "type": "string"
+              },
+              "turn_bc_choice": {
+                "description": "With adaptive interruptions: on, the turn model chooses the short word the agent says while the caller pauses (\"जी\", \"हाँ\"). shadow: asks and logs, and says today's word.",
+                "enum": [
+                  "off",
+                  "shadow",
+                  "on"
+                ],
+                "type": "string"
+              },
+              "turn_fusion": {
+                "description": "With adaptive interruptions: on, the voice-end score and the turn model decide together when the caller has finished (a low score holds a reply, a high one answers at once). shadow: logs what it would have done.",
+                "enum": [
+                  "off",
+                  "shadow",
+                  "on"
+                ],
                 "type": "string"
               }
             },
@@ -20118,7 +20277,8 @@
         },
         "required": [
           "behavior",
-          "secondary_languages"
+          "secondary_languages",
+          "features"
         ],
         "type": "object"
       },
@@ -20275,7 +20435,7 @@
             ]
           },
           "behavior": {
-            "description": "How the agent takes turns with the caller. Unlike other nested blocks, PATCH merges it field by field: omitted fields keep their current value and {} changes nothing; a sent pass_through replaces the whole list. null resets it to the defaults (interruptions normal, adaptive_interruptions true, pass_through []).",
+            "description": "How the agent takes turns with the caller, and whether it knows the date. Unlike other nested blocks, PATCH merges it field by field: omitted fields keep their current value and {} changes nothing; a sent pass_through replaces the whole list. null resets it to the defaults (interruptions normal, adaptive_interruptions true, pass_through [], date_awareness true).",
             "oneOf": [
               {
                 "type": "null"
@@ -20286,6 +20446,11 @@
                   "adaptive_interruptions": {
                     "default": true,
                     "description": "Turn-taking, on by default. The agent decides when the caller has finished speaking: it waits through mid-thought pauses with a short \"hmm\", ignores quieter voices in the background (someone else in the room), and picks up a line it was cut off on if the interruption turns out to be nothing. Turn it off for fixed rules only: the interruptions setting decides how many words cut the agent off, and pass_through words never do.",
+                    "type": "boolean"
+                  },
+                  "date_awareness": {
+                    "default": true,
+                    "description": "Date awareness, on by default. The agent knows today's date in the call's timezone (the campaign's, else India), and whenever the caller names a day (\"Saturday\", \"शनिवार\", \"15 तारीख\", \"कल\", \"next Monday\", \"15 November\") it is told the exact date before it replies, so it never works out a date or a weekday itself. A day that does not exist (31 November) is flagged to the agent, and each resolved date is a row in the agent's Logs (prompt). Turn it off only if your own prompt or tools supply dates differently.",
                     "type": "boolean"
                   },
                   "interruptions": {
@@ -20366,6 +20531,72 @@
               },
               "message": {
                 "default": "Thanks, have a good day",
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "features": {
+            "additionalProperties": false,
+            "description": "Per-agent switches for platform behaviour still being tuned, by name. Each reaches the worker as a call variable of the same name, under the call's own variables: a variable the call supplies wins for that call. A switch the agent does not name keeps the platform's setting. Optional; {} or null clears every switch, and a PATCH replaces the whole object.",
+            "properties": {
+              "call_budget_secs": {
+                "description": "How long this agent's calls usually last, in seconds, for llm_timeline voice's time-left cue (60 when not set). A whole number from 20 to 3600; a JSON number or its digits as a string.",
+                "maximum": 3600,
+                "minimum": 20,
+                "type": "integer"
+              },
+              "llm_timeline": {
+                "description": "on: each request to the reply model ends with the call's timeline (when each of the last six turns started, how long it ran, the silence before it) and the call time now. voice: the same, plus plain-word cues when they apply (the caller cut the agent off, keeps asking, answers slowly, has gone quiet, how much of call_budget_secs is left). Not on node flows or realtime sessions.",
+                "enum": [
+                  "off",
+                  "on",
+                  "voice"
+                ],
+                "type": "string"
+              },
+              "repeat_counter": {
+                "description": "on: the reply model is told what the caller has already heard the agent say several times on this call, so it words it differently. shadow: counted and logged, nothing sent. Not on node flows or realtime sessions.",
+                "enum": [
+                  "off",
+                  "shadow",
+                  "on"
+                ],
+                "type": "string"
+              },
+              "tts_repeat_vary": {
+                "description": "on: a sentence the caller already heard on this call is rendered fresh, a little faster or slower, instead of replaying the same audio. A JSON boolean is accepted (true is on).",
+                "enum": [
+                  "off",
+                  "on"
+                ],
+                "type": "string"
+              },
+              "tts_rhythm": {
+                "description": "How each sentence is paced, on our own voices. on: our rules (a routine line flows quicker, a value read back to the caller slower, with pauses where a person recalls it). llm: the reply model starts a sentence with [slow] or [fast], never spoken. off: the voice as it comes.",
+                "enum": [
+                  "off",
+                  "on",
+                  "llm"
+                ],
+                "type": "string"
+              },
+              "turn_bc_choice": {
+                "description": "With adaptive interruptions: on, the turn model chooses the short word the agent says while the caller pauses (\"जी\", \"हाँ\"). shadow: asks and logs, and says today's word.",
+                "enum": [
+                  "off",
+                  "shadow",
+                  "on"
+                ],
+                "type": "string"
+              },
+              "turn_fusion": {
+                "description": "With adaptive interruptions: on, the voice-end score and the turn model decide together when the caller has finished (a low score holds a reply, a high one answers at once). shadow: logs what it would have done.",
+                "enum": [
+                  "off",
+                  "shadow",
+                  "on"
+                ],
                 "type": "string"
               }
             },
@@ -20719,7 +20950,7 @@
             ]
           },
           "behavior": {
-            "description": "How the agent takes turns with the caller. Unlike other nested blocks, PATCH merges it field by field: omitted fields keep their current value and {} changes nothing; a sent pass_through replaces the whole list. null resets it to the defaults (interruptions normal, adaptive_interruptions true, pass_through []).",
+            "description": "How the agent takes turns with the caller, and whether it knows the date. Unlike other nested blocks, PATCH merges it field by field: omitted fields keep their current value and {} changes nothing; a sent pass_through replaces the whole list. null resets it to the defaults (interruptions normal, adaptive_interruptions true, pass_through [], date_awareness true).",
             "oneOf": [
               {
                 "type": "null"
@@ -20730,6 +20961,11 @@
                   "adaptive_interruptions": {
                     "default": true,
                     "description": "Turn-taking, on by default. The agent decides when the caller has finished speaking: it waits through mid-thought pauses with a short \"hmm\", ignores quieter voices in the background (someone else in the room), and picks up a line it was cut off on if the interruption turns out to be nothing. Turn it off for fixed rules only: the interruptions setting decides how many words cut the agent off, and pass_through words never do.",
+                    "type": "boolean"
+                  },
+                  "date_awareness": {
+                    "default": true,
+                    "description": "Date awareness, on by default. The agent knows today's date in the call's timezone (the campaign's, else India), and whenever the caller names a day (\"Saturday\", \"शनिवार\", \"15 तारीख\", \"कल\", \"next Monday\", \"15 November\") it is told the exact date before it replies, so it never works out a date or a weekday itself. A day that does not exist (31 November) is flagged to the agent, and each resolved date is a row in the agent's Logs (prompt). Turn it off only if your own prompt or tools supply dates differently.",
                     "type": "boolean"
                   },
                   "interruptions": {
@@ -20810,6 +21046,72 @@
               },
               "message": {
                 "default": "Thanks, have a good day",
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "features": {
+            "additionalProperties": false,
+            "description": "Per-agent switches for platform behaviour still being tuned, by name. Each reaches the worker as a call variable of the same name, under the call's own variables: a variable the call supplies wins for that call. A switch the agent does not name keeps the platform's setting. Optional; {} or null clears every switch, and a PATCH replaces the whole object.",
+            "properties": {
+              "call_budget_secs": {
+                "description": "How long this agent's calls usually last, in seconds, for llm_timeline voice's time-left cue (60 when not set). A whole number from 20 to 3600; a JSON number or its digits as a string.",
+                "maximum": 3600,
+                "minimum": 20,
+                "type": "integer"
+              },
+              "llm_timeline": {
+                "description": "on: each request to the reply model ends with the call's timeline (when each of the last six turns started, how long it ran, the silence before it) and the call time now. voice: the same, plus plain-word cues when they apply (the caller cut the agent off, keeps asking, answers slowly, has gone quiet, how much of call_budget_secs is left). Not on node flows or realtime sessions.",
+                "enum": [
+                  "off",
+                  "on",
+                  "voice"
+                ],
+                "type": "string"
+              },
+              "repeat_counter": {
+                "description": "on: the reply model is told what the caller has already heard the agent say several times on this call, so it words it differently. shadow: counted and logged, nothing sent. Not on node flows or realtime sessions.",
+                "enum": [
+                  "off",
+                  "shadow",
+                  "on"
+                ],
+                "type": "string"
+              },
+              "tts_repeat_vary": {
+                "description": "on: a sentence the caller already heard on this call is rendered fresh, a little faster or slower, instead of replaying the same audio. A JSON boolean is accepted (true is on).",
+                "enum": [
+                  "off",
+                  "on"
+                ],
+                "type": "string"
+              },
+              "tts_rhythm": {
+                "description": "How each sentence is paced, on our own voices. on: our rules (a routine line flows quicker, a value read back to the caller slower, with pauses where a person recalls it). llm: the reply model starts a sentence with [slow] or [fast], never spoken. off: the voice as it comes.",
+                "enum": [
+                  "off",
+                  "on",
+                  "llm"
+                ],
+                "type": "string"
+              },
+              "turn_bc_choice": {
+                "description": "With adaptive interruptions: on, the turn model chooses the short word the agent says while the caller pauses (\"जी\", \"हाँ\"). shadow: asks and logs, and says today's word.",
+                "enum": [
+                  "off",
+                  "shadow",
+                  "on"
+                ],
+                "type": "string"
+              },
+              "turn_fusion": {
+                "description": "With adaptive interruptions: on, the voice-end score and the turn model decide together when the caller has finished (a low score holds a reply, a high one answers at once). shadow: logs what it would have done.",
+                "enum": [
+                  "off",
+                  "shadow",
+                  "on"
+                ],
                 "type": "string"
               }
             },
