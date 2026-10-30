@@ -569,6 +569,12 @@ lead came from. Put those in `metadata`, not `variables`:
   up to 256 characters, 4 KB in total. A row that breaks them is rejected by
   index like any other bad row.
 
+A value the agent needs and your system matches on, like a loan number, can go
+in both: `variables` for the agent and `metadata` for your webhooks. In the
+console, a CSV column set to **Extra info** is sent as `metadata`, and **Both**
+sends it in each. See
+[Campaigns in the console](/general/campaign#match-your-columns).
+
 <Note>
 If the agent declares its variables (`input_schema`), a variable it does not
 declare rejects the row. Send those extra columns as `metadata` instead.
