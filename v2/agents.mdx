@@ -84,9 +84,43 @@ only `pre_call` and `post_call` tools are allowed. See
 | `voicemail` | object | no | See [Voicemail](#voicemail). |
 | `background_sound` | string \| object | no | Room ambience under the agent's voice. See [Background sound](#background-sound). Default `off`. |
 | `behavior` | object | no | How the agent takes turns with the caller, and whether it knows the date. See [Behavior](#behavior). Default `{"interruptions": "normal", "adaptive_interruptions": true, "pass_through": [], "date_awareness": true}`. |
+| `booking` | object \| null | no | A booking window: which days a caller can book. See [Booking window](#booking-window). Present on the agent object only when set. PATCH replaces the whole block; `null` removes it. |
 | `flow` | object \| null | no | A node graph. Makes this a [node-based agent](/v2/node-agents). Present on the agent object only when set. PATCH replaces the whole graph; `null` removes it. |
 
 Server-set and read-only: `id`, `object`, `created_at`, `updated_at`.
+
+### Booking window
+
+`booking` is for agents that book appointments. In the console it is **Agent
+Studio → Integrations → Booking**.
+
+```json
+{
+  "booking": {
+    "window_days": 30,
+    "same_day": true,
+    "closed_weekdays": ["sunday"],
+    "closed_dates": ["2026-11-08"]
+  }
+}
+```
+
+| Field | Type | Description |
+| :--- | :--- | :--- |
+| `window_days` | integer | How far ahead a caller can book: from today up to this many days after today. `1`–`366`, default `30`. |
+| `same_day` | boolean | Whether today itself can be booked. Default `true`. |
+| `closed_weekdays` | array of strings | Days of the week you are closed, `monday` … `sunday`. Saved in week order; you can't close all seven. Default `[]`. |
+| `closed_dates` | array of strings | Single days you are closed, such as holidays, as `YYYY-MM-DD`. Saved sorted, at most 100. Default `[]`. |
+
+With [date awareness](#date-awareness) on, whenever the caller names a day the
+agent is told whether it can be booked. When it can't, the agent hears why
+(after the last bookable day, closed that weekday or that date, already gone)
+and the nearest day that can be booked, so it never confirms a day you can't
+take. The agent's prompt also states the window. Each date the agent was told
+still shows in the agent's **Logs** tab.
+
+`PATCH` replaces the whole block, so omitted fields take their defaults. Send
+`"booking": null` to remove it.
 
 ### Analysis
 
