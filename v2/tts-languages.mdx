@@ -36,19 +36,20 @@ send.
 Kannada, Malayalam and Bengali work the same way as Gujarati, Tamil and
 Telugu: send the text in its own script and you get audio in that language
 from the same [speech endpoint](/v2/tts-quickstart), at the same price, with no
-language parameter. Marathi needs one extra field, because it is written in
-Devanagari like Hindi and the text alone can't tell the two apart. An agent
+language parameter. Marathi is written in Devanagari like Hindi, so it is
+recognised by its words (आहे, नाही, तुमच्या) rather than its script. An agent
 whose `language` is `kn`, `ml`, `bn` or `mr` speaks it on phone and web calls.
 
 - **Send text in its own script**: Kannada in ಕನ್ನಡ, Malayalam in മലയാളം,
   Bengali in বাংলা, Marathi in Devanagari (मराठी). English words stay in
   Latin script.
-- **Add `"language": "mr"` for Marathi** on the speech endpoint. Without it,
-  Devanagari is read as Hindi. See [Marathi](/v2/tts-quickstart#marathi) in
-  the quickstart.
-- **Where it works today**: phone and web calls, `POST /v1/audio/speech`, and
-  the playground in the console. The streaming socket and realtime sessions
-  come later.
+- **Marathi is recognised by its words.** A line that is clearly Marathi is
+  read as Marathi; a very short one with no Marathi word in it ("धन्यवाद") is
+  read as Hindi. Add `"language": "mr"` on the speech endpoint to make every
+  line Marathi. See [Marathi](/v2/tts-quickstart#marathi) in the quickstart.
+- **Where it works today**: phone and web calls, `POST /v1/audio/speech`, the
+  [streaming socket](/v2/tts-websocket) and the playground in the console.
+  Realtime sessions come later.
 - **Speech recognition is in preview.** Mira STT accepts `kn-IN`, `ml-IN`,
   `bn-IN` and `mr-IN`. See [STT languages](/v2/stt-languages).
 - **Beta** means the voices are ready to try and we are still tuning them on
@@ -93,8 +94,9 @@ are the most recent official figures. The next census is due in 2027.
 - **Same endpoint, same request shape.** The
   [speech endpoint](/v2/tts-quickstart) does not change. You send text in the
   language's own script, code-switched with English the way real conversation
-  is, and get audio back. Marathi adds one optional field, `"language": "mr"`,
-  because it shares its script with Hindi.
+  is, and get audio back. Marathi shares its script with Hindi, so it is
+  recognised by its words, and the optional `"language": "mr"` makes it
+  certain.
 - **The same voices.** Every live language uses the voices in the
   [voice gallery](/v2/voices). You keep the voice you chose and change only
   the text.

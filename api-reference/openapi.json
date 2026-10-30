@@ -19389,7 +19389,7 @@
                     "type": "string"
                   },
                   "language": {
-                    "description": "Optional. The input's language, where its script cannot tell: Marathi (mr) is written in Devanagari like Hindi, so send mr with Marathi text. Every other language is read from its script, and a language the script contradicts is ignored. One of hi, en, gu, mr, bn, ta, te, kn, ml, pa, od, a region allowed (mr-IN), or the language's English name (Marathi); anything else is ignored.",
+                    "description": "Optional. The input's language, where its script cannot tell: Marathi (mr) is written in Devanagari like Hindi. Marathi text is recognised by its words, and sending mr makes it certain (hi keeps a line Hindi). Every other language is read from its script, and a language the script contradicts is ignored. One of hi, en, gu, mr, bn, ta, te, kn, ml, pa, od, a region allowed (mr-IN), or the language's English name (Marathi); anything else is ignored.",
                     "type": "string"
                   },
                   "loudness": {
