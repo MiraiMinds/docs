@@ -169,7 +169,9 @@ English, Gujarati, Tamil and Telugu. `shruti` is the default if you omit
 `voice`. Each entry gives the `voice_id`, the voice's
 name and its language. To hear a voice before you choose, use the voice picker
 in the console's Agent Studio. An unknown voice returns a 400 that names the
-allowed set; we never swap in another voice silently. Gujarati, Tamil and
+allowed set; we never swap in another voice silently. Your own
+[custom voices](/v2/custom-voices) work here too: send a voice's `id`
+(`cv_…`) as `voice`. The price is the same as for a built-in voice. Gujarati, Tamil and
 Telugu are live too: send the text in its own script and the same voices read
 it, with no language parameter. Kannada, Malayalam and Bengali work the same
 way, in beta, on all six voices. Marathi is in beta too and needs one field;
