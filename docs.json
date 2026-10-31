@@ -99,6 +99,7 @@
               "v2/tts-quickstart",
               "v2/tts-websocket",
               "v2/tts-languages",
+              "v2/tts-maya-preview",
               "v2/voices",
               "v2/custom-voices"
             ]
@@ -321,7 +322,8 @@
               "POST /v2/tts",
               "GET /v2/tts/requests",
               "GET /v2/tts/requests/{tts_request_id}",
-              "POST /v2/tts/stream/tokens"
+              "POST /v2/tts/stream/tokens",
+              "v2/tts-maya-preview"
             ]
           },
           {

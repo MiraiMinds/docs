@@ -59,7 +59,8 @@ SERVERS = [
 #: Hand-written pages at the top of the tab, and pages slotted in after an
 #: endpoint ("METHOD /path" -> page).
 LEAD_GROUP = {"group": "Get started", "pages": ["api-reference/introduction", "api-reference/postman"]}
-INSERT_AFTER = {"POST /v2/calls": ["api-reference/calls/start-a-browser-call"]}
+INSERT_AFTER = {"POST /v2/calls": ["api-reference/calls/start-a-browser-call"],
+                "POST /v2/tts/stream/tokens": ["v2/tts-maya-preview"]}
 #: Group order in the tab. A group not named here goes before "Reference".
 TAG_ORDER = ("Agents", "Calls", "Flows", "Tools and secrets", "Campaigns", "Do-not-call list",
              "Phone numbers", "Phone pools", "Telephony", "Transcriptions", "Speech to text",

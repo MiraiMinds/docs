@@ -142,7 +142,7 @@ nothing. The socket stays open.
 | `pitch` | `-6` to `+6` semitones. | `0` |
 | `loudness` | `0.5` to `2.0`, a linear gain with a soft limiter. | `1.0` |
 | `audio_transport` | `binary` sends audio as binary frames. `base64` sends it inside `audio.chunk` events. | `binary` |
-| `model` | `mira-tts` | `mira-tts` |
+| `model` | `mira-tts`, or `maya-2-native` ([preview](/v2/tts-maya-preview), on `tts-edge.voice.miraiminds.co` only) | `mira-tts` |
 
 ```json
 { "type": "session.update", "voice": "shruti", "response_format": "ulaw_8000" }

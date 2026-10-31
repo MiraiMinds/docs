@@ -1,0 +1,250 @@
+---
+title: "Maya 2 Native (preview)"
+sidebarTitle: "Maya 2 Native (preview)"
+description: "Try Maya 2 Native, an open-weights streaming text-to-speech model from Maya Research, on our TTS WebSocket: 12 Indian languages, 20 voices, ₹1.80 per 1,000 characters. A preview we want your feedback on."
+---
+
+Maya 2 Native is an open-weights streaming text-to-speech model from Maya
+Research, released under Apache-2.0. We host it in India and serve it on our
+TTS WebSocket edge, with the same protocol as Mira TTS. It speaks 12 Indian
+languages in 20 built-in voices.
+
+It is a preview. Try it on your own text and
+[tell us what you think](#tell-us-what-you-think): what developers say decides
+whether we keep it.
+
+<Warning>
+The preview has no SLA. The model, its voices and its limits may change, or
+we may withdraw it, depending on the feedback. Keep `mira-tts` as your
+fallback.
+</Warning>
+
+## Try it
+
+| | |
+| :--- | :--- |
+| Socket | `wss://tts-edge.voice.miraiminds.co/v1/audio/speech/stream` |
+| Model | `"model": "maya-2-native"` in `session.update` |
+| Voice | One of the [20 voices](#voices), in lowercase. Without one you get `ahana`. |
+| Auth | Your API key in the `Authorization` header, or a stream token |
+| Price | ₹1.80 per 1,000 characters, the same as Mira TTS |
+
+The protocol is the one on
+[Streaming text to speech](/v2/tts-websocket). Output formats, `context_id`,
+`flush`, `cancel` and [barge-in](/v2/tts-websocket#barge-in) all work as
+documented there. Only the host and the `model` field are different.
+
+The socket on `sandbox.voice.miraiminds.co` does not serve this model. A
+`session.update` there with `"model": "maya-2-native"` gets an `error` with
+code `model_not_found`.
+
+### Authentication
+
+From your server, send your API key in the `Authorization` header, as on the
+main socket:
+
+```text
+Authorization: Bearer sk_live_…
+```
+
+From a browser, your backend mints a stream token with
+`POST /v2/tts/stream/tokens`, the same way as for the main socket (see
+[Browser stream tokens](/v2/speech-compatibility#browser-stream-tokens)). The
+page then connects to `wss://tts-edge.voice.miraiminds.co` followed by the
+token's `url`.
+
+## Python example
+
+This script asks for Maya 2 Native and the voice `vaidehi`, sends one reply,
+and saves the audio as 24 kHz PCM. It waits for `session.updated` before it
+sends any text. If the model or the voice is refused, the script stops there;
+without that wait, Mira TTS would speak the text in its default voice.
+
+```python maya_preview.py
+# pip install "websockets>=14"
+"""Speak one reply with Maya 2 Native and save 24 kHz PCM.
+
+    export MIRA_API_KEY=sk_live_...
+    python maya_preview.py
+    ffplay -f s16le -ar 24000 reply.pcm     # listen to the result
+"""
+import asyncio
+import json
+import os
+
+import websockets
+
+URL = "wss://tts-edge.voice.miraiminds.co/v1/audio/speech/stream"
+TEXT = "नमस्ते! आपका ऑर्डर कल शाम तक पहुँच जाएगा। डिलीवरी से पहले हमारा एजेंट आपको कॉल करेगा।"
+
+
+async def main():
+    headers = {"Authorization": f"Bearer {os.environ['MIRA_API_KEY']}"}
+    async with websockets.connect(URL, additional_headers=headers) as ws:
+        await ws.send(json.dumps({
+            "type": "session.update",
+            "model": "maya-2-native",
+            "voice": "vaidehi",
+            "response_format": "pcm_24000",
+        }))
+        while True:  # skip session.ready, stop on a refused model or voice
+            event = json.loads(await ws.recv())
+            if event["type"] == "error":
+                raise SystemExit(f"{event['code']}: {event['message']}")
+            if event["type"] == "session.updated":
+                print("model:", event["model"], "voice:", event["voice"])
+                break
+
+        await ws.send(json.dumps({"type": "text", "context_id": "turn-1", "text": TEXT}))
+        await ws.send(json.dumps({"type": "flush", "context_id": "turn-1"}))
+
+        with open("reply.pcm", "wb") as out:
+            async for message in ws:
+                if isinstance(message, bytes):
+                    out.write(message)  # 16-bit mono PCM at 24 kHz
+                    continue
+                event = json.loads(message)
+                if event["type"] == "audio.start":
+                    print("speaking:", event["text"])
+                elif event["type"] == "audio.done":
+                    print(f"  delivered: {event['bytes']} bytes, first audio after {event['first_byte_ms']} ms")
+                elif event["type"] == "error":
+                    print("error:", event["code"], event["message"])
+                elif event["type"] == "context.done" and event["context_id"] == "turn-1":
+                    break
+
+
+asyncio.run(main())
+```
+
+For a phone line, ask for `ulaw_8000` instead, as in the
+[example on the main page](/v2/tts-websocket#python-example). With
+`websockets` older than 14, pass `extra_headers=` instead of
+`additional_headers=`.
+
+## Voices
+
+Set `voice` to one of these names, in lowercase. If you leave it out, you get
+`ahana`.
+
+| Voice | Profile | Trained languages |
+| :--- | :--- | :--- |
+| `ahana` | Young female, bright | bn en gu hi kn ml mr or pa ta te |
+| `vaidehi` | Adult female, calm | bn en gu hi kn ml mr or pa ta te |
+| `malini` | Mature female, steady narrator | bn en gu hi kn ml mr or pa ta te |
+| `charvi` | Young female, energetic | bn en gu hi kn ml mr or pa ta te |
+| `jahnavi` | Adult female, warm | bn en gu hi kn ml mr or ta te |
+| `anirban` | Adult male, steady narrator | bn en gu hi kn ml mr or pa ta te |
+| `nakul` | Young male, bright | bn en gu hi kn ml mr or pa ta te |
+| `vasant` | Mature male, steady narrator | bn en gu hi kn ml mr or ta te |
+| `siddhant` | Adult male, clear, professional | bn en gu hi kn ml mr or pa ta te |
+| `satvik` | Young male, warm | bn en gu hi kn ml mr or pa ta te |
+| `abhay` | Adult male, conversational | en hi |
+| `nivedita` | Adult female, conversational | en hi |
+| `ishwari` | Adult female, conversational | hi |
+| `ritvik` | Adult male, conversational | hi |
+| `vrinda` | Young female, conversational | hi |
+| `sreekar` | Adult male, conversational | en hi te |
+| `kayal` | Adult female, conversational | en ta |
+| `shaunak` | Young male, conversational | en hi |
+| `akshat` | Adult male, conversational | en hi |
+| `tanushree` | Adult female, conversational | en hi |
+
+A voice's trained languages are the ones it was trained on with at least an
+hour of speech. Every voice can speak all 12 languages, but outside its trained
+languages it speaks cross-lingually and may sound less native. No voice was
+trained in Assamese, so Assamese is cross-lingual for every voice.
+
+## Languages
+
+| Code | Language | Write it in |
+| :--- | :--- | :--- |
+| `as` | Assamese | Assamese script (অসমীয়া) |
+| `bn` | Bengali | Bengali script (বাংলা) |
+| `en` | English | Latin script |
+| `gu` | Gujarati | Gujarati script (ગુજરાતી) |
+| `hi` | Hindi | Devanagari (हिन्दी) |
+| `kn` | Kannada | Kannada script (ಕನ್ನಡ) |
+| `ml` | Malayalam | Malayalam script (മലയാളം) |
+| `mr` | Marathi | Devanagari (मराठी) |
+| `or` | Odia | Odia script (ଓଡ଼ିଆ) |
+| `pa` | Punjabi | Gurmukhi (ਪੰਜਾਬੀ) |
+| `ta` | Tamil | Tamil script (தமிழ்) |
+| `te` | Telugu | Telugu script (తెలుగు) |
+
+Send plain text in any of these languages. The language is detected from the
+script, so write Hindi in Devanagari: Hindi typed in Latin letters ("aapka
+order kal aayega") is read as English.
+
+Numbers, currency, dates and URLs can go in as they are. They are expanded
+into words automatically.
+
+## Price
+
+₹1.80 per 1,000 characters, the same as Mira TTS. It is charged to your
+[wallet](/v2/wallet#a-text-to-speech-row) like any other text to speech. Lines
+on your billing statement name the model, so you can tell Maya 2 Native usage
+apart from Mira TTS.
+
+## Limits
+
+While Maya 2 Native is in preview, each workspace has these limits on it:
+
+| Limit | Value | Over the limit |
+| :--- | :--- | :--- |
+| Sentences being synthesised | 4 per workspace | The sentence waits up to 3 seconds for a slot, then gets an `error` with code `at_capacity`. |
+| Open sockets on this model | 8 per workspace | The next one waits up to 3 seconds, then gets `at_capacity`. |
+
+They come on top of the [socket limits](/v2/tts-websocket#limits) that apply
+to every socket.
+
+## Speed
+
+On our hardware, the GPU produces the first audio of a single request in about
+20 ms. The network between you and our servers in India comes on top of that.
+Each sentence's `audio.done` event reports its `first_byte_ms`.
+
+## Known limits
+
+- It is a preview with no SLA. It may change or be withdrawn based on
+  feedback.
+- It is served only by the socket on `tts-edge.voice.miraiminds.co`. The socket
+  on `sandbox.voice.miraiminds.co` answers `model_not_found`.
+- Hindi in Latin letters is read as English. Write Hindi in Devanagari.
+- Outside a voice's trained languages, it may sound less native. Assamese is
+  cross-lingual for every voice.
+- Very short replies of one or two words are less stable: the voice may not
+  sound quite like itself.
+- A workspace can synthesise 4 sentences at once and open 8 sockets on this
+  model.
+
+## Tell us what you think
+
+What developers tell us decides what happens to this model. Tell us how it
+sounds in your languages, which voices you would use, what goes wrong, and
+whether you would put it in production.
+
+{/* TODO(owner): feedback channel */}
+
+Write to [help@miraiminds.co](mailto:help@miraiminds.co). When something
+sounds wrong, include the voice, the text, the socket's `X-Session-Id`
+(`ttsws_…`) and the sentence's `request_id`, so we can reproduce it.
+
+## Credits
+
+Maya 2 Native is made by Maya Research and released under the Apache-2.0
+licence:
+[maya-research/maya2-native](https://huggingface.co/maya-research/maya2-native).
+It uses [Kyutai Mimi](https://huggingface.co/kyutai/mimi) (CC-BY-4.0) and
+[Qwen3-1.7B-Base](https://huggingface.co/Qwen/Qwen3-1.7B-Base) (Apache-2.0).
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="TTS WebSocket" icon="plug" href="/v2/tts-websocket">
+    The protocol: messages, events, formats and barge-in.
+  </Card>
+  <Card title="Browser stream tokens" icon="key" href="/v2/speech-compatibility#browser-stream-tokens">
+    Connect from a web page without exposing your API key.
+  </Card>
+</CardGroup>
