@@ -12,7 +12,7 @@ that person's consent. There are two ways to get one:
 | What you record | 10 to 60 seconds | 30 minutes to 2 hours |
 | Ready | In about a minute | When our team has built it |
 | Who makes it | You, in the console or with the API | Our team, from your request |
-| Languages | One per voice | One or more of Hindi, English, Gujarati, Tamil and Telugu |
+| Languages | One per voice: English, Hindi, Gujarati, Tamil, Telugu, Kannada, Malayalam, Bengali or Marathi | One or more of Hindi, English, Gujarati, Tamil and Telugu |
 
 An instant voice puts a voice of your own on calls today, such as an agent
 with an Australian accent. A professional clone takes longer. Choose it when
@@ -29,8 +29,16 @@ voice.
 ### Where instant voices work
 
 An instant voice speaks on phone calls, campaign calls included, and on
-[browser calls](/v2/web-calls). [Realtime sessions](/v2/realtime) and the
-[text-to-speech API](/v2/tts-quickstart) use the built-in voices only.
+[browser calls](/v2/web-calls). It also works in the
+[text-to-speech API](/v2/tts-quickstart), the
+[streaming socket](/v2/tts-websocket) and the console's **Text to Speech**
+playground, where it is listed under **Your voices**: send its `id` (`cv_…`)
+as `voice`. Text to speech costs the same in your own voice as in a built-in
+one. [Realtime sessions](/v2/realtime) use the built-in voices only.
+
+Text to speech never swaps in another voice. If your voice can't be used for a
+request, for example because it was deleted, the request fails and you are not
+charged.
 
 On a call, an instant voice says numbers, dates and amounts the same way the
 built-in voices do. If it fails partway through a call, we say the interrupted
@@ -217,7 +225,7 @@ timeout of 90 seconds or more.
 | :--- | :--- | :--- |
 | `clip` | file | **Required.** 10 to 60 seconds of one speaker, up to 16 MB. WAV, FLAC, MP3, OGG or WebM. |
 | `name` | string | **Required.** The voice's display name, 1 to 60 characters. |
-| `language` | string | **Required.** The language the voice speaks: `en`, `hi`, `gu`, `ta` or `te`. |
+| `language` | string | **Required.** The language the voice speaks: `en`, `hi`, `gu`, `ta`, `te`, `kn`, `ml`, `bn` or `mr`. |
 | `accent` | string | Optional label for your list, up to 40 characters, such as `australian`, `british`, `american` or `indian`. The accent you hear comes from the clip. |
 | `gender` | string | Optional. `female` or `male`. It picks the built-in voice that takes over if the instant voice fails on a call: `sameer` for `male`, `shruti` otherwise. |
 | `consent_name` | string | **Required.** The speaker's name. |
@@ -339,7 +347,7 @@ names the agents. Give them another voice first.
 | Clip size | Up to 16 MB |
 | Clip formats | `.wav`, `.flac`, `.mp3`, `.mpeg`, `.mpga`, `.ogg`, `.oga`, `.webm` |
 | Speakers | One per clip |
-| Languages | One per voice: `en`, `hi`, `gu`, `ta` or `te` (English, Hindi, Gujarati, Tamil, Telugu) |
+| Languages | One per voice: `en`, `hi`, `gu`, `ta`, `te`, `kn`, `ml`, `bn` or `mr` (English, Hindi, Gujarati, Tamil, Telugu, Kannada, Malayalam, Bengali, Marathi) |
 | Name | 1 to 60 characters |
 | Accent label | Up to 40 characters |
 | Preview text | Up to 300 characters |

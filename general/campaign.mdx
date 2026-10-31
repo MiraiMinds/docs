@@ -60,9 +60,11 @@ Press **New campaign**.
 - **Name**: something you'll recognise later, like "EMI reminders · October".
 - **Agent**: the agent that speaks on every call.
 - **Calls come from**: the number people see when their phone rings. Pick one
-  of your own numbers (you add them under **Phone numbers**), or the Mirai
-  shared line. If you leave it alone, the campaign uses the agent's own number, or the shared line
-  when the agent doesn't set one. The line under the picker tells you which.
+  of your own numbers or pools (you add them under **Phone numbers**). If you
+  leave it alone, the campaign uses the agent's own number, then your default
+  pool, then your own number. The Mirai shared line is offered only while your
+  workspace has no number of its own. The line under the picker tells you which
+  one the campaign will use.
 - **Timezone**: the dates and calling hours are read in this timezone.
 
 There is nothing to choose under **Rate**. The campaign is charged at your
@@ -130,27 +132,77 @@ you type the numbers, so Excel doesn't change them.
 Press **Choose File** and pick your file. You can also paste the rows into the
 box under it.
 
-You don't have to start from the template. Upload your own export and open
-**Columns** in the preview: each column of your file can be the phone number,
-one of the agent's variables, extra info, or left out. We match them for you
-(a "Name" column for `customer_name`, for example), and you can change any
-match. Your changes are remembered for that agent in this browser, so next
-month's export from the same system is matched for you.
+As soon as a list is in, the form opens a second pane for it. Your settings stay
+on the left. On the right you see the list, its columns and its first rows, each
+side scrolling on its own. In a narrow window the form stays one column.
 
-![Columns: Mobile is the phone number, Name fills customer_name, EMI Due fills emi_due, and Branch is extra info that isn't given to the agent](/images/campaign-integration/contacts-columns.png)
+![The New campaign form with a list in: the settings on the left, and on the right the pasted list, the summary line, the Columns list and the Where extra info goes card](/images/campaign-integration/contacts-two-panes.png)
+
+### Match your columns
+
+You don't have to start from the template. Upload your own export and check
+**Columns**. Each column of your file shows what it is used as and where it
+goes:
+
+| Used as | Goes to | What happens to it |
+| :--- | :--- | :--- |
+| **Phone number** | The number we call | The number dialled. One column. |
+| One of the agent's variables, like **customer_name** | `Agent · {{customer_name}}` | The agent gets it on the call, in that `{{variable}}` of its prompt. |
+| **Extra info** | `Webhooks · metadata.branch` | Kept with the contact and sent back to you with every call. The agent never sees it. |
+| **Both** | `Agent · {{loan_id}}` and `Webhooks · metadata.loan_id` | The agent gets it, and it comes back to you too. Use it for a value the agent says and your system matches on, like a loan number. |
+| **Leave out** | Not sent | Ignored. |
+
+We match the columns for you (a "Name" column for `customer_name`, for example),
+and you can change any match. Your changes are remembered for that agent in this
+browser, so next month's export from the same system is matched for you.
+
+![Columns: Mobile is the phone number, Name fills customer_name, EMI Due fills emi_due, Loan ID is Both (the agent's loan_id and metadata.loan_id), and Branch is extra info that goes to metadata.branch](/images/campaign-integration/contacts-columns.png)
+
+If the agent's prompt never mentions a column, the form tells you, and
+**Make it extra info** moves it there in one click. This is common with a CRM
+`external_id`: the agent has no use for it, and as a variable it would never
+reach your webhooks.
+
+![Columns for an agent that only says name: external_id goes to the agent as a variable, and a line under it says the agent doesn't mention it, with a Make it extra info button](/images/campaign-integration/contacts-unused-column.png)
+
+### Where extra info goes
+
+Extra info never reaches the agent. It comes back to you in three places:
+
+- **Your webhooks.** Every event about the call carries it in
+  `data.call.metadata`, along with `data.call.campaign_id` and
+  `data.call.contact_id`. It goes to the campaign's **Webhook URL**, or to a
+  destination you subscribe on the **Webhooks** page.
+- **The campaign's contacts.** It shows under each name on the **Contacts** tab.
+- **Download CSV.** Your own columns, extra info included.
+
+The **Where extra info goes** card on the form names your extra-info columns and
+says whether this campaign has a webhook URL yet. It also shows what your system
+will receive, with your first row in it:
+
+![Where extra info goes: Branch isn't given to the agent and Loan ID is kept for both, with a webhook body whose data.call.metadata holds loan_id LN-20417 and branch Pune](/images/campaign-integration/contacts-extra-info.png)
+
+A few rules:
+
+- Up to 16 columns can be extra info. A column set to **Both** counts too.
+- A value can be up to 256 characters. A longer one is cut, and the preview
+  says so.
+- The key is your header in lower case, with spaces turned into `_`: "Lead
+  Source" arrives as `lead_source`.
+
+To send the same thing through the API, see
+[Your own fields](/v2/campaigns#your-own-fields-metadata).
 
 ### Check the preview
 
-The preview shows how many numbers are ready, how many duplicates were removed,
-and the first rows as they will be sent. It lists every row that can't be used,
-with the line number and the reason. Those rows are left out and the rest go
+The summary line says how many numbers are ready, how many duplicates were
+removed and how many rows can't be used. Under it, your first rows are shown as
+a table, each column headed by what it became: **Agent**, **Extra info**,
+**Agent + extra info** or **Dialled**. Every row that can't be used is listed
+with its line number and the reason. Those rows are left out and the rest go
 ahead. All of this happens before anything is created.
 
-Extra info is kept with each contact: it shows in the contacts list, the CSV
-report and your webhooks, and the agent never sees it. Up to 16 columns can be
-extra info.
-
-![The preview: 6 numbers ready, 1 duplicate removed and 2 unusable rows with their reasons, above the Cancel and Create campaign buttons](/images/campaign-integration/contacts-preview.png)
+![The preview: all 6 rows ready, with Phone, customer_name and emi_due for the agent, loan_id for the agent and as extra info, and branch as extra info, and 2 rows that can't be dialled with their reasons](/images/campaign-integration/contacts-preview.png)
 
 ## 6. Create it, then start it
 
@@ -251,6 +303,7 @@ Each contact can also get its own voice and languages, through the API or with
 
 | What you see | What to do |
 | :--- | :--- |
+| Your `external_id` isn't in the webhook | In **Columns**, set that column to **Extra info**, or **Both** if the agent needs it too. A column that only fills a variable goes to the agent, not to `data.call.metadata`. |
 | "Nothing in your list fills `customer_name`" | Open **Columns** and pick the column that holds it, or add it to your file. The template has every column the agent needs. |
 | A row says "too short — add the country code" | Write the number with its country code, like `+919876543210`. Only Indian mobile numbers get `+91` added for you. |
 | A row says "`emi_due` is empty" | That agent needs the value on every row. Fill the cell, or the row is left out. |

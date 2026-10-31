@@ -1,7 +1,7 @@
 ---
 title: "Language model API: mira-llm on OpenAI's chat completions"
 sidebarTitle: "Language model API"
-description: "Call mira-llm on the OpenAI-compatible POST /v2/chat/completions: one request, streaming, tool calls, Python, Pipecat, limits and the request log. ₹15 input, ₹9.30 cached input and ₹55 output per million tokens."
+description: "Call mira-llm on the OpenAI-compatible POST /v2/chat/completions: one request, streaming, tool calls, Python, Pipecat, the Vercel AI SDK, limits and the request log. ₹15 input, ₹9.30 cached input and ₹55 output per million tokens."
 ---
 
 `mira-llm` is the language model our voice agents run on, offered on its own.
@@ -22,11 +22,15 @@ already run on this model.
 | Base URL | `https://sandbox.voice.miraiminds.co/v2`, or `https://prod.voice.miraiminds.co/v2` once your company has [gone live](/general/tiers#your-plan) |
 | Route | `POST /v2/chat/completions` |
 | Auth | `Authorization: Bearer sk_live_…` |
-| Model | `mira-llm` |
+| Model | `mira-llm`. `google/gemma-4-26b-a4b-it`, the open model it runs, is accepted too |
 | Price | ₹15 input, ₹9.30 cached input, ₹55 output per 1,000,000 tokens ([details](#price)) |
 
 On the production address, a key from a workspace that has not gone live gets
 `403 production_workspace_required`.
+
+`https://llm.scalefrequency.com/v2` serves the language model alone, from our
+edge in Delhi. It takes production keys, under the same rules as
+`prod.voice.miraiminds.co`.
 
 <Note>
 `POST /v1/chat/completions`, OpenAI's own path, still works and behaves
@@ -359,8 +363,9 @@ from pipecat.services.openai.llm import OpenAILLMService
 
 
 class MiraiLLMService(OpenAILLMService):
-    # mira-llm accepts system, user, assistant and tool messages. This makes
-    # Pipecat send its "developer" messages as "user" messages instead.
+    # mira-llm reads a "developer" message as a system message. This makes
+    # Pipecat send those messages as "user" messages, so the caller's turn
+    # carries them.
     supports_developer_role = False
 
 
@@ -385,8 +390,8 @@ your TTS service. Three things to know on a real call:
 
 - **Pipecat sometimes adds `developer` messages**, for example when the tool
   set changes mid-call or a function runs with `cancel_on_interruption=False`.
-  This API refuses a `developer` message with `400 invalid_request`. The
-  subclass above has Pipecat send those messages as `user` messages instead.
+  This API reads a `developer` message as a `system` message. The subclass
+  above has Pipecat send those messages as `user` messages instead.
 - **A long call can pass the [request limits](#limits).** Pipecat keeps the
   whole conversation in its context, and each turn adds at least two messages.
   A request takes up to 100 messages and 16,000 characters of message text.
@@ -394,34 +399,100 @@ your TTS service. Three things to know on a real call:
   summarization with thresholds below those limits. Keep the system message,
   and change the start of the conversation as rarely as you can, because cached
   input only applies to a start that repeats.
-- **Only some settings reach the model.** Pipecat also sends `top_p`, `seed`
-  and the penalties; we ignore them. `temperature`, `max_tokens` and
-  `stream_options.include_usage` work. See [What the API reads](#what-the-api-reads).
+- **Pipecat's sampling settings reach the model.** `temperature`, `top_p`,
+  `seed`, the penalties, `max_tokens` and `stream_options.include_usage` all
+  work. See [What the API reads](#what-the-api-reads).
 
 This page was checked against Pipecat 1.8.1, where passing `model=` to the
 constructor still works but is deprecated in favour of
 `settings=...Settings(model=...)`.
 
+## 7. Vercel AI SDK
+
+The AI SDK's OpenAI-compatible provider works with the base URL and key
+changed:
+
+```ts
+// npm install ai @ai-sdk/openai-compatible zod
+import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
+import { generateText, streamText, tool, stepCountIs, Output } from "ai";
+import { z } from "zod";
+
+const mira = createOpenAICompatible({
+  name: "mira",
+  baseURL: "https://sandbox.voice.miraiminds.co/v2",
+  apiKey: process.env.MIRA_API_KEY,
+  supportsStructuredOutputs: true, // response_format json_schema
+  includeUsage: true, // token usage on streams
+});
+const model = mira("mira-llm");
+
+// One answer.
+const { text } = await generateText({
+  model,
+  prompt: "Mera refund kab tak aayega? Order return किए चार दिन हो गए.",
+});
+
+// Streamed.
+const stream = streamText({ model, prompt: "UPI क्या है, दो लाइन में बताइए." });
+for await (const piece of stream.textStream) process.stdout.write(piece);
+
+// Tools: the SDK runs your function and sends the result back.
+const booked = await generateText({
+  model,
+  stopWhen: stepCountIs(3),
+  prompt: "कल शाम चार बजे के बाद service के लिए slot book कर दो, नाम Rakesh Sharma.",
+  tools: {
+    book_slot: tool({
+      description: "Book a service visit for a customer.",
+      inputSchema: z.object({ date: z.string(), name: z.string() }),
+      execute: async (args) => calendar.book(args), // your booking client
+    }),
+  },
+});
+
+// Structured output that matches a schema.
+const { output } = await generateText({
+  model,
+  prompt: "One Indian city and its state.",
+  output: Output.object({ schema: z.object({ city: z.string(), state: z.string() }) }),
+});
+```
+
+This was checked on 2026-10-28 with `ai` 7.0.155 and
+`@ai-sdk/openai-compatible` 3.0.80. `generateText`, `streamText`, a tool run
+over several steps and `Output.object` all work.
+
 ## What the API reads
 
-We read eight fields and ignore everything else, so a body written for another
-provider still runs, with fewer of its settings in effect:
+We read the fields below and ignore everything else, so a body written for
+another provider still runs, with fewer of its settings in effect:
 
 | Field | Values | Default |
 | :--- | :--- | :--- |
-| `model` | `mira-llm` | Required |
-| `messages` | 1 to 100 messages. `role` is `system`, `user`, `assistant` or `tool`. `content` is a string; an array of content parts (images, audio) is refused. An `assistant` message may leave `content` out when it carries `tool_calls`. A `tool` message needs `tool_call_id`. | Required |
+| `model` | `mira-llm` or `google/gemma-4-26b-a4b-it` (any letter case). Answers name `mira-llm` either way. | Required |
+| `messages` | 1 to 100 messages. `role` is `system`, `user`, `assistant` or `tool`; `developer` is read as `system`. `content` is a string, or an array of `{"type": "text", "text": …}` parts, which are joined with line breaks. Any other part (images, audio) is refused: the model reads text only. An `assistant` message may leave `content` out when it carries `tool_calls`. A `tool` message needs `tool_call_id`. | Required |
 | `tools` | Up to 16, each `{"type": "function", "function": {"name", "description", "parameters"}}`. Other keys inside a tool are dropped. | None |
 | `tool_choice` | `auto`, `none`, `required`, or `{"type": "function", "function": {"name": …}}`. Any other value is dropped. Ignored without `tools`. | Left to the model |
 | `temperature` | 0 to 1.5. A value outside the range is clamped to it. | `0.3` |
-| `max_tokens` | 1 to 1,024. A larger value is lowered to 1,024. | `400` |
+| `max_tokens` | 1 to 8,192. A larger value is lowered to 8,192. `max_completion_tokens` is read the same way when `max_tokens` is absent. | `400` |
+| `top_p`, `min_p` | 0 to 1, clamped. | The model's |
+| `top_k` | An integer, 0 to 1,000. `0` turns it off. | Off |
+| `frequency_penalty`, `presence_penalty` | -2 to 2, clamped. | `0` |
+| `repetition_penalty` | 0.01 to 2, clamped. | `1` |
+| `seed` | An integer. The same seed and request give the same answer on the same model build. | Random |
+| `stop` | A string or up to 4 strings of at most 128 characters. The answer ends before the first one. | None |
+| `response_format` | `{"type": "json_object"}` for any JSON object, or `{"type": "json_schema", "json_schema": {"name", "schema", "strict"}}` for an answer that matches your JSON Schema. `{"type": "text"}` is the default. | Text |
 | `stream` | `true` for server-sent events. | `false` |
 | `stream_options` | `{"include_usage": true}` adds a last chunk, before `[DONE]`, with an empty `choices` and the request's `usage`. Other keys are ignored. | No usage chunk |
 
-`top_p`, `stop`, `seed`, `n`, `frequency_penalty`, `presence_penalty`,
-`response_format`, `parallel_tool_calls`, `max_completion_tokens` and `user`
-are ignored. So is the `name` field on a
-message.
+`n`, `logprobs`, `logit_bias`, `parallel_tool_calls`, `reasoning`,
+`reasoning_effort`, `thinking`, `chat_template_kwargs` and `user` are ignored.
+So is the `name` field on a message. The model answers without thinking first,
+and no field turns thinking on: an answer has no reasoning content and no
+reasoning tokens, only the reply and its tool calls. A value of the wrong type for a field we
+read (a `seed` that is not an integer, five `stop` strings) is
+`400 invalid_request`.
 
 ## Limits
 
@@ -430,11 +501,13 @@ message.
 | Messages per request | **100** | `400 invalid_request`. Trim older turns. |
 | Text per request | **16,000 characters**, counted over every message's `content` | `400 invalid_request`. |
 | Tools per request | **16** | `400 invalid_request`. |
-| Reply length | **400 tokens** by default, up to **1,024** with `max_tokens` | The reply stops with `finish_reason: "length"`. |
+| Reply length | **400 tokens** by default, up to **8,192** with `max_tokens` | The reply stops with `finish_reason: "length"`. |
 | Requests running at once | **16 per workspace**, about 100 live calls. Ask us to raise it. | `429 rate_limited` with `Retry-After: 1`. |
 | Request rate | The same limit as the rest of the API (see [Limits](/v2/limits#rate-limits)) | `429 rate_limited` with `Retry-After`. |
 
-Each refusal says which limit you hit.
+Each refusal says which limit you hit. The model's context is 32,768 tokens,
+the request and the reply together. We can raise the text limit for your
+account: ask us.
 
 ## Price
 
@@ -506,7 +579,7 @@ Errors use the same [envelope](/v2/errors) as the rest of the API:
 
 | Status | `code` | Cause |
 | :--- | :--- | :--- |
-| 400 | `invalid_request` | The body is not a JSON object, `model` is not `mira-llm`, a message or tool breaks the rules in [What the API reads](#what-the-api-reads), or the request is over a [limit](#limits). The message says which. |
+| 400 | `invalid_request` | The body is not a JSON object, `model` is neither `mira-llm` nor `google/gemma-4-26b-a4b-it`, a message or tool breaks the rules in [What the API reads](#what-the-api-reads), or the request is over a [limit](#limits). The message says which. |
 | 401 | `unauthorized` | Missing or unknown key. Check the `Authorization: Bearer sk_live_…` header. |
 | 402 | `insufficient_balance` | Your wallet is empty, counting usage not yet charged. Add funds and retry. |
 | 403 | `forbidden` | The key was revoked. |
