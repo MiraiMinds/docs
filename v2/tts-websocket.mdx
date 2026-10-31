@@ -30,6 +30,10 @@ up to 3 seconds for a free slot. An HTTP request gets a `429` straight away.
 For one-off audio, such as a file, a voicemail or a notification, the
 [HTTP endpoint](/v2/tts-quickstart) is simpler.
 
+The two are priced differently. A socket costs **₹0.90 a minute** for as long
+as it is open, whatever it says. An HTTP request costs ₹1.80 per 1,000
+characters. See [Billing](#billing).
+
 <Tip>
 If your voice agent runs on Pipecat, `MiraiTTSService` from our
 [Pipecat package](/v2/pipecat) speaks this protocol for you, including
@@ -73,7 +77,7 @@ gets an ordinary HTTP response with the usual [error envelope](/v2/errors):
 | :--- | :--- | :--- | :--- |
 | 401 | `unauthorized` | No credentials, an unknown key, or an API key in the URL. | Send the key in the `Authorization` header, or use a stream token. |
 | 401 | `invalid_token` | The stream token is unknown, expired or already used. | Mint a new token. Each one opens one socket. |
-| 402 | `insufficient_balance` | Your wallet balance is too low to open a socket. | [Top up](/v2/wallet#top-up). |
+| 402 | `insufficient_balance` | Your wallet does not hold one minute of streaming (₹0.90). | [Top up](/v2/wallet#top-up). |
 | 403 | `forbidden` | The key, or the key that minted the token, was revoked. | Use a current key. |
 | 426 | `upgrade_required` | A plain HTTP request reached the endpoint. | Connect with a WebSocket client (`wss://`). |
 | 429 | `at_capacity` | Your workspace already has 200 sockets open, or the service is at its own ceiling. `Retry-After: 5`. | Reuse one socket per call and close the ones you are done with. |
@@ -180,16 +184,16 @@ its leading space runs into the word before it.
 
 | `type` | Fields | When |
 | :--- | :--- | :--- |
-| `session.ready` | `session_id`, `model`, `voice`, `response_format`, `sample_rate`, `encoding`, `audio_transport`, `limits`, `billing` | First message after you connect. `billing` says how this socket is metered for your workspace. |
+| `session.ready` | `session_id`, `model`, `voice`, `response_format`, `sample_rate`, `encoding`, `audio_transport`, `limits`, `billing` | First message after you connect. `billing` says how this socket is metered: `{"mode": "connected_minute", "paise_per_minute": 90}`. See [Billing](#billing). |
 | `session.updated` | Same as `session.ready` | After a valid `session.update`. |
 | `audio.start` | `context_id`, `request_id`, `text`, `response_format`, `sample_rate`, `encoding` | Before a sentence's first audio. `text` is the sentence. |
 | binary frame | Raw audio | Each piece of audio, with `audio_transport: binary`. |
 | `audio.chunk` | `context_id`, `request_id`, `data` (base64) | Each piece of audio, with `audio_transport: base64`. |
-| `audio.done` | `context_id`, `request_id`, `chars_billed`, `cost_paise`, `bytes`, `first_byte_ms` | The sentence was delivered in full. `chars_billed` and `cost_paise` are 0 unless your workspace is metered per character. |
+| `audio.done` | `context_id`, `request_id`, `chars_billed`, `cost_paise`, `bytes`, `first_byte_ms` | The sentence was delivered in full. `chars_billed` and `cost_paise` are 0, because you pay for the socket's time, not for each sentence. |
 | `context.done` | `context_id` | A flush completed: everything sent for the context up to that flush has been spoken or has failed. |
 | `context.cancelled` | `context_id` | Your `cancel` took effect. Nothing more for this context follows. |
 | `error` | `code`, `message`, optional `context_id`, `request_id`, `retry_after_secs` | A sentence failed or a message was refused. See [Errors](#errors-on-an-open-socket). |
-| `session.closed` | `reason`, and `billed_seconds` and `cost_paise` on a socket metered by connected time | We are about to close the socket. See [Closing](#closing). |
+| `session.closed` | `reason`, `billed_seconds`, `cost_paise` | We are about to close the socket. `billed_seconds` and `cost_paise` are what the whole socket was charged. See [Closing](#closing). |
 
 ```json title="session.ready"
 {
@@ -207,6 +211,10 @@ its leading space runs into the word before it.
     "max_contexts": 64,
     "idle_timeout_secs": 120,
     "max_session_secs": 3600
+  },
+  "billing": {
+    "mode": "connected_minute",
+    "paise_per_minute": 90
   }
 }
 ```
@@ -303,6 +311,35 @@ again if you still need it. pipecat-mirai does this once for you.
 If you run many calls at once, ask your Mirai contact for a higher limit. Ask
 for a little more than your peak number of simultaneous calls, because each
 call starts its next sentence shortly before the current one finishes.
+
+## Billing
+
+A socket is billed for the time it is open: **₹0.90 a minute**, counted per
+second from `session.ready` until the socket closes, whoever closes it. Idle
+time counts, because an open socket holds its place on our side whether or not
+it is speaking. The sentences it speaks are not charged again.
+
+- **Opening.** The socket, and the [stream token](/v2/speech-compatibility#browser-stream-tokens)
+  that promises one, need one minute's price in your wallet. Otherwise you get
+  `402 insufficient_balance` and nothing opens.
+- **While it is open.** We charge each full minute when it ends, as one row on
+  your [wallet](/v2/wallet#a-text-to-speech-stream-row). If your wallet then
+  cannot cover the next minute, we send `error` and `session.closed` with
+  `insufficient_balance` and close the socket (close code 1008).
+- **Closing.** The last part-minute is charged when the socket closes. The
+  whole socket costs its seconds × ₹0.90 / 60, rounded up once to the paisa:
+  a 95-second socket costs ₹1.43. `session.closed` carries `billed_seconds`
+  and `cost_paise`.
+
+Close the socket when the call ends. A socket left open costs the same as one
+that is speaking, until the [idle limit](#limits) closes it after 120 seconds.
+
+`session.ready` states the terms the socket opened with, and they hold until it
+closes. If your workspace has agreed a different arrangement with us, such as a
+per-character price, `billing` says so: `{"mode": "chars",
+"paise_per_1k_chars": 180}` means each sentence is charged on its own at ₹1.80
+per 1,000 characters, and `audio.done` reports its `chars_billed` and
+`cost_paise`.
 
 ## Request log
 

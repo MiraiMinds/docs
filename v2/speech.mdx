@@ -32,9 +32,13 @@ models. Every answer carries `X-Request-Id`, errors share one
 | | Text to speech | Speech to text |
 | :--- | :--- | :--- |
 | Languages | Hindi, English, Hinglish, Gujarati, Tamil and Telugu, with Kannada, Malayalam, Bengali and Marathi in beta. See the [language roadmap](/v2/tts-languages). | Hindi, English, Gujarati, Marathi, Punjabi, Bengali, Tamil, Telugu, Kannada and Malayalam. See [the status of each](/v2/stt-languages). |
-| Price | ₹1.80 per 1,000 characters | ₹18 per hour of audio, charged per second |
+| Price on HTTP | ₹1.80 per 1,000 characters | ₹0.30 per minute of audio, charged per second |
+| Price on the WebSocket | ₹0.90 per minute the socket is open, charged per second | ₹0.30 per minute of audio, charged per second |
 
-The price is the same on HTTP and on the socket.
+Text to speech has two prices: by the character over HTTP, by the minute on the
+socket, where the speech itself is not charged again. Speech to text costs the
+same on both. All prices exclude GST. Every model API is in one table under
+[Billing and tiers](/general/tiers#model-api-pricing).
 
 ## Availability
 

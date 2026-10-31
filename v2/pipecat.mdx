@@ -63,8 +63,10 @@ pass `text_aggregation_mode=TextAggregationMode.TOKEN` (from
 `pipecat.services.tts_service`). Mirai knows the danda (।), abbreviations like
 "Rs." and "Dr.", and numbers like 3.5.
 
-Billing is per character, as on the HTTP endpoint, and each sentence Mirai
-delivers shows up in your [request log](/v2/tts-quickstart#your-request-log).
+Each socket is billed for the time it is open, ₹0.90 a minute, not per
+character (see [WebSocket billing](/v2/tts-websocket#billing)), and each
+sentence Mirai delivers shows up in your
+[request log](/v2/tts-quickstart#your-request-log).
 The [WebSocket page](/v2/tts-websocket) has the protocol underneath, if you
 want to know what the service sends.
 
@@ -83,6 +85,10 @@ keeps happening, the wait doubles, up to 16 minutes. A rejected key, an empty
 wallet or a rate limit always comes back with the API's own error message.
 `edge=False` (or `MIRAI_TTS_EDGE=off` in the environment) keeps every socket on
 the API. `tts.connected_url` shows where a call is streaming from.
+
+The edge serves only sockets billed per character. With per-minute billing,
+which is the default, the edge declines with `403 edge_not_available` and the
+service opens the socket on the API (`url`) instead.
 
 ## Recommended phone setup
 

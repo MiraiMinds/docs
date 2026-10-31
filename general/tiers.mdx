@@ -270,9 +270,25 @@ places inherits it.
 
 ## Model API pricing
 
-Text to speech is priced per character — see
-[TTS billing](/v2/tts-quickstart#billing). Speech to text is priced per second of
-audio — see [STT billing](/v2/stt-quickstart#billing). The LLM is priced per token:
+The model APIs draw on the same wallet as your calls. Speech to text is sold by
+the minute of audio. Text to speech is sold by the minute on the WebSocket and
+by the character over HTTP. The LLM is sold by the token.
+
+{/* pricing:models:start */}
+
+| API | HTTP | WebSocket |
+| --- | --- | --- |
+| Text to speech | ₹1.80 per 1,000 characters | ₹0.90 per minute connected |
+| Speech to text | ₹0.30 per minute of audio | ₹0.30 per minute of audio |
+| Speech to text, offline batch | ₹15 per hour of audio | — |
+| LLM | ₹15 input, ₹9.30 cached input, ₹55 output per 1,000,000 tokens | — |
+
+On the text-to-speech WebSocket you pay for time, not text: every second the socket is open is billed at the per-minute rate, and the speech it carries is not charged again by the character. HTTP requests are billed by the character. Speech to text is billed per second of audio you send, on HTTP and on the WebSocket alike. All prices exclude GST.
+
+{/* pricing:models:end */}
+
+How each one is metered: [TTS billing](/v2/tts-quickstart#billing),
+[STT billing](/v2/stt-quickstart#billing). The LLM in detail:
 
 {/* pricing:llm:start */}
 
@@ -301,10 +317,10 @@ Contact us to activate your LLM plan. Your workspace's agreed contract determine
 
 ### Offline transcription
 
-[Transcribing a recorded call](/v2/transcribe-recorded-calls) costs ₹18 per
+[Transcribing a recorded call](/v2/transcribe-recorded-calls) costs ₹15 per
 hour of audio on every tier. A job is charged once, when it completes, for the
 length of the recording to the millisecond, rounded up to the paisa: a
-five-minute call costs ₹1.50. Degraded and failed jobs are free. See
+five-minute call costs ₹1.25. Degraded and failed jobs are free. See
 [pricing](/v2/transcribe-recorded-calls#pricing).
 
 {/* Hand-written section: kept outside the generated pricing blocks above. Update it by hand when flow generation rates change. */}
