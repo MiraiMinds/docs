@@ -475,7 +475,7 @@ another provider still runs, with fewer of its settings in effect:
 | `tools` | Up to 16, each `{"type": "function", "function": {"name", "description", "parameters"}}`. Other keys inside a tool are dropped. | None |
 | `tool_choice` | `auto`, `none`, `required`, or `{"type": "function", "function": {"name": …}}`. Any other value is dropped. Ignored without `tools`. | Left to the model |
 | `temperature` | 0 to 1.5. A value outside the range is clamped to it. | `0.3` |
-| `max_tokens` | 1 to 1,024. A larger value is lowered to 1,024. `max_completion_tokens` is read the same way when `max_tokens` is absent. | `400` |
+| `max_tokens` | 1 to 8,192. A larger value is lowered to 8,192. `max_completion_tokens` is read the same way when `max_tokens` is absent. | `400` |
 | `top_p`, `min_p` | 0 to 1, clamped. | The model's |
 | `top_k` | An integer, 0 to 1,000. `0` turns it off. | Off |
 | `frequency_penalty`, `presence_penalty` | -2 to 2, clamped. | `0` |
@@ -487,9 +487,10 @@ another provider still runs, with fewer of its settings in effect:
 | `stream_options` | `{"include_usage": true}` adds a last chunk, before `[DONE]`, with an empty `choices` and the request's `usage`. Other keys are ignored. | No usage chunk |
 
 `n`, `logprobs`, `logit_bias`, `parallel_tool_calls`, `reasoning`,
-`reasoning_effort` and `user` are ignored. So is the `name` field on a message.
-The model's thinking is never returned: an answer has no reasoning content and
-no reasoning tokens, only the reply and its tool calls. A value of the wrong type for a field we
+`reasoning_effort`, `thinking`, `chat_template_kwargs` and `user` are ignored.
+So is the `name` field on a message. The model answers without thinking first,
+and no field turns thinking on: an answer has no reasoning content and no
+reasoning tokens, only the reply and its tool calls. A value of the wrong type for a field we
 read (a `seed` that is not an integer, five `stop` strings) is
 `400 invalid_request`.
 
@@ -500,13 +501,13 @@ read (a `seed` that is not an integer, five `stop` strings) is
 | Messages per request | **100** | `400 invalid_request`. Trim older turns. |
 | Text per request | **16,000 characters**, counted over every message's `content` | `400 invalid_request`. |
 | Tools per request | **16** | `400 invalid_request`. |
-| Reply length | **400 tokens** by default, up to **1,024** with `max_tokens` | The reply stops with `finish_reason: "length"`. |
+| Reply length | **400 tokens** by default, up to **8,192** with `max_tokens` | The reply stops with `finish_reason: "length"`. |
 | Requests running at once | **16 per workspace**, about 100 live calls. Ask us to raise it. | `429 rate_limited` with `Retry-After: 1`. |
 | Request rate | The same limit as the rest of the API (see [Limits](/v2/limits#rate-limits)) | `429 rate_limited` with `Retry-After`. |
 
 Each refusal says which limit you hit. The model's context is 32,768 tokens,
-the request and the reply together. We can raise the text and reply limits for
-your account: ask us.
+the request and the reply together. We can raise the text limit for your
+account: ask us.
 
 ## Price
 

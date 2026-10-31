@@ -196,7 +196,7 @@ See the [STT quickstart](/v2/stt-quickstart#limits) and the
 | Idempotency key | 255 characters, 24-hour window |
 | TTS `input` | 2,000 characters per request |
 | Speech-to-text clip | 25 MB and 120 seconds of audio per `POST /v1/audio/transcriptions` |
-| [Language model](/v2/llm#limits) request | 100 messages, 16,000 characters of message text and 16 tools per `POST /v2/chat/completions`; replies stop at 400 tokens, or up to 1,024 with `max_tokens`; 16 requests running at once per workspace |
+| [Language model](/v2/llm#limits) request | 100 messages, 16,000 characters of message text and 16 tools per `POST /v2/chat/completions`; replies stop at 400 tokens, or up to 8,192 with `max_tokens`; 16 requests running at once per workspace |
 
 Invalid values return `400 invalid_request`.
 
