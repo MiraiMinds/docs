@@ -377,6 +377,12 @@
             ]
           },
           {
+            "group": "Call results",
+            "pages": [
+              "cookbooks/post-call-results"
+            ]
+          },
+          {
             "group": "Agent builders",
             "pages": [
               "cookbooks/node-flow-builder"
