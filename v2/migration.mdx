@@ -47,7 +47,7 @@ the **host** to tell the two apart.
 | :--- | :--- |
 | `x-public-key: pk_…` | — |
 | `x-private-key: sk_…` | `Authorization: Bearer sk_live_…` |
-| `workspace: 6690a1b2c3d4e5f600000002` | — (the key is workspace-scoped) |
+| `workspace: 6690a1b2c3d4e5f600000002` | Only to pick one of your brands, when you run them as [sub-workspaces](/v2/sub-workspaces#coming-from-v1). Otherwise leave it out: the key is workspace-scoped. |
 
 v2 takes one header. The key carries the workspace, so valid credentials cannot
 reach the wrong workspace by accident. Create a key, and get the workspace's
@@ -57,8 +57,10 @@ webhook secret, in the [console](https://sandbox.voice.miraiminds.co) under
 <Note>
 The v2 API also accepts a v1 key pair, sent as the same `x-public-key` and
 `x-private-key` headers, once we have linked that pair to your v2 workspace.
-Ask your Mirai contact before you rely on it. The `workspace` header is not
-read. A linked pair is a bridge for the move: v2 keys are the ones you can
+Ask your Mirai contact before you rely on it. The `workspace` header picks one
+of your [sub-workspaces](/v2/sub-workspaces). A value that names neither a
+sub-workspace nor your own workspace is refused with `404 workspace_not_found`,
+so leave the header out if you don't run brands as sub-workspaces. A linked pair is a bridge for the move: v2 keys are the ones you can
 create, rotate and revoke in the console, so switch to one when you can.
 </Note>
 
@@ -66,7 +68,7 @@ create, rotate and revoke in the console, so switch to one when you can.
 
 | v1 | v2 | Notes |
 | :--- | :--- | :--- |
-| `POST /v2/workspace/onboard/custom` | — | Your workspace is provisioned with your key. |
+| `POST /v2/workspace/onboard/custom` and `/shopify` | [The same paths](/v2/sub-workspaces#onboard-a-brand-with-your-v1-code) | Each creates a sub-workspace for one brand, with the v1 body and response. A single-brand integration doesn't need them: your workspace comes with your key. |
 | `POST /v1/admin/assistant/create` | [`POST /v2/agents`](/v2/agents#create-an-agent) | "Assistant" is now "agent". |
 | `GET /v1/admin/assistant/get/{id}` | [`GET /v2/agents/{id}`](/v2/agents#get-an-agent) | |
 | `GET /v1/admin/assistant/list` | [`GET /v2/agents`](/v2/agents#list-agents) | Now cursor-paginated. |
