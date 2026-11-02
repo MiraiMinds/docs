@@ -35,7 +35,7 @@ flow, or generating one.
 | `400` | The request is malformed or a field is invalid. | No. Fix the request. |
 | `401` | Missing, malformed or unknown key, or an invalid token on a browser call's media link, a call's events link or a [speech stream](/v2/speech-compatibility#browser-stream-tokens). | No. |
 | `402` | Wallet cannot cover the call, or is empty when you generate a flow or transcribe a recording. | After topping up. |
-| `403` | The key is valid but **revoked**, the call is not covered by your company's plan, or it asks for recording on a workspace with recording turned off. | No. |
+| `403` | The key is valid but **revoked**, the call is not covered by your company's plan, it asks for recording on a workspace with recording turned off, or it uses [sub-workspaces](/v2/sub-workspaces) that are not turned on or are archived. | No. |
 | `404` | No such resource in your workspace, including one that exists in someone else's. | No. |
 | `413` | The request body, or a file you sent by link, is over the endpoint's limit, such as an offline transcription upload over 45 MB. | No. Send a smaller request. |
 | `415` | [Speech to text](/v2/stt-quickstart#when-something-fails) could not decode the audio file you sent. | No. Send WAV, a common compressed format, or raw audio with `encoding` and `sample_rate`. |
@@ -71,6 +71,12 @@ flow, or generating one.
 | `pool_busy` | `409` | `POST /v2/calls` names a [pool](/v2/phone-numbers#errors) whose numbers are all resting or at their hourly pace. | Honour `Retry-After`, or raise the pool's pace. |
 | `pool_unavailable` | `409` | The pool has no number that can place a call. | Add a ready number to it, or choose another. |
 | `pool_in_use` | `409` | You deleted a pool that a campaign or agent calls from. The message names them. | Move them to another pool or number, then delete. |
+| `sub_workspaces_disabled` | `403` | You created a [sub-workspace](/v2/sub-workspaces) or onboarded a brand before sub-workspaces were turned on for your workspace. | Ask your Mirai contact to turn them on. |
+| `sub_workspace_limit` | `409` | Creating, onboarding or restoring a sub-workspace would take you over your limit of active sub-workspaces. | Archive a brand you no longer serve, or ask your Mirai contact for a higher limit. |
+| `workspace_exists` | `409` | A sub-workspace already has this `external_id`, or an active one has this `name`. The response carries it as `workspace`, next to `error`. | If its `external_id` is the one you sent, a retry already created it: use it. Otherwise choose another name or `external_id`. |
+| `workspace_not_found` | `404` | The `Mirai-Workspace` header, or a `/v2/workspaces/{id}` path, names no sub-workspace of your workspace. | Check the id or `external_id`. |
+| `workspace_archived` | `403` | The `Mirai-Workspace` header names a sub-workspace you archived. | [Restore](/v2/sub-workspaces#archive-and-restore) it first. |
+| `workspace_busy` | `409` | You archived a sub-workspace while one of its campaigns is playing. | Pause or stop the campaign with the brand's header, then archive. |
 | `window_closed` | `409` | A [campaign start or resume](/v2/campaigns#calling-window) was refused because its calling window can never open again: no slot opens on or before `end_date` in the campaign's `timezone`. The usual cause is `start_date` and `end_date` both set to today, with the last slot already over. Nothing was dialled and the campaign kept its status. | Extend `end_date` or widen `slots` with [`PATCH`](/v2/campaigns#update-a-campaign), then start or resume again. |
 | `rate_limited` | `429` | Request rate exceeded, or your queue is full (500 calls accepted and not yet ended), or your workspace has used its [flow generations](/v2/node-agents#generate-a-flow-from-a-brief) or [recording transcriptions](/v2/node-agents#transcribe-a-recording) for the hour, or the generator or transcriber is busy. On [offline transcription](/v2/transcriptions#errors), it means your workspace has started 120 jobs in the past hour, or uploads are busy for a few seconds. Being at your *concurrency* ceiling does **not** produce this: those calls queue. `error.message` says which limit you hit. | Honour `Retry-After` and back off. See [Limits](/v2/limits). |
 | `at_capacity` | `429` | No capacity for this request. On calls, every line on the deployment is busy; that ceiling is fleet-wide, not your workspace's. On [text to speech](/v2/tts-quickstart#limits) it also means your workspace already has as many requests in flight as its limit allows (10 by default), or, when you open a [TTS stream](/v2/tts-websocket), that it already has 20 sockets open. On [offline transcription](/v2/transcriptions#errors), your workspace already has 20 unfinished jobs, and `Retry-After` is 30 seconds. Nothing was charged in any of these cases. | Honour `Retry-After` and retry. |
@@ -110,9 +116,12 @@ always keep a default branch keyed on the HTTP status.
 An `agt_`, `call_`, `cmp_` or `trn_` ID that exists in another workspace is
 answered exactly as an ID that never existed: `404 not_found`. Any other answer would be an
 enumeration oracle, letting someone probe which IDs are real on the platform by
-watching the status code change. `403` never means "someone else's ID". It means
-your own key has been revoked, or your workspace is not allowed what the request
-asks for (`contract_unavailable`, `recording_disabled`).
+watching the status code change. A `Mirai-Workspace` value that names a
+workspace outside your own is answered the same way, with
+`404 workspace_not_found`. `403` never means "someone else's ID". It means your
+own key has been revoked, your workspace is not allowed what the request asks for
+(`contract_unavailable`, `recording_disabled`, `sub_workspaces_disabled`), or you
+archived the sub-workspace you named (`workspace_archived`).
 </Warning>
 
 ## Handling errors

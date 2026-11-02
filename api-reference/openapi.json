@@ -78,6 +78,10 @@
       "description": "Get call events at your own HTTPS URL, signed, retried and kept for 30 days.\n\n1. [Create a destination](/api-reference/webhooks/create-a-destination) with your URL. Save the `signing_secret` from that answer: it is shown once.\n2. [Subscribe a destination to events](/api-reference/webhooks/subscribe-a-destination-to-events), for one agent or the whole workspace. `call.completed` arrives when a call ends; `call.processing.completed` when the recording, transcript, results and post-call tools have all settled.\n3. [Send a test event](/api-reference/webhooks/send-a-test-event). It is a real POST to your URL with made-up call data and `test: true`. No call is placed.\n\nEvery request carries `X-Mirai-Signature: t=<unix>,v1=<hex>`, an HMAC-SHA256 of `<unix>.<raw body>`, and `X-Mirai-Signed-With`, which names the secret that signed it. A destination's requests are signed with its own Destination secret; the `webhook_url` you pass when creating a call is signed with your Call webhook secret, the one shown with your API keys. A URL that is both gets each event once, with one secret. Delivery is at least once, so keep each event `id` and skip ones you've already handled.\n\nChanges send the resource's current `revision` (`if_revision`); a stale one is a 409 and changes nothing. Until the webhook release reaches your workspace these routes answer 404. The same settings are in the console under Webhooks, and on each agent in Agent Studio."
     },
     {
+      "name": "Sub-workspaces",
+      "description": "For partners who run calls for many brands. Each brand gets its own sub-workspace under your account, with its own agents, campaigns, calls, phone numbers, knowledge bases, tool secrets and do-not-call list. Money stays in one place: every brand spends from your account's wallet at your account's rates, and you get one invoice.\n\n**Acting as a brand.** Use your account's API key on any request in this collection and add one header:\n\n```\nMirai-Workspace: ws_6f1c0a9e2b7d4c3a8e5f9b10\n```\n\nThe value is the sub-workspace's `id` or the `external_id` you gave it. Without the header, or with your account's own id in it, the request acts on your account as it always has. `X-Workspace` and `Workspace` work too, so an integration that already sends v1's `workspace` header keeps working once your brands are set up here with their v1 workspace ids as `external_id`. If your account has no sub-workspaces, those two are ignored.\n\nA value that names none of your brands is `404 workspace_not_found`; an archived brand is `403 workspace_archived`. The header only looks among your own brands, so it can never reach someone else's workspace.\n\nCall webhooks and campaign webhooks from every brand are signed with your account's webhook secret, and requests for all your brands share your key's rate limit. `GET /v2/wallet` with the header shows the shared account balance.\n\n**Managing brands.** The requests below act on your account, so send them without the header: with one they answer `400`. Sub-workspaces are switched on per account with a limit. Ask us to turn them on for yours."
+    },
+    {
       "name": "Reference",
       "description": "The voice catalogue, and the API contract as a machine-readable document."
     }
@@ -955,6 +959,14 @@
                             "maximum": 3600,
                             "minimum": 20,
                             "type": "integer"
+                          },
+                          "language_switch": {
+                            "description": "on: the caller asks for another of the agent's languages (its language, secondary_languages and English), or keeps speaking one, and the call moves to it before the next reply: speech recognition, the voice and the reply follow. A language the agent does not have is declined in the current one and logged as prompt/language_not_enabled. off (the default): the call stays in the agent's language unless its prompt says otherwise. Not on realtime sessions. A JSON boolean is accepted (true is on).",
+                            "enum": [
+                              "off",
+                              "on"
+                            ],
+                            "type": "string"
                           },
                           "llm_timeline": {
                             "description": "on: each request to the reply model ends with the call's timeline (when each of the last six turns started, how long it ran, the silence before it) and the call time now. voice: the same, plus plain-word cues when they apply (the caller cut the agent off, keeps asking, answers slowly, has gone quiet, how much of call_budget_secs is left). Not on node flows or realtime sessions.",
@@ -1881,7 +1893,7 @@
       "get": {
         "operationId": "list_agent_logs",
         "summary": "List agent logs",
-        "description": "What happened on this agent's calls, newest first: tool runs, tools the agent asked for that it does not have, the variables each call got, how the after-call results went, and each call starting and ending. It is the same list as the Logs tab in Agent Studio.\n\nEvery filter is optional. `part` is `prompt`, `tools`, `variables`, `results` or `calls`. `level` is `error` or `warning`. `name` narrows it to one tool, variable or result field, and `call_id` to one call. `since` and `until` are RFC 3339 times. `limit` is up to 200. When `next_cursor` is set, send it back as `cursor` for the next page.\n\nEach item has a one-line `summary` you can show as is, and `detail` with the full record: request and response for a tool run (secrets and headers masked), the values a call got, and so on.",
+        "description": "What happened on this agent's calls, newest first: tool runs, tools the agent asked for that it does not have, the variables each call got, how the post-call results went, and each call starting and ending. It is the same list as the Logs tab in Agent Studio.\n\nEvery filter is optional. `part` is `prompt`, `tools`, `variables`, `results` or `calls`. `level` is `error` or `warning`. `name` narrows it to one tool, variable or result field, and `call_id` to one call. `since` and `until` are RFC 3339 times. `limit` is up to 200. When `next_cursor` is set, send it back as `cursor` for the next page.\n\nEach item has a one-line `summary` you can show as is, and `detail` with the full record: request and response for a tool run (secrets and headers masked), the values a call got, and so on.",
         "tags": [
           "Agents"
         ],
@@ -2943,6 +2955,26 @@
                       "from": null,
                       "to": null
                     }
+                  },
+                  "One brand": {
+                    "summary": "200 — one brand",
+                    "value": {
+                      "object": "call_summary",
+                      "total": 312,
+                      "by_channel": {
+                        "phone": 298,
+                        "web": 14,
+                        "text": 0,
+                        "realtime": 0
+                      },
+                      "by_direction": {
+                        "outbound": 301,
+                        "inbound": 11
+                      },
+                      "duration_secs": 21877,
+                      "from": null,
+                      "to": null
+                    }
                   }
                 }
               }
@@ -2959,6 +2991,42 @@
                       "error": {
                         "code": "summary_unavailable",
                         "message": "could not read the call record; try again shortly"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not one of your brands",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "Not one of your brands": {
+                    "summary": "404 — not one of your brands",
+                    "value": {
+                      "error": {
+                        "code": "workspace_not_found",
+                        "message": "No sub-workspace \"ws_6f1c0a9e2b7d4c3a8e5f9b10\" under this account."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "An archived brand",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "An archived brand": {
+                    "summary": "403 — an archived brand",
+                    "value": {
+                      "error": {
+                        "code": "workspace_archived",
+                        "message": "Sub-workspace \"ws_6f1c0a9e2b7d4c3a8e5f9b10\" is archived. Restore it with POST /v2/workspaces/ws_6f1c0a9e2b7d4c3a8e5f9b10/restore to use it again."
                       }
                     }
                   }
@@ -19253,6 +19321,1137 @@
         }
       }
     },
+    "/v2/workspaces": {
+      "post": {
+        "operationId": "create_workspace",
+        "summary": "Create a sub-workspace",
+        "description": "Adds a brand. Only `name` is required, and it must be unique among your active brands.\n\n* `external_id`: your own id for the brand, up to 128 characters and not starting with `ws_`. Unique for good: an archived brand keeps it. Brands moved from v1 use their v1 workspace id.\n* `kind`: `custom` (the default) or `shopify`.\n* `timezone`: an IANA name, `Asia/Kolkata` by default.\n* `currency`: `INR` by default.\n* `profile`: the brand's facts as a JSON object, up to 16 KB.\n\nSafe to retry. Sending an `external_id` or an active name you already have returns `409 workspace_exists` with that brand in `workspace`, so a script that lost the first answer can pick up the id and carry on.",
+        "tags": [
+          "Sub-workspaces"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "currency": {
+                    "default": "INR",
+                    "description": "ISO 4217; stored upper-case.",
+                    "pattern": "^[A-Za-z]{3}$",
+                    "type": "string"
+                  },
+                  "external_id": {
+                    "description": "Your own id for the brand, unique under your account for ever. Not starting with ws_.",
+                    "maxLength": 128,
+                    "minLength": 1,
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9.:-]{0,127}$",
+                    "type": "string"
+                  },
+                  "kind": {
+                    "default": "custom",
+                    "enum": [
+                      "custom",
+                      "shopify"
+                    ],
+                    "type": "string"
+                  },
+                  "name": {
+                    "maxLength": 100,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "profile": {
+                    "description": "Brand facts (support contacts, policies…), at most 16384 bytes of JSON. Replaced whole on update; null is the empty object.",
+                    "type": [
+                      "object",
+                      "null"
+                    ]
+                  },
+                  "timezone": {
+                    "default": "Asia/Kolkata",
+                    "description": "An IANA timezone name.",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name"
+                ],
+                "type": "object"
+              },
+              "examples": {
+                "Create a sub-workspace": {
+                  "summary": "Create a sub-workspace",
+                  "value": {
+                    "name": "Solved Skin",
+                    "external_id": "68dbc1f4a2e9b7c3d5f01a26",
+                    "kind": "shopify",
+                    "timezone": "Asia/Kolkata",
+                    "currency": "INR",
+                    "profile": {
+                      "supportContacts": {
+                        "phoneNumber": "+919812345678",
+                        "email": "care@solvedskin.in"
+                      },
+                      "trustSignals": {
+                        "valuePropositionOneLiner": "Clean skincare, made in India",
+                        "customersTillDate": 120000,
+                        "storeRating": 4.6
+                      },
+                      "policyFramework": {
+                        "returnPolicy": {
+                          "windowDays": 7,
+                          "refundTimelineDays": 5
+                        },
+                        "codPolicy": {
+                          "enabled": true,
+                          "additionalFee": {
+                            "amount": 49
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Workspace"
+                },
+                "examples": {
+                  "Created": {
+                    "summary": "201 — created",
+                    "value": {
+                      "id": "ws_6f1c0a9e2b7d4c3a8e5f9b10",
+                      "object": "workspace",
+                      "parent_id": "ws_2a9d4e7c1b3f5a8e6d0c4b21",
+                      "name": "Solved Skin",
+                      "external_id": "68dbc1f4a2e9b7c3d5f01a26",
+                      "kind": "shopify",
+                      "timezone": "Asia/Kolkata",
+                      "currency": "INR",
+                      "profile": {
+                        "supportContacts": {
+                          "phoneNumber": "+919812345678",
+                          "email": "care@solvedskin.in"
+                        },
+                        "trustSignals": {
+                          "valuePropositionOneLiner": "Clean skincare, made in India",
+                          "customersTillDate": 120000,
+                          "storeRating": 4.6
+                        },
+                        "policyFramework": {
+                          "returnPolicy": {
+                            "windowDays": 7,
+                            "refundTimelineDays": 5
+                          },
+                          "codPolicy": {
+                            "enabled": true,
+                            "additionalFee": {
+                              "amount": 49
+                            }
+                          }
+                        }
+                      },
+                      "status": "active",
+                      "created_at": "2026-11-02T09:14:07Z",
+                      "updated_at": "2026-11-02T09:14:07Z",
+                      "archived_at": null
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Already exists",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "Already exists": {
+                    "summary": "409 — already exists",
+                    "value": {
+                      "error": {
+                        "code": "workspace_exists",
+                        "message": "a sub-workspace with external_id \"68dbc1f4a2e9b7c3d5f01a26\" already exists under this account"
+                      },
+                      "workspace": {
+                        "id": "ws_6f1c0a9e2b7d4c3a8e5f9b10",
+                        "object": "workspace",
+                        "parent_id": "ws_2a9d4e7c1b3f5a8e6d0c4b21",
+                        "name": "Solved Skin",
+                        "external_id": "68dbc1f4a2e9b7c3d5f01a26",
+                        "kind": "shopify",
+                        "timezone": "Asia/Kolkata",
+                        "currency": "INR",
+                        "profile": {
+                          "supportContacts": {
+                            "phoneNumber": "+919812345678",
+                            "email": "care@solvedskin.in"
+                          },
+                          "trustSignals": {
+                            "valuePropositionOneLiner": "Clean skincare, made in India",
+                            "customersTillDate": 120000,
+                            "storeRating": 4.6
+                          },
+                          "policyFramework": {
+                            "returnPolicy": {
+                              "windowDays": 7,
+                              "refundTimelineDays": 5
+                            },
+                            "codPolicy": {
+                              "enabled": true,
+                              "additionalFee": {
+                                "amount": 49
+                              }
+                            }
+                          }
+                        },
+                        "status": "active",
+                        "created_at": "2026-11-02T09:14:07Z",
+                        "updated_at": "2026-11-02T09:14:07Z",
+                        "archived_at": null
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Sent with a Mirai-Workspace header",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "Sent with a Mirai-Workspace header": {
+                    "summary": "400 — sent with a Mirai-Workspace header",
+                    "value": {
+                      "error": {
+                        "code": "invalid_request",
+                        "message": "Manage sub-workspaces from the account: drop the Mirai-Workspace header."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "list_workspaces",
+        "summary": "List sub-workspaces",
+        "description": "Your brands, newest first. `status` is `active` (the default), `archived` or `all`. `external_id` finds the one brand with that id, archived ones included when `status` is `all`.\n\n`limit` is 1 to 100. When `has_more` is true, pass `next_cursor` back as `cursor` for the next page.",
+        "tags": [
+          "Sub-workspaces"
+        ],
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "description": "active, archived or all",
+            "schema": {
+              "default": "active",
+              "enum": [
+                "active",
+                "archived",
+                "all"
+              ],
+              "type": "string"
+            },
+            "example": "active"
+          },
+          {
+            "name": "external_id",
+            "in": "query",
+            "required": false,
+            "description": "only the brand with this external_id",
+            "schema": {
+              "type": "string"
+            },
+            "example": "68dbc1f4a2e9b7c3d5f01a26"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "",
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "example": 50
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "next_cursor from the previous page",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One page",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "One page": {
+                    "summary": "200 — one page",
+                    "value": {
+                      "data": [
+                        {
+                          "id": "ws_6f1c0a9e2b7d4c3a8e5f9b10",
+                          "object": "workspace",
+                          "parent_id": "ws_2a9d4e7c1b3f5a8e6d0c4b21",
+                          "name": "Solved Skin",
+                          "external_id": "68dbc1f4a2e9b7c3d5f01a26",
+                          "kind": "shopify",
+                          "timezone": "Asia/Kolkata",
+                          "currency": "INR",
+                          "profile": {
+                            "supportContacts": {
+                              "phoneNumber": "+919812345678",
+                              "email": "care@solvedskin.in"
+                            },
+                            "trustSignals": {
+                              "valuePropositionOneLiner": "Clean skincare, made in India",
+                              "customersTillDate": 120000,
+                              "storeRating": 4.6
+                            },
+                            "policyFramework": {
+                              "returnPolicy": {
+                                "windowDays": 7,
+                                "refundTimelineDays": 5
+                              },
+                              "codPolicy": {
+                                "enabled": true,
+                                "additionalFee": {
+                                  "amount": 49
+                                }
+                              }
+                            }
+                          },
+                          "status": "active",
+                          "created_at": "2026-11-02T09:14:07Z",
+                          "updated_at": "2026-11-02T09:14:07Z",
+                          "archived_at": null
+                        },
+                        {
+                          "id": "ws_0b7e3d9a5c1f4e8b2a6d7c35",
+                          "object": "workspace",
+                          "parent_id": "ws_2a9d4e7c1b3f5a8e6d0c4b21",
+                          "name": "Acme Support Line",
+                          "external_id": null,
+                          "kind": "custom",
+                          "timezone": "Asia/Kolkata",
+                          "currency": "INR",
+                          "profile": {
+                            "supportContacts": {
+                              "phoneNumber": "+919876543210",
+                              "email": "support@acme.example"
+                            },
+                            "trustSignals": {
+                              "valuePropositionOneLiner": "Premium 24x7 support for Acme customers."
+                            }
+                          },
+                          "status": "active",
+                          "created_at": "2026-10-28T06:40:12Z",
+                          "updated_at": "2026-10-28T06:40:12Z",
+                          "archived_at": null
+                        }
+                      ],
+                      "has_more": false,
+                      "next_cursor": null
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/workspaces/{sub_workspace_id}": {
+      "get": {
+        "operationId": "get_workspace",
+        "summary": "Get a sub-workspace",
+        "description": "One brand, by its `id` or its `external_id`. Archived brands can still be read.",
+        "tags": [
+          "Sub-workspaces"
+        ],
+        "parameters": [
+          {
+            "name": "sub_workspace_id",
+            "in": "path",
+            "required": true,
+            "description": "",
+            "schema": {
+              "type": "string"
+            },
+            "example": "ws_6f1c0a9e2b7d4c3a8e5f9b10"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The brand",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Workspace"
+                },
+                "examples": {
+                  "The brand": {
+                    "summary": "200 — the brand",
+                    "value": {
+                      "id": "ws_6f1c0a9e2b7d4c3a8e5f9b10",
+                      "object": "workspace",
+                      "parent_id": "ws_2a9d4e7c1b3f5a8e6d0c4b21",
+                      "name": "Solved Skin",
+                      "external_id": "68dbc1f4a2e9b7c3d5f01a26",
+                      "kind": "shopify",
+                      "timezone": "Asia/Kolkata",
+                      "currency": "INR",
+                      "profile": {
+                        "supportContacts": {
+                          "phoneNumber": "+919812345678",
+                          "email": "care@solvedskin.in"
+                        },
+                        "trustSignals": {
+                          "valuePropositionOneLiner": "Clean skincare, made in India",
+                          "customersTillDate": 120000,
+                          "storeRating": 4.6
+                        },
+                        "policyFramework": {
+                          "returnPolicy": {
+                            "windowDays": 7,
+                            "refundTimelineDays": 5
+                          },
+                          "codPolicy": {
+                            "enabled": true,
+                            "additionalFee": {
+                              "amount": 49
+                            }
+                          }
+                        }
+                      },
+                      "status": "active",
+                      "created_at": "2026-11-02T09:14:07Z",
+                      "updated_at": "2026-11-02T09:14:07Z",
+                      "archived_at": null
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not one of yours",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "Not one of yours": {
+                    "summary": "404 — not one of yours",
+                    "value": {
+                      "error": {
+                        "code": "workspace_not_found",
+                        "message": "No sub-workspace \"ws_6f1c0a9e2b7d4c3a8e5f9b10\" under this account."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "update_workspace",
+        "summary": "Update a sub-workspace",
+        "description": "Changes only the fields you send: `name`, `external_id`, `kind`, `timezone`, `currency` and `profile`. `profile` is replaced as a whole, so send all of it. `\"external_id\": null` removes the external id. The same uniqueness rules as creating apply, and a clash is `409 workspace_exists`.",
+        "tags": [
+          "Sub-workspaces"
+        ],
+        "parameters": [
+          {
+            "name": "sub_workspace_id",
+            "in": "path",
+            "required": true,
+            "description": "",
+            "schema": {
+              "type": "string"
+            },
+            "example": "ws_6f1c0a9e2b7d4c3a8e5f9b10"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "currency": {
+                    "default": "INR",
+                    "description": "ISO 4217; stored upper-case.",
+                    "pattern": "^[A-Za-z]{3}$",
+                    "type": "string"
+                  },
+                  "external_id": {
+                    "description": "Your own id for the brand; null removes it.",
+                    "maxLength": 128,
+                    "minLength": 1,
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9.:-]{0,127}$",
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "kind": {
+                    "default": "custom",
+                    "enum": [
+                      "custom",
+                      "shopify"
+                    ],
+                    "type": "string"
+                  },
+                  "name": {
+                    "maxLength": 100,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "profile": {
+                    "description": "Brand facts (support contacts, policies…), at most 16384 bytes of JSON. Replaced whole on update; null is the empty object.",
+                    "type": [
+                      "object",
+                      "null"
+                    ]
+                  },
+                  "timezone": {
+                    "default": "Asia/Kolkata",
+                    "description": "An IANA timezone name.",
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              },
+              "examples": {
+                "Update a sub-workspace": {
+                  "summary": "Update a sub-workspace",
+                  "value": {
+                    "name": "Solved Skin India",
+                    "timezone": "Asia/Kolkata"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Workspace"
+                },
+                "examples": {
+                  "Updated": {
+                    "summary": "200 — updated",
+                    "value": {
+                      "id": "ws_6f1c0a9e2b7d4c3a8e5f9b10",
+                      "object": "workspace",
+                      "parent_id": "ws_2a9d4e7c1b3f5a8e6d0c4b21",
+                      "name": "Solved Skin India",
+                      "external_id": "68dbc1f4a2e9b7c3d5f01a26",
+                      "kind": "shopify",
+                      "timezone": "Asia/Kolkata",
+                      "currency": "INR",
+                      "profile": {
+                        "supportContacts": {
+                          "phoneNumber": "+919812345678",
+                          "email": "care@solvedskin.in"
+                        },
+                        "trustSignals": {
+                          "valuePropositionOneLiner": "Clean skincare, made in India",
+                          "customersTillDate": 120000,
+                          "storeRating": 4.6
+                        },
+                        "policyFramework": {
+                          "returnPolicy": {
+                            "windowDays": 7,
+                            "refundTimelineDays": 5
+                          },
+                          "codPolicy": {
+                            "enabled": true,
+                            "additionalFee": {
+                              "amount": 49
+                            }
+                          }
+                        }
+                      },
+                      "status": "active",
+                      "created_at": "2026-11-02T09:14:07Z",
+                      "updated_at": "2026-11-05T13:21:09Z",
+                      "archived_at": null
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not one of yours",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "Not one of yours": {
+                    "summary": "404 — not one of yours",
+                    "value": {
+                      "error": {
+                        "code": "workspace_not_found",
+                        "message": "No sub-workspace \"ws_6f1c0a9e2b7d4c3a8e5f9b10\" under this account."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/workspaces/{sub_workspace_id}/archive": {
+      "post": {
+        "operationId": "archive_workspace",
+        "summary": "Archive a sub-workspace",
+        "description": "Stops the brand. From now on any request with its id or external id in the header gets `403 workspace_archived`. Its agents, calls and history are kept, and restoring brings them all back.\n\nA brand with a campaign that is still running can't be archived (`409 workspace_busy`). Pause or finish the campaign first.",
+        "tags": [
+          "Sub-workspaces"
+        ],
+        "parameters": [
+          {
+            "name": "sub_workspace_id",
+            "in": "path",
+            "required": true,
+            "description": "",
+            "schema": {
+              "type": "string"
+            },
+            "example": "ws_6f1c0a9e2b7d4c3a8e5f9b10"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Archived",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Workspace"
+                },
+                "examples": {
+                  "Archived": {
+                    "summary": "200 — archived",
+                    "value": {
+                      "id": "ws_6f1c0a9e2b7d4c3a8e5f9b10",
+                      "object": "workspace",
+                      "parent_id": "ws_2a9d4e7c1b3f5a8e6d0c4b21",
+                      "name": "Solved Skin",
+                      "external_id": "68dbc1f4a2e9b7c3d5f01a26",
+                      "kind": "shopify",
+                      "timezone": "Asia/Kolkata",
+                      "currency": "INR",
+                      "profile": {
+                        "supportContacts": {
+                          "phoneNumber": "+919812345678",
+                          "email": "care@solvedskin.in"
+                        },
+                        "trustSignals": {
+                          "valuePropositionOneLiner": "Clean skincare, made in India",
+                          "customersTillDate": 120000,
+                          "storeRating": 4.6
+                        },
+                        "policyFramework": {
+                          "returnPolicy": {
+                            "windowDays": 7,
+                            "refundTimelineDays": 5
+                          },
+                          "codPolicy": {
+                            "enabled": true,
+                            "additionalFee": {
+                              "amount": 49
+                            }
+                          }
+                        }
+                      },
+                      "status": "archived",
+                      "created_at": "2026-11-02T09:14:07Z",
+                      "updated_at": "2026-11-20T11:02:45Z",
+                      "archived_at": "2026-11-20T11:02:45Z"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A campaign is running",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "A campaign is running": {
+                    "summary": "409 — a campaign is running",
+                    "value": {
+                      "error": {
+                        "code": "workspace_busy",
+                        "message": "a campaign in this workspace is playing; pause or stop it before archiving the workspace"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/workspaces/{sub_workspace_id}/restore": {
+      "post": {
+        "operationId": "restore_workspace",
+        "summary": "Restore a sub-workspace",
+        "description": "Makes an archived brand active again. Its name has to be free among your active brands, and your account has to be under its limit of active ones.",
+        "tags": [
+          "Sub-workspaces"
+        ],
+        "parameters": [
+          {
+            "name": "sub_workspace_id",
+            "in": "path",
+            "required": true,
+            "description": "",
+            "schema": {
+              "type": "string"
+            },
+            "example": "ws_6f1c0a9e2b7d4c3a8e5f9b10"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Active again",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Workspace"
+                },
+                "examples": {
+                  "Active again": {
+                    "summary": "200 — active again",
+                    "value": {
+                      "id": "ws_6f1c0a9e2b7d4c3a8e5f9b10",
+                      "object": "workspace",
+                      "parent_id": "ws_2a9d4e7c1b3f5a8e6d0c4b21",
+                      "name": "Solved Skin",
+                      "external_id": "68dbc1f4a2e9b7c3d5f01a26",
+                      "kind": "shopify",
+                      "timezone": "Asia/Kolkata",
+                      "currency": "INR",
+                      "profile": {
+                        "supportContacts": {
+                          "phoneNumber": "+919812345678",
+                          "email": "care@solvedskin.in"
+                        },
+                        "trustSignals": {
+                          "valuePropositionOneLiner": "Clean skincare, made in India",
+                          "customersTillDate": 120000,
+                          "storeRating": 4.6
+                        },
+                        "policyFramework": {
+                          "returnPolicy": {
+                            "windowDays": 7,
+                            "refundTimelineDays": 5
+                          },
+                          "codPolicy": {
+                            "enabled": true,
+                            "additionalFee": {
+                              "amount": 49
+                            }
+                          }
+                        }
+                      },
+                      "status": "active",
+                      "created_at": "2026-11-02T09:14:07Z",
+                      "updated_at": "2026-11-21T08:30:00Z",
+                      "archived_at": null
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Sent with a Mirai-Workspace header",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "Sent with a Mirai-Workspace header": {
+                    "summary": "400 — sent with a Mirai-Workspace header",
+                    "value": {
+                      "error": {
+                        "code": "invalid_request",
+                        "message": "Manage sub-workspaces from the account: drop the Mirai-Workspace header."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/workspace/onboard/custom": {
+      "post": {
+        "operationId": "onboard_custom_workspace",
+        "summary": "Onboard a custom brand (v1)",
+        "description": "v1's onboarding call, same path and same body, so a script written for v1 only needs a new base URL and key. It creates a sub-workspace of kind `custom`: `currencyCode` and `timezone` become its currency and timezone, and `supportContacts`, `trustSignals` and `policyFramework` go into its `profile`.\n\nThe answer keeps v1's `status`, `workspace` and `billing` fields and adds the new brand as `sub_workspace`. `workspace` is the id to send in the `Mirai-Workspace` header. `billing` is your account's wallet, which the brand spends from. For new integrations, [Create a sub-workspace](/api-reference/sub-workspaces/create-a-sub-workspace) does the same with an `external_id`.",
+        "tags": [
+          "Sub-workspaces"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "currencyCode": {
+                    "default": "INR",
+                    "type": "string"
+                  },
+                  "externalId": {
+                    "description": "Your own id for the brand (external_id).",
+                    "maxLength": 128,
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "name": {
+                    "maxLength": 100,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "policyFramework": {
+                    "description": "v1's {returnPolicy, shippingPolicy, codPolicy {enabled, additionalFee {amount}}}.",
+                    "type": [
+                      "object",
+                      "null"
+                    ]
+                  },
+                  "supportContacts": {
+                    "description": "v1's {phoneNumber, email}.",
+                    "type": [
+                      "object",
+                      "null"
+                    ]
+                  },
+                  "timezone": {
+                    "default": "Asia/Kolkata",
+                    "type": "string"
+                  },
+                  "trustSignals": {
+                    "description": "v1's {customersTillDate, totalOrdersFulfilled, storeRating, valuePropositionOneLiner}.",
+                    "type": [
+                      "object",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "name"
+                ],
+                "type": "object"
+              },
+              "examples": {
+                "Onboard a custom brand (v1)": {
+                  "summary": "Onboard a custom brand (v1)",
+                  "value": {
+                    "name": "Acme Support Line",
+                    "currencyCode": "INR",
+                    "timezone": "Asia/Kolkata",
+                    "supportContacts": {
+                      "phoneNumber": "+919876543210",
+                      "email": "support@acme.example"
+                    },
+                    "trustSignals": {
+                      "valuePropositionOneLiner": "Premium 24x7 support for Acme customers."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Onboarded",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "Onboarded": {
+                    "summary": "200 — onboarded",
+                    "value": {
+                      "status": "active",
+                      "workspace": "ws_0b7e3d9a5c1f4e8b2a6d7c35",
+                      "billing": {
+                        "type": "prepaid",
+                        "creditBalance": 18450.5,
+                        "negativeCreditAllowance": 0
+                      },
+                      "sub_workspace": {
+                        "id": "ws_0b7e3d9a5c1f4e8b2a6d7c35",
+                        "object": "workspace",
+                        "parent_id": "ws_2a9d4e7c1b3f5a8e6d0c4b21",
+                        "name": "Acme Support Line",
+                        "external_id": null,
+                        "kind": "custom",
+                        "timezone": "Asia/Kolkata",
+                        "currency": "INR",
+                        "profile": {
+                          "supportContacts": {
+                            "phoneNumber": "+919876543210",
+                            "email": "support@acme.example"
+                          },
+                          "trustSignals": {
+                            "valuePropositionOneLiner": "Premium 24x7 support for Acme customers."
+                          }
+                        },
+                        "status": "active",
+                        "created_at": "2026-10-28T06:40:12Z",
+                        "updated_at": "2026-10-28T06:40:12Z",
+                        "archived_at": null
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The name is taken",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "The name is taken": {
+                    "summary": "409 — the name is taken",
+                    "value": {
+                      "error": {
+                        "code": "workspace_exists",
+                        "message": "an active sub-workspace named \"Acme Support Line\" already exists under this account"
+                      },
+                      "workspace": {
+                        "id": "ws_0b7e3d9a5c1f4e8b2a6d7c35",
+                        "object": "workspace",
+                        "parent_id": "ws_2a9d4e7c1b3f5a8e6d0c4b21",
+                        "name": "Acme Support Line",
+                        "external_id": null,
+                        "kind": "custom",
+                        "timezone": "Asia/Kolkata",
+                        "currency": "INR",
+                        "profile": {
+                          "supportContacts": {
+                            "phoneNumber": "+919876543210",
+                            "email": "support@acme.example"
+                          },
+                          "trustSignals": {
+                            "valuePropositionOneLiner": "Premium 24x7 support for Acme customers."
+                          }
+                        },
+                        "status": "active",
+                        "created_at": "2026-10-28T06:40:12Z",
+                        "updated_at": "2026-10-28T06:40:12Z",
+                        "archived_at": null
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/workspace/onboard/shopify": {
+      "post": {
+        "operationId": "onboard_shopify_workspace",
+        "summary": "Onboard a Shopify brand (v1)",
+        "description": "v1's Shopify onboarding, same path and same body. It creates a sub-workspace of kind `shopify` and needs no Shopify credentials: carts arrive with your calls, as before. The answer has the same shape as [Onboard a custom brand (v1)](/api-reference/sub-workspaces/onboard-a-custom-brand-v1).",
+        "tags": [
+          "Sub-workspaces"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "currencyCode": {
+                    "default": "INR",
+                    "type": "string"
+                  },
+                  "externalId": {
+                    "description": "Your own id for the brand (external_id).",
+                    "maxLength": 128,
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "name": {
+                    "maxLength": 100,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "policyFramework": {
+                    "description": "v1's {returnPolicy, shippingPolicy, codPolicy {enabled, additionalFee {amount}}}.",
+                    "type": [
+                      "object",
+                      "null"
+                    ]
+                  },
+                  "supportContacts": {
+                    "description": "v1's {phoneNumber, email}.",
+                    "type": [
+                      "object",
+                      "null"
+                    ]
+                  },
+                  "timezone": {
+                    "default": "Asia/Kolkata",
+                    "type": "string"
+                  },
+                  "trustSignals": {
+                    "description": "v1's {customersTillDate, totalOrdersFulfilled, storeRating, valuePropositionOneLiner}.",
+                    "type": [
+                      "object",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "name"
+                ],
+                "type": "object"
+              },
+              "examples": {
+                "Onboard a Shopify brand (v1)": {
+                  "summary": "Onboard a Shopify brand (v1)",
+                  "value": {
+                    "name": "Solved Skin",
+                    "currencyCode": "INR",
+                    "timezone": "Asia/Kolkata",
+                    "supportContacts": {
+                      "phoneNumber": "+919812345678",
+                      "email": "care@solvedskin.in"
+                    },
+                    "trustSignals": {
+                      "valuePropositionOneLiner": "Clean skincare, made in India",
+                      "customersTillDate": 120000,
+                      "storeRating": 4.6
+                    },
+                    "policyFramework": {
+                      "returnPolicy": {
+                        "windowDays": 7,
+                        "refundTimelineDays": 5
+                      },
+                      "codPolicy": {
+                        "enabled": true,
+                        "additionalFee": {
+                          "amount": 49
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Onboarded",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "Onboarded": {
+                    "summary": "200 — onboarded",
+                    "value": {
+                      "status": "active",
+                      "workspace": "ws_6f1c0a9e2b7d4c3a8e5f9b10",
+                      "billing": {
+                        "type": "prepaid",
+                        "creditBalance": 18450.5,
+                        "negativeCreditAllowance": 0
+                      },
+                      "sub_workspace": {
+                        "id": "ws_6f1c0a9e2b7d4c3a8e5f9b10",
+                        "object": "workspace",
+                        "parent_id": "ws_2a9d4e7c1b3f5a8e6d0c4b21",
+                        "name": "Solved Skin",
+                        "external_id": null,
+                        "kind": "shopify",
+                        "timezone": "Asia/Kolkata",
+                        "currency": "INR",
+                        "profile": {
+                          "supportContacts": {
+                            "phoneNumber": "+919812345678",
+                            "email": "care@solvedskin.in"
+                          },
+                          "trustSignals": {
+                            "valuePropositionOneLiner": "Clean skincare, made in India",
+                            "customersTillDate": 120000,
+                            "storeRating": 4.6
+                          },
+                          "policyFramework": {
+                            "returnPolicy": {
+                              "windowDays": 7,
+                              "refundTimelineDays": 5
+                            },
+                            "codPolicy": {
+                              "enabled": true,
+                              "additionalFee": {
+                                "amount": 49
+                              }
+                            }
+                          }
+                        },
+                        "status": "active",
+                        "created_at": "2026-11-02T09:14:07Z",
+                        "updated_at": "2026-11-02T09:14:07Z",
+                        "archived_at": null
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v2/voices": {
       "get": {
         "operationId": "list_voices",
@@ -19767,7 +20966,7 @@
       "post": {
         "operationId": "create_tts_stream_token",
         "summary": "Mint stream tokens",
-        "description": "Mint a single-use token for opening the streaming text-to-speech WebSocket from a browser, which cannot send an Authorization header: connect to wss://<host>/v1/audio/speech/stream?token=<token> (the url field). Valid for 60 seconds and one connection; the socket acts, and is billed, as the key that minted it, and dies with that key if it is revoked. Server code should connect with its API key in the Authorization header instead. API keys are never accepted in the URL.",
+        "description": "Mint a single-use token for opening the streaming text-to-speech WebSocket from a browser, which cannot send an Authorization header: connect to wss://<host>/v1/audio/speech/stream?token=<token> (the url field). Valid for 60 seconds and one connection; the socket acts, and is billed, as the key that minted it, and dies with that key if it is revoked. A socket is billed per connected minute (₹0.90 at list price, every second it is open), not per character, unless the workspace was set to per-character billing; session.ready states which. Server code should connect with its API key in the Authorization header instead. API keys are never accepted in the URL.",
         "tags": [
           "Text to speech"
         ],
@@ -20092,6 +21291,14 @@
               "call_budget_secs": {
                 "description": "How long this agent's calls usually last, in seconds, as digits.",
                 "pattern": "^[0-9]+$",
+                "type": "string"
+              },
+              "language_switch": {
+                "description": "on: the caller asks for another of the agent's languages (its language, secondary_languages and English), or keeps speaking one, and the call moves to it before the next reply: speech recognition, the voice and the reply follow. A language the agent does not have is declined in the current one and logged as prompt/language_not_enabled. off (the default): the call stays in the agent's language unless its prompt says otherwise. Not on realtime sessions. A JSON boolean is accepted (true is on).",
+                "enum": [
+                  "off",
+                  "on"
+                ],
                 "type": "string"
               },
               "llm_timeline": {
@@ -20707,6 +21914,14 @@
                 "minimum": 20,
                 "type": "integer"
               },
+              "language_switch": {
+                "description": "on: the caller asks for another of the agent's languages (its language, secondary_languages and English), or keeps speaking one, and the call moves to it before the next reply: speech recognition, the voice and the reply follow. A language the agent does not have is declined in the current one and logged as prompt/language_not_enabled. off (the default): the call stays in the agent's language unless its prompt says otherwise. Not on realtime sessions. A JSON boolean is accepted (true is on).",
+                "enum": [
+                  "off",
+                  "on"
+                ],
+                "type": "string"
+              },
               "llm_timeline": {
                 "description": "on: each request to the reply model ends with the call's timeline (when each of the last six turns started, how long it ran, the silence before it) and the call time now. voice: the same, plus plain-word cues when they apply (the caller cut the agent off, keeps asking, answers slowly, has gone quiet, how much of call_budget_secs is left). Not on node flows or realtime sessions.",
                 "enum": [
@@ -21275,6 +22490,14 @@
                 "maximum": 3600,
                 "minimum": 20,
                 "type": "integer"
+              },
+              "language_switch": {
+                "description": "on: the caller asks for another of the agent's languages (its language, secondary_languages and English), or keeps speaking one, and the call moves to it before the next reply: speech recognition, the voice and the reply follow. A language the agent does not have is declined in the current one and logged as prompt/language_not_enabled. off (the default): the call stays in the agent's language unless its prompt says otherwise. Not on realtime sessions. A JSON boolean is accepted (true is on).",
+                "enum": [
+                  "off",
+                  "on"
+                ],
+                "type": "string"
               },
               "llm_timeline": {
                 "description": "on: each request to the reply model ends with the call's timeline (when each of the last six turns started, how long it ran, the silence before it) and the call time now. voice: the same, plus plain-word cues when they apply (the caller cut the agent off, keeps asking, answers slowly, has gone quiet, how much of call_budget_secs is left). Not on node flows or realtime sessions.",
@@ -24393,6 +25616,86 @@
         },
         "required": [
           "file"
+        ],
+        "type": "object"
+      },
+      "Workspace": {
+        "properties": {
+          "archived_at": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "external_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "pattern": "^ws_[0-9a-f]{24}$",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "custom",
+              "shopify"
+            ],
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "object": {
+            "enum": [
+              "workspace"
+            ],
+            "type": "string"
+          },
+          "parent_id": {
+            "type": "string"
+          },
+          "profile": {
+            "type": "object"
+          },
+          "status": {
+            "enum": [
+              "active",
+              "archived"
+            ],
+            "type": "string"
+          },
+          "timezone": {
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "object",
+          "parent_id",
+          "name",
+          "external_id",
+          "kind",
+          "timezone",
+          "currency",
+          "profile",
+          "status",
+          "created_at",
+          "updated_at",
+          "archived_at"
         ],
         "type": "object"
       }

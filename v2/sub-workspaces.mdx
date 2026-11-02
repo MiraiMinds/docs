@@ -1,0 +1,588 @@
+---
+title: "Sub-workspaces API: one workspace per brand"
+sidebarTitle: "Sub-workspaces"
+description: "Run many brands from one live workspace. Each brand gets a sub-workspace with its own agents, calls and numbers, reached with your API key and one header, and paid from your wallet."
+---
+
+
+If your platform runs voice agents for many brands, give each brand a
+**sub-workspace**. A sub-workspace has its own agents, campaigns, calls, phone
+numbers, do-not-call list, knowledge bases and tools. It has no wallet, API keys
+or console users of its own. Its calls are paid from your workspace's wallet at
+your plan's rates, and you reach it with your own API key and one extra header.
+
+Base URL `https://prod.voice.miraiminds.co`. Sub-workspaces sit under a workspace
+that has [gone live](/general/tiers#your-plan), so the examples on this page use
+the production address.
+
+<Note>
+Sub-workspaces are off until your Mirai contact turns them on for your workspace
+and sets how many you can have. Until then, creating one answers
+`403 sub_workspaces_disabled`. You manage sub-workspaces through the API. The
+console shows your own workspace only, so a brand's agents and calls don't
+appear there.
+</Note>
+
+## How it fits together
+
+Your company's live workspace is the **parent**. Each brand is a sub-workspace
+directly under it, with an id like any other workspace: `ws_` followed by 24 hex
+characters. Sub-workspaces go one level deep, so a sub-workspace can't have
+sub-workspaces of its own.
+
+People sign in to the parent, and API keys belong to the parent. One key reaches
+the parent and every sub-workspace under it. It can never reach a workspace
+under another parent.
+
+### What a brand shares with the parent
+
+| Setting | Comes from |
+| :--- | :--- |
+| Wallet and balance | The parent. Every brand's calls are charged to the parent's [wallet](/v2/wallet). |
+| Plan, tier and rates | The parent. A brand's calls are billed at the parent's [plan](/general/tiers). |
+| Invoices and top-ups | The parent. One invoice and one top-up cover every brand. |
+| Shared-line caller ID | The parent's, unless your Mirai contact has set one for that brand. It applies to calls that ring from the [Mirai shared line](/v2/phone-numbers#which-number-a-call-comes-from). |
+| Webhook signing secret | The API key you sent. A brand's `webhook_url` deliveries are signed with that key's [Call webhook secret](/v2/webhook-secrets). |
+| Request rate limit | The API key you sent. Requests for every brand count against that key's [rate limit](/v2/limits#rate-limits). |
+
+Everything else belongs to one brand, and you see it only with that brand's
+header: its agents, campaigns and calls, its phone numbers, its do-not-call
+list, its knowledge bases, and its tools and tool secrets. An agent in one brand
+can't be used for a call in another.
+
+<Warning>
+**Each brand has its own do-not-call list.** A number on the parent's list or on
+another brand's list is still dialled by this brand's campaigns. When an opt-out
+should apply to every brand, add the number to each brand's list. Consent and
+DND obligations sit with the business placing the calls; see
+[India calling rules](/v2/limits#india-calling-rules).
+</Warning>
+
+## Address a sub-workspace
+
+Send your API key as usual, and name the brand in `Mirai-Workspace`:
+
+```http
+Authorization: Bearer sk_live_YOUR_API_KEY
+Mirai-Workspace: ws_5e0c7a1f9b3d2e6a4c8f0b17
+```
+
+- The value is the sub-workspace's `id` or the `external_id` you gave it.
+- `X-Workspace` and `Workspace` are accepted as the same header. An integration
+  that already sends `workspace` can keep its header name.
+- The header works on every `/v2` route. The request then acts inside that
+  brand: an agent you create belongs to the brand, and `GET /v2/calls` and
+  `GET /v2/phone-numbers` list the brand's calls and numbers.
+- Without the header, or with the parent's own id in it, the request acts on
+  the parent as before.
+
+To place a call for the brand whose `external_id` is `acme-skincare`, send that
+value in the header. The agent must be one of that brand's agents; an agent from
+the parent or another brand answers `404 not_found`.
+
+<Tabs>
+  <Tab title="cURL">
+    ```bash
+    curl -X POST https://prod.voice.miraiminds.co/v2/calls \
+      -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+      -H "Mirai-Workspace: acme-skincare" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "to": "+919876543210",
+        "agent_id": "agt_01K7Q9F3K7M2N5P9R4T6V8W0XZ",
+        "webhook_url": "https://example.com/mirai/webhook"
+      }'
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    import os, httpx
+
+    API = "https://prod.voice.miraiminds.co"
+    auth = {"Authorization": f"Bearer {os.environ['MIRAI_API_KEY']}"}
+
+    def brand(external_id: str) -> dict:
+        return {**auth, "Mirai-Workspace": external_id}
+
+    call = httpx.post(
+        f"{API}/v2/calls",
+        headers=brand("acme-skincare"),
+        json={
+            "to": "+919876543210",
+            "agent_id": "agt_01K7Q9F3K7M2N5P9R4T6V8W0XZ",
+            "webhook_url": "https://example.com/mirai/webhook",
+        },
+        timeout=30,
+    ).raise_for_status().json()
+    print(call["id"], call["status"])  # call_01K7Q9B4M8N3P6R2S5T7V9W1YA queued
+    ```
+  </Tab>
+  <Tab title="Node.js">
+    ```javascript
+    const API = "https://prod.voice.miraiminds.co";
+    const auth = { Authorization: `Bearer ${process.env.MIRAI_API_KEY}` };
+    const brand = (externalId) => ({ ...auth, "Mirai-Workspace": externalId });
+
+    const call = await fetch(`${API}/v2/calls`, {
+      method: "POST",
+      headers: { ...brand("acme-skincare"), "Content-Type": "application/json" },
+      body: JSON.stringify({
+        to: "+919876543210",
+        agent_id: "agt_01K7Q9F3K7M2N5P9R4T6V8W0XZ",
+        webhook_url: "https://example.com/mirai/webhook",
+      }),
+    }).then((r) => r.json());
+    console.log(call.id, call.status); // call_01K7Q9B4M8N3P6R2S5T7V9W1YA queued
+    ```
+  </Tab>
+</Tabs>
+
+A header that names no sub-workspace of your parent answers
+`404 workspace_not_found`. One that names an archived sub-workspace answers
+`403 workspace_archived`. See [errors](#errors).
+
+## The workspace object
+
+```json
+{
+  "id": "ws_5e0c7a1f9b3d2e6a4c8f0b17",
+  "object": "workspace",
+  "parent_id": "ws_a83d61f02c9e4b75d10e6f3a",
+  "name": "Acme Skincare",
+  "external_id": "acme-skincare",
+  "kind": "shopify",
+  "timezone": "Asia/Kolkata",
+  "currency": "INR",
+  "profile": { "support_phone": "+919876543210" },
+  "status": "active",
+  "created_at": "2026-11-02T09:14:02Z",
+  "updated_at": "2026-11-02T09:14:02Z",
+  "archived_at": null
+}
+```
+
+| Field | Type | Description |
+| :--- | :--- | :--- |
+| `id` | string | `ws_` followed by 24 hex characters. |
+| `parent_id` | string | Your parent workspace. |
+| `name` | string | The brand's name. Unique among your active sub-workspaces, ignoring case. |
+| `external_id` | string \| null | Your own id for the brand, such as its id in your system. Unique among all your sub-workspaces, archived ones included, so an archived brand's `external_id` can't be given to another. |
+| `kind` | enum | `custom` or `shopify`. |
+| `timezone` | string | The brand's IANA timezone, such as `Asia/Kolkata`. |
+| `currency` | string | The brand's three-letter currency code, for your records. Calls are always billed in rupees from the parent's wallet. |
+| `profile` | object | Facts about the brand that you want to keep with it. Returned as you sent it. |
+| `status` | enum | `active` or `archived`. |
+| `created_at`, `updated_at` | string | RFC 3339, UTC. |
+| `archived_at` | string \| null | When it was archived. `null` while active. |
+
+## Manage sub-workspaces
+
+The routes below create and change sub-workspaces. Call them with your API key
+alone. They act on the parent and refuse a request that names a sub-workspace in
+`Mirai-Workspace`.
+
+### Create a sub-workspace
+
+```http
+POST /v2/workspaces
+```
+
+| Field | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `name` | string | yes | Up to 100 characters. Unique among your active sub-workspaces, ignoring case. |
+| `external_id` | string | no | Your own id for the brand: up to 128 letters, digits, `.`, `:` or `-`, starting with a letter or digit. Unique for good: no other sub-workspace under your parent can ever use it, archived ones included. |
+| `kind` | string | no | `custom` or `shopify`. Default `custom`. |
+| `timezone` | string | no | IANA timezone. Default `Asia/Kolkata`. |
+| `currency` | string | no | Three-letter currency code. Default `INR`. |
+| `profile` | object | no | A JSON object of up to 16 KB with your brand facts. |
+
+<Tabs>
+  <Tab title="cURL">
+    ```bash
+    curl -X POST https://prod.voice.miraiminds.co/v2/workspaces \
+      -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "name": "Acme Skincare",
+        "external_id": "acme-skincare",
+        "kind": "shopify",
+        "profile": { "support_phone": "+919876543210" }
+      }'
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    def ensure_brand(external_id: str, name: str) -> dict:
+        """Create the brand's sub-workspace, or return it if a retry already did."""
+        r = httpx.post(
+            f"{API}/v2/workspaces",
+            headers=auth,
+            json={"name": name, "external_id": external_id, "kind": "shopify"},
+            timeout=30,
+        )
+        if r.status_code == 201:
+            return r.json()
+        body = r.json()
+        err = body["error"]
+        if err["code"] == "workspace_exists" and body["workspace"]["external_id"] == external_id:
+            return body["workspace"]
+        raise RuntimeError(f'{err["code"]}: {err["message"]}')
+
+    ws = ensure_brand("acme-skincare", "Acme Skincare")
+    print(ws["id"])  # ws_5e0c7a1f9b3d2e6a4c8f0b17
+    ```
+  </Tab>
+  <Tab title="Node.js">
+    ```javascript
+    // Create the brand's sub-workspace, or return it if a retry already did.
+    async function ensureBrand(externalId, name) {
+      const r = await fetch(`${API}/v2/workspaces`, {
+        method: "POST",
+        headers: { ...auth, "Content-Type": "application/json" },
+        body: JSON.stringify({ name, external_id: externalId, kind: "shopify" }),
+      });
+      const body = await r.json();
+      if (r.status === 201) return body;
+      const err = body.error;
+      if (err.code === "workspace_exists" && body.workspace.external_id === externalId) {
+        return body.workspace;
+      }
+      throw new Error(`${err.code}: ${err.message}`);
+    }
+
+    const ws = await ensureBrand("acme-skincare", "Acme Skincare");
+    console.log(ws.id); // ws_5e0c7a1f9b3d2e6a4c8f0b17
+    ```
+  </Tab>
+</Tabs>
+
+The answer is `201 Created` with the [workspace object](#the-workspace-object).
+
+If the `external_id` is already used, or an active sub-workspace already has the
+`name`, you get `409 workspace_exists`, and the response carries the existing
+workspace next to the error. A script that timed out and retries with the same `external_id` can
+read the brand it already made instead of creating a second one, as the code
+above does. Check that `external_id` matches: a name clash with a different
+brand returns that other brand.
+
+```json title="409 Conflict"
+{
+  "error": {
+    "code": "workspace_exists",
+    "message": "a sub-workspace with external_id \"acme-skincare\" already exists under this account"
+  },
+  "workspace": {
+    "id": "ws_5e0c7a1f9b3d2e6a4c8f0b17",
+    "object": "workspace",
+    "external_id": "acme-skincare",
+    "name": "Acme Skincare",
+    "status": "active",
+    "…": "…"
+  }
+}
+```
+
+When you already have as many active sub-workspaces as your limit allows, you
+get `409 sub_workspace_limit`. Archive a brand you no longer serve, or ask your
+Mirai contact for a higher limit.
+
+### List sub-workspaces
+
+```http
+GET /v2/workspaces?status=&external_id=&limit=&cursor=
+```
+
+| Query param | Description |
+| :--- | :--- |
+| `status` | `active`, `archived` or `all`. Default `active`. |
+| `external_id` | Only the sub-workspace with this `external_id`. Use it to find a brand by your own id. |
+| `limit` | 1 to 100, default 50. |
+| `cursor` | From `next_cursor` of the previous page. |
+
+```bash
+curl -G https://prod.voice.miraiminds.co/v2/workspaces \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+  --data-urlencode "external_id=acme-skincare"
+```
+
+```json title="200 OK"
+{
+  "data": [
+    {
+      "id": "ws_5e0c7a1f9b3d2e6a4c8f0b17",
+      "object": "workspace",
+      "parent_id": "ws_a83d61f02c9e4b75d10e6f3a",
+      "name": "Acme Skincare",
+      "external_id": "acme-skincare",
+      "kind": "shopify",
+      "timezone": "Asia/Kolkata",
+      "currency": "INR",
+      "profile": { "support_phone": "+919876543210" },
+      "status": "active",
+      "created_at": "2026-11-02T09:14:02Z",
+      "updated_at": "2026-11-02T09:14:02Z",
+      "archived_at": null
+    }
+  ],
+  "has_more": false,
+  "next_cursor": null
+}
+```
+
+This route uses standard [pagination](/v2/overview#pagination).
+
+### Get and update a sub-workspace
+
+```http
+GET   /v2/workspaces/{id}
+PATCH /v2/workspaces/{id}
+```
+
+`{id}` is the sub-workspace's `ws_` id. To find a brand by your own id, list
+with `external_id`.
+
+`PATCH` takes `name`, `external_id`, `kind`, `timezone`, `currency` and
+`profile`. Send only the fields you change. A `profile` you send replaces the
+stored one. The uniqueness rules from create still apply, so a clash answers
+`409 workspace_exists`.
+
+```bash
+curl -X PATCH https://prod.voice.miraiminds.co/v2/workspaces/ws_5e0c7a1f9b3d2e6a4c8f0b17 \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "name": "Acme Skin & Hair", "timezone": "Asia/Dubai" }'
+```
+
+Both answer with the workspace object. An id that is not one of your
+sub-workspaces answers `404 workspace_not_found`.
+
+### Archive and restore
+
+```http
+POST /v2/workspaces/{id}/archive
+POST /v2/workspaces/{id}/restore
+```
+
+Archiving a sub-workspace stops API access to it: any request that names it in
+`Mirai-Workspace` answers `403 workspace_archived`. Its agents, calls and
+settings are kept, and its `external_id` stays reserved. Archived sub-workspaces
+don't count toward your limit.
+
+You can't archive a brand while one of its campaigns is playing. The request
+answers `409 workspace_busy`. [Pause or stop](/v2/campaigns) the campaign first,
+with the brand's header, then archive.
+
+```bash
+curl -X POST https://prod.voice.miraiminds.co/v2/workspaces/ws_5e0c7a1f9b3d2e6a4c8f0b17/archive \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY"
+```
+
+Restoring sets it back to `active`. Its name must still be free among your
+active sub-workspaces, or you get `409 workspace_exists`, and you need room
+under your limit, or you get `409 sub_workspace_limit`.
+
+Both answer with the workspace object, showing its new `status`.
+
+## Onboard a brand with your v1 code
+
+```http
+POST /v2/workspace/onboard/shopify
+POST /v2/workspace/onboard/custom
+```
+
+These two routes take the v1 onboarding body and answer in v1's shape. If your
+code onboards brands on v1 today, point it at the v2 host and your v2 key, and
+keep the body. Each request creates a sub-workspace whose `kind` comes from the
+path. New code can call [`POST /v2/workspaces`](#create-a-sub-workspace)
+directly.
+
+| v1 body field | Where it goes |
+| :--- | :--- |
+| `name` | `name`. Required. |
+| `currencyCode` | `currency` |
+| `timezone` | `timezone` |
+| `supportContacts`, `trustSignals`, `policyFramework` | Kept in the sub-workspace's `profile` as you sent them. |
+
+```bash
+curl -X POST https://prod.voice.miraiminds.co/v2/workspace/onboard/custom \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Acme Support Line",
+    "currencyCode": "INR",
+    "timezone": "Asia/Kolkata",
+    "supportContacts": { "phoneNumber": "+919876543210", "email": "support@acme.com" },
+    "trustSignals": { "valuePropositionOneLiner": "Round-the-clock support for Acme customers." }
+  }'
+```
+
+```json title="200 OK"
+{
+  "status": "active",
+  "workspace": "ws_0b9e4d2a7c1f6e3b8a5d9c04",
+  "billing": {
+    "type": "prepaid",
+    "creditBalance": 48250.5,
+    "negativeCreditAllowance": 0
+  },
+  "sub_workspace": {
+    "id": "ws_0b9e4d2a7c1f6e3b8a5d9c04",
+    "object": "workspace",
+    "parent_id": "ws_a83d61f02c9e4b75d10e6f3a",
+    "name": "Acme Support Line",
+    "external_id": null,
+    "kind": "custom",
+    "timezone": "Asia/Kolkata",
+    "currency": "INR",
+    "profile": {
+      "supportContacts": { "phoneNumber": "+919876543210", "email": "support@acme.com" },
+      "trustSignals": { "valuePropositionOneLiner": "Round-the-clock support for Acme customers." }
+    },
+    "status": "active",
+    "created_at": "2026-11-02T09:20:41Z",
+    "updated_at": "2026-11-02T09:20:41Z",
+    "archived_at": null
+  }
+}
+```
+
+| Field | Description |
+| :--- | :--- |
+| `status` | `active`. |
+| `workspace` | The new sub-workspace's id. Send it in the `workspace` (or `Mirai-Workspace`) header from now on. |
+| `billing.type` | `prepaid`. |
+| `billing.creditBalance` | The parent wallet's balance in **rupees**. On v1 this field was in seconds. |
+| `billing.negativeCreditAllowance` | Kept so v1 clients can read the response. The v2 wallet has no overdraft: a call is refused with [`402`](/v2/wallet#402-insufficient-balance) when the wallet can't cover a minute. |
+| `sub_workspace` | The [workspace object](#the-workspace-object). |
+
+Both paths answer `200`, including the Shopify path, which answered `201` on v1.
+The errors are the same as for [create](#create-a-sub-workspace). The v1 body has
+no `external_id`, so a retried request with the same `name` answers
+`409 workspace_exists` while the first brand is active. Set an `external_id` with
+[`PATCH`](#get-and-update-a-sub-workspace) if you want to address the brand by
+your own id.
+
+## See one brand's usage
+
+Send the brand's header to the routes you already use:
+
+- [`GET /v2/calls/summary`](/v2/calls#count-calls) counts the brand's calls and
+  their live time.
+- [`GET /v2/calls`](/v2/calls#list-calls) lists the brand's calls, each with its
+  `cost_inr`. Add these up over a window for the brand's spend.
+- [`GET /v2/wallet`](/v2/wallet#get-balance) shows the parent's wallet. The
+  balance is shared, so it is the same for every brand.
+
+Count this month's calls for one brand, or loop over every active brand:
+
+<Tabs>
+  <Tab title="cURL">
+    ```bash
+    curl -G https://prod.voice.miraiminds.co/v2/calls/summary \
+      -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+      -H "Mirai-Workspace: acme-skincare" \
+      --data-urlencode "from=2026-11-01T00:00:00Z"
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    def active_brands():
+        cursor = None
+        while True:
+            params = {"status": "active", "limit": 100, **({"cursor": cursor} if cursor else {})}
+            page = httpx.get(
+                f"{API}/v2/workspaces", headers=auth, params=params, timeout=30
+            ).raise_for_status().json()
+            yield from page["data"]
+            if not page["has_more"]:
+                return
+            cursor = page["next_cursor"]
+
+    for ws in active_brands():
+        s = httpx.get(
+            f"{API}/v2/calls/summary",
+            headers={**auth, "Mirai-Workspace": ws["id"]},
+            params={"from": "2026-11-01T00:00:00Z"},
+            timeout=30,
+        ).raise_for_status().json()
+        print(f'{ws["name"]}: {s["total"]} calls, {s["duration_secs"] // 60} min')
+    ```
+  </Tab>
+  <Tab title="Node.js">
+    ```javascript
+    async function* activeBrands() {
+      let cursor = null;
+      for (;;) {
+        const qs = new URLSearchParams({ status: "active", limit: "100", ...(cursor ? { cursor } : {}) });
+        const page = await fetch(`${API}/v2/workspaces?${qs}`, { headers: auth }).then((r) => r.json());
+        yield* page.data;
+        if (!page.has_more) return;
+        cursor = page.next_cursor;
+      }
+    }
+
+    for await (const ws of activeBrands()) {
+      const qs = new URLSearchParams({ from: "2026-11-01T00:00:00Z" });
+      const s = await fetch(`${API}/v2/calls/summary?${qs}`, {
+        headers: { ...auth, "Mirai-Workspace": ws.id },
+      }).then((r) => r.json());
+      console.log(`${ws.name}: ${s.total} calls, ${Math.floor(s.duration_secs / 60)} min`);
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Coming from v1
+
+On v1, your brands were workspaces under your organization. On v2 they are
+sub-workspaces under your parent workspace.
+
+| v1 | v2 |
+| :--- | :--- |
+| Host `https://api.voice-agents.miraiminds.co` | `https://prod.voice.miraiminds.co` |
+| Organization | Your parent workspace |
+| Workspace | Sub-workspace |
+| `x-public-key` and `x-private-key`, the organization's key pair | `Authorization: Bearer sk_live_…`, an API key of your parent workspace |
+| `workspace: 6690a1b2c3d4e5f600000002` | `workspace: 6690a1b2c3d4e5f600000002`. The same header and value, for brands Mirai moves for you. |
+| `POST /v2/workspace/onboard/shopify` | [The same path](#onboard-a-brand-with-your-v1-code) |
+| `POST /v2/workspace/onboard/custom` | [The same path](#onboard-a-brand-with-your-v1-code) |
+| `billing.creditBalance` in seconds | `billing.creditBalance` in rupees, from the parent's wallet |
+
+When Mirai moves your brands from v1, each brand becomes a sub-workspace whose
+`external_id` is its v1 workspace id. The `workspace` header your code sends
+today keeps its value; only the host and the key change. A brand you create on
+v2 through the onboarding paths has no `external_id`, so use the `workspace` id
+they return.
+
+Agents, calls and webhooks have a different shape on v2.
+[Migrating from v1](/v2/migration) maps each endpoint and field. Send the
+brand's header on each of those requests.
+
+## Errors
+
+| Status | `error.code` | When | What to do |
+| :--- | :--- | :--- | :--- |
+| `403` | `sub_workspaces_disabled` | You created a sub-workspace, or onboarded a brand, before sub-workspaces were turned on for your workspace. | Ask your Mirai contact to turn them on. |
+| `409` | `sub_workspace_limit` | A create, onboarding or restore would take you over your limit of active sub-workspaces. | Archive a brand you no longer serve, or ask your Mirai contact for a higher limit. |
+| `409` | `workspace_exists` | The `external_id` is already used, or an active sub-workspace already has the `name`. The response carries the existing workspace as `workspace`, next to `error`. | If its `external_id` is the one you sent, a retry already created it: use it. Otherwise choose another name or `external_id`. |
+| `404` | `workspace_not_found` | `Mirai-Workspace`, or the `{id}` in the path, names no sub-workspace of your parent. | Check the id or `external_id`. A sub-workspace under another parent is answered the same way. |
+| `403` | `workspace_archived` | `Mirai-Workspace` names a sub-workspace you archived. | [Restore](#archive-and-restore) it, or stop sending requests for that brand. |
+| `409` | `workspace_busy` | You archived a sub-workspace while one of its campaigns is playing. | Pause or stop the campaign with the brand's header, then archive. |
+| `400` | `invalid_request` | A field is missing or out of range, such as no `name`, a `timezone` that is not an IANA name, or a `profile` that is not an object or is over 16 KB. | `error.message` names the field. |
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Calls" icon="phone" href="/v2/calls">
+    Place a brand's calls, list them and count them.
+  </Card>
+  <Card title="Wallet" icon="wallet" href="/v2/wallet">
+    The balance every brand spends from.
+  </Card>
+  <Card title="Migrating from v1" icon="arrow-right-arrow-left" href="/v2/migration">
+    Each v1 endpoint, field and webhook on v2.
+  </Card>
+  <Card title="Errors" icon="triangle-exclamation" href="/v2/errors">
+    Every error code in one place.
+  </Card>
+</CardGroup>

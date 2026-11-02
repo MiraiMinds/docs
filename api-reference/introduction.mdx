@@ -37,6 +37,11 @@ workspace. Create, rotate and revoke keys in the console under **Developers**.
 The key is shown once; we keep only its hash, so a lost key is rotated, not
 recovered.
 
+A workspace that runs brands as [sub-workspaces](/v2/sub-workspaces) uses the
+same key for all of them. Add `Mirai-Workspace: <sub-workspace id or your
+external_id>` to act inside one brand; `X-Workspace` and `Workspace` are read the
+same way. Without the header, a request acts on your own workspace.
+
 | Situation | Status | `error.code` |
 | :--- | :--- | :--- |
 | Header missing, not `Bearer`, or key unknown | `401` | `unauthorized` |

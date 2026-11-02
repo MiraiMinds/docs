@@ -74,7 +74,8 @@
               "v2/dnc",
               "v2/webhooks",
               "v2/webhook-subscriptions",
-              "v2/webhook-secrets"
+              "v2/webhook-secrets",
+              "v2/sub-workspaces"
             ]
           },
           {
@@ -356,6 +357,19 @@
               "GET /v2/webhooks/settings",
               "PATCH /v2/webhooks/settings",
               "GET /v2/webhooks/call-deliveries"
+            ]
+          },
+          {
+            "group": "Sub-workspaces",
+            "pages": [
+              "POST /v2/workspaces",
+              "GET /v2/workspaces",
+              "GET /v2/workspaces/{sub_workspace_id}",
+              "PATCH /v2/workspaces/{sub_workspace_id}",
+              "POST /v2/workspaces/{sub_workspace_id}/archive",
+              "POST /v2/workspaces/{sub_workspace_id}/restore",
+              "POST /v2/workspace/onboard/custom",
+              "POST /v2/workspace/onboard/shopify"
             ]
           },
           {
