@@ -189,8 +189,8 @@ POST /v2/workspaces
 
 | Field | Type | Required | Description |
 | :--- | :--- | :--- | :--- |
-| `name` | string | yes | Unique among your active sub-workspaces, ignoring case. |
-| `external_id` | string | no | Your own id for the brand. Unique for good: no other sub-workspace under your parent can ever use it, archived ones included. |
+| `name` | string | yes | Up to 100 characters. Unique among your active sub-workspaces, ignoring case. |
+| `external_id` | string | no | Your own id for the brand: up to 128 letters, digits, `.`, `:` or `-`, starting with a letter or digit. Unique for good: no other sub-workspace under your parent can ever use it, archived ones included. |
 | `kind` | string | no | `custom` or `shopify`. Default `custom`. |
 | `timezone` | string | no | IANA timezone. Default `Asia/Kolkata`. |
 | `currency` | string | no | Three-letter currency code. Default `INR`. |
@@ -296,7 +296,7 @@ GET /v2/workspaces?status=&external_id=&limit=&cursor=
 | :--- | :--- |
 | `status` | `active`, `archived` or `all`. Default `active`. |
 | `external_id` | Only the sub-workspace with this `external_id`. Use it to find a brand by your own id. |
-| `limit` | 1 to 100, default 20. |
+| `limit` | 1 to 100, default 50. |
 | `cursor` | From `next_cursor` of the previous page. |
 
 ```bash
