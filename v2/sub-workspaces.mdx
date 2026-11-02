@@ -222,9 +222,10 @@ POST /v2/workspaces
         )
         if r.status_code == 201:
             return r.json()
-        err = r.json()["error"]
-        if err["code"] == "workspace_exists" and err["workspace"]["external_id"] == external_id:
-            return err["workspace"]
+        body = r.json()
+        err = body["error"]
+        if err["code"] == "workspace_exists" and body["workspace"]["external_id"] == external_id:
+            return body["workspace"]
         raise RuntimeError(f'{err["code"]}: {err["message"]}')
 
     ws = ensure_brand("acme-skincare", "Acme Skincare")
@@ -243,8 +244,8 @@ POST /v2/workspaces
       const body = await r.json();
       if (r.status === 201) return body;
       const err = body.error;
-      if (err.code === "workspace_exists" && err.workspace.external_id === externalId) {
-        return err.workspace;
+      if (err.code === "workspace_exists" && body.workspace.external_id === externalId) {
+        return body.workspace;
       }
       throw new Error(`${err.code}: ${err.message}`);
     }
@@ -258,8 +259,8 @@ POST /v2/workspaces
 The answer is `201 Created` with the [workspace object](#the-workspace-object).
 
 If the `external_id` is already used, or an active sub-workspace already has the
-`name`, you get `409 workspace_exists`, and the error carries the existing
-workspace. A script that timed out and retries with the same `external_id` can
+`name`, you get `409 workspace_exists`, and the response carries the existing
+workspace next to the error. A script that timed out and retries with the same `external_id` can
 read the brand it already made instead of creating a second one, as the code
 above does. Check that `external_id` matches: a name clash with a different
 brand returns that other brand.
@@ -268,15 +269,15 @@ brand returns that other brand.
 {
   "error": {
     "code": "workspace_exists",
-    "message": "a sub-workspace with external_id acme-skincare already exists",
-    "workspace": {
-      "id": "ws_5e0c7a1f9b3d2e6a4c8f0b17",
-      "object": "workspace",
-      "external_id": "acme-skincare",
-      "name": "Acme Skincare",
-      "status": "active",
-      "…": "…"
-    }
+    "message": "a sub-workspace with external_id \"acme-skincare\" already exists under this account"
+  },
+  "workspace": {
+    "id": "ws_5e0c7a1f9b3d2e6a4c8f0b17",
+    "object": "workspace",
+    "external_id": "acme-skincare",
+    "name": "Acme Skincare",
+    "status": "active",
+    "…": "…"
   }
 }
 ```
@@ -563,7 +564,7 @@ brand's header on each of those requests.
 | :--- | :--- | :--- | :--- |
 | `403` | `sub_workspaces_disabled` | You created a sub-workspace, or onboarded a brand, before sub-workspaces were turned on for your workspace. | Ask your Mirai contact to turn them on. |
 | `409` | `sub_workspace_limit` | A create, onboarding or restore would take you over your limit of active sub-workspaces. | Archive a brand you no longer serve, or ask your Mirai contact for a higher limit. |
-| `409` | `workspace_exists` | The `external_id` is already used, or an active sub-workspace already has the `name`. The error carries the existing workspace as `error.workspace`. | If its `external_id` is the one you sent, a retry already created it: use it. Otherwise choose another name or `external_id`. |
+| `409` | `workspace_exists` | The `external_id` is already used, or an active sub-workspace already has the `name`. The response carries the existing workspace as `workspace`, next to `error`. | If its `external_id` is the one you sent, a retry already created it: use it. Otherwise choose another name or `external_id`. |
 | `404` | `workspace_not_found` | `Mirai-Workspace`, or the `{id}` in the path, names no sub-workspace of your parent. | Check the id or `external_id`. A sub-workspace under another parent is answered the same way. |
 | `403` | `workspace_archived` | `Mirai-Workspace` names a sub-workspace you archived. | [Restore](#archive-and-restore) it, or stop sending requests for that brand. |
 | `409` | `workspace_busy` | You archived a sub-workspace while one of its campaigns is playing. | Pause or stop the campaign with the brand's header, then archive. |

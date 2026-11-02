@@ -73,7 +73,7 @@ flow, or generating one.
 | `pool_in_use` | `409` | You deleted a pool that a campaign or agent calls from. The message names them. | Move them to another pool or number, then delete. |
 | `sub_workspaces_disabled` | `403` | You created a [sub-workspace](/v2/sub-workspaces) or onboarded a brand before sub-workspaces were turned on for your workspace. | Ask your Mirai contact to turn them on. |
 | `sub_workspace_limit` | `409` | Creating, onboarding or restoring a sub-workspace would take you over your limit of active sub-workspaces. | Archive a brand you no longer serve, or ask your Mirai contact for a higher limit. |
-| `workspace_exists` | `409` | A sub-workspace already has this `external_id`, or an active one has this `name`. The error carries it as `error.workspace`. | If its `external_id` is the one you sent, a retry already created it: use it. Otherwise choose another name or `external_id`. |
+| `workspace_exists` | `409` | A sub-workspace already has this `external_id`, or an active one has this `name`. The response carries it as `workspace`, next to `error`. | If its `external_id` is the one you sent, a retry already created it: use it. Otherwise choose another name or `external_id`. |
 | `workspace_not_found` | `404` | The `Mirai-Workspace` header, or a `/v2/workspaces/{id}` path, names no sub-workspace of your workspace. | Check the id or `external_id`. |
 | `workspace_archived` | `403` | The `Mirai-Workspace` header names a sub-workspace you archived. | [Restore](/v2/sub-workspaces#archive-and-restore) it first. |
 | `workspace_busy` | `409` | You archived a sub-workspace while one of its campaigns is playing. | Pause or stop the campaign with the brand's header, then archive. |
