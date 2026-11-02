@@ -360,6 +360,19 @@
             ]
           },
           {
+            "group": "Sub-workspaces",
+            "pages": [
+              "POST /v2/workspaces",
+              "GET /v2/workspaces",
+              "GET /v2/workspaces/{sub_workspace_id}",
+              "PATCH /v2/workspaces/{sub_workspace_id}",
+              "POST /v2/workspaces/{sub_workspace_id}/archive",
+              "POST /v2/workspaces/{sub_workspace_id}/restore",
+              "POST /v2/workspace/onboard/custom",
+              "POST /v2/workspace/onboard/shopify"
+            ]
+          },
+          {
             "group": "Reference",
             "pages": [
               "GET /v2/voices",
