@@ -297,13 +297,14 @@ calling window is open, and when the window next opens otherwise. If that
 wake-up is ever lost, the campaign looks at its list again within five minutes.
 
 <Warning>
-**A number is in a campaign once.** Contacts are deduplicated on `phone` for
-the whole life of the campaign. Adding a number that is already in it counts
-it in `contacts_duplicate`: it is not called again and its `variables` are not
-updated. To call it again with the details it already has, use
-`POST /v2/campaigns/{id}/contacts/{contact_id}/retry`. To call it with new
-details, place a [single call](/v2/calls#create-a-call) or add it to another
-campaign.
+**Give each contact its own `id` in an always-on campaign.** A contact you add
+with an `id`, such as an order or cart id, is unique by that `id`: the same
+number comes back next week under a new `id` and is called again, and the same
+`id` sent twice counts in `contacts_duplicate`. A contact sent without an `id`
+is unique by `phone` for the whole life of the campaign, and so is every
+contact of a campaign that is not always-on. Two contacts on one number are
+never dialled at the same time. To call a contact again with the details it
+already has, use `POST /v2/campaigns/{id}/contacts/{contact_id}/retry`.
 </Warning>
 
 ### Example: one open campaign, numbers added as they come
@@ -375,7 +376,7 @@ Then add each new order as it is placed:
         added = r.raise_for_status().json()
         if added["contacts_rejected"]:
             raise ValueError(added["contacts_rejected"][0]["reason"])
-        return added["contacts_accepted"] == 1  # False: this number is already in the campaign
+        return added["contacts_accepted"] == 1  # False: this contact is already in the campaign
     ```
   </Tab>
   <Tab title="Node.js">
@@ -401,7 +402,7 @@ Then add each new order as it is placed:
       const added = await res.json();
       if (!res.ok) throw new Error(`${added.error.code}: ${added.error.message}`);
       if (added.contacts_rejected.length) throw new Error(added.contacts_rejected[0].reason);
-      return added.contacts_accepted === 1; // false: this number is already in the campaign
+      return added.contacts_accepted === 1; // false: this contact is already in the campaign
     }
     ```
   </Tab>
@@ -537,7 +538,7 @@ bad ones by index instead of failing the whole upload with `400`:
 | Counter | Meaning |
 | :--- | :--- |
 | `contacts_accepted` | Rows stored and dialable. |
-| `contacts_duplicate` | The phone number was already in this campaign, or repeated inside this batch. We deduplicate on purpose, so this is not an error. |
+| `contacts_duplicate` | The contact was already in this campaign, or repeated inside this batch: the same `id` in an always-on campaign, otherwise the same phone number. We deduplicate on purpose, so this is not an error. |
 | `contacts_rejected` | Rows we could not store, each with the **index in the array you sent** and why. |
 
 Two things do fail the whole request: more than 1000 rows
