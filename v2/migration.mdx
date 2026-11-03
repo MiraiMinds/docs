@@ -78,7 +78,7 @@ create, rotate and revoke in the console, so switch to one when you can.
 | — | [`GET /v2/calls/{id}`](/v2/calls#get-a-call) | **New.** v1 had no call read. |
 | — | [`GET /v2/calls`](/v2/calls#list-calls) | **New.** |
 | `POST /v2/call/abort` with `{callId}` in body | [`POST /v2/calls/{id}/abort`](/v2/calls#abort-a-call) | ID moves into the path. |
-| `PUT /v2/call/{callId}` (update payload) | — | No equivalent. Set everything at create time. |
+| `PUT /v2/call/{callId}` (update payload) | — | No equivalent for a single call. Set everything at create time. For a queued call, see [the call queue](#retries-calling-hours-and-concurrency). |
 | `POST /v2/call/web` | [`POST /v2/calls`](/v2/web-calls#create-the-call) with `channel: "web"` | Your backend creates the call and gives the page an audio link and a live event link. See [Browser calls](/v2/web-calls). |
 | `GET /v1/number-pool/*` | `/v2/phone-numbers` and `/v2/telephony/*` | Different resources and IDs. Follow the [inbound setup recipe](/cookbooks/inbound-calling); importing does not change routing until activation. |
 | `/v1/admin/tool/api` (all methods) | [`/v2/agents/{id}/tools/{name}`](/v2/tools#api-routes) | Tools belong to an agent; recreate the definition instead of copying a v1 ID. |
@@ -195,6 +195,22 @@ again, while a contact without an `id` is held once per phone number. And an
 add to a campaign that has been stopped, or whose `end_date` has passed, gets
 `409 conflict`. Any `200` means the numbers are in line to be called.
 
+If you queued calls through v1, each queue call has a campaign equivalent:
+
+| v1 call queue | v2 always-on campaign |
+| :--- | :--- |
+| `POST /v2/call/initiate` | [`POST /v2/campaigns/{id}/contacts`](/v2/campaigns#add-contacts), with your own contact `id` |
+| `callId`, one per number across all its attempts | The contact `id` you chose. Each attempt also gets its own `call_…` ID. Webhooks carry both, as `data.call.contact_id` and `data.call.id`. |
+| `PUT /v2/call/{callId}` (update payload) | `DELETE /v2/campaigns/{id}/contacts/{contact_id}`, then add the contact again with the same `id`. Works only before its first call. |
+| `POST /v2/call/abort` | `DELETE /v2/campaigns/{id}/contacts/{contact_id}` answers `204` before the first call and `409 contact_dialled` once the contact has been dialled. |
+
+v1's abort also cancelled a pending retry. On v2, give the agent a pre-call
+[`skip_call`](/v2/tools#skip-when-a-condition-holds) that checks whether the
+call is still needed, for example whether the order has been placed. A skipped
+attempt ends `aborted` with `ended_reason: "skipped-by-condition"`, costs
+nothing and is not retried. To stop every call to a number, add it to the
+[do-not-call list](/v2/dnc).
+
 ## Statuses
 
 v1's status vocabulary is hyphenated and mixes phases with outcomes. v2 uses
@@ -242,7 +258,7 @@ a test vector.
 | `call.timeout` | `call.failed` with `data.call.status: "timeout"` |
 | `call.failed`, `call.busy`, `call.no-answer` | `call.failed` with `data.call.status` `failed`, `busy` or `no_answer` |
 | `call.validation-failed` | No event: `POST /v2/calls` answers `400 invalid_request` |
-| `call.skip` | No event: the campaign contact's status becomes `suppressed` |
+| `call.skip` | `call.aborted` with `ended_reason: "skipped-by-condition"` when a pre-call `skip_call` skips the call. A number on the do-not-call list gets no event: the campaign contact's status becomes `suppressed`. |
 | `call.rescheduled` | No event: the campaign contact goes back to `pending` for its retry |
 | `call.aborted` | `call.aborted` |
 | — | `call.voicemail` (**new**) |
@@ -260,8 +276,9 @@ Exactly one terminal event fires per call: `call.completed`, `call.voicemail`,
 | :--- | :--- |
 | `metadata` (top level) | `data.call.metadata` |
 | `event.type` | `type` |
-| `event.data.call.id` | `data.call.id` (`call_…`) |
+| `event.data.call.id` | `data.call.id` (`call_…`), one per attempt. On a campaign call, `data.call.contact_id` is the contact `id` you chose, the same on every attempt, as v1's `callId` was. |
 | `event.data.call.status` | `data.call.status` (see [Statuses](#statuses)) |
+| — | `data.call.ended_reason`: why the call ended, such as `customer-busy`, `customer-did-not-answer` or `no-media`. v1 sent no reason. See [ended reasons](/v2/calls#ended-reasons). |
 | `startedAt` / `endedAt` | `data.call.started_at` / `data.call.ended_at` |
 | `durationSeconds` | `data.call.duration_secs` |
 | `recordingUrl` | [`GET /v2/calls/{id}/recording`](/v2/calls#get-the-recording), an authenticated request that redirects to a 15-minute signed URL |
