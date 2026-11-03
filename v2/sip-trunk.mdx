@@ -12,12 +12,6 @@ Once it's added, a number on your trunk works like any other number here. An
 agent answers it, it can sit in a [pool](/v2/phone-numbers), and you can pick it
 under **Calls come from** for a campaign or an agent.
 
-<Note>
-If **Get a number** doesn't offer **Connect your SIP trunk**, SIP trunks aren't
-on for your workspace yet. Ask your Mirai contact or write to
-[help@miraiminds.co](mailto:help@miraiminds.co).
-</Note>
-
 ## What you need
 
 - A SIP trunk from a carrier, with one or more Indian numbers on it.
@@ -113,8 +107,9 @@ of the four formats above. We read them all.
 
 1. Call one of the numbers from another phone. You should hear your agent's
    greeting.
-2. Call out from it. Pick the number under **Calls come from** in a small test
-   campaign to your own phone, or place an API call with its `phone_number_id`.
+2. Call out from it. Click **Call my phone** on the trunk's card, pick the
+   number under **Calls come from** in a small test campaign, or place an API
+   call with its `phone_number_id`.
 3. On each call, check that both sides hear each other. Hang up once from each
    end.
 4. Look at the trunk's card. It shows the last call in and the last call out,
@@ -202,7 +197,7 @@ register with them.
 
 | What you see | What to do |
 | :--- | :--- |
-| Calls to your number ring out or never reach the agent | Open the trunk's card. If it lists calls turned away from an address that isn't on your list, click **Add this address**. Also check that the number is added to this trunk and has an agent to answer it. |
+| Calls to your number ring out or never reach the agent | Open the trunk's card. If it lists calls turned away from an address that isn't on your list, click **Add this address**, but only if your carrier confirms the address is theirs. Also check that the number is added to this trunk and has an agent to answer it. |
 | A call out fails as refused (403) | Your carrier turned the call down. Ask them to allow `168.220.248.249` and the number you call from (your caller ID). If your carrier gave you a username and password, check them with **Edit**. |
 | A call out fails as not found (404) | Your carrier didn't recognise the number the way we wrote it. Under **Edit**, change **How your carrier writes numbers** or the **Dial prefix**, then call again. |
 | One-way audio, or no audio | Open UDP ports 20000 to 29999 to and from `168.220.248.249` on your side. Make sure your carrier doesn't require encrypted audio (SRTP). |
