@@ -189,8 +189,9 @@ stays open after the list is done. See
 | `retryProtocol.maxRescheduleCount` | The agent's [callback tool](/v2/tools#schedule-a-callback) |
 | a call's `payload` and `metadata` | the contact's `variables` and `metadata`, with the same limits as a call |
 
-Two differences to plan for. A campaign holds each phone number once, so adding
-a number already in it is counted as a duplicate and not called again. And an
+Two differences to plan for. In an always-on campaign, give each contact its
+own `id` (an order or cart id): the same number with a new `id` is called
+again, while a contact without an `id` is held once per phone number. And an
 add to a campaign that has been stopped, or whose `end_date` has passed, gets
 `409 conflict`. Any `200` means the numbers are in line to be called.
 

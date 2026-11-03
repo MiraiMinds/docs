@@ -338,8 +338,7 @@ GET   /v2/workspaces/{id}
 PATCH /v2/workspaces/{id}
 ```
 
-`{id}` is the sub-workspace's `ws_` id. To find a brand by your own id, list
-with `external_id`.
+`{id}` is the sub-workspace's `ws_` id or its `external_id`.
 
 `PATCH` takes `name`, `external_id`, `kind`, `timezone`, `currency` and
 `profile`. Send only the fields you change. A `profile` you send replaces the
@@ -354,7 +353,8 @@ curl -X PATCH https://prod.voice.miraiminds.co/v2/workspaces/ws_5e0c7a1f9b3d2e6a
 ```
 
 Both answer with the workspace object. An id that is not one of your
-sub-workspaces answers `404 workspace_not_found`.
+sub-workspaces answers `404 workspace_not_found`. `PATCH` on an archived
+sub-workspace answers `409 workspace_archived`; restore it first.
 
 ### Archive and restore
 
@@ -402,6 +402,9 @@ directly.
 | `currencyCode` | `currency` |
 | `timezone` | `timezone` |
 | `supportContacts`, `trustSignals`, `policyFramework` | Kept in the sub-workspace's `profile` as you sent them. |
+| `externalId` | `external_id`. Optional, and new on v2: your own id for the brand, with the same rules as on create. |
+
+A field the route doesn't know answers `400 invalid_request`, as v1 refused one.
 
 ```bash
 curl -X POST https://prod.voice.miraiminds.co/v2/workspace/onboard/custom \
@@ -412,25 +415,47 @@ curl -X POST https://prod.voice.miraiminds.co/v2/workspace/onboard/custom \
     "currencyCode": "INR",
     "timezone": "Asia/Kolkata",
     "supportContacts": { "phoneNumber": "+919876543210", "email": "support@acme.com" },
-    "trustSignals": { "valuePropositionOneLiner": "Round-the-clock support for Acme customers." }
+    "trustSignals": { "valuePropositionOneLiner": "Round-the-clock support for Acme customers." },
+    "externalId": "acme-support"
   }'
 ```
 
+Each path answers `200` in the shape v1 gave that path, and v1 shaped the two
+differently. Both add the v2 [workspace object](#the-workspace-object) as
+`sub_workspace`.
+
+### The custom answer
+
+`onboard/custom` returns the new brand under `data`, in v1's field names. Read
+the id from `data._id` (or `data.id`) as your v1 code does, and send it in the
+`workspace` (or `Mirai-Workspace`) header from now on.
+
 ```json title="200 OK"
 {
-  "status": "active",
-  "workspace": "ws_0b9e4d2a7c1f6e3b8a5d9c04",
-  "billing": {
-    "type": "prepaid",
-    "creditBalance": 48250.5,
-    "negativeCreditAllowance": 0
+  "status_code": 200,
+  "message": "Workspace onboarded successfully.",
+  "data": {
+    "_id": "ws_0b9e4d2a7c1f6e3b8a5d9c04",
+    "id": "ws_0b9e4d2a7c1f6e3b8a5d9c04",
+    "name": "Acme Support Line",
+    "organization": "ws_a83d61f02c9e4b75d10e6f3a",
+    "variant": "custom",
+    "currencyCode": "INR",
+    "timezone": "Asia/Kolkata",
+    "supportContacts": { "phoneNumber": "+919876543210", "email": "support@acme.com" },
+    "trustSignals": { "valuePropositionOneLiner": "Round-the-clock support for Acme customers." },
+    "defaultTelephonyNumber": null,
+    "archivedAt": null,
+    "deletedAt": null,
+    "createdAt": "2026-11-02T09:20:41Z",
+    "updatedAt": "2026-11-02T09:20:41Z"
   },
   "sub_workspace": {
     "id": "ws_0b9e4d2a7c1f6e3b8a5d9c04",
     "object": "workspace",
     "parent_id": "ws_a83d61f02c9e4b75d10e6f3a",
     "name": "Acme Support Line",
-    "external_id": null,
+    "external_id": "acme-support",
     "kind": "custom",
     "timezone": "Asia/Kolkata",
     "currency": "INR",
@@ -448,6 +473,31 @@ curl -X POST https://prod.voice.miraiminds.co/v2/workspace/onboard/custom \
 
 | Field | Description |
 | :--- | :--- |
+| `data._id`, `data.id` | The new sub-workspace's id. |
+| `data.organization` | Your account: the parent workspace. |
+| `data.variant` | `custom`. |
+| `data.defaultTelephonyNumber` | Always `null`. v1 gave a new brand a number from Mirai's pool; on v2 a brand calls from the shared line until it has a [number](/v2/phone-numbers) of its own. |
+| `sub_workspace` | The [workspace object](#the-workspace-object). |
+
+### The Shopify answer
+
+`onboard/shopify` returns the id at the top level, with a billing block:
+
+```json title="200 OK"
+{
+  "status": "active",
+  "workspace": "ws_0b9e4d2a7c1f6e3b8a5d9c04",
+  "billing": {
+    "type": "prepaid",
+    "creditBalance": 48250.5,
+    "negativeCreditAllowance": 0
+  },
+  "sub_workspace": { "id": "ws_0b9e4d2a7c1f6e3b8a5d9c04", "object": "workspace", "kind": "shopify", "…": "…" }
+}
+```
+
+| Field | Description |
+| :--- | :--- |
 | `status` | `active`. |
 | `workspace` | The new sub-workspace's id. Send it in the `workspace` (or `Mirai-Workspace`) header from now on. |
 | `billing.type` | `prepaid`. |
@@ -455,12 +505,11 @@ curl -X POST https://prod.voice.miraiminds.co/v2/workspace/onboard/custom \
 | `billing.negativeCreditAllowance` | Kept so v1 clients can read the response. The v2 wallet has no overdraft: a call is refused with [`402`](/v2/wallet#402-insufficient-balance) when the wallet can't cover a minute. |
 | `sub_workspace` | The [workspace object](#the-workspace-object). |
 
-Both paths answer `200`, including the Shopify path, which answered `201` on v1.
-The errors are the same as for [create](#create-a-sub-workspace). The v1 body has
-no `external_id`, so a retried request with the same `name` answers
-`409 workspace_exists` while the first brand is active. Set an `external_id` with
-[`PATCH`](#get-and-update-a-sub-workspace) if you want to address the brand by
-your own id.
+The errors are the same as for [create](#create-a-sub-workspace). Without an
+`externalId`, a retried request with the same `name` answers
+`409 workspace_exists` while the first brand is active, with that brand under
+`workspace`. Send an `externalId` to address the brand by your own id and to
+make retries find the brand they already made.
 
 ## See one brand's usage
 
