@@ -70,6 +70,7 @@
               "v2/realtime",
               "v2/campaigns",
               "v2/phone-numbers",
+              "v2/sip-trunk",
               "general/campaign",
               "v2/dnc",
               "v2/webhooks",

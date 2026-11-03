@@ -1,0 +1,348 @@
+---
+title: "Bring your own SIP trunk"
+description: "Point your carrier's SIP trunk at Mirai. Your agents answer its numbers and call from them, and your carrier keeps billing you for the line."
+---
+
+If you already have a SIP trunk with Indian numbers on it, you can connect it to
+Mirai. Your agents answer calls to the trunk's numbers and place calls from
+them. Your carrier keeps billing you for the numbers and the minutes, and we
+bill only for your agents' minutes.
+
+Once it's added, a number on your trunk works like any other number here. An
+agent answers it, it can sit in a [pool](/v2/phone-numbers), and you can pick it
+under **Calls come from** for a campaign or an agent.
+
+<Note>
+If **Get a number** doesn't offer **Connect your SIP trunk**, SIP trunks aren't
+on for your workspace yet. Ask your Mirai contact or write to
+[help@miraiminds.co](mailto:help@miraiminds.co).
+</Note>
+
+## What you need
+
+- A SIP trunk from a carrier, with one or more Indian numbers on it.
+- These details from your carrier: their SIP address and port, UDP or TCP, the
+  IP addresses they send calls from, and how they write phone numbers. Some
+  carriers also give you a dial prefix, or a username and password.
+- A published [agent](/v2/agents) to answer the calls.
+
+### What a trunk can do today
+
+| | Supported |
+| :--- | :--- |
+| Signalling | SIP over UDP or TCP, port 5060 |
+| Audio | Plain RTP with G.711 μ-law (PCMU) or A-law (PCMA) |
+| How your carrier knows us | By our IP address. On calls we send, also by a username and password if your carrier asks for one. |
+| Numbers | Indian numbers (+91 and 10 digits), and calls to Indian numbers |
+
+Not supported yet: encrypted calls (TLS and SRTP), registering with your
+carrier (SIP REGISTER), keypad tones (DTMF relay), call transfer, and numbers
+outside India. If your carrier insists on one of these, the trunk won't work
+with Mirai yet.
+
+## Step 1: Connect the trunk
+
+1. Open **Phone numbers** in the [console](https://console.voice.miraiminds.co)
+   and click **Get a number**.
+2. Choose **Connect your SIP trunk**.
+3. Pick your carrier: **Plivo**, **VoiceLink** or **Other**. A preset fills in
+   what it can. Check every value against what your carrier gave you.
+4. Fill in the rest of the form and click **Connect SIP trunk**.
+
+| Field | What to enter |
+| :--- | :--- |
+| **Connection name** | A name you'll recognise, such as "Office SIP trunk". |
+| **Carrier's SIP address** and **Port** | Where your carrier takes calls: a host name like `sip.carrier.example` or a public IP address. The port is usually 5060. Put the port in **Port**, not in the address. |
+| **Transport** | UDP or TCP, whichever your carrier uses. |
+| **How your carrier writes numbers** | `+919876543210` (+91 first), `919876543210` (91 first), `09876543210` (0 first) or `9876543210` (10 digits only). We write numbers this way on the calls we send to your carrier. |
+| **Dial prefix** (optional) | Only if your carrier gave you a tech prefix. Digits only, up to 12. We put it in front of every number we dial, so `45454` with 91 first dials `45454919876543210`. |
+| **Username** and **Password** (optional) | Only if your carrier wants our calls to sign in (digest authentication). The password is encrypted and never shown again. |
+| **Your carrier's IP addresses** | The addresses your carrier sends calls from, one per line, up to 16. A range like `198.51.100.0/28` works too, up to /24. We answer calls only from these addresses. A call from anywhere else gets no reply at all. |
+
+You can change any of this later with **Edit** on the trunk's card. Leave the
+password blank to keep the saved one. Changes apply from the next call.
+
+## Step 2: Give your carrier our details
+
+After you connect, the trunk's card opens at **Point your trunk at us**. You'll
+find the card later under **Phone numbers → Accounts → Your SIP trunks**. Each
+value has a **Copy** button, and **Copy all** copies them together, ready to
+paste into an email to your carrier.
+
+The card is the source of truth. If it ever differs from this page, use the
+card. Today it shows:
+
+| On the card | Value |
+| :--- | :--- |
+| SIP address | `sip.miraiminds.co:5060` |
+| Transport | UDP or TCP |
+| Signalling IP | `168.220.248.249` |
+| Media IP | `168.220.248.249` |
+| Media ports | UDP `20000-29999` |
+| Codecs | PCMU, PCMA |
+
+Ask your carrier to:
+
+- Send calls for your numbers to `sip.miraiminds.co`, port 5060, over the
+  transport you chose.
+- Accept calls and audio from `168.220.248.249`.
+- Send and receive audio on UDP ports 20000 to 29999 at that address, as PCMU
+  or PCMA without encryption.
+
+If you run a firewall or a session border controller between your carrier and
+us, open the same address and ports there.
+
+## Step 3: Add your numbers
+
+A SIP trunk has no number list for us to read, so you type each number in.
+
+1. On the trunk's card, click **Add a number**.
+2. Enter the number: an Indian number, +91 and 10 digits, such as
+   `+91 98765 43210`.
+3. Under **Who answers**, choose the agent that answers calls to it.
+4. Click **Add number**.
+
+The number is ready straight away. There's nothing to turn on, so calls reach
+the agent as soon as your carrier sends them to us. A number can belong to only
+one Mirai workspace.
+
+On incoming calls, your carrier can write the number you were called on in any
+of the four formats above. We read them all.
+
+## Step 4: Test both directions
+
+1. Call one of the numbers from another phone. You should hear your agent's
+   greeting.
+2. Call out from it. Pick the number under **Calls come from** in a small test
+   campaign to your own phone, or place an API call with its `phone_number_id`.
+3. On each call, check that both sides hear each other. Hang up once from each
+   end.
+4. Look at the trunk's card. It shows the last call in and the last call out,
+   with the reason if one failed. It also lists calls we turned away because
+   they came from an address that isn't on your list.
+
+Test before you print the number anywhere or start a real campaign on it.
+
+## Billing
+
+Calls on your own trunk carry no Mirai line charge. Your carrier bills you for
+the numbers and the minutes. Your agents' minutes are billed at your plan's
+rate, the same as any other call. See [Billing & tiers](/general/tiers).
+
+## Carrier walkthroughs
+
+### Plivo
+
+Plivo calls its SIP trunking Zentrunk. In the Plivo console, open **SIP
+Trunking** and:
+
+1. Create an IP access list with our IP address, `168.220.248.249`.
+2. Create an outbound trunk that uses that list. Plivo gives the trunk a domain
+   that looks like `123456789.zt.plivo.com`. You'll enter it in Mirai.
+3. Create an origination URI, `sip.miraiminds.co:5060`, and an inbound trunk
+   that uses it.
+4. Attach your Plivo number to the inbound trunk.
+
+<Warning>
+Your Plivo account must be in Plivo's India region to use Indian numbers.
+</Warning>
+
+Then connect the trunk in Mirai and choose **Plivo**:
+
+| Field | Value |
+| :--- | :--- |
+| **Carrier's SIP address** | Your outbound trunk's domain, such as `123456789.zt.plivo.com` |
+| **Port** | `5060` |
+| **Transport** | UDP |
+| **How your carrier writes numbers** | `+919876543210` (+91 first) |
+| **Your carrier's IP addresses** | Plivo's published ranges, which the preset fills in: `13.52.9.0/25`, `18.214.109.128/25`, `18.215.142.0/26`, `204.89.148.128/26`, `216.120.187.128/26` |
+
+Then add the number you attached to the inbound trunk, as in
+[Step 3](#step-3-add-your-numbers).
+
+Mirai can also use a Plivo number without a trunk: connect your Plivo account
+with its Auth ID and Auth Token instead. See
+[Receive inbound phone calls](/cookbooks/inbound-calling).
+
+### VoiceLink
+
+In the VoiceLink panel:
+
+1. Open **Voice Services → SIP Trunk Management** and click **Add SIP Trunk**.
+2. Set **BOT provider** to **Custom**, and enter our SIP address and IP address
+   from [Step 2](#step-2-give-your-carrier-our-details).
+3. Tick the numbers (DIDs) that should come to Mirai.
+4. Note the **Tech Prefix** the panel shows for your trunk.
+
+Then connect the trunk in Mirai and choose **VoiceLink**:
+
+| Field | Value |
+| :--- | :--- |
+| **Carrier's SIP address** | `sip.voicelink.co.in` |
+| **Port** | `3300` |
+| **Transport** | UDP |
+| **How your carrier writes numbers** | Check with VoiceLink. Start with `9876543210` (10 digits only). |
+| **Dial prefix** | The Tech Prefix from your VoiceLink panel |
+| **Your carrier's IP addresses** | `160.30.71.108`, `160.30.71.111`, `160.30.71.112`, `160.30.71.113` |
+
+### Other carriers
+
+Choose **Other** and ask your carrier for:
+
+- The SIP address and port to send calls to, and UDP or TCP.
+- Every IP address they send calls from.
+- How they want numbers written, and their tech prefix if they use one.
+- A username and password, if they want our calls to sign in.
+
+Send them the values from **Point your trunk at us**. Check that they can use
+G.711 (PCMU or PCMA) without encryption, and that they don't need us to
+register with them.
+
+## Troubleshooting
+
+| What you see | What to do |
+| :--- | :--- |
+| Calls to your number ring out or never reach the agent | Open the trunk's card. If it lists calls turned away from an address that isn't on your list, click **Add this address**. Also check that the number is added to this trunk and has an agent to answer it. |
+| A call out fails as refused (403) | Your carrier turned the call down. Ask them to allow `168.220.248.249` and the number you call from (your caller ID). If your carrier gave you a username and password, check them with **Edit**. |
+| A call out fails as not found (404) | Your carrier didn't recognise the number the way we wrote it. Under **Edit**, change **How your carrier writes numbers** or the **Dial prefix**, then call again. |
+| One-way audio, or no audio | Open UDP ports 20000 to 29999 to and from `168.220.248.249` on your side. Make sure your carrier doesn't require encrypted audio (SRTP). |
+| Busy or no answer | These are normal call results: the person was busy or didn't pick up. |
+
+## Set it up through the API
+
+The API takes the same steps. Use your workspace's
+[API host](/cookbooks/inbound-calling#1-choose-your-api-host) and key, and the
+id of the published agent that should answer:
+
+```bash
+set -euo pipefail
+: "${VOICE_BASE_URL:?Set your assigned API host}"
+: "${VOICE_API_KEY:?Set your workspace API key}"
+: "${AGENT_ID:?Set the id of a published agent}"
+```
+
+### 1. Read what to give your carrier
+
+`GET /v2/telephony/options` carries `sip` only when SIP trunks are on for your
+workspace. These are the values the console shows under **Point your trunk at
+us**.
+
+```bash
+curl --fail-with-body -sS "$VOICE_BASE_URL/v2/telephony/options" \
+  -H "Authorization: Bearer $VOICE_API_KEY" | jq '.sip'
+```
+
+```json
+{
+  "address": "sip.miraiminds.co",
+  "port": 5060,
+  "transports": ["udp", "tcp"],
+  "signalling_ips": ["168.220.248.249"],
+  "media_ips": ["168.220.248.249"],
+  "media_ports": "20000-29999",
+  "codecs": ["PCMU", "PCMA"],
+  "number_formats": ["e164", "e164_digits", "national", "local"]
+}
+```
+
+### 2. Connect the trunk
+
+```bash
+TRUNK=$(curl --fail-with-body -sS "$VOICE_BASE_URL/v2/telephony/connections" \
+  -H "Authorization: Bearer $VOICE_API_KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "provider": "sip",
+    "name": "Office SIP trunk",
+    "sip": {
+      "host": "sip.carrier.example",
+      "port": 5060,
+      "transport": "udp",
+      "number_format": "e164",
+      "inbound_sources": ["203.0.113.10", "198.51.100.0/28"]
+    }
+  }')
+CONNECTION_ID=$(jq -er '.id' <<< "$TRUNK")
+```
+
+| `sip` field | Required | Description |
+| :--- | :--- | :--- |
+| `host` | yes | Your carrier's SIP address: a host name or a public IPv4 address. |
+| `port` | no | 1 to 65535. Default 5060. |
+| `transport` | no | `udp` or `tcp`. |
+| `inbound_sources` | yes | 1 to 16 public IPv4 addresses or ranges your carrier calls from, each /24 or narrower. A bare address means /32. |
+| `number_format` | no | `e164` (+919876543210), `e164_digits` (919876543210), `national` (09876543210) or `local` (9876543210). |
+| `dial_prefix` | no | Your carrier's tech prefix. Digits only, up to 12. `""` means none. |
+| `username`, `password` | no | Only if your carrier wants our calls to sign in. The password never comes back. |
+
+The answer is `201` with the trunk. Its `state` is `verified` at once, because
+nothing is checked with your carrier. Its `sip` holds the settings, with
+`has_password` in place of the password.
+
+### 3. Add a number and choose who answers
+
+The number is `ready` as soon as it's added. Assign an agent with the number's
+current `version`.
+
+```bash
+NUMBER=$(jq -n --arg c "$CONNECTION_ID" '{connection_id: $c, number: "+918045671234"}' |
+  curl --fail-with-body -sS "$VOICE_BASE_URL/v2/phone-numbers" \
+    -H "Authorization: Bearer $VOICE_API_KEY" \
+    -H 'Content-Type: application/json' --data-binary @-)
+NUMBER_ID=$(jq -er '.id' <<< "$NUMBER")
+
+jq --arg agent "$AGENT_ID" '{version, agent_id: $agent}' <<< "$NUMBER" |
+  curl --fail-with-body -sS -X PATCH "$VOICE_BASE_URL/v2/phone-numbers/$NUMBER_ID" \
+    -H "Authorization: Bearer $VOICE_API_KEY" \
+    -H 'Content-Type: application/json' --data-binary @-
+```
+
+To place a call from the number, send its id as `phone_number_id` on
+[`POST /v2/calls`](/v2/calls#create-a-call), or add it to a
+[pool](/v2/phone-numbers#create-a-pool).
+
+### 4. Change the trunk later
+
+`PATCH /v2/telephony/connections/{id}` takes the trunk's current `version` and,
+in `sip`, only the fields that change. Leave `password` out to keep it, or send
+`null` to remove it. Send `"dial_prefix": ""` to remove the prefix.
+`"state": "disabled"` turns the trunk off. Changes apply from the next call.
+
+```bash
+TRUNK=$(curl --fail-with-body -sS "$VOICE_BASE_URL/v2/telephony/connections/$CONNECTION_ID" \
+  -H "Authorization: Bearer $VOICE_API_KEY")
+
+jq '{version, sip: {inbound_sources: ["203.0.113.10", "203.0.113.11"]}}' <<< "$TRUNK" |
+  curl --fail-with-body -sS -X PATCH "$VOICE_BASE_URL/v2/telephony/connections/$CONNECTION_ID" \
+    -H "Authorization: Bearer $VOICE_API_KEY" \
+    -H 'Content-Type: application/json' --data-binary @-
+```
+
+Every request, with example answers, is in the
+[Postman collection](/api-reference/postman).
+
+### Errors
+
+| Status | `error.code` | When |
+| :--- | :--- | :--- |
+| `400` | `provider_unavailable` | SIP trunks aren't on for your workspace. |
+| `400` | `invalid_request` | A field is out of range: a private or local carrier address, a range wider than /24, more than 16 addresses, or a number that isn't +91 and 10 digits. `error.message` names the field. |
+| `400` | `not_supported` | `GET /v2/telephony/connections/{id}/numbers` on a trunk. A trunk has no number list, so add its numbers by number. |
+| `409` | `conflict` | The number is already on Mirai, or the `version` you sent is no longer current. |
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Phone numbers and pools" icon="phone" href="/v2/phone-numbers">
+    Pools, pace, number health, and which number a call comes from.
+  </Card>
+  <Card title="Receive inbound phone calls" icon="phone-arrow-down-left" href="/cookbooks/inbound-calling">
+    Rent a number or connect your Plivo account, then assign an agent.
+  </Card>
+  <Card title="Run a campaign from your own numbers" icon="phone-volume" href="/cookbooks/run-a-campaign-from-your-own-numbers">
+    Put your numbers in a pool and call from it at a human pace.
+  </Card>
+  <Card title="Billing & tiers" icon="wallet" href="/general/tiers">
+    What a minute costs on each plan.
+  </Card>
+</CardGroup>
