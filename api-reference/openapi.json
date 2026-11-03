@@ -1,7 +1,7 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "Mirai Voice API",
+    "title": "Voice Infra API",
     "version": "2026-10-20.turn-taking",
     "description": "The v2 API for voice agents, calls, campaigns, phone numbers and speech. Every request carries `Authorization: Bearer sk_live_…`. Generated from the API's own contract and its Postman collection."
   },

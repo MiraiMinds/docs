@@ -309,7 +309,7 @@ def build_openapi(src: dict[str, bytes]) -> tuple[dict, list[tuple[str, list[str
     spec = {
         "openapi": "3.1.0",
         "info": {
-            "title": "Mirai Voice API",
+            "title": "Voice Infra API",
             "version": contract["info"]["version"],
             "description": (
                 "The v2 API for voice agents, calls, campaigns, phone numbers and speech. "

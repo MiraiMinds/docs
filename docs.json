@@ -27,7 +27,7 @@
     "eyebrows": "section",
     "codeblocks": "system"
   },
-  "description": "Developer docs for Mirai Voice: AI voice agents that call in Hindi, English and Hinglish, plus Hindi text-to-speech and call transcription APIs.",
+  "description": "Voice AI at scale. Developer docs for Voice Infra: voice agents for phone, browser and WhatsApp calls in Hindi, Gujarati, Marathi, Bengali, Tamil, Telugu, Kannada, Malayalam and Hinglish, plus text-to-speech, speech-to-text and language model APIs.",
   "api": {
     "playground": {
       "display": "interactive"
@@ -636,7 +636,7 @@
     },
     "links": [
       {
-        "header": "Mirai Voice",
+        "header": "Voice Infra",
         "items": [
           {
             "label": "Pricing",
