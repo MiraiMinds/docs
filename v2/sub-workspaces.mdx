@@ -18,9 +18,8 @@ the production address.
 <Note>
 Sub-workspaces are off until your Mirai contact turns them on for your workspace
 and sets how many you can have. Until then, creating one answers
-`403 sub_workspaces_disabled`. You manage sub-workspaces through the API. The
-console shows your own workspace only, so a brand's agents and calls don't
-appear there.
+`403 sub_workspaces_disabled`. You create and manage sub-workspaces through the
+API, and you can [work in any of them from the console](#in-the-console).
 </Note>
 
 ## How it fits together
@@ -57,6 +56,23 @@ should apply to every brand, add the number to each brand's list. Consent and
 DND obligations sit with the business placing the calls; see
 [India calling rules](/v2/limits#india-calling-rules).
 </Warning>
+
+### In the console
+
+Anyone on your workspace can switch between it and its brands in the console.
+The switcher sits at the top of the sidebar (in the title bar on a phone) and
+always shows what you're looking at: your workspace, marked **Account**, or a
+brand, marked **Brand**. It lists every active sub-workspace by name, with a
+search box when there are more than a few.
+
+- Pick a brand to see and change that brand's agents, calls and recordings,
+  campaigns, phone numbers, knowledge bases, do-not-call list and tools, the
+  same things its `Mirai-Workspace` header reaches.
+- **Billing**, the wallet, **API keys**, **Company details** and **Team** stay
+  your workspace's whichever brand you're on. On **Developers**, a brand shows
+  the `Mirai-Workspace` header to use with your key.
+- A link copied from the console opens on the same brand. Archived brands drop
+  out of the switcher.
 
 ## Address a sub-workspace
 
