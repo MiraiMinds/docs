@@ -336,7 +336,11 @@ def build_openapi(src: dict[str, bytes]) -> tuple[dict, list[tuple[str, list[str
 
     nav: list[tuple[str, list[str]]] = []  # (tag, ["METHOD /path", ...])
     tag_pages: dict[str, list[str]] = {}
-    used: set[tuple[str, str]] = set()
+    #: (method, path shape) -> the path as the reference publishes it. A second
+    #: worked request for a route can name its path variables differently (the
+    #: SIP trunk variant of PATCH /v2/telephony/connections/{id} says
+    #: {sip_connection_id}), so its examples are merged by shape.
+    used: dict[tuple[str, str], str] = {}
 
     def add_tag(name: str, description: str):
         if name not in tag_pages:
@@ -348,7 +352,7 @@ def build_openapi(src: dict[str, bytes]) -> tuple[dict, list[tuple[str, list[str
         key = (method, shape(path))
         if key in used:
             raise SystemExit(f"duplicate operation {method} {path}")
-        used.add(key)
+        used[key] = path
         spec["paths"].setdefault(path, {})[method.lower()] = op
         tag_pages[tag].append(f"{method} {path}")
 
@@ -367,7 +371,7 @@ def build_openapi(src: dict[str, bytes]) -> tuple[dict, list[tuple[str, list[str
                     # A second worked request for the same route (a browser call
                     # on POST /v2/calls): its body and answers join the first
                     # request's page as more examples.
-                    merge_variant(spec["paths"][path][method.lower()],
+                    merge_variant(spec["paths"][used[(method, shape(path))]][method.lower()],
                                   operation_from_postman(item, method, path, names, query, {}, variables))
                 continue  # the main collection already has it (List voices)
             add_tag(tag, (folder or {}).get("description", "") if not only_tag else
