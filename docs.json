@@ -223,6 +223,7 @@
               "POST /v2/campaigns",
               "POST /v2/campaigns/{campaign_id}/contacts",
               "DELETE /v2/campaigns/{campaign_id}/contacts/{contact_id}",
+              "POST /v2/campaigns/{campaign_id}/contacts/{contact_id}/cancel",
               "PATCH /v2/campaigns/{campaign_id}",
               "POST /v2/campaigns/{campaign_id}/start",
               "GET /v2/campaigns/{campaign_id}",

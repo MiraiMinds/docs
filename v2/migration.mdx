@@ -202,9 +202,15 @@ If you queued calls through v1, each queue call has a campaign equivalent:
 | `POST /v2/call/initiate` | [`POST /v2/campaigns/{id}/contacts`](/v2/campaigns#add-contacts), with your own contact `id` |
 | `callId`, one per number across all its attempts | The contact `id` you chose. Each attempt also gets its own `call_…` ID. Webhooks carry both, as `data.call.contact_id` and `data.call.id`. |
 | `PUT /v2/call/{callId}` (update payload) | `DELETE /v2/campaigns/{id}/contacts/{contact_id}`, then add the contact again with the same `id`. Works only before its first call. |
-| `POST /v2/call/abort` | `DELETE /v2/campaigns/{id}/contacts/{contact_id}` answers `204` before the first call and `409 contact_dialled` once the contact has been dialled. |
+| `POST /v2/call/abort` | [`POST /v2/campaigns/{id}/contacts/{contact_id}/cancel`](/v2/campaigns#cancel-a-contact) answers `200` with the contact `cancelled`, both before the first call and while it waits for a retry. A call in progress is not cut off: `409 contact_in_call`, so send it again once the call ends. `409 contact_finished` means the contact already has an outcome. |
 
-v1's abort also cancelled a pending retry. On v2, give the agent a pre-call
+Like v1's abort, a cancel also stops a pending retry. The contact keeps its
+attempts and last call, is never called again, and stays in the
+[report](/v2/campaigns#campaign-report) as `cancelled`. Cancelling twice
+answers `200` both times. [`DELETE /v2/campaigns/{id}/contacts/{contact_id}`](/v2/campaigns#remove-a-contact)
+still removes a contact outright, but only before its first call.
+
+To decide at dial time instead, give the agent a pre-call
 [`skip_call`](/v2/tools#skip-when-a-condition-holds) that checks whether the
 call is still needed, for example whether the order has been placed. A skipped
 attempt ends `aborted` with `ended_reason: "skipped-by-condition"`, costs

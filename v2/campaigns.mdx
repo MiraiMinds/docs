@@ -142,7 +142,7 @@ An offline fleet is not a pause either. It is a `503 fleet_offline` refusal at
 
 Every row you upload has its own status. The first block mirrors the
 [call status](/v2/calls#statuses) vocabulary, so a campaign report reads the same
-way the call list does. The last three exist only inside campaigns.
+way the call list does. The rest exist only inside campaigns.
 
 | Status | Terminal | Meaning |
 | :--- | :---: | :--- |
@@ -158,10 +158,17 @@ way the call list does. The last three exist only inside campaigns.
 | `exhausted` | ✅ | Retried up to `retry_count + 1` attempts and never connected. |
 | `suppressed` | ✅ | The number is on your [do-not-call list](/v2/dnc). Never dialled or billed. |
 | `aborted` | ✅ | The campaign was stopped while this contact was pending or in flight. |
+| `skipped` | ✅ | A pre-call [`skip_call`](/v2/tools#skip-when-a-condition-holds) condition held, so we did not dial. Free. Never retried. |
+| `cancelled` | ✅ | You [cancelled](#cancel-a-contact) the contact while it was waiting. Never dialled again unless you [call it again](#call-a-contact-again). |
 
 Watch `exhausted`. It counts the people we tried with every attempt you paid
 for and never reached. A contact that ends `no_answer` still had attempts left;
 one that ends `exhausted` did not.
+
+A contact waiting for its next retry is `pending` again, with `attempts` above
+zero and `eligible_at` set to when the retry may ring. To stop that retry, for
+example because the customer already did what the call was for, [cancel the
+contact](#cancel-a-contact).
 
 ## Calling window
 
@@ -814,6 +821,183 @@ curl -G https://sandbox.voice.miraiminds.co/v2/campaigns/cmp_01K7QAC5N9P4R7S3T6V
 without [`metadata`](#your-own-fields-metadata) has no `metadata` field, and
 one without [`call_settings`](#voice-and-language-per-contact) has no
 `call_settings` field.
+
+---
+
+## Call a contact again
+
+```http
+POST /v2/campaigns/{id}/contacts/{contact_id}/retry
+```
+
+Puts one contact back in line, even one that has used all its retries:
+`completed`, `voicemail`, `no_answer`, `busy`, `timeout`, `failed`,
+`exhausted` or `cancelled`. It becomes `pending`, eligible now, and keeps
+`attempts`, `last_call_id` and `last_status`. `attempts` goes up by one when
+the new call is placed. On a running campaign it rings as soon as the calling
+window and pacing allow, and the call spends credit.
+
+Answers `200` with the contact, in the same shape as
+[List contacts](#list-contacts). Allowed while the campaign is `draft`,
+`paused` or `play`.
+
+| Status | `error.code` | Cause |
+| :--- | :--- | :--- |
+| `409` | `contact_in_progress` | The contact is already waiting or being called. A second retry is refused, so a double click never calls anyone twice. |
+| `409` | `contact_suppressed` | The contact is `suppressed` or `skipped`, its number is on the [do-not-call list](/v2/dnc), or `skip_called_before` applies. |
+| `409` | `campaign_finished` | The campaign is `stopped` or `completed`. Start a new campaign for these contacts. |
+| `409` | `campaign_archived` | Restore the campaign first. |
+| `404` | `not_found` | No such campaign in your workspace, or no such contact in it. |
+
+---
+
+## Remove a contact
+
+```http
+DELETE /v2/campaigns/{id}/contacts/{contact_id}
+```
+
+Takes a contact off the list before its first call, for example a number added
+by mistake. Only a contact that has never been dialled can be removed: status
+`pending`, `attempts` 0, not being called. Answers `204` with no body, and the
+campaign's counters no longer include it. The number can be added again.
+
+Once a contact has a call it is part of the campaign's record and stays. To
+stop its next retry, [cancel it](#cancel-a-contact). To stop every future call
+to a number, add it to the [do-not-call list](/v2/dnc).
+
+```bash
+curl -X DELETE https://sandbox.voice.miraiminds.co/v2/campaigns/cmp_01K7QAC5N9P4R7S3T6V8W2X4YB/contacts/cust-2002 \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY"
+```
+
+| Status | `error.code` | Cause |
+| :--- | :--- | :--- |
+| `409` | `contact_dialled` | The contact has been called, or is being called right now. |
+| `409` | `campaign_finished` | The campaign is `stopped` or `completed`. Its list is its record. |
+| `404` | `not_found` | No such campaign in your workspace, or no such contact in it, including one already removed. |
+
+---
+
+## Cancel a contact
+
+```http
+POST /v2/campaigns/{id}/contacts/{contact_id}/cancel
+```
+
+Stops calling one contact that is waiting: one not called yet, or one waiting
+for its next retry after a call nobody picked up. Use it when the reason for
+the call goes away between attempts. A shopper completes the order you were
+going to remind them about, a customer pays the bill, a lead books on your
+site.
+
+The contact becomes `cancelled`. It is not called again, and the campaign no
+longer waits for it, so a campaign that is not
+[always-on](#always-on-campaigns) can complete without it. Its `attempts`,
+`last_call_id` and `last_status` stay, and it stays in
+[List contacts](#list-contacts) and the [report](#campaign-report). Allowed
+while the campaign is `draft`, `paused` or `play`.
+
+A call that is already ringing or in conversation is **never cut off**. The
+cancel answers `409 contact_in_call`. Send it again once the call ends: if the
+call reached nobody and a retry is booked, the retry is cancelled. To end a
+live call, use [`POST /v2/calls/{id}/abort`](/v2/calls#abort-a-call) with that
+call's id (`data.call.id` in its webhooks).
+
+<Tabs>
+  <Tab title="cURL">
+    ```bash
+    curl -X POST https://sandbox.voice.miraiminds.co/v2/campaigns/cmp_01K8QAC5N9P4R7S3T6V8W2X4YB/contacts/order-8842/cancel \
+      -H "Authorization: Bearer sk_live_YOUR_API_KEY"
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    import os, time
+    from urllib.parse import quote
+
+    import httpx
+
+    API = "https://sandbox.voice.miraiminds.co"
+    auth = {"Authorization": f"Bearer {os.environ['MIRAI_API_KEY']}"}
+    CAMPAIGN = "cmp_01K8QAC5N9P4R7S3T6V8W2X4YB"
+
+
+    def cancel_order_call(order_id, tries=5):
+        """Stop calling about an order once it has been placed."""
+        url = f"{API}/v2/campaigns/{CAMPAIGN}/contacts/{quote(f'order-{order_id}', safe='')}/cancel"
+        for _ in range(tries):
+            r = httpx.post(url, headers=auth, timeout=30)
+            if r.status_code == 200:
+                return "cancelled"
+            code = r.json()["error"]["code"] if r.status_code in (404, 409) else None
+            if code == "contact_in_call":
+                time.sleep(60)  # a call is in progress; it is never cut off
+                continue
+            if code in ("contact_finished", "campaign_finished", "not_found"):
+                return code  # nothing is waiting to be cancelled
+            r.raise_for_status()
+        return "still_in_call"
+    ```
+  </Tab>
+  <Tab title="Node.js">
+    ```javascript
+    const API = "https://sandbox.voice.miraiminds.co";
+    const auth = { Authorization: `Bearer ${process.env.MIRAI_API_KEY}` };
+    const CAMPAIGN = "cmp_01K8QAC5N9P4R7S3T6V8W2X4YB";
+
+    // Stop calling about an order once it has been placed.
+    async function cancelOrderCall(orderId, tries = 5) {
+      const contact = encodeURIComponent(`order-${orderId}`);
+      const url = `${API}/v2/campaigns/${CAMPAIGN}/contacts/${contact}/cancel`;
+      for (let i = 0; i < tries; i++) {
+        const res = await fetch(url, { method: "POST", headers: auth });
+        if (res.ok) return "cancelled";
+        const { error } = await res.json();
+        if (error.code === "contact_in_call") {
+          await new Promise((r) => setTimeout(r, 60_000)); // never cut off; try after it ends
+          continue;
+        }
+        if (["contact_finished", "campaign_finished", "not_found"].includes(error.code)) {
+          return error.code; // nothing is waiting to be cancelled
+        }
+        throw new Error(`${error.code}: ${error.message}`);
+      }
+      return "still_in_call";
+    }
+    ```
+  </Tab>
+</Tabs>
+
+```json title="200 OK"
+{
+  "id": "order-8842",
+  "phone": "+919876543210",
+  "status": "cancelled",
+  "attempts": 1,
+  "variables": { "customer_name": "Rahul", "order_id": "8842" },
+  "metadata": { "order_id": "8842" },
+  "last_call_id": "call_01K8QB4M8N3P6R2S5T7V9W1YA",
+  "last_status": "no_answer",
+  "eligible_at": "2026-10-15T11:19:02Z",
+  "updated_at": "2026-10-15T11:16:40Z"
+}
+```
+
+The answer is the contact, in the same shape as [List contacts](#list-contacts).
+Cancelling a contact that is already `cancelled` answers `200` with it again,
+so a repeated request (a webhook delivered twice, a retried job) is safe. To
+call a cancelled contact after all, [call it again](#call-a-contact-again).
+
+| Status | `error.code` | Cause |
+| :--- | :--- | :--- |
+| `409` | `contact_in_call` | The contact is being called right now. The call is not cut off; try again after it ends. |
+| `409` | `contact_finished` | The contact already has an outcome (`completed`, `voicemail`, `timeout`, `exhausted`, `skipped`, `suppressed`, `aborted` and the like) and is not waiting for any call. The message names its status. |
+| `409` | `campaign_finished` | The campaign is `stopped` or `completed`. A stop already marked every waiting contact `aborted`. |
+| `404` | `not_found` | No such campaign in your workspace, or no such contact in it. |
+
+Percent-encode `contact_id` in the path when your ids contain `/`, spaces or
+other reserved characters.
 
 ---
 

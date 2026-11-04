@@ -47,7 +47,7 @@
     },
     {
       "name": "Phone numbers",
-      "description": "The numbers your agents answer. Each one comes from the **Telephony** section:\n\n* **Rented from Mirai.** Once the rental is active, the number shows up here by itself (`ownership: managed`).\n* **From your own Plivo account.** Connect the account in Telephony, list its numbers, then bring one here with [Import a Plivo number](/api-reference/phone-numbers/import-a-plivo-number) (`ownership: customer`). Plivo keeps billing you for it.\n\nAfter that it's two steps, in this order: [Assign an agent](/api-reference/phone-numbers/assign-an-agent) (who answers), then [Turn on incoming calls](/api-reference/phone-numbers/turn-on-incoming-calls). `state` is `imported` until calls are on and `ready` after; `error` means the last attempt to turn calls on failed, and `setup_error` says why.\n\nEvery change sends the number's current `version`, and each change raises it by one. If you're not sure what it is, read the number first; a stale version is a 409 `conflict` and changes nothing.\n\nTo call out from one of your numbers, place a call with `phone_number_id` set to its id once it is `ready` (Indian destinations only). Calls on your numbers are billed like any other call.\n\nEvery number also says how it is doing in `health`: `state` is `active`, `warming` (its first week, at half its pool's pace), `resting`, `cooling` (rested three times in a day; waits for you) or `retired`, with this hour's attempts and seven days of answers. You can rest, resume and retire your own numbers; a resting or retired number still answers calls to it."
+      "description": "The numbers your agents answer. Each one comes from the **Telephony** section:\n\n* **Rented from Mirai.** Once the rental is active, the number shows up here by itself (`ownership: managed`).\n* **From your own Plivo account.** Connect the account in Telephony, list its numbers, then bring one here with [Import a Plivo number](/api-reference/phone-numbers/import-a-plivo-number) (`ownership: customer`). Plivo keeps billing you for it.\n* **On your own SIP trunk.** Connect the trunk in Telephony, then add each of its numbers with *Add a number on your SIP trunk* (`provider: sip`). It arrives `ready`: assign an agent and it answers.\n\nAfter that it's two steps, in this order: [Assign an agent](/api-reference/phone-numbers/assign-an-agent) (who answers), then [Turn on incoming calls](/api-reference/phone-numbers/turn-on-incoming-calls). `state` is `imported` until calls are on and `ready` after; `error` means the last attempt to turn calls on failed, and `setup_error` says why.\n\nEvery change sends the number's current `version`, and each change raises it by one. If you're not sure what it is, read the number first; a stale version is a 409 `conflict` and changes nothing.\n\nTo call out from one of your numbers, place a call with `phone_number_id` set to its id once it is `ready` (Indian destinations only). Calls on your numbers are billed like any other call.\n\nEvery number also says how it is doing in `health`: `state` is `active`, `warming` (its first week, at half its pool's pace), `resting`, `cooling` (rested three times in a day; waits for you) or `retired`, with this hour's attempts and seven days of answers. You can rest, resume and retire your own numbers; a resting or retired number still answers calls to it."
     },
     {
       "name": "Phone pools",
@@ -55,7 +55,7 @@
     },
     {
       "name": "Telephony",
-      "description": "Getting a phone number for your agent. There are two ways, and a workspace can use both.\n\n**1. Rent a number from Mirai.** ₹500 a month, paid as ₹1,500 from your wallet every three months, renewing until you turn it off. Indian numbers need a business verification that Plivo approves once: read the requirements, submit your details and documents, then refresh until it's `accepted`. After that: search, quote, rent. The rented number appears in **Phone numbers** by itself.\n\n**2. Connect your own Plivo account.** Plivo keeps billing you directly. Connect it with your Auth ID and Auth Token, list the numbers it owns, and bring one over with [Import a Plivo number](/api-reference/phone-numbers/import-a-plivo-number). A Plivo main account can also rent new numbers through the same search → quote → rent requests, with its connection id as `account`.\n\nEither way you finish in **Phone numbers**: assign the agent that answers, then turn on incoming calls.\n\nThe last two requests verify your own phone, so the workspace can ring it from Mirai's shared test number (test calls are placed from the Numbers page in the console).\n\nIndian (+91) numbers only for now. If phone numbers aren't available on the host you're calling, every request here answers 503 `telephony_unavailable`."
+      "description": "Getting a phone number for your agent. There are two ways, and a workspace can use both.\n\n**1. Rent a number from Mirai.** ₹500 a month, paid as ₹1,500 from your wallet every three months, renewing until you turn it off. Indian numbers need a business verification that Plivo approves once: read the requirements, submit your details and documents, then refresh until it's `accepted`. After that: search, quote, rent. The rented number appears in **Phone numbers** by itself.\n\n**2. Connect your own Plivo account.** Plivo keeps billing you directly. Connect it with your Auth ID and Auth Token, list the numbers it owns, and bring one over with [Import a Plivo number](/api-reference/phone-numbers/import-a-plivo-number). A Plivo main account can also rent new numbers through the same search → quote → rent requests, with its connection id as `account`.\n\n**3. Connect your own SIP trunk**, where [Get number options](/api-reference/telephony/get-number-options) lists `sip` for your workspace. Your carrier keeps billing you for the trunk. Tell us the carrier's address and the IP addresses it calls from, give your carrier the details in `sip` from [Get number options](/api-reference/telephony/get-number-options), then add the trunk's numbers by number with *Phone numbers → Add a number on your SIP trunk*.\n\nEither way you finish in **Phone numbers**: assign the agent that answers, then turn on incoming calls.\n\nThe last two requests verify your own phone, so the workspace can ring it from Mirai's shared test number (test calls are placed from the Numbers page in the console).\n\nIndian (+91) numbers only for now. If phone numbers aren't available on the host you're calling, every request here answers 503 `telephony_unavailable`."
     },
     {
       "name": "Transcriptions",
@@ -11766,6 +11766,22 @@
             "required": false,
             "description": "One contact status",
             "schema": {
+              "enum": [
+                "pending",
+                "claimed",
+                "dialing",
+                "completed",
+                "voicemail",
+                "timeout",
+                "no_answer",
+                "busy",
+                "failed",
+                "exhausted",
+                "suppressed",
+                "aborted",
+                "skipped",
+                "cancelled"
+              ],
               "type": "string"
             },
             "example": "exhausted"
@@ -11907,6 +11923,112 @@
                       "error": {
                         "code": "contact_dialled",
                         "message": "contact lead-1042 has call history and cannot be removed: only a contact still waiting for its first call can be. To stop future calls to its number, add it to the do-not-call list (POST /v2/dnc)"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such contact",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "No such contact": {
+                    "summary": "404 — no such contact",
+                    "value": {
+                      "error": {
+                        "code": "not_found",
+                        "message": "no contact lead-1042 in campaign cmp_01K79Q4T6W8XZ2B5D7F9H3JKMN"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/campaigns/{campaign_id}/contacts/{contact_id}/cancel": {
+      "post": {
+        "operationId": "cancel_campaign_contact",
+        "summary": "Cancel a contact",
+        "description": "Stops calling one contact that's waiting: one not called yet, or one waiting for its next retry after a call nobody picked up. Handy when the reason for the call has gone away, like a cart that turned into an order. Set `contact_id` to the id you gave the row.\n\nThe contact becomes `cancelled` and isn't called again. Its `attempts` and last call stay on the list and in the report, and the campaign no longer waits for it. A call that's already ringing or in conversation is never cut off: you get 409 `contact_in_call`, so try again once it ends. Cancelling twice answers the same contact, so a retried request is safe. Works while the campaign is draft, paused or running. To call a cancelled contact after all, use Call a contact again.",
+        "tags": [
+          "Campaigns"
+        ],
+        "parameters": [
+          {
+            "name": "campaign_id",
+            "in": "path",
+            "required": true,
+            "description": "The campaign's id (`cmp_…`).",
+            "schema": {
+              "type": "string"
+            },
+            "example": "cmp_01K79Q4T6W8XZ2B5D7F9H3JKMN"
+          },
+          {
+            "name": "contact_id",
+            "in": "path",
+            "required": true,
+            "description": "The contact's `id`: yours if you sent one, otherwise the one the campaign assigned.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "lead-1042"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cancelled",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "Cancelled": {
+                    "summary": "200 — cancelled",
+                    "value": {
+                      "id": "lead-1042",
+                      "phone": "+919812345678",
+                      "status": "cancelled",
+                      "attempts": 1,
+                      "variables": {
+                        "name": "प्रिया",
+                        "vehicle": "i20",
+                        "due_date": "20 अक्टूबर"
+                      },
+                      "last_call_id": "call_01K7D5J7M9P1R3T5V7X9Z1B3D5",
+                      "last_status": "no_answer",
+                      "eligible_at": "2026-10-12T06:15:04.551208Z",
+                      "updated_at": "2026-10-12T06:11:40.203114Z"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "On a call right now",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "On a call right now": {
+                    "summary": "409 — on a call right now",
+                    "value": {
+                      "error": {
+                        "code": "contact_in_call",
+                        "message": "contact lead-1042 is being called right now, and a call in progress is not cut off; try again after the call ends"
+                      }
+                    }
+                  },
+                  "Already finished": {
+                    "summary": "409 — already finished",
+                    "value": {
+                      "error": {
+                        "code": "contact_finished",
+                        "message": "contact lead-1042 has already finished (it is completed) and is not waiting for a call; there is nothing to cancel"
                       }
                     }
                   }
@@ -14807,6 +14929,13 @@
                     "connection_id": "tcn_01K9Q2W5D8F3H6J9KMNPQRSTVW",
                     "number": "+918048123456"
                   }
+                },
+                "Add a number on your SIP trunk": {
+                  "summary": "Add a number on your SIP trunk",
+                  "value": {
+                    "connection_id": "tcn_01K9S3X6E9G4J7K0MPQRSTVWXY",
+                    "number": "+918045671234"
+                  }
                 }
               }
             }
@@ -14832,6 +14961,22 @@
                       "version": 1,
                       "webhook_url": "",
                       "created_at": "2026-10-09T07:02:11.903215Z"
+                    }
+                  },
+                  "Added, ready": {
+                    "summary": "201 — added, ready",
+                    "value": {
+                      "id": "phn_01K9S4Y7F0H5K8M1NQRSTVWXYZ",
+                      "connection_id": "tcn_01K9S3X6E9G4J7K0MPQRSTVWXY",
+                      "provider": "sip",
+                      "ownership": "customer",
+                      "number": "+918045671234",
+                      "agent_id": "",
+                      "state": "ready",
+                      "connection_state": "verified",
+                      "version": 1,
+                      "webhook_url": "",
+                      "created_at": "2026-11-02T09:20:31.402117Z"
                     }
                   }
                 }
@@ -14867,6 +15012,33 @@
                       "error": {
                         "code": "not_ready",
                         "message": "Verify the connection and activate the number before calling"
+                      }
+                    }
+                  },
+                  "Already on Mirai": {
+                    "summary": "409 — already on Mirai",
+                    "value": {
+                      "error": {
+                        "code": "conflict",
+                        "message": "The number/account is already connected or the configuration version changed; refresh before retrying"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Not an Indian number",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "Not an Indian number": {
+                    "summary": "400 — not an Indian number",
+                    "value": {
+                      "error": {
+                        "code": "invalid_request",
+                        "message": "number must be +91 followed by 10 digits"
                       }
                     }
                   }
@@ -15265,7 +15437,7 @@
       "post": {
         "operationId": "activate_phone_number",
         "summary": "Turn on incoming calls",
-        "description": "Points the number's voice routing in Plivo at Mirai, so people who call it reach the assigned agent. Assign an agent first. Takes a few seconds; the answer is the number with `state: ready`.\n\nIf the number already has voice routing in Plivo (another application), this stops rather than overwrite it: the number goes to `state: error` and `setup_error` says so. Send `replace_existing_application: true` to replace that routing. Numbers with SMS or MMS switched on are refused; use a voice-only number.\n\nEvery attempt, failed or not, raises `version` by one, so read the number again before you retry. A rented number whose term has ended can't be turned on.",
+        "description": "Points the number's voice routing in Plivo at Mirai, so people who call it reach the assigned agent. Assign an agent first. Takes a few seconds; the answer is the number with `state: ready`.\n\nIf the number already has voice routing in Plivo (another application), this stops rather than overwrite it: the number goes to `state: error` and `setup_error` says so. Send `replace_existing_application: true` to replace that routing. Numbers with SMS or MMS switched on are refused; use a voice-only number.\n\nEvery attempt, failed or not, raises `version` by one, so read the number again before you retry. A rented number whose term has ended can't be turned on. A number on your own SIP trunk is already on; this answers it as it is.",
         "tags": [
           "Phone numbers"
         ],
@@ -16534,7 +16706,7 @@
       "get": {
         "operationId": "get_number_options",
         "summary": "Get number options",
-        "description": "What this workspace can do right now. `rentals_enabled` says whether you can rent; `managed_ready` turns true once your business verification is approved and your Mirai number account is set up. `mirai_terms` are the rental terms in paise: `amount_paise: 150000` is ₹1,500 every `term_months: 3`, with no setup fee and call minutes billed separately. `shared_test` is Mirai's shared test number.",
+        "description": "What this workspace can do right now. `rentals_enabled` says whether you can rent; `managed_ready` turns true once your business verification is approved and your Mirai number account is set up. `mirai_terms` are the rental terms in paise: `amount_paise: 150000` is ₹1,500 every `term_months: 3`, with no setup fee and call minutes billed separately. `shared_test` is Mirai's shared test number.\n\n`sip` is there only when your workspace can connect its own SIP trunk. It is what to give your carrier: our SIP `address` and `port` and the `transports` we take, the `signalling_ips` and `media_ips` to allow, the `media_ports` range (UDP) and the `codecs` we speak, plus the `number_formats` a trunk may use.",
         "tags": [
           "Telephony"
         ],
@@ -16571,6 +16743,44 @@
                         "max_duration_secs": 60,
                         "number": "+918035739450",
                         "verified_phone_required": true
+                      }
+                    }
+                  },
+                  "SIP trunks on for this workspace": {
+                    "summary": "200 — SIP trunks on for this workspace",
+                    "value": {
+                      "countries": [
+                        "IN"
+                      ],
+                      "inventory_enabled": true,
+                      "managed_ready": true,
+                      "onboarding_enabled": true,
+                      "provider": "plivo",
+                      "rentals_enabled": true,
+                      "sip": {
+                        "address": "sip.miraiminds.co",
+                        "port": 5060,
+                        "transports": [
+                          "udp",
+                          "tcp"
+                        ],
+                        "signalling_ips": [
+                          "168.220.248.249"
+                        ],
+                        "media_ips": [
+                          "168.220.248.249"
+                        ],
+                        "media_ports": "20000-29999",
+                        "codecs": [
+                          "PCMU",
+                          "PCMA"
+                        ],
+                        "number_formats": [
+                          "e164",
+                          "e164_digits",
+                          "national",
+                          "local"
+                        ]
                       }
                     }
                   }
@@ -17907,13 +18117,88 @@
                   },
                   "provider": {
                     "type": "string"
+                  },
+                  "sip": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "dial_prefix": {
+                        "default": "",
+                        "description": "The carrier's tech prefix, when it routes calls by one: up to 12 digits written before the dialled number (in number_format) in the Request-URI of every call to the carrier. With 45454 and e164_digits, +919876543210 is dialled as 45454919876543210. The calling number in From and P-Asserted-Identity is never prefixed. Empty means none.",
+                        "maxLength": 12,
+                        "pattern": "^[0-9]{0,12}$",
+                        "type": "string"
+                      },
+                      "from_domain": {
+                        "description": "The domain in the From header of calls to the carrier; empty means host.",
+                        "maxLength": 253,
+                        "type": "string"
+                      },
+                      "host": {
+                        "description": "Your carrier's SIP address: a DNS name or a public IPv4 address. Never a private, loopback or Mirai's own address.",
+                        "maxLength": 253,
+                        "type": "string"
+                      },
+                      "inbound_sources": {
+                        "description": "Your carrier's signalling IPv4 addresses or networks (/24 or narrower; a bare address is a /32). Incoming calls are accepted only from these.",
+                        "items": {
+                          "type": "string"
+                        },
+                        "maxItems": 16,
+                        "minItems": 1,
+                        "type": "array"
+                      },
+                      "number_format": {
+                        "default": "e164",
+                        "description": "How numbers are written to the carrier: e164 +919876543210, e164_digits 919876543210, national 09876543210, local 9876543210.",
+                        "enum": [
+                          "e164",
+                          "e164_digits",
+                          "national",
+                          "local"
+                        ],
+                        "type": "string"
+                      },
+                      "password": {
+                        "description": "Digest password, when the carrier challenges calls; needs username. Write-only: reads show has_password.",
+                        "maxLength": 128,
+                        "type": "string",
+                        "writeOnly": true
+                      },
+                      "port": {
+                        "default": 5060,
+                        "maximum": 65535,
+                        "minimum": 1,
+                        "type": "integer"
+                      },
+                      "send_pai": {
+                        "default": false,
+                        "description": "Also send the calling number as P-Asserted-Identity.",
+                        "type": "boolean"
+                      },
+                      "transport": {
+                        "default": "udp",
+                        "enum": [
+                          "udp",
+                          "tcp"
+                        ],
+                        "type": "string"
+                      },
+                      "username": {
+                        "description": "Digest username, when the carrier challenges calls.",
+                        "maxLength": 128,
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "host",
+                      "inbound_sources"
+                    ],
+                    "type": "object"
                   }
                 },
                 "required": [
                   "provider",
-                  "name",
-                  "auth_id",
-                  "auth_token"
+                  "name"
                 ],
                 "type": "object"
               },
@@ -17925,6 +18210,25 @@
                     "name": "Main Plivo account",
                     "auth_id": "MAXXXXXXXXXXXXXXXXXX",
                     "auth_token": "REPLACE_WITH_YOUR_PLIVO_AUTH_TOKEN"
+                  }
+                },
+                "Connect your SIP trunk": {
+                  "summary": "Connect your SIP trunk",
+                  "value": {
+                    "provider": "sip",
+                    "name": "Office SIP trunk",
+                    "sip": {
+                      "host": "sip.carrier.example",
+                      "port": 5060,
+                      "transport": "udp",
+                      "number_format": "national",
+                      "inbound_sources": [
+                        "203.0.113.10",
+                        "198.51.100.0/28"
+                      ],
+                      "username": "mirai-office",
+                      "password": "REPLACE_WITH_YOUR_TRUNK_PASSWORD"
+                    }
                   }
                 }
               }
@@ -17967,6 +18271,24 @@
                         "message": "Plivo credentials are invalid or lack access"
                       }
                     }
+                  },
+                  "A private carrier address": {
+                    "summary": "400 — a private carrier address",
+                    "value": {
+                      "error": {
+                        "code": "invalid_request",
+                        "message": "sip.host must be a public address"
+                      }
+                    }
+                  },
+                  "SIP trunks aren't on for this workspace": {
+                    "summary": "400 — SIP trunks aren't on for this workspace",
+                    "value": {
+                      "error": {
+                        "code": "provider_unavailable",
+                        "message": "SIP trunks are not available for this workspace"
+                      }
+                    }
                   }
                 }
               }
@@ -17995,7 +18317,7 @@
       "get": {
         "operationId": "list_telephony_connections",
         "summary": "List Plivo connections",
-        "description": "The Plivo accounts this workspace uses. Besides the ones you connected (`ownership: customer`), it includes the account Mirai sets up for your rented numbers (`ownership: managed`). Credentials never come back. Up to 100 per page.",
+        "description": "The Plivo accounts this workspace uses. Besides the ones you connected (`ownership: customer`), it includes the account Mirai sets up for your rented numbers (`ownership: managed`), and any SIP trunk you connected (`provider: sip`). Credentials never come back. Up to 100 per page.\n\nA SIP trunk's `sip` also says what it has been doing:\n\n* `blocked_sources`: calls to one of its numbers that we turned away in the last 24 hours because they came from an IP address not in `inbound_sources`, one entry per address: `ip`, `number` (the trunk's number that was called), `calls` and `last_at`. If the address is your carrier's, add it to `inbound_sources` with *Change your SIP trunk*.\n* `activity`: `last_inbound` and `last_outbound`, each `null` until there is one, else `at`, `call_id` (`null` for a call in to a number you haven't added), `number` (the number dialled: yours for a call in, the person called for a call out) and `result`: `answered`, `not_answered` or `failed`. `reason_code` is `null` when answered, else `busy`, `no_answer`, `declined`, `carrier_refused`, `number_not_found`, `carrier_unreachable`, `refused_by_us` or `other`. `last_outbound` also has `sip_status`, what your carrier answered (403 when it refused the call).",
         "tags": [
           "Telephony"
         ],
@@ -18040,6 +18362,36 @@
                           "state": "verified",
                           "version": 1,
                           "created_at": "2026-10-09T07:00:48.551062Z"
+                        },
+                        {
+                          "id": "tcn_01K9S3X6E9G4J7K0MPQRSTVWXY",
+                          "provider": "sip",
+                          "ownership": "customer",
+                          "account_id": "tcn_01K9S3X6E9G4J7K0MPQRSTVWXY",
+                          "name": "Office SIP trunk",
+                          "state": "verified",
+                          "version": 1,
+                          "created_at": "2026-11-02T09:14:05.118204Z",
+                          "sip": {
+                            "host": "sip.carrier.example",
+                            "port": 5060,
+                            "transport": "udp",
+                            "username": "mirai-office",
+                            "from_domain": "",
+                            "number_format": "national",
+                            "dial_prefix": "",
+                            "send_pai": false,
+                            "inbound_sources": [
+                              "203.0.113.10/32",
+                              "198.51.100.0/28"
+                            ],
+                            "has_password": true,
+                            "blocked_sources": [],
+                            "activity": {
+                              "last_inbound": null,
+                              "last_outbound": null
+                            }
+                          }
                         }
                       ],
                       "has_more": false,
@@ -18057,7 +18409,7 @@
       "get": {
         "operationId": "get_telephony_connection",
         "summary": "Get Plivo connection",
-        "description": "One connection, without its credentials. `state` is `verified` (in use) or `disabled`; `version` is what [Disable Plivo connection](/api-reference/telephony/disable-plivo-connection) needs.",
+        "description": "One connection, without its credentials. `state` is `verified` (in use) or `disabled`; `version` is what [Disable Plivo connection](/api-reference/telephony/disable-plivo-connection) needs. A SIP trunk also carries `sip`, its settings, with `has_password` instead of the password.\n\nA SIP trunk's `sip` also says what it has been doing:\n\n* `blocked_sources`: calls to one of its numbers that we turned away in the last 24 hours because they came from an IP address not in `inbound_sources`, one entry per address: `ip`, `number` (the trunk's number that was called), `calls` and `last_at`. If the address is your carrier's, add it to `inbound_sources` with *Change your SIP trunk*.\n* `activity`: `last_inbound` and `last_outbound`, each `null` until there is one, else `at`, `call_id` (`null` for a call in to a number you haven't added), `number` (the number dialled: yours for a call in, the person called for a call out) and `result`: `answered`, `not_answered` or `failed`. `reason_code` is `null` when answered, else `busy`, `no_answer`, `declined`, `carrier_refused`, `number_not_found`, `carrier_unreachable`, `refused_by_us` or `other`. `last_outbound` also has `sip_status`, what your carrier answered (403 when it refused the call).",
         "tags": [
           "Telephony"
         ],
@@ -18091,6 +18443,92 @@
                       "version": 1,
                       "created_at": "2026-10-09T07:00:48.551062Z"
                     }
+                  },
+                  "A SIP trunk": {
+                    "summary": "200 — a SIP trunk",
+                    "value": {
+                      "id": "tcn_01K9S3X6E9G4J7K0MPQRSTVWXY",
+                      "provider": "sip",
+                      "ownership": "customer",
+                      "account_id": "tcn_01K9S3X6E9G4J7K0MPQRSTVWXY",
+                      "name": "Office SIP trunk",
+                      "state": "verified",
+                      "version": 1,
+                      "created_at": "2026-11-02T09:14:05.118204Z",
+                      "sip": {
+                        "host": "sip.carrier.example",
+                        "port": 5060,
+                        "transport": "udp",
+                        "username": "mirai-office",
+                        "from_domain": "",
+                        "number_format": "national",
+                        "dial_prefix": "",
+                        "send_pai": false,
+                        "inbound_sources": [
+                          "203.0.113.10/32",
+                          "198.51.100.0/28"
+                        ],
+                        "has_password": true,
+                        "blocked_sources": [],
+                        "activity": {
+                          "last_inbound": null,
+                          "last_outbound": null
+                        }
+                      }
+                    }
+                  },
+                  "A SIP trunk after a few test calls": {
+                    "summary": "200 — a SIP trunk after a few test calls",
+                    "value": {
+                      "id": "tcn_01K9S3X6E9G4J7K0MPQRSTVWXY",
+                      "provider": "sip",
+                      "ownership": "customer",
+                      "account_id": "tcn_01K9S3X6E9G4J7K0MPQRSTVWXY",
+                      "name": "Office SIP trunk",
+                      "state": "verified",
+                      "version": 1,
+                      "created_at": "2026-11-02T09:14:05.118204Z",
+                      "sip": {
+                        "host": "sip.carrier.example",
+                        "port": 5060,
+                        "transport": "udp",
+                        "username": "mirai-office",
+                        "from_domain": "",
+                        "number_format": "national",
+                        "dial_prefix": "",
+                        "send_pai": false,
+                        "inbound_sources": [
+                          "203.0.113.10/32",
+                          "198.51.100.0/28"
+                        ],
+                        "has_password": true,
+                        "blocked_sources": [
+                          {
+                            "ip": "18.214.109.140",
+                            "number": "+918045671234",
+                            "calls": 4,
+                            "last_at": "2026-11-03T09:41:07Z"
+                          }
+                        ],
+                        "activity": {
+                          "last_inbound": {
+                            "at": "2026-11-03T09:52:30Z",
+                            "call_id": "call_01M6G2C8Q7ZK9W1V3X5Y7B9D1F",
+                            "number": "+918045671234",
+                            "result": "answered",
+                            "reason_code": null
+                          },
+                          "last_outbound": {
+                            "at": "2026-11-03T09:58:12Z",
+                            "call_id": "call_01M6G2K4T2XN8R6P4M2J0H8G6E",
+                            "number": "+919876543210",
+                            "result": "failed",
+                            "reason_code": "carrier_refused",
+                            "sip_status": 403
+                          }
+                        }
+                      }
+                    }
                   }
                 }
               }
@@ -18119,7 +18557,7 @@
       "patch": {
         "operationId": "disable_telephony_connection",
         "summary": "Disable Plivo connection",
-        "description": "Stops new calls through this Plivo account; calls already running finish normally. `state` must be `disabled` and `version` the connection's current one. To turn it back on, use [Verify Plivo connection](/api-reference/telephony/verify-plivo-connection).",
+        "description": "Stops new calls through this Plivo account (or SIP trunk); calls already running finish normally. `state` must be `disabled` and `version` the connection's current one. To turn it back on, use [Verify Plivo connection](/api-reference/telephony/verify-plivo-connection).",
         "tags": [
           "Telephony"
         ],
@@ -18142,6 +18580,81 @@
               "schema": {
                 "additionalProperties": false,
                 "properties": {
+                  "sip": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "dial_prefix": {
+                        "description": "The carrier's tech prefix, when it routes calls by one: up to 12 digits written before the dialled number (in number_format) in the Request-URI of every call to the carrier. With 45454 and e164_digits, +919876543210 is dialled as 45454919876543210. The calling number in From and P-Asserted-Identity is never prefixed. Empty means none. \"\" clears it, leaving it out keeps it.",
+                        "maxLength": 12,
+                        "pattern": "^[0-9]{0,12}$",
+                        "type": "string"
+                      },
+                      "from_domain": {
+                        "description": "The domain in the From header of calls to the carrier; empty means host.",
+                        "maxLength": 253,
+                        "type": "string"
+                      },
+                      "host": {
+                        "description": "Your carrier's SIP address: a DNS name or a public IPv4 address. Never a private, loopback or Mirai's own address.",
+                        "maxLength": 253,
+                        "type": "string"
+                      },
+                      "inbound_sources": {
+                        "description": "Your carrier's signalling IPv4 addresses or networks (/24 or narrower; a bare address is a /32). Incoming calls are accepted only from these.",
+                        "items": {
+                          "type": "string"
+                        },
+                        "maxItems": 16,
+                        "minItems": 1,
+                        "type": "array"
+                      },
+                      "number_format": {
+                        "default": "e164",
+                        "description": "How numbers are written to the carrier: e164 +919876543210, e164_digits 919876543210, national 09876543210, local 9876543210.",
+                        "enum": [
+                          "e164",
+                          "e164_digits",
+                          "national",
+                          "local"
+                        ],
+                        "type": "string"
+                      },
+                      "password": {
+                        "description": "Digest password; needs username. null or \"\" clears it, leaving it out keeps it. Write-only.",
+                        "maxLength": 128,
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "writeOnly": true
+                      },
+                      "port": {
+                        "default": 5060,
+                        "maximum": 65535,
+                        "minimum": 1,
+                        "type": "integer"
+                      },
+                      "send_pai": {
+                        "default": false,
+                        "description": "Also send the calling number as P-Asserted-Identity.",
+                        "type": "boolean"
+                      },
+                      "transport": {
+                        "default": "udp",
+                        "enum": [
+                          "udp",
+                          "tcp"
+                        ],
+                        "type": "string"
+                      },
+                      "username": {
+                        "description": "Digest username, when the carrier challenges calls.",
+                        "maxLength": 128,
+                        "type": "string"
+                      }
+                    },
+                    "type": "object"
+                  },
                   "state": {
                     "type": "string"
                   },
@@ -18150,8 +18663,7 @@
                   }
                 },
                 "required": [
-                  "version",
-                  "state"
+                  "version"
                 ],
                 "type": "object"
               },
@@ -18161,6 +18673,20 @@
                   "value": {
                     "version": 1,
                     "state": "disabled"
+                  }
+                },
+                "Change your SIP trunk": {
+                  "summary": "Change your SIP trunk",
+                  "value": {
+                    "version": 1,
+                    "sip": {
+                      "inbound_sources": [
+                        "203.0.113.10",
+                        "203.0.113.11"
+                      ],
+                      "number_format": "e164",
+                      "dial_prefix": "45454"
+                    }
                   }
                 }
               }
@@ -18184,6 +18710,39 @@
                       "state": "disabled",
                       "version": 2,
                       "created_at": "2026-10-09T07:00:48.551062Z"
+                    }
+                  },
+                  "Changed": {
+                    "summary": "200 — changed",
+                    "value": {
+                      "id": "tcn_01K9S3X6E9G4J7K0MPQRSTVWXY",
+                      "provider": "sip",
+                      "ownership": "customer",
+                      "account_id": "tcn_01K9S3X6E9G4J7K0MPQRSTVWXY",
+                      "name": "Office SIP trunk",
+                      "state": "verified",
+                      "version": 2,
+                      "created_at": "2026-11-02T09:14:05.118204Z",
+                      "sip": {
+                        "host": "sip.carrier.example",
+                        "port": 5060,
+                        "transport": "udp",
+                        "username": "mirai-office",
+                        "from_domain": "",
+                        "number_format": "e164",
+                        "dial_prefix": "45454",
+                        "send_pai": false,
+                        "inbound_sources": [
+                          "203.0.113.10/32",
+                          "203.0.113.11/32"
+                        ],
+                        "has_password": true,
+                        "blocked_sources": [],
+                        "activity": {
+                          "last_inbound": null,
+                          "last_outbound": null
+                        }
+                      }
                     }
                   }
                 }
@@ -18285,6 +18844,24 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "A SIP trunk has no number list",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "A SIP trunk has no number list": {
+                    "summary": "400 — a SIP trunk has no number list",
+                    "value": {
+                      "error": {
+                        "code": "not_supported",
+                        "message": "A SIP trunk has no number list; add its numbers by number"
+                      }
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -18293,7 +18870,7 @@
       "post": {
         "operationId": "verify_telephony_connection",
         "summary": "Verify Plivo connection",
-        "description": "Checks the saved credentials with Plivo again and, if they still work, turns the connection on. Use it to re-enable a disabled connection. No body.",
+        "description": "Checks the saved credentials with Plivo again and, if they still work, turns the connection on. Use it to re-enable a disabled connection. On a SIP trunk there is nothing to check with a provider: it turns the trunk back on. No body.",
         "tags": [
           "Telephony"
         ],
