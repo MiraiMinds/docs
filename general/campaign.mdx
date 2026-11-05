@@ -28,7 +28,8 @@ as it comes in. The example on this page is a round of
   </Card>
   <Card title="Retries and limits" icon="repeat">
     Choose how many calls run at once, how often to retry, the longest a call
-    may run and how much the campaign may spend.
+    may run, how much the campaign may spend and after how many connected calls
+    it pauses.
   </Card>
   <Card title="Results as they happen" icon="list-check">
     Watch the counts move, play any call, and download every result as a
@@ -102,6 +103,12 @@ too.
   to use the agent's own limit.
 - **Budget (₹)** caps what this campaign can spend. When it is reached, the
   campaign pauses. Leave it empty for no cap.
+- **Pause after** is a number of connected calls. Once that many people have
+  answered and talked, the campaign pauses itself, and you press **Resume**
+  for the next batch. Voicemails don't count. Near the number it calls only as
+  many people as it still needs, so it stops right on it, and calls already in
+  progress finish. Leave it empty for no limit. You can add, change or clear it
+  at any time, even while the campaign is dialling.
 - **Webhook URL** is optional. Add an `https://` address and we send each
   call's events there. Every call ends with one event that carries the
   transcript, the result and the contact's extra info, so your system doesn't
@@ -241,9 +248,11 @@ called yet off the list.
 
 - **Pause** lets calls in progress finish and starts no new ones. Press
   **Resume** to carry on.
-- The campaign also pauses itself when the wallet can't cover the next call, or
-  when it reaches its budget. The page says which. Top up, or raise the budget
-  under **Settings**, then press **Resume**.
+- The campaign also pauses itself when the wallet can't cover the next call,
+  when it reaches its budget, or when it reaches its **Pause after** number of
+  connected calls. The page says which. Top up, or raise the budget under
+  **Settings**, then press **Resume**. After a **Pause after** pause, **Resume**
+  calls the next batch of that size, counting from zero again.
 - **Stop** ends the campaign for good. Calls in progress finish, nobody else is
   called, and a stopped campaign can't be resumed.
 - **Download CSV** gives you one row per contact: your own columns (extra info
@@ -261,7 +270,9 @@ recordings**.
 
 ![The Insights tab of a finished campaign: Refresh, Print or PDF, Download CSV and Share above the strip of report pages, then the summary of EMI reminders · October with 41 conversations, 20 promised to pay (its most common result), ₹320.18 spent and 1h 00m of talk time](/images/campaign-integration/campaign-insights.png)
 
-The **Settings** tab shows everything the campaign was set up with.
+The **Settings** tab shows everything the campaign was set up with. With a
+**Pause after** number set, it also shows how many connected calls have counted
+toward it so far, and since when.
 
 ![The Settings tab: agent, rate, calling hours, dates, timezone, calls at once, retries, numbers reached before, max call length, budget, spent, webhook and created, with the Edit settings button](/images/campaign-integration/campaign-settings.png)
 
@@ -269,9 +280,21 @@ Press **Edit settings** to change them. What you can change depends on where the
 campaign is:
 
 - **Draft or paused**: everything except the agent, the timezone and the list.
-- **Dialling**: only calls at once and calling hours. They apply straight away.
-  Pause it to change the rest.
+- **Dialling**: only calls at once, calling hours and **Pause after**. They
+  apply straight away. Pause it to change the rest.
 - **Finished**: nothing. Duplicate it to run it again with other settings.
+
+### History
+
+Under the settings, **History** lists what happened to the campaign, newest
+first: when it was started, paused, resumed, stopped or completed, and when its
+**Pause after** number was set, changed or removed. Each line says when and who
+did it. A pause the campaign made on its own says why: the wallet ran out, the
+budget was reached, or it reached its **Pause after** number, with the count. If
+someone on your team asks why a campaign stopped calling, the answer is here.
+
+History starts from the day this list was added, so older campaigns show only
+what happened after that.
 
 ## Run it again
 
@@ -310,7 +333,7 @@ Each contact can also get its own voice and languages, through the API or with
 | A row says "`emi_due` must be a number" | Write a plain number, like `4200`, with no currency sign or text. |
 | Phone numbers look like `9.83E+09` | Excel changed them. Format the phone column as Text, then paste the numbers again. |
 | The campaign started but nothing is dialling | Check the dates and calling hours under **Settings**, in the campaign's timezone. It waits for the next window. |
-| The campaign paused by itself | Read the line under its name. Top up your wallet, or raise the budget, then press **Resume**. |
+| The campaign paused by itself | Read the line under its name, or **Settings** → **History**. Top up your wallet, or raise the budget, then press **Resume**. If it reached its **Pause after** number, press **Resume** when you want the next batch. |
 | "Campaigns aren't switched on here yet" | Campaigns aren't turned on for your workspace. Ask us and we'll switch them on. |
 
 ## Good practice

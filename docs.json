@@ -233,6 +233,7 @@
               "GET /v2/campaign-groups",
               "POST /v2/campaigns/{campaign_id}/pause",
               "POST /v2/campaigns/{campaign_id}/resume",
+              "GET /v2/campaigns/{campaign_id}/history",
               "POST /v2/campaigns/{campaign_id}/contacts/{contact_id}/retry",
               "GET /v2/campaigns/{campaign_id}/report",
               "GET /v2/campaigns/{campaign_id}/insights",

@@ -96,7 +96,7 @@ same envelope, with `data.campaign` in place of `data.call`.
 | Type | Fires when |
 | :--- | :--- |
 | `campaign.started` | The first `POST /start` takes effect. Once per campaign. |
-| `campaign.paused` | You paused it, or the money gate did. Read `data.campaign.pause_reason`. |
+| `campaign.paused` | You paused it, or the campaign paused itself: the money gate, its [connected-call limit](/v2/campaigns#pause-after-connected-calls) or its number. Read `data.campaign.pause_reason`. |
 | `campaign.resumed` | Dialling resumed. |
 | `campaign.completed` | Every contact reached a final state, or the date range ran out. An [always-on](/v2/campaigns#always-on-campaigns) campaign sends it only when the date range runs out. |
 | `campaign.stopped` | You stopped it. |
