@@ -7,8 +7,8 @@ description: How each v1 endpoint, field and webhook maps to the v2 API, and how
 
 v1 still runs for the integrations already on it, hosted
 separately at `api.voice-agents.miraiminds.co`. New features ship on v2 only,
-and we are moving v1 integrations to v2 one at a time. Your Mirai contact
-agrees the switch-over date with you.
+and we are moving v1 integrations to v2 one at a time. We agree the
+switch-over date with you; [write to us](mailto:help@miraiminds.co?subject=Move%20to%20v2) to set one.
 
 What you get on v2:
 
@@ -30,7 +30,7 @@ tested.
 
 | | v1 | v2 |
 | :--- | :--- | :--- |
-| Base URL | `https://api.voice-agents.miraiminds.co` | `https://sandbox.voice.miraiminds.co`, and `https://prod.voice.miraiminds.co` once your company has [gone live](/general/tiers#your-plan) |
+| Base URL | `https://api.voice-agents.miraiminds.co` | `https://sandbox.voice.miraiminds.co`, and `https://prod.voice.miraiminds.co` once your company has [gone live](/v2/go-live) |
 | Path prefix | mixed `/v1/…` and `/v2/…` | `/v2/…` throughout |
 
 <Warning>
@@ -51,13 +51,13 @@ the **host** to tell the two apart.
 
 v2 takes one header. The key carries the workspace, so valid credentials cannot
 reach the wrong workspace by accident. Create a key, and get the workspace's
-webhook secret, in the [console](https://sandbox.voice.miraiminds.co) under
-**Developers**. See [Start building](/v2/start-building).
+webhook secret, under **Developers** in the
+[console](https://console.voice.miraiminds.co/#/developers). See [Start building](/v2/start-building).
 
 <Note>
 The v2 API also accepts a v1 key pair, sent as the same `x-public-key` and
 `x-private-key` headers, once we have linked that pair to your v2 workspace.
-Ask your Mirai contact before you rely on it. The `workspace` header picks one
+[Ask us](mailto:help@miraiminds.co?subject=v1%20keys%20on%20v2) before you rely on it. The `workspace` header picks one
 of your [sub-workspaces](/v2/sub-workspaces). A value that names neither a
 sub-workspace nor your own workspace is refused with `404 workspace_not_found`,
 so leave the header out if you don't run brands as sub-workspaces. A linked pair is a bridge for the move: v2 keys are the ones you can
@@ -257,7 +257,7 @@ a test vector.
 
 | v1 event | v2 event |
 | :--- | :--- |
-| `call.initiate` | `call.queued`, which is opt-in: ask your Mirai contact |
+| `call.initiate` | `call.queued`, which is opt-in: [ask us](mailto:help@miraiminds.co?subject=Enable%20call.queued) |
 | `call.in-progress` | `call.started` |
 | `call.ended` | No separate event. The terminal event follows the hangup. |
 | `call.completed` | `call.completed` |

@@ -442,7 +442,7 @@ Capacity and the wallet are checked before the recording is read.
 | :--- | :--- | :--- |
 | `400` | `invalid_request` | The body is neither multipart nor JSON, has no `file` or `url`, has more than one file or an unknown field, or a field is out of range. Also a `url` that is not `https`, not public, or that could not be fetched (the message gives the reason, such as "the recording url answered HTTP 403"), and a recording the transcription service could not accept. `error.message` names the problem. |
 | `401` | `unauthorized` | Missing or unknown API key. |
-| `402` | `insufficient_balance` | The wallet balance is zero or below. Nothing was read or charged. [Top up](/v2/wallet#top-up) and retry with the same `Idempotency-Key`. |
+| `402` | `insufficient_balance` | The wallet balance is zero or below. Nothing was read or charged. [Add credit](/v2/wallet#top-up) and retry with the same `Idempotency-Key`. |
 | `403` | `forbidden` | The key was revoked. |
 | `413` | `request_too_large` | The upload is over 45 MB, or the file at `url` is over 200 MB. |
 | `429` | `at_capacity` | Your workspace already has 20 unfinished jobs. `Retry-After: 30`. |

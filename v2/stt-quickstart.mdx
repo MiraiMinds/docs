@@ -4,6 +4,15 @@ sidebarTitle: "STT quickstart"
 description: "Transcribe a clip with one curl request to the OpenAI-compatible /v1/audio/transcriptions, stream live audio over a WebSocket, and add Mira STT to Pipecat."
 ---
 
+{/* Prices: tts and stt in mirai-voice console/static/pricing.json. */}
+
+| | |
+| :--- | :--- |
+| Price | ₹0.30 a minute of audio, charged per second, on HTTP and the WebSocket |
+| Sandbox | `https://sandbox.voice.miraiminds.co`, ₹200 starter credit |
+| Production | `https://prod.voice.miraiminds.co`, after [Go live](/v2/go-live) |
+| Key | **Developers → Create key**, the same `sk_live_` key as the rest of the API |
+
 Mira STT is our own speech recognition, the one our voice agents listen with.
 It transcribes Hindi, English, Gujarati and seven more Indian languages,
 including the Hinglish most calls are in. The HTTP endpoint speaks OpenAI's
@@ -20,7 +29,7 @@ timestamps: [offline transcription](/v2/transcriptions).
 
 ## 1. Get a key
 
-Open the [console](https://sandbox.voice.miraiminds.co), go to **Developers**
+Open **Developers** in the [sandbox console](https://sandbox.voice.miraiminds.co/#/developers)
 and press **Create key**. You do not need an access code. The first time, the
 console asks for your work email and sends you a confirmation link; open it,
 then press **Create key** again. The key is a `sk_live_` secret, and the
@@ -333,7 +342,7 @@ has its own limits on message size, utterance length and idle time, listed in
 the [WebSocket reference](/v2/speech-to-text#limits).
 
 The limit is raised on request, with no change to your code. If you run many
-calls at once, ask your Mirai contact for a little more than your peak number
+calls at once, [ask us](mailto:help@miraiminds.co?subject=STT%20limit) for a little more than your peak number
 of simultaneous calls.
 
 ## Your request log

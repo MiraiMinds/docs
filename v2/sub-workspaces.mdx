@@ -12,12 +12,12 @@ or console users of its own. Its calls are paid from your workspace's wallet at
 your plan's rates, and you reach it with your own API key and one extra header.
 
 Base URL `https://prod.voice.miraiminds.co`. Sub-workspaces sit under a workspace
-that has [gone live](/general/tiers#your-plan), so the examples on this page use
+that has [gone live](/v2/go-live), so the examples on this page use
 the production address.
 
 <Note>
-Sub-workspaces are off until your Mirai contact turns them on for your workspace
-and sets how many you can have. Until then, creating one answers
+Sub-workspaces are off until we turn them on for your workspace and set how
+many you can have. [Ask us to turn them on](mailto:help@miraiminds.co?subject=Turn%20on%20sub-workspaces). Until then, creating one answers
 `403 sub_workspaces_disabled`. You create and manage sub-workspaces through the
 API, and you can [work in any of them from the console](#in-the-console).
 </Note>
@@ -40,7 +40,7 @@ under another parent.
 | Wallet and balance | The parent. Every brand's calls are charged to the parent's [wallet](/v2/wallet). |
 | Plan, tier and rates | The parent. A brand's calls are billed at the parent's [plan](/general/tiers). |
 | Invoices and top-ups | The parent. One invoice and one top-up cover every brand. |
-| Shared-line caller ID | The parent's, unless your Mirai contact has set one for that brand. It applies to calls that ring from the [Mirai shared line](/v2/phone-numbers#which-number-a-call-comes-from). |
+| Shared-line caller ID | The parent's, unless we have set one for that brand. It applies to calls that ring from the [Mirai shared line](/v2/phone-numbers#which-number-a-call-comes-from). |
 | Webhook signing secret | The API key you sent. A brand's `webhook_url` deliveries are signed with that key's [Call webhook secret](/v2/webhook-secrets). |
 | Request rate limit | The API key you sent. Requests for every brand count against that key's [rate limit](/v2/limits#rate-limits). |
 
@@ -315,8 +315,8 @@ brand returns that other brand.
 ```
 
 When you already have as many active sub-workspaces as your limit allows, you
-get `409 sub_workspace_limit`. Archive a brand you no longer serve, or ask your
-Mirai contact for a higher limit.
+get `409 sub_workspace_limit`. Archive a brand you no longer serve, or
+[ask for a higher limit](mailto:help@miraiminds.co?subject=Sub-workspace%20limit).
 
 ### List sub-workspaces
 
@@ -543,14 +543,29 @@ The errors are the same as for [create](#create-a-sub-workspace). Without an
 `workspace`. Send an `externalId` to address the brand by your own id and to
 make retries find the brand they already made.
 
+## Money across brands
+
+Every brand spends from the parent's wallet. Read each figure with the brand's
+`Mirai-Workspace` header, or without it for the parent.
+
+| | Read it with |
+| :--- | :--- |
+| Balance | [`GET /v2/wallet`](/v2/wallet#get-balance). One balance, the same for every brand. |
+| Spend by brand | [`GET /v2/insights`](/v2/calls#how-your-calls-went) with the brand's header: `money.billed_paise` for the window. |
+| Calls by brand | [`GET /v2/calls/summary`](/v2/calls#count-calls) with the brand's header. |
+| Stopped calls | A brand's call gets `402 insufficient_balance` when the parent's wallet can't cover it. `GET /v2/insights` for that brand lists it under `attention` as `wallet`. |
+| Top-ups and invoices | The parent. One top-up covers every brand. See [Out of credit](/v2/errors#out-of-credit). |
+
 ## See one brand's usage
 
 Send the brand's header to the routes you already use:
 
+- [`GET /v2/insights`](/v2/calls#how-your-calls-went) gives the brand's calls,
+  outcomes and spend over a window, in one read.
 - [`GET /v2/calls/summary`](/v2/calls#count-calls) counts the brand's calls and
   their live time.
 - [`GET /v2/calls`](/v2/calls#list-calls) lists the brand's calls, each with its
-  `cost_inr`. Add these up over a window for the brand's spend.
+  `cost_inr`.
 - [`GET /v2/wallet`](/v2/wallet#get-balance) shows the parent's wallet. The
   balance is shared, so it is the same for every brand.
 
@@ -643,8 +658,8 @@ brand's header on each of those requests.
 
 | Status | `error.code` | When | What to do |
 | :--- | :--- | :--- | :--- |
-| `403` | `sub_workspaces_disabled` | You created a sub-workspace, or onboarded a brand, before sub-workspaces were turned on for your workspace. | Ask your Mirai contact to turn them on. |
-| `409` | `sub_workspace_limit` | A create, onboarding or restore would take you over your limit of active sub-workspaces. | Archive a brand you no longer serve, or ask your Mirai contact for a higher limit. |
+| `403` | `sub_workspaces_disabled` | You created a sub-workspace, or onboarded a brand, before sub-workspaces were turned on for your workspace. | [Ask us to turn them on](mailto:help@miraiminds.co?subject=Turn%20on%20sub-workspaces). |
+| `409` | `sub_workspace_limit` | A create, onboarding or restore would take you over your limit of active sub-workspaces. | Archive a brand you no longer serve, or [ask for a higher limit](mailto:help@miraiminds.co?subject=Sub-workspace%20limit). |
 | `409` | `workspace_exists` | The `external_id` is already used, or an active sub-workspace already has the `name`. The response carries the existing workspace as `workspace`, next to `error`. | If its `external_id` is the one you sent, a retry already created it: use it. Otherwise choose another name or `external_id`. |
 | `404` | `workspace_not_found` | `Mirai-Workspace`, or the `{id}` in the path, names no sub-workspace of your parent. | Check the id or `external_id`. A sub-workspace under another parent is answered the same way. |
 | `403` | `workspace_archived` | `Mirai-Workspace` names a sub-workspace you archived. | [Restore](#archive-and-restore) it, or stop sending requests for that brand. |

@@ -28,7 +28,7 @@ Limits are per **secret key**. Requests you send for a
 **Pilot keys are provisioned individually**
 
 The numbers above are the defaults a new pilot key is issued with, and yours
-may differ. Confirm your actual ceilings with your account contact before you
+may differ. [Confirm your actual ceilings with us](mailto:help@miraiminds.co?subject=My%20limits) before you
 size a campaign. Higher concurrency only needs a provisioning change, so ask for
 it.
 </Warning>
@@ -90,8 +90,8 @@ few calls actually `dialing` or `in_progress`, not `queued` alone. With a
 concurrency of 5, the difference is at most 5 calls.
 
 Queue depth is provisioned per workspace, like concurrency. If a campaign needs
-to submit more than 500 rows in one batch, ask your Mirai contact before the
-campaign starts, not during it.
+to submit more than 500 rows in one batch, [ask us](mailto:help@miraiminds.co?subject=Queue%20depth) before
+the campaign starts.
 
 Even so, it is better to keep our queue short and hold the rest on your side,
 where you can reorder, cancel and re-prioritise it. The simplest correct pattern
@@ -139,7 +139,7 @@ is saturated. It is the same code, and you handle it the same way. A refused
 request holds no slot and is never charged.
 
 The limit is raised on request, with no change to your code. If you run many
-calls at once, ask your Mirai contact for a limit a little above your peak
+calls at once, [ask us](mailto:help@miraiminds.co?subject=Speech%20limit) for a limit a little above your peak
 number of simultaneous calls: each speaking call needs a slot most of the
 time, and it starts its next sentence shortly before the current one ends.
 

@@ -77,7 +77,7 @@ gets an ordinary HTTP response with the usual [error envelope](/v2/errors):
 | :--- | :--- | :--- | :--- |
 | 401 | `unauthorized` | No credentials, an unknown key, or an API key in the URL. | Send the key in the `Authorization` header, or use a stream token. |
 | 401 | `invalid_token` | The stream token is unknown, expired or already used. | Mint a new token. Each one opens one socket. |
-| 402 | `insufficient_balance` | Your wallet does not hold one minute of streaming (₹0.90). | [Top up](/v2/wallet#top-up). |
+| 402 | `insufficient_balance` | Your wallet does not hold one minute of streaming (₹0.90). | [Add credit](/v2/wallet#top-up). |
 | 403 | `forbidden` | The key, or the key that minted the token, was revoked. | Use a current key. |
 | 426 | `upgrade_required` | A plain HTTP request reached the endpoint. | Connect with a WebSocket client (`wss://`). |
 | 429 | `at_capacity` | Your workspace already has 200 sockets open, or the service is at its own ceiling. `Retry-After: 5`. | Reuse one socket per call and close the ones you are done with. |
@@ -308,7 +308,7 @@ that time, you get an `error` with code `at_capacity` and `retry_after_secs`
 for that sentence, and the socket moves on to the next one. Send that text
 again if you still need it. pipecat-mirai does this once for you.
 
-If you run many calls at once, ask your Mirai contact for a higher limit. Ask
+If you run many calls at once, [ask us for a higher limit](mailto:help@miraiminds.co?subject=TTS%20stream%20limit). Ask
 for a little more than your peak number of simultaneous calls, because each
 call starts its next sentence shortly before the current one finishes.
 
@@ -387,7 +387,7 @@ the next sentence goes ahead.
 | `too_many_contexts` | 64 contexts are open. | Flush or cancel the ones you are done with. |
 | `session_closing` | You sent text after `close`. | Open a new socket. |
 | `at_capacity` | No synthesis slot freed within 3 seconds. Carries `retry_after_secs`. | Send the text again after that delay. |
-| `insufficient_balance` | Your wallet balance is too low. | [Top up](/v2/wallet#top-up). |
+| `insufficient_balance` | Your wallet balance is too low. | [Add credit](/v2/wallet#top-up). |
 | `upstream_error`, `first_byte_timeout`, `total_timeout` | The speech engine failed or stalled on this sentence. | Send the text again. |
 | `fleet_offline` | No speech capacity is online. | Retry after `retry_after_secs`. |
 | `maintenance_window` | Rare. Text to speech is down for planned maintenance, so this sentence was not spoken and costs nothing. `retry_after_secs` counts the seconds until it is back. | Send the text again after that delay. See [Availability](/v2/speech#availability). |

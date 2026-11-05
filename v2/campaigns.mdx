@@ -138,7 +138,7 @@ and a number or pool that cannot call sets `calls_from_unavailable`.
 | :--- | :--- | :--- |
 | `null` | You called [`POST /pause`](#pause-a-campaign) with no body. | Resume when you are ready. |
 | `<by>: <reason>` | You called `POST /pause` with a [`reason` or `by`](#pause-a-campaign). | Resume when you are ready. |
-| `insufficient_balance` | The wallet cannot cover another minute at this campaign's tier. | [Top up](/v2/wallet#top-up), then `POST /start` or `/resume`. |
+| `insufficient_balance` | The wallet cannot cover another minute at this campaign's tier. | [Add credit](/v2/wallet#top-up), then `POST /start` or `/resume`. |
 | `budget_exhausted` | `spent_paise` has reached `budget_paise`. | Raise `budget_paise` with `PATCH`, then resume. |
 | `connected_limit_reached` | `pause_after_connected` calls have connected since the count began. | Resume when you want the next batch; the count starts again from zero. See [pause after connected calls](#pause-after-connected-calls). |
 | `calls_from_unavailable: …` | The pool or number the campaign calls from can no longer place calls. The reason names it. | Add a ready number to the pool, or [choose another](/v2/phone-numbers#point-a-call-a-campaign-or-an-agent-at-a-pool), then resume. |
@@ -773,7 +773,7 @@ variable.
 | `404` | `not_found` | `agent_id` does not exist in your workspace. We check this at create time, so a typo fails now instead of failing every contact tomorrow morning. The same code answers a `pool_id` or `phone_number_id` that is not yours. |
 | `409` | `pool_unavailable`, `number_retired` | The pool has no number that can call, or the number is retired. See [phone numbers and pools](/v2/phone-numbers#errors). |
 | `501` | `tier_unavailable` | `tier` names a tier that is not enabled on this deployment. |
-| `503` | `campaigns_unavailable` | Campaigns are not enabled for your workspace. Your request is fine; ask your Mirai contact. |
+| `503` | `campaigns_unavailable` | Campaigns are not enabled for your workspace. Your request is fine; [ask us to enable them](mailto:help@miraiminds.co?subject=Enable%20campaigns). |
 
 ---
 

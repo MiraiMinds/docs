@@ -4,6 +4,15 @@ sidebarTitle: "TTS quickstart"
 description: "Get Hindi speech from one curl request to the OpenAI-compatible /v1/audio/speech: voices, formats, 8 kHz audio for phone lines, limits and price."
 ---
 
+{/* Prices: tts and stt in mirai-voice console/static/pricing.json. */}
+
+| | |
+| :--- | :--- |
+| Price | ₹1.80 per 1,000 characters over HTTP; ₹0.90 a minute on the WebSocket |
+| Sandbox | `https://sandbox.voice.miraiminds.co`, ₹200 starter credit |
+| Production | `https://prod.voice.miraiminds.co`, after [Go live](/v2/go-live) |
+| Key | **Developers → Create key**, the same `sk_live_` key as the rest of the API |
+
 This is the voice our agents use, offered as a standalone API. It speaks
 OpenAI's `POST /v1/audio/speech` protocol, so every OpenAI SDK and every
 framework with an OpenAI TTS integration can already call it. You change the
@@ -16,7 +25,7 @@ how its price compares with other Hindi TTS APIs, read our
 
 ## 1. Get a key
 
-Open the [console](https://sandbox.voice.miraiminds.co), go to **Developers**
+Open **Developers** in the [sandbox console](https://sandbox.voice.miraiminds.co/#/developers)
 and press **Create key**. You do not need an access code. The first time, the
 console asks for your work email and sends you a confirmation link; open it,
 then press **Create key** again. The key is a `sk_live_` secret, and the
@@ -470,8 +479,8 @@ retry loop of your own.
 
 The limit is set per workspace, and a workspace starts at 10. The plans under
 [Billing](#billing) list the concurrency each plan includes. If your
-workspace's limit doesn't match your plan, or you need more, ask your Mirai
-contact. Changing the limit is a provisioning change and needs no change to
+workspace's limit doesn't match your plan, or you need more,
+[ask us](mailto:help@miraiminds.co?subject=TTS%20concurrency). Changing the limit is a provisioning change and needs no change to
 your code.
 
 ## Your request log

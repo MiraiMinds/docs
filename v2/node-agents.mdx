@@ -447,7 +447,7 @@ agent revision like any other save, so you can [roll it back](#versions).
 | :--- | :--- | :--- | :--- | :--- |
 | `400` | `invalid_request` | Neither `brief` nor `examples` was sent, `brief` is blank or over 20,000 characters, `examples` has fewer than 2 or more than 10 calls, a transcript is blank or over 40,000 characters, the transcripts are over 200,000 characters together, `language` is over 32 characters, `model` is not one of the three, or the body has an unknown field. | No | Fix the request. |
 | `400` | `invalid_flow` | The `flow` you sent to revise breaks a rule, or your tier's call model cannot run flows. Same shape as [flow errors](#errors). | No | Fix the listed paths. |
-| `402` | `insufficient_balance` | Your wallet is empty. | No | [Top up](/v2/wallet#top-up), then retry. |
+| `402` | `insufficient_balance` | Your wallet is empty. | No | [Add credit](/v2/wallet#top-up), then retry. |
 | `422` | `flow_generation_failed` | No valid graph after three attempts. `details` lists what was still wrong. Nothing was saved. | Yes | Rephrase the brief: name each step and each branch explicitly, or shorten it. Try another model, or fix the graph by hand. |
 | `429` | `rate_limited` | Your workspace has used its 30 generations for the hour, or the generator is busy with other requests. | No | Wait for `Retry-After` seconds, then retry. |
 | `503` | `upstream_unavailable` | The model is unavailable, or stopped answering part way. | Only if the model had already answered | Wait for `Retry-After` seconds, then retry. |
@@ -702,7 +702,7 @@ higher than text, so the charge does not follow a token rate. It comes to about
 | :--- | :--- | :--- | :--- | :--- |
 | `400` | `invalid_request` | The body is not `multipart/form-data`; `file` is missing or empty; there is a second file or another field; the recording is over 15 minutes; the file is not audio that can be decoded; or `language` is over 32 characters. | No | Fix the request. Split a long recording, or convert it to mp3 or wav. |
 | `400` or `413` | `invalid_request` or `request_too_large` | The file is over 25 MB. | No | Compress it: a mono mp3 at 32 kbps holds 15 minutes in under 4 MB. |
-| `402` | `insufficient_balance` | Your wallet is empty. | No | [Top up](/v2/wallet#top-up), then retry. |
+| `402` | `insufficient_balance` | Your wallet is empty. | No | [Add credit](/v2/wallet#top-up), then retry. |
 | `422` | `transcription_failed` | No conversation was heard in the recording. | Yes | Check that it is a phone call with speech. |
 | `429` | `rate_limited` | Your workspace has used its 60 transcriptions for the hour, or the transcriber is busy with other requests. | No | Wait for `Retry-After` seconds, then retry. |
 | `503` | `upstream_unavailable` | The transcription model is unavailable. | No | Wait for `Retry-After` seconds, then retry. |
