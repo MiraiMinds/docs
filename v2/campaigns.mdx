@@ -447,6 +447,7 @@ POST /v2/campaigns
 | :--- | :--- | :--- | :--- |
 | `name` | string | yes | 1–120 characters. |
 | `agent_id` | string | yes | Must exist in your workspace. |
+| `agent_revision` | integer | no | A saved, published version of the agent to use. Defaults to its current one. |
 | `tier` | string | no | `t1` \| `t3` \| `t5`. Defaults to your key's tier, which is your company's plan, so leave it out. Calls at any other tier are not covered by your plan. Before your company goes live, campaigns run at `t5`, whatever you send. |
 | `timezone` | string | yes | IANA name, e.g. `Asia/Kolkata`. |
 | `start_date` / `end_date` | string | yes | `YYYY-MM-DD`, local, inclusive. |
@@ -704,8 +705,9 @@ While the campaign is `draft` or `paused` you can change: `name`, `slots`,
 `skip_called_before`, `final_results` and `always_on`. Not patchable:
 `agent_id`, `tier`, `timezone`.
 
-While it is running, only the pacing can change: `max_concurrent` and `slots`.
-They take effect straight away. Anything else returns `409 conflict`, because
+While it is running, only the pacing and the agent's version can change:
+`max_concurrent`, `slots` and `agent_revision`. They take effect straight away.
+Anything else returns `409 conflict`, because
 changing the retry policy or the budget under a live dialler would leave the
 campaign's own report describing settings that were never in force for half of
 its calls. Pause it, patch it, then resume it. A finished campaign can't be
@@ -719,6 +721,38 @@ curl -X PATCH https://sandbox.voice.miraiminds.co/v2/campaigns/cmp_01K7QAC5N9P4R
 ```
 
 Returns `200 OK` with the campaign object.
+
+### Switch to the agent's latest version
+
+A campaign keeps the version of its agent it was created with. If you change
+the agent later (a new voice, a new prompt), the campaign's calls don't pick
+that up on their own. The campaign object shows the version it uses in
+`agent_revision`, and `GET /v2/agents/{id}` shows the agent's current
+`revision`.
+
+To move the campaign onto the new version, send that revision. This works
+while the campaign is running, so you don't need to pause it:
+
+```bash
+curl -X PATCH https://sandbox.voice.miraiminds.co/v2/campaigns/cmp_01K7QAC5N9P4R7S3T6V8W2X4YB \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "agent_revision": 5 }'
+```
+
+The next calls use the new version. Calls already in progress finish as they
+started. A contact whose own [`call_settings`](#voice-and-language-per-contact)
+name a voice keeps that voice. You can also send an older revision to go back.
+In the console, the campaign page shows **Use the latest version** when the
+agent has changed.
+
+| Status | Code | When |
+|---|---|---|
+| `400` | `invalid_request` | `agent_revision` is not a positive number, or that revision is a draft. Publish the agent first. |
+| `404` | `not_found` | The agent has no such revision. |
+| `409` | `agent_archived` | The agent is archived. Restore it first. |
+| `409` | `agent_inputs_changed` | That version needs variables some waiting contacts don't have. The message names the first one. |
+| `503` | `fleet_offline` | A running campaign only: calling capacity for that version's voice is offline. Try again in a few minutes. |
 
 ---
 
