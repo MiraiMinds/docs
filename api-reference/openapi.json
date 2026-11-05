@@ -39,7 +39,7 @@
     },
     {
       "name": "Campaigns",
-      "description": "Call a whole list with one agent. Upload contacts, say which days and hours the campaign may ring, and start it. From then on it dials by itself: it paces itself, waits overnight, retries calls that didn't connect, skips numbers on your do-not-call list, and pauses itself when its budget or your wallet runs out.\n\nCampaign calls are ordinary calls. They show up in `GET /v2/calls`, send the same `call.*` webhooks and bill the same per-minute rate. In a sandbox workspace every campaign runs and bills at T5 (₹5 a minute), whatever tier you ask for.\n\nMoney on a campaign is in **paise**: `\"budget_paise\": 50000` is ₹500.\n\nThe requests run top to bottom: create saves `campaign_id`, and the rest use it. Starting a campaign rings every contact on it, so put numbers you're allowed to call in the bodies first."
+      "description": "Call a whole list with one agent. Upload contacts, say which days and hours the campaign may ring, and start it. From then on it dials by itself: it paces itself, waits overnight, retries calls that didn't connect, skips numbers on your do-not-call list, and pauses itself when its budget or your wallet runs out, or when as many calls have connected as you asked for.\n\nCampaign calls are ordinary calls. They show up in `GET /v2/calls`, send the same `call.*` webhooks and bill the same per-minute rate. In a sandbox workspace every campaign runs and bills at T5 (₹5 a minute), whatever tier you ask for.\n\nMoney on a campaign is in **paise**: `\"budget_paise\": 50000` is ₹500.\n\nThe requests run top to bottom: create saves `campaign_id`, and the rest use it. Starting a campaign rings every contact on it, so put numbers you're allowed to call in the bodies first."
     },
     {
       "name": "Do-not-call list",
@@ -11369,7 +11369,7 @@
       "post": {
         "operationId": "create_campaign",
         "summary": "Create a campaign",
-        "description": "Makes a **draft** campaign. Nothing rings until you start it.\n\nRequired: `name`, `agent_id`, `timezone`, `start_date`, `end_date` and `slots`. Dates are `YYYY-MM-DD` and slots are `HH:MM`, both in the campaign's own timezone; up to 4 slots, and a slot may cross midnight. Set the dates to the days you actually want to call. A campaign whose dates have passed finishes as soon as it starts.\n\nOptional: `max_concurrent` (1–50, default 1), `retry_count` (0–5 retries after the first attempt, default 0), `re_attempt_period_secs` (60–86400, default 900), `max_duration_secs` (defaults to the agent's), `budget_paise` (leave it out for no cap), `webhook_url`, `skip_called_before` (skip numbers another campaign has already reached), `final_results` (default `true`: each call ends with one `call.processed` carrying the transcript, the results and the contact's metadata) and `tier` (defaults to your plan).\n\n`contacts` is optional here: up to 1000 rows per request, each `{id?, phone, variables?, metadata?}`. `variables` fill the placeholders in the agent's prompt for that person, the same way they do on a single call. `metadata` is your own fields the agent doesn't need (a CRM id, a branch): kept with the contact and sent on each of its calls' webhooks, never given to the agent. Every campaign call's webhooks also name its `campaign_id` and `contact_id`. A bad row doesn't sink the upload. It comes back in `contacts_rejected` with its index, and the good rows are stored.\n\nThere is no idempotency key on this route. If a create times out, list your campaigns before you retry, or you may end up with two.",
+        "description": "Makes a **draft** campaign. Nothing rings until you start it.\n\nRequired: `name`, `agent_id`, `timezone`, `start_date`, `end_date` and `slots`. Dates are `YYYY-MM-DD` and slots are `HH:MM`, both in the campaign's own timezone; up to 4 slots, and a slot may cross midnight. Set the dates to the days you actually want to call. A campaign whose dates have passed finishes as soon as it starts.\n\nOptional: `max_concurrent` (1–50, default 1), `retry_count` (0–5 retries after the first attempt, default 0), `re_attempt_period_secs` (60–86400, default 900), `max_duration_secs` (defaults to the agent's), `budget_paise` (leave it out for no cap), `webhook_url`, `skip_called_before` (skip numbers another campaign has already reached), `final_results` (default `true`: each call ends with one `call.processed` carrying the transcript, the results and the contact's metadata), `pause_after_connected` (1–100000: the campaign pauses itself once that many calls have connected; leave it out or send null for no limit) and `tier` (defaults to your plan).\n\n`contacts` is optional here: up to 1000 rows per request, each `{id?, phone, variables?, metadata?}`. `variables` fill the placeholders in the agent's prompt for that person, the same way they do on a single call. `metadata` is your own fields the agent doesn't need (a CRM id, a branch): kept with the contact and sent on each of its calls' webhooks, never given to the agent. Every campaign call's webhooks also name its `campaign_id` and `contact_id`. A bad row doesn't sink the upload. It comes back in `contacts_rejected` with its index, and the good rows are stored.\n\nThere is no idempotency key on this route. If a create times out, list your campaigns before you retry, or you may end up with two.",
         "tags": [
           "Campaigns"
         ],
@@ -11382,6 +11382,10 @@
                 "properties": {
                   "agent_id": {
                     "type": "string"
+                  },
+                  "agent_revision": {
+                    "minimum": 1,
+                    "type": "integer"
                   },
                   "always_on": {
                     "type": "boolean"
@@ -11485,6 +11489,15 @@
                   "name": {
                     "type": "string"
                   },
+                  "pause_after_connected": {
+                    "description": "Pause the campaign on its own once this many calls have connected (completed or timeout; voicemail does not count). Counting starts when it is set and again on each start or resume after it paused the campaign. null removes it. May change while the campaign runs.",
+                    "maximum": 100000,
+                    "minimum": 1,
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
                   "phone_number_id": {
                     "description": "One of your phone numbers (GET /v2/phone-numbers) that every call of this campaign rings from, through its own provider connection. null clears it. Exclusive with caller_ids.",
                     "type": [
@@ -11575,6 +11588,7 @@
                     "retry_count": 1,
                     "re_attempt_period_secs": 3600,
                     "budget_paise": 50000,
+                    "pause_after_connected": 50,
                     "contacts": [
                       {
                         "id": "lead-1041",
@@ -11641,6 +11655,9 @@
                       "max_duration_secs": 300,
                       "budget_paise": 50000,
                       "spent_paise": 0,
+                      "pause_after_connected": 50,
+                      "pause_after_connected_count": 0,
+                      "pause_after_connected_since": "2026-10-09T06:12:40Z",
                       "skip_called_before": false,
                       "final_results": true,
                       "created_at": "2026-10-09T06:12:40Z",
@@ -11773,6 +11790,7 @@
                           "max_duration_secs": 300,
                           "budget_paise": 100000,
                           "spent_paise": 1500,
+                          "pause_after_connected": 100,
                           "skip_called_before": false,
                           "final_results": true,
                           "created_at": "2026-10-09T06:12:40Z",
@@ -11948,6 +11966,9 @@
                       "max_duration_secs": 300,
                       "budget_paise": 50000,
                       "spent_paise": 0,
+                      "pause_after_connected": 50,
+                      "pause_after_connected_count": 0,
+                      "pause_after_connected_since": "2026-10-09T06:12:40Z",
                       "skip_called_before": false,
                       "final_results": true,
                       "created_at": "2026-10-09T06:12:40Z",
@@ -11989,6 +12010,9 @@
                       "max_duration_secs": 300,
                       "budget_paise": 50000,
                       "spent_paise": 0,
+                      "pause_after_connected": 50,
+                      "pause_after_connected_count": 0,
+                      "pause_after_connected_since": "2026-10-09T06:12:40Z",
                       "skip_called_before": false,
                       "final_results": true,
                       "created_at": "2026-10-09T06:12:40Z",
@@ -12361,7 +12385,7 @@
       "patch": {
         "operationId": "update_campaign",
         "summary": "Update a campaign",
-        "description": "Send only the fields you want to change. A draft or paused campaign takes any setting except `agent_id` and `timezone`, which are fixed once it's created. While it's running, only `max_concurrent`, `slots` and `dial_cps` can change, and they take effect straight away. For anything else, pause, edit, then resume.\n\n`\"archived\": true` files a campaign away without touching its status, contacts or report; `false` brings it back. A running campaign can't be archived, and an archived one can't be started until you restore it.",
+        "description": "Send only the fields you want to change. A draft or paused campaign takes any setting except `agent_id` and `timezone`, which are fixed once it's created. While it's running, only `max_concurrent`, `slots`, `dial_cps`, `agent_revision` and `pause_after_connected` can change, and they take effect straight away. For anything else, pause, edit, then resume.\n\nA campaign keeps the version of its agent it was created with, so a later change to the agent (a new voice, a new prompt) doesn't reach its calls on its own. Send the agent's current `revision` (from `GET /v2/agents/{id}`) as `agent_revision` to move the campaign onto it. A running campaign's next calls use it; calls already in progress finish as they started. It's refused with `agent_inputs_changed` when that version needs variables some waiting contacts don't have.\n\n`pause_after_connected` is the pause rule: the campaign pauses itself, with `pause_reason: connected_limit_reached`, once that many calls have connected (completed, or ran to the max call length; voicemail doesn't count). Turning it on starts the count; changing the number keeps it; `null` removes the rule. Near the limit it rings only as many people as it still needs, and calls in progress always finish.\n\n`\"archived\": true` files a campaign away without touching its status, contacts or report; `false` brings it back. A running campaign can't be archived, and an archived one can't be started until you restore it.",
         "tags": [
           "Campaigns"
         ],
@@ -12384,6 +12408,10 @@
               "schema": {
                 "additionalProperties": false,
                 "properties": {
+                  "agent_revision": {
+                    "minimum": 1,
+                    "type": "integer"
+                  },
                   "always_on": {
                     "type": "boolean"
                   },
@@ -12423,6 +12451,15 @@
                   },
                   "name": {
                     "type": "string"
+                  },
+                  "pause_after_connected": {
+                    "description": "Pause the campaign on its own once this many calls have connected (completed or timeout; voicemail does not count). Counting starts when it is set and again on each start or resume after it paused the campaign. null removes it. May change while the campaign runs.",
+                    "maximum": 100000,
+                    "minimum": 1,
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
                   },
                   "phone_number_id": {
                     "description": "One of your phone numbers (GET /v2/phone-numbers) that every call of this campaign rings from, through its own provider connection. null clears it. Exclusive with caller_ids.",
@@ -12485,7 +12522,8 @@
                   "summary": "Update a campaign",
                   "value": {
                     "budget_paise": 100000,
-                    "max_concurrent": 3
+                    "max_concurrent": 3,
+                    "pause_after_connected": 100
                   }
                 }
               }
@@ -12528,6 +12566,9 @@
                       "max_duration_secs": 300,
                       "budget_paise": 100000,
                       "spent_paise": 0,
+                      "pause_after_connected": 100,
+                      "pause_after_connected_count": 0,
+                      "pause_after_connected_since": "2026-10-09T06:12:40Z",
                       "skip_called_before": false,
                       "final_results": true,
                       "created_at": "2026-10-09T06:12:40Z",
@@ -12550,7 +12591,7 @@
                     "value": {
                       "error": {
                         "code": "conflict",
-                        "message": "campaign cmp_01K79Q4T6W8XZ2B5D7F9H3JKMN is play; only a draft or paused campaign can be edited — pause it first, or send only max_concurrent, slots or dial_cps"
+                        "message": "campaign cmp_01K79Q4T6W8XZ2B5D7F9H3JKMN is play; only a draft or paused campaign can be edited — pause it first, or send only max_concurrent, slots, dial_cps, agent_revision or pause_after_connected"
                       }
                     }
                   }
@@ -12581,7 +12622,7 @@
       "get": {
         "operationId": "get_campaign",
         "summary": "Get a campaign",
-        "description": "The campaign's settings, status and `counters`: how many contacts are in each status (`pending`, `dialing`, `completed`, `no_answer`, `busy`, `failed`, `voicemail`, `timeout`, `exhausted`, `suppressed`, `skipped`, `aborted`). Poll it to watch a campaign run.\n\n`status` is `draft`, `play`, `paused`, `stopped` or `completed`. `pause_reason` says why a campaign paused: `insufficient_balance` or `budget_exhausted` when we paused it, the reason you gave when you did, and null otherwise.",
+        "description": "The campaign's settings, status and `counters`: how many contacts are in each status (`pending`, `dialing`, `completed`, `no_answer`, `busy`, `failed`, `voicemail`, `timeout`, `exhausted`, `suppressed`, `skipped`, `aborted`). Poll it to watch a campaign run.\n\n`status` is `draft`, `play`, `paused`, `stopped` or `completed`. `pause_reason` says why a campaign paused: `insufficient_balance`, `budget_exhausted` or `connected_limit_reached` (its pause rule) when it paused itself, the reason you gave when you did, and null otherwise.\n\nWith a pause rule set, `pause_after_connected_count` is how many calls have connected since `pause_after_connected_since`, when the count began.",
         "tags": [
           "Campaigns"
         ],
@@ -12633,6 +12674,9 @@
                       "max_duration_secs": 300,
                       "budget_paise": 100000,
                       "spent_paise": 1000,
+                      "pause_after_connected": 100,
+                      "pause_after_connected_count": 0,
+                      "pause_after_connected_since": "2026-10-09T06:12:40Z",
                       "skip_called_before": false,
                       "final_results": true,
                       "created_at": "2026-10-09T06:12:40Z",
@@ -12676,6 +12720,9 @@
                       "max_duration_secs": 300,
                       "budget_paise": 100000,
                       "spent_paise": 1000,
+                      "pause_after_connected": 100,
+                      "pause_after_connected_count": 0,
+                      "pause_after_connected_since": "2026-10-09T06:12:40Z",
                       "skip_called_before": false,
                       "final_results": true,
                       "created_at": "2026-10-09T06:12:40Z",
@@ -12683,6 +12730,53 @@
                       "counters": {
                         "completed": 2,
                         "pending": 1
+                      },
+                      "archived": false,
+                      "archived_at": null
+                    }
+                  },
+                  "Paused: its pause rule was reached": {
+                    "summary": "200 — paused: its pause rule was reached",
+                    "value": {
+                      "agent_revision": 1,
+                      "id": "cmp_01K79Q4T6W8XZ2B5D7F9H3JKMN",
+                      "object": "campaign",
+                      "name": "सर्विस रिमाइंडर — अक्टूबर",
+                      "agent_id": "agt_01K2M4P7QRSTVWXYZ0A1B2C3",
+                      "tier": "t5",
+                      "status": "paused",
+                      "pause_reason": "connected_limit_reached",
+                      "timezone": "Asia/Kolkata",
+                      "start_date": "2026-10-12",
+                      "end_date": "2026-10-16",
+                      "slots": [
+                        {
+                          "start": "10:00",
+                          "end": "13:00"
+                        },
+                        {
+                          "start": "16:00",
+                          "end": "19:00"
+                        }
+                      ],
+                      "max_concurrent": 3,
+                      "retry_count": 1,
+                      "re_attempt_period_secs": 3600,
+                      "max_duration_secs": 300,
+                      "budget_paise": 100000,
+                      "spent_paise": 41500,
+                      "pause_after_connected": 100,
+                      "pause_after_connected_count": 100,
+                      "pause_after_connected_since": "2026-10-12T04:30:00Z",
+                      "skip_called_before": false,
+                      "final_results": true,
+                      "created_at": "2026-10-09T06:12:40Z",
+                      "updated_at": "2026-10-13T08:02:11Z",
+                      "counters": {
+                        "completed": 96,
+                        "timeout": 4,
+                        "no_answer": 37,
+                        "pending": 63
                       },
                       "archived": false,
                       "archived_at": null
@@ -12916,7 +13010,7 @@
       "post": {
         "operationId": "resume_campaign",
         "summary": "Resume a campaign",
-        "description": "Picks a paused campaign up where it stopped. **Calls real people and spends credit.** Clears `pause_reason`.\n\nIf resume answers 409 and tells you to start the campaign, do that. Start picks it up the same way and checks your wallet again before it dials.",
+        "description": "Picks a paused campaign up where it stopped. **Calls real people and spends credit.** Clears `pause_reason`. After its pause rule paused it (`connected_limit_reached`), the count starts again, so it calls the next batch.\n\nIf resume answers 409 and tells you to start the campaign, do that. Start picks it up the same way and checks your wallet again before it dials.",
         "tags": [
           "Campaigns"
         ],
@@ -12969,6 +13063,111 @@
                       "error": {
                         "code": "campaign_archived",
                         "message": "campaign cmp_01K79Q4T6W8XZ2B5D7F9H3JKMN is archived; restore the campaign before resuming it"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/campaigns/{campaign_id}/history": {
+      "get": {
+        "operationId": "get_campaign_history",
+        "summary": "Get the history",
+        "description": "Every start, pause, resume, stop, completion and pause-rule change, newest first (`limit` 1–200, default 50), so you can see why a campaign paused after the fact.\n\n`by` is who did it, and null when the campaign did it on its own. Name yourself with a `Mirai-Actor` header on any campaign write (create, update, start, pause, resume, stop); without one it's your API key's label. `reason` is the pause reason on a pause, and on a completion `list_finished` or `end_date`. A pause by the rule adds `pause_after_connected` and `connected`; a rule change adds the new and `previous_pause_after_connected` (null means none); a start or resume adds `count_restarted: true` when the rule's count started again.",
+        "tags": [
+          "Campaigns"
+        ],
+        "parameters": [
+          {
+            "name": "campaign_id",
+            "in": "path",
+            "required": true,
+            "description": "The campaign's id (`cmp_…`).",
+            "schema": {
+              "type": "string"
+            },
+            "example": "cmp_01K79Q4T6W8XZ2B5D7F9H3JKMN"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "",
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "example": 50
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A paused campaign",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "A paused campaign": {
+                    "summary": "200 — a paused campaign",
+                    "value": {
+                      "object": "list",
+                      "data": [
+                        {
+                          "type": "paused",
+                          "at": "2026-10-13T08:02:11Z",
+                          "by": null,
+                          "reason": "connected_limit_reached",
+                          "pause_after_connected": 100,
+                          "connected": 100
+                        },
+                        {
+                          "type": "pause_rule_changed",
+                          "at": "2026-10-12T05:10:40Z",
+                          "by": "ritu",
+                          "reason": null,
+                          "pause_after_connected": 100,
+                          "previous_pause_after_connected": 50
+                        },
+                        {
+                          "type": "resumed",
+                          "at": "2026-10-12T04:30:00Z",
+                          "by": "ritu",
+                          "reason": null
+                        },
+                        {
+                          "type": "paused",
+                          "at": "2026-10-12T04:20:00Z",
+                          "by": null,
+                          "reason": "insufficient_balance"
+                        },
+                        {
+                          "type": "started",
+                          "at": "2026-10-12T04:00:03Z",
+                          "by": "ritu",
+                          "reason": null
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not in this workspace",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "Not in this workspace": {
+                    "summary": "404 — not in this workspace",
+                    "value": {
+                      "error": {
+                        "code": "not_found",
+                        "message": "no campaign cmp_01K79Q4T6W8XZ2B5D7F9H3JKMN"
                       }
                     }
                   }
@@ -14798,6 +14997,10 @@
                   "agent_id": {
                     "type": "string"
                   },
+                  "agent_revision": {
+                    "minimum": 1,
+                    "type": "integer"
+                  },
                   "always_on": {
                     "type": "boolean"
                   },
@@ -14833,6 +15036,15 @@
                   },
                   "name": {
                     "type": "string"
+                  },
+                  "pause_after_connected": {
+                    "description": "Pause the campaign on its own once this many calls have connected (completed or timeout; voicemail does not count). Counting starts when it is set and again on each start or resume after it paused the campaign. null removes it. May change while the campaign runs.",
+                    "maximum": 100000,
+                    "minimum": 1,
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
                   },
                   "phone_number_id": {
                     "description": "One of your phone numbers (GET /v2/phone-numbers) that every call of this campaign rings from, through its own provider connection. null clears it. Exclusive with caller_ids.",
@@ -14942,6 +15154,9 @@
                       "max_duration_secs": 300,
                       "budget_paise": 100000,
                       "spent_paise": 0,
+                      "pause_after_connected": 100,
+                      "pause_after_connected_count": 0,
+                      "pause_after_connected_since": "2026-10-09T06:12:40Z",
                       "skip_called_before": false,
                       "final_results": true,
                       "created_at": "2026-10-16T09:20:31Z",
