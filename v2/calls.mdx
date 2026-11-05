@@ -936,3 +936,93 @@ Every count is always present, even when it's zero.
 | :--- | :--- | :--- |
 | `400` | `invalid_request` | `from` or `to` is not an RFC 3339 timestamp. |
 | `503` | `summary_unavailable` | We couldn't read the totals just now. Try again. Don't read it as zero calls. |
+
+---
+
+## How your calls went
+
+```http
+GET /v2/insights?from=&to=
+```
+
+Every call your workspace made and took in a window, read as a whole: campaigns,
+incoming callers, one-off calls from your code or the console, and browser
+tests. It answers the questions a count can't. How many connected, how many the
+agent judged a success, what the calls cost, how fast your agents replied, and
+what needs you. These are the figures on the console's **Overview** page.
+
+| Query param | Description |
+| :--- | :--- |
+| `from` | Optional. RFC 3339 lower bound on `created_at`, inclusive. Defaults to 30 days before `to`. |
+| `to` | Optional. RFC 3339 upper bound on `created_at`, exclusive. Defaults to now. |
+
+The window is at most 92 days. Calls count by when they were created, the same
+way [`GET /v2/calls`](#list-calls) filters them.
+
+```bash
+curl -G https://sandbox.voice.miraiminds.co/v2/insights \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+  --data-urlencode "from=2026-10-07T00:00:00+05:30"
+```
+
+```json title="200 OK (shortened)"
+{
+  "object": "workspace_insights",
+  "workspace_id": "ws_5d72a1c3e9b04f6a8c2d1e07",
+  "from": "2026-10-06T18:30:00Z",
+  "to": "2026-11-05T09:12:44Z",
+  "timezone": "Asia/Kolkata",
+  "calls": {
+    "total": 943, "in_progress": 2, "settled": 941,
+    "connected": 604, "not_answered": 262, "failed": 38, "stopped": 35, "other": 2,
+    "short": 41, "engaged": 380, "talk_secs": 70860, "talk_p50_secs": 94,
+    "connect_rate_pct": 64.2, "failure_rate_pct": 4.0, "short_rate_pct": 6.8
+  },
+  "outcomes": { "analysed": 552, "success": 310, "not_success": 242, "no_verdict": 0,
+                "pending": 3, "analysis_failed": 1, "success_rate_pct": 56.2 },
+  "money": { "billed_paise": 797200, "billed_calls": 641, "per_connected_paise": 1320,
+             "per_success_paise": 2572, "per_talk_minute_paise": 675 },
+  "quality": { "calls_measured": 588, "v2v_turns": 7412, "v2v_p50_ms": 1100,
+               "v2v_p95_ms": 1600, "first_audio_p50_ms": 2300, "…": "…" },
+  "by_origin": { "campaign": { "calls": 698, "connected": 433, "…": "…" }, "inbound": { "…": "…" } },
+  "by_agent": [ { "agent_id": "agt_…", "name": "Service reminder", "calls": 754, "v2v_p50_ms": 1100, "…": "…" } ],
+  "daily": [ { "day": "2026-10-07", "calls": 31, "connected": 21, "…": "…" } ],
+  "attention": [
+    { "code": "wallet", "severity": "act", "count": 35, "last_at": "2026-11-05T06:30:00Z", "subject": null }
+  ],
+  "…": "…"
+}
+```
+
+| Field | Description |
+| :--- | :--- |
+| `calls` | Each call lands in exactly one bucket, so they add up to `total`: `in_progress`, `failed` (something broke on our side), `stopped` (your wallet, an agent that couldn't take the call, or a pre-call tool set to abort), `not_answered` (no answer, busy or voicemail), `connected` and `other`. `short` is a connected call under 15 seconds, `engaged` one of a minute or more. |
+| `outcomes` | What the [post-call analysis](/v2/analysis) judged. `success_rate_pct` is `success` out of `success` + `not_success`. |
+| `money` | Call charges only, in paise, with the cost per connected call, per successful call and per talk minute. The [wallet statement](/v2/wallet) has everything else. |
+| `quality` | How long callers waited for a reply: the time from the caller stopping to the agent starting to speak, over every caller turn (`v2v_p50_ms` typical, `v2v_p95_ms` the slowest 1 in 20), and the wait for the first words of a call. Recorded for calls from 5 November 2026 onward. |
+| `by_origin` | The same calls split into `campaign`, `inbound`, `outbound` (one at a time, from your code or the console), `web`, `text` and `realtime`. |
+| `by_agent` | Up to 50 agents, most calls first, each with its own counts, success rate and typical reply time. |
+| `daily` | One row per India (Asia/Kolkata) day the window touches, oldest first, days with no calls included. |
+| `refused`, `tools`, `numbers`, `inbound_misses` | Calls turned away before they started, by reason; tool runs on calls and how many failed; each number's answer rate; and calls that reached a number you haven't added to this workspace. |
+| `attention` | What needs you, most urgent first (`act` before `watch`). |
+
+Every key is always present. A rate, a cost per unit or a reply time is `null`
+when there's nothing to divide or measure, never `0`.
+
+| `attention.code` | Severity | What it means |
+| :--- | :--- | :--- |
+| `wallet` | `act` | Calls didn't start, or were cut off, because the wallet ran out. |
+| `inbound_misses` | `act` | People called a number on your telephony account that isn't added to this workspace, so nobody answered. |
+| `agent_unavailable` | `act` | Calls reached a number whose agent couldn't take them (unpublished, archived or missing). |
+| `throttled` | `watch` | Calls were turned away by a rate or concurrency limit. |
+| `failing_calls` | `watch` | A large share of calls failed on our side. We're alerted too. |
+| `tool_failures` | `watch` | Tools on your calls are failing often. |
+| `short_calls` | `watch` | Callers often hang up within 15 seconds on one agent (`subject`). |
+| `number_resting` | `watch` | One of your numbers (`subject`) is resting or cooling down to protect its answer rate. |
+
+| Status | Code | When |
+| :--- | :--- | :--- |
+| `400` | `invalid_request` | `from` or `to` is not an RFC 3339 timestamp, `from` isn't before `to`, or the window is longer than 92 days. |
+| `503` | `insights_unavailable` | We couldn't read the figures just now. Try again. Don't read it as a quiet month. |
+
+MCP clients get the same read as the `get_workspace_insights` tool.
