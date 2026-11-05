@@ -2315,6 +2315,17 @@
                     "minimum": 1,
                     "type": "integer"
                   },
+                  "allowed_tools": {
+                    "description": "The only tools of the agent that may run on this call, by name. Every other tool is turned off for this call in every phase (pre_call, on_call and post_call, builtins included), exactly as if the agent had turned it off; the builtin end_call always stays as the agent configured it, so the agent can still hang up. [] turns every tool off. Omitted or null: every tool the agent has on runs, as before. A name that is not one of the agent's tools is ignored, not refused, and a tool the agent has turned off stays off. At most 64 names of up to 64 characters, no repeats (400 invalid_request). Echoed as allowed_tools on the 202 and the call object when sent. Not accepted for channel realtime (400 invalid_request).",
+                    "items": {
+                      "maxLength": 64,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "maxItems": 64,
+                    "type": "array",
+                    "uniqueItems": true
+                  },
                   "call_settings": {
                     "additionalProperties": false,
                     "description": "This call's voice and languages, each key over the agent's (and, later, under a pre_call tool's call_settings). voice.voice_id is the older spelling of call_settings.voice_id; both with different values is 400 invalid_request. An unknown key, an unknown voice or language is 400 invalid_request naming the allowed values. The effective values and their sources are on the call object as call_settings.",
@@ -2359,7 +2370,7 @@
                   },
                   "channel": {
                     "default": "phone",
-                    "description": "phone dials to; the answer adds events_url (live events). web is a browser session: no to, no route; the answer adds ws_url and events_url. realtime is an OpenAI Realtime-compatible session with the same rules, answer and per-minute price as web, except that it is refused (429 concurrency_limit) rather than queued when no voice slot is free; first_message, system_prompt, timing, test and flow agents are not accepted on it.",
+                    "description": "phone dials to; the answer adds events_url (live events). web is a browser session: no to, no route; the answer adds ws_url and events_url. realtime is an OpenAI Realtime-compatible session with the same rules, answer and per-minute price as web, except that it is refused (429 concurrency_limit) rather than queued when no voice slot is free; first_message, system_prompt, timing, allowed_tools, test and flow agents are not accepted on it.",
                     "enum": [
                       "phone",
                       "web",
@@ -3027,6 +3038,295 @@
                       "error": {
                         "code": "workspace_archived",
                         "message": "Sub-workspace \"ws_6f1c0a9e2b7d4c3a8e5f9b10\" is archived. Restore it with POST /v2/workspaces/ws_6f1c0a9e2b7d4c3a8e5f9b10/restore to use it again."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/insights": {
+      "get": {
+        "operationId": "get_workspace_insights",
+        "summary": "How your calls went",
+        "description": "Every call your workspace made and took in a window, read as a whole: how many connected, how many the agent judged a success, the talk time, what the calls were charged, where they came from (campaigns, incoming calls, one-off calls from the API or the console, browser tests, text, realtime), each agent and number, a day-by-day count, how long callers waited for a reply, and an `attention` list of things that need you (an empty wallet, a number not added, an agent that could not take its calls). These are the figures on the console's Overview page.\n\n`from`/`to` (RFC 3339, UTC) bound the window; calls count by when they were created, as [List calls](/api-reference/calls/list-calls) filters them. Without them it is the last 30 days. The window is at most 92 days. `daily` is one row per India day (Asia/Kolkata) the window touches.\n\nEvery key is always present. A rate or a reply time is `null` when there is nothing to divide or measure, never `0`. Money is call charges only, in paise (the statement has everything else). A `503` means the figures could not be read right now: retry, and don't read it as a quiet month.",
+        "tags": [
+          "Calls"
+        ],
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "description": "",
+            "schema": {
+              "type": "string"
+            },
+            "example": "2026-10-06T18:30:00Z"
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "description": "",
+            "schema": {
+              "type": "string"
+            },
+            "example": "2026-11-05T09:12:44Z"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The last 30 days",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceInsights"
+                },
+                "examples": {
+                  "The last 30 days": {
+                    "summary": "200 — the last 30 days",
+                    "value": {
+                      "object": "workspace_insights",
+                      "workspace_id": "ws_01K2M4N8B3C5D7F9G1H3J5K7M9",
+                      "from": "2026-10-06T18:30:00Z",
+                      "to": "2026-11-05T09:12:44Z",
+                      "timezone": "Asia/Kolkata",
+                      "calls": {
+                        "total": 1240,
+                        "in_progress": 2,
+                        "settled": 1238,
+                        "connected": 812,
+                        "not_answered": 301,
+                        "failed": 38,
+                        "stopped": 23,
+                        "other": 64,
+                        "short": 96,
+                        "engaged": 503,
+                        "talk_secs": 98412,
+                        "talk_p50_secs": 94,
+                        "connect_rate_pct": 65.6,
+                        "failure_rate_pct": 3.1,
+                        "short_rate_pct": 11.8
+                      },
+                      "outcomes": {
+                        "analysed": 790,
+                        "success": 412,
+                        "not_success": 318,
+                        "no_verdict": 60,
+                        "pending": 9,
+                        "analysis_failed": 13,
+                        "success_rate_pct": 56.4
+                      },
+                      "money": {
+                        "billed_paise": 1096500,
+                        "billed_calls": 820,
+                        "per_connected_paise": 1350,
+                        "per_success_paise": 2661,
+                        "per_talk_minute_paise": 669
+                      },
+                      "quality": {
+                        "calls_measured": 790,
+                        "v2v_turns": 9120,
+                        "v2v_p50_ms": 1080,
+                        "v2v_p95_ms": 1620,
+                        "first_audio_p50_ms": 2310
+                      },
+                      "by_origin": {
+                        "campaign": {
+                          "calls": 980,
+                          "connected": 610,
+                          "failed": 30,
+                          "stopped": 21,
+                          "talk_secs": 71230,
+                          "billed_paise": 812400,
+                          "success": 318,
+                          "not_success": 250
+                        },
+                        "inbound": {
+                          "calls": 160,
+                          "connected": 142,
+                          "failed": 4,
+                          "stopped": 2,
+                          "talk_secs": 19870,
+                          "billed_paise": 201300,
+                          "success": 70,
+                          "not_success": 55
+                        },
+                        "outbound": {
+                          "calls": 64,
+                          "connected": 38,
+                          "failed": 3,
+                          "stopped": 0,
+                          "talk_secs": 5210,
+                          "billed_paise": 64600,
+                          "success": 18,
+                          "not_success": 10
+                        },
+                        "web": {
+                          "calls": 30,
+                          "connected": 18,
+                          "failed": 1,
+                          "stopped": 0,
+                          "talk_secs": 1830,
+                          "billed_paise": 15300,
+                          "success": 5,
+                          "not_success": 3
+                        },
+                        "text": {
+                          "calls": 4,
+                          "connected": 2,
+                          "failed": 0,
+                          "stopped": 0,
+                          "talk_secs": 120,
+                          "billed_paise": 900,
+                          "success": 1,
+                          "not_success": 0
+                        },
+                        "realtime": {
+                          "calls": 2,
+                          "connected": 2,
+                          "failed": 0,
+                          "stopped": 0,
+                          "talk_secs": 152,
+                          "billed_paise": 2000,
+                          "success": 0,
+                          "not_success": 0
+                        }
+                      },
+                      "by_agent": [
+                        {
+                          "agent_id": "agt_01K2M4P7QRSTVWXYZ0A1B2C3",
+                          "name": "Service reminder",
+                          "deleted": false,
+                          "calls": 1044,
+                          "connected": 652,
+                          "failed": 33,
+                          "stopped": 21,
+                          "short": 81,
+                          "talk_secs": 76440,
+                          "billed_paise": 877000,
+                          "success": 336,
+                          "not_success": 260,
+                          "success_rate_pct": 56.4,
+                          "v2v_p50_ms": 1060
+                        },
+                        {
+                          "agent_id": "agt_01K2M4Q2W4Y6A8C0E2G4J6L8N0",
+                          "name": "Front desk",
+                          "deleted": false,
+                          "calls": 196,
+                          "connected": 160,
+                          "failed": 5,
+                          "stopped": 2,
+                          "short": 15,
+                          "talk_secs": 21972,
+                          "billed_paise": 219500,
+                          "success": 76,
+                          "not_success": 58,
+                          "success_rate_pct": 56.7,
+                          "v2v_p50_ms": 1190
+                        }
+                      ],
+                      "daily": [
+                        {
+                          "day": "2026-11-04",
+                          "calls": 61,
+                          "connected": 40,
+                          "not_answered": 15,
+                          "failed": 2,
+                          "stopped": 1,
+                          "talk_secs": 4870,
+                          "billed_paise": 53800,
+                          "success": 21,
+                          "v2v_p50_ms": 1070
+                        },
+                        {
+                          "day": "2026-11-05",
+                          "calls": 22,
+                          "connected": 15,
+                          "not_answered": 5,
+                          "failed": 1,
+                          "stopped": 0,
+                          "talk_secs": 1760,
+                          "billed_paise": 19700,
+                          "success": 7,
+                          "v2v_p50_ms": 1100
+                        }
+                      ],
+                      "refused": {
+                        "total": 12,
+                        "by_code": {
+                          "insufficient_balance": 12
+                        },
+                        "last_at": "2026-11-02T06:41:09Z"
+                      },
+                      "tools": {
+                        "runs": 640,
+                        "failed": 9
+                      },
+                      "numbers": [
+                        {
+                          "number_id": "pn_01K2M4R6T8V0X2Z4B6D8F0H2K4",
+                          "number": "+918035312390",
+                          "health_state": "active",
+                          "attempts": 812,
+                          "answers": 529,
+                          "answer_rate_pct": 65.1
+                        }
+                      ],
+                      "inbound_misses": {
+                        "numbers": 0,
+                        "calls": 0,
+                        "last_at": null
+                      },
+                      "attention": [
+                        {
+                          "code": "wallet",
+                          "severity": "act",
+                          "count": 35,
+                          "last_at": "2026-11-02T06:41:09Z",
+                          "subject": null
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A window over 92 days",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "A window over 92 days": {
+                    "summary": "400 — a window over 92 days",
+                    "value": {
+                      "error": {
+                        "code": "invalid_request",
+                        "message": "the window is at most 92 days"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Figures unavailable",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "Figures unavailable": {
+                    "summary": "503 — figures unavailable",
+                    "value": {
+                      "error": {
+                        "code": "insights_unavailable",
+                        "message": "could not read the call record; try again shortly"
                       }
                     }
                   }
@@ -23599,6 +23899,13 @@
       "Call": {
         "description": "Partial call response schema documenting additive fields; other existing call fields are retained.",
         "properties": {
+          "allowed_tools": {
+            "description": "The allowed_tools the call was created with, as sent: the only tools of its agent that could run on it (the builtin end_call always stays as the agent configured it). Present on GET, list and the webhooks built from the stored call only when the call was created with it; absent otherwise.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "analysis": {
             "$ref": "#/components/schemas/CallAnalysisValue"
           },
@@ -23765,6 +24072,13 @@
       "CallCreated": {
         "description": "202 response of POST /v2/calls. Web calls and realtime sessions add the session credentials (ws_url and events_url); a phone call adds events_url. Both are paths the public edge makes absolute. transport names the channel of a web call or realtime session.",
         "properties": {
+          "allowed_tools": {
+            "description": "Echo of the request's allowed_tools, present only when it was sent (an idempotent replay repeats it). A client that sent allowed_tools and finds no echo is talking to a server that did not apply it: it should abort the call (POST /v2/calls/{id}/abort) rather than connect to it.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "events_url": {
             "description": "Live events (Server-Sent Events) path with a reusable read-only token, valid for the call's maximum duration plus one hour. Returned for phone calls, web calls and realtime sessions. An idempotent replay repeats it while the token is valid.",
             "type": "string"
@@ -26273,6 +26587,898 @@
           "created_at",
           "updated_at",
           "archived_at"
+        ],
+        "type": "object"
+      },
+      "WorkspaceInsights": {
+        "additionalProperties": false,
+        "description": "GET /v2/insights: how this workspace's calls created in [from, to) went. Every key is always present; a rate or per-unit cost is null when its denominator is 0. Counts are calls, one per call id; money is call charges in paise.",
+        "properties": {
+          "attention": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "code": {
+                  "enum": [
+                    "wallet",
+                    "inbound_misses",
+                    "agent_unavailable",
+                    "throttled",
+                    "failing_calls",
+                    "tool_failures",
+                    "short_calls",
+                    "number_resting"
+                  ],
+                  "type": "string"
+                },
+                "count": {
+                  "type": "integer"
+                },
+                "last_at": {
+                  "format": "date-time",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "severity": {
+                  "enum": [
+                    "act",
+                    "watch"
+                  ],
+                  "type": "string"
+                },
+                "subject": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "id",
+                    "name"
+                  ],
+                  "type": [
+                    "object",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "code",
+                "severity",
+                "count",
+                "last_at",
+                "subject"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "by_agent": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "agent_id": {
+                  "type": "string"
+                },
+                "billed_paise": {
+                  "type": "integer"
+                },
+                "calls": {
+                  "type": "integer"
+                },
+                "connected": {
+                  "type": "integer"
+                },
+                "deleted": {
+                  "type": "boolean"
+                },
+                "failed": {
+                  "type": "integer"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "not_success": {
+                  "type": "integer"
+                },
+                "short": {
+                  "type": "integer"
+                },
+                "stopped": {
+                  "type": "integer"
+                },
+                "success": {
+                  "type": "integer"
+                },
+                "success_rate_pct": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "talk_secs": {
+                  "type": "integer"
+                },
+                "v2v_p50_ms": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "agent_id",
+                "name",
+                "deleted",
+                "calls",
+                "connected",
+                "failed",
+                "stopped",
+                "short",
+                "talk_secs",
+                "billed_paise",
+                "success",
+                "not_success",
+                "success_rate_pct",
+                "v2v_p50_ms"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "by_origin": {
+            "additionalProperties": false,
+            "properties": {
+              "campaign": {
+                "additionalProperties": false,
+                "properties": {
+                  "billed_paise": {
+                    "type": "integer"
+                  },
+                  "calls": {
+                    "type": "integer"
+                  },
+                  "connected": {
+                    "type": "integer"
+                  },
+                  "failed": {
+                    "type": "integer"
+                  },
+                  "not_success": {
+                    "type": "integer"
+                  },
+                  "stopped": {
+                    "type": "integer"
+                  },
+                  "success": {
+                    "type": "integer"
+                  },
+                  "talk_secs": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "calls",
+                  "connected",
+                  "failed",
+                  "stopped",
+                  "talk_secs",
+                  "billed_paise",
+                  "success",
+                  "not_success"
+                ],
+                "type": "object"
+              },
+              "inbound": {
+                "additionalProperties": false,
+                "properties": {
+                  "billed_paise": {
+                    "type": "integer"
+                  },
+                  "calls": {
+                    "type": "integer"
+                  },
+                  "connected": {
+                    "type": "integer"
+                  },
+                  "failed": {
+                    "type": "integer"
+                  },
+                  "not_success": {
+                    "type": "integer"
+                  },
+                  "stopped": {
+                    "type": "integer"
+                  },
+                  "success": {
+                    "type": "integer"
+                  },
+                  "talk_secs": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "calls",
+                  "connected",
+                  "failed",
+                  "stopped",
+                  "talk_secs",
+                  "billed_paise",
+                  "success",
+                  "not_success"
+                ],
+                "type": "object"
+              },
+              "outbound": {
+                "additionalProperties": false,
+                "properties": {
+                  "billed_paise": {
+                    "type": "integer"
+                  },
+                  "calls": {
+                    "type": "integer"
+                  },
+                  "connected": {
+                    "type": "integer"
+                  },
+                  "failed": {
+                    "type": "integer"
+                  },
+                  "not_success": {
+                    "type": "integer"
+                  },
+                  "stopped": {
+                    "type": "integer"
+                  },
+                  "success": {
+                    "type": "integer"
+                  },
+                  "talk_secs": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "calls",
+                  "connected",
+                  "failed",
+                  "stopped",
+                  "talk_secs",
+                  "billed_paise",
+                  "success",
+                  "not_success"
+                ],
+                "type": "object"
+              },
+              "realtime": {
+                "additionalProperties": false,
+                "properties": {
+                  "billed_paise": {
+                    "type": "integer"
+                  },
+                  "calls": {
+                    "type": "integer"
+                  },
+                  "connected": {
+                    "type": "integer"
+                  },
+                  "failed": {
+                    "type": "integer"
+                  },
+                  "not_success": {
+                    "type": "integer"
+                  },
+                  "stopped": {
+                    "type": "integer"
+                  },
+                  "success": {
+                    "type": "integer"
+                  },
+                  "talk_secs": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "calls",
+                  "connected",
+                  "failed",
+                  "stopped",
+                  "talk_secs",
+                  "billed_paise",
+                  "success",
+                  "not_success"
+                ],
+                "type": "object"
+              },
+              "text": {
+                "additionalProperties": false,
+                "properties": {
+                  "billed_paise": {
+                    "type": "integer"
+                  },
+                  "calls": {
+                    "type": "integer"
+                  },
+                  "connected": {
+                    "type": "integer"
+                  },
+                  "failed": {
+                    "type": "integer"
+                  },
+                  "not_success": {
+                    "type": "integer"
+                  },
+                  "stopped": {
+                    "type": "integer"
+                  },
+                  "success": {
+                    "type": "integer"
+                  },
+                  "talk_secs": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "calls",
+                  "connected",
+                  "failed",
+                  "stopped",
+                  "talk_secs",
+                  "billed_paise",
+                  "success",
+                  "not_success"
+                ],
+                "type": "object"
+              },
+              "web": {
+                "additionalProperties": false,
+                "properties": {
+                  "billed_paise": {
+                    "type": "integer"
+                  },
+                  "calls": {
+                    "type": "integer"
+                  },
+                  "connected": {
+                    "type": "integer"
+                  },
+                  "failed": {
+                    "type": "integer"
+                  },
+                  "not_success": {
+                    "type": "integer"
+                  },
+                  "stopped": {
+                    "type": "integer"
+                  },
+                  "success": {
+                    "type": "integer"
+                  },
+                  "talk_secs": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "calls",
+                  "connected",
+                  "failed",
+                  "stopped",
+                  "talk_secs",
+                  "billed_paise",
+                  "success",
+                  "not_success"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "campaign",
+              "inbound",
+              "outbound",
+              "web",
+              "text",
+              "realtime"
+            ],
+            "type": "object"
+          },
+          "calls": {
+            "additionalProperties": false,
+            "properties": {
+              "connect_rate_pct": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "connected": {
+                "type": "integer"
+              },
+              "engaged": {
+                "type": "integer"
+              },
+              "failed": {
+                "type": "integer"
+              },
+              "failure_rate_pct": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "in_progress": {
+                "type": "integer"
+              },
+              "not_answered": {
+                "type": "integer"
+              },
+              "other": {
+                "type": "integer"
+              },
+              "settled": {
+                "type": "integer"
+              },
+              "short": {
+                "type": "integer"
+              },
+              "short_rate_pct": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "stopped": {
+                "type": "integer"
+              },
+              "talk_p50_secs": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "talk_secs": {
+                "type": "integer"
+              },
+              "total": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "total",
+              "in_progress",
+              "settled",
+              "connected",
+              "not_answered",
+              "failed",
+              "stopped",
+              "other",
+              "short",
+              "engaged",
+              "talk_secs",
+              "talk_p50_secs",
+              "connect_rate_pct",
+              "failure_rate_pct",
+              "short_rate_pct"
+            ],
+            "type": "object"
+          },
+          "daily": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "billed_paise": {
+                  "type": "integer"
+                },
+                "calls": {
+                  "type": "integer"
+                },
+                "connected": {
+                  "type": "integer"
+                },
+                "day": {
+                  "type": "string"
+                },
+                "failed": {
+                  "type": "integer"
+                },
+                "not_answered": {
+                  "type": "integer"
+                },
+                "stopped": {
+                  "type": "integer"
+                },
+                "success": {
+                  "type": "integer"
+                },
+                "talk_secs": {
+                  "type": "integer"
+                },
+                "v2v_p50_ms": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "day",
+                "calls",
+                "connected",
+                "not_answered",
+                "failed",
+                "stopped",
+                "talk_secs",
+                "billed_paise",
+                "success",
+                "v2v_p50_ms"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "from": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "inbound_misses": {
+            "additionalProperties": false,
+            "properties": {
+              "calls": {
+                "type": "integer"
+              },
+              "last_at": {
+                "format": "date-time",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "numbers": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "numbers",
+              "calls",
+              "last_at"
+            ],
+            "type": "object"
+          },
+          "language": {
+            "additionalProperties": false,
+            "properties": {
+              "calls_measured": {
+                "type": "integer"
+              },
+              "calls_with_requests": {
+                "type": "integer"
+              },
+              "followed": {
+                "type": "integer"
+              },
+              "no_reply": {
+                "type": "integer"
+              },
+              "not_followed": {
+                "type": "integer"
+              },
+              "not_offered": {
+                "type": "integer"
+              },
+              "requests": {
+                "type": "integer"
+              },
+              "unclear": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "calls_measured",
+              "calls_with_requests",
+              "requests",
+              "followed",
+              "not_followed",
+              "not_offered",
+              "no_reply",
+              "unclear"
+            ],
+            "type": "object"
+          },
+          "money": {
+            "additionalProperties": false,
+            "properties": {
+              "billed_calls": {
+                "type": "integer"
+              },
+              "billed_paise": {
+                "type": "integer"
+              },
+              "per_connected_paise": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "per_success_paise": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "per_talk_minute_paise": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "billed_paise",
+              "billed_calls",
+              "per_connected_paise",
+              "per_success_paise",
+              "per_talk_minute_paise"
+            ],
+            "type": "object"
+          },
+          "numbers": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "answer_rate_pct": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "answers": {
+                  "type": "integer"
+                },
+                "attempts": {
+                  "type": "integer"
+                },
+                "health_state": {
+                  "type": "string"
+                },
+                "number": {
+                  "type": "string"
+                },
+                "number_id": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "number_id",
+                "number",
+                "health_state",
+                "attempts",
+                "answers",
+                "answer_rate_pct"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "object": {
+            "enum": [
+              "workspace_insights"
+            ],
+            "type": "string"
+          },
+          "outcomes": {
+            "additionalProperties": false,
+            "properties": {
+              "analysed": {
+                "type": "integer"
+              },
+              "analysis_failed": {
+                "type": "integer"
+              },
+              "no_verdict": {
+                "type": "integer"
+              },
+              "not_success": {
+                "type": "integer"
+              },
+              "pending": {
+                "type": "integer"
+              },
+              "success": {
+                "type": "integer"
+              },
+              "success_rate_pct": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "analysed",
+              "success",
+              "not_success",
+              "no_verdict",
+              "pending",
+              "analysis_failed",
+              "success_rate_pct"
+            ],
+            "type": "object"
+          },
+          "quality": {
+            "additionalProperties": false,
+            "properties": {
+              "calls_measured": {
+                "type": "integer"
+              },
+              "fallback_calls": {
+                "type": "integer"
+              },
+              "first_audio_p50_ms": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "held_turns": {
+                "type": "integer"
+              },
+              "hold_p50_ms": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "llm_p50_ms": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "llm_p95_ms": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "stt_p50_ms": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "stt_p95_ms": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "tts_p50_ms": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "tts_p95_ms": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "v2v_p50_ms": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "v2v_p95_ms": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "v2v_turns": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "calls_measured",
+              "v2v_turns",
+              "v2v_p50_ms",
+              "v2v_p95_ms",
+              "first_audio_p50_ms",
+              "stt_p50_ms",
+              "stt_p95_ms",
+              "llm_p50_ms",
+              "llm_p95_ms",
+              "tts_p50_ms",
+              "tts_p95_ms",
+              "held_turns",
+              "hold_p50_ms",
+              "fallback_calls"
+            ],
+            "type": "object"
+          },
+          "refused": {
+            "additionalProperties": false,
+            "properties": {
+              "by_code": {
+                "additionalProperties": {
+                  "type": "integer"
+                },
+                "type": "object"
+              },
+              "last_at": {
+                "format": "date-time",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "total": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "total",
+              "by_code",
+              "last_at"
+            ],
+            "type": "object"
+          },
+          "timezone": {
+            "type": "string"
+          },
+          "to": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "tools": {
+            "additionalProperties": false,
+            "properties": {
+              "failed": {
+                "type": "integer"
+              },
+              "runs": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "runs",
+              "failed"
+            ],
+            "type": "object"
+          },
+          "workspace_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "object",
+          "workspace_id",
+          "from",
+          "to",
+          "timezone",
+          "calls",
+          "outcomes",
+          "money",
+          "quality",
+          "language",
+          "by_origin",
+          "by_agent",
+          "daily",
+          "refused",
+          "tools",
+          "numbers",
+          "inbound_misses",
+          "attention"
         ],
         "type": "object"
       }

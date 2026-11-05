@@ -176,6 +176,7 @@
               "GET /v2/calls/{call_id}",
               "GET /v2/calls",
               "GET /v2/calls/summary",
+              "GET /v2/insights",
               "GET /v2/calls/{call_id}/events",
               "POST /v2/calls/{call_id}/control",
               "GET /v2/calls/{call_id}/control/{control_id}",
