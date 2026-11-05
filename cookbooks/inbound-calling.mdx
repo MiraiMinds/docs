@@ -13,6 +13,15 @@ conversation, and its call history, transcript, and recording. For what an
 answering agent can do for a business, see the
 [AI receptionist use case](https://voice.miraiminds.co/use-cases/inbound-receptionist).
 
+
+{/* Costs: mirai-voice console/static/pricing.json; number rental: RentalAmountPaise and RentalTermMonths in mirai-conductor internal/telephony/rentals.go. */}
+
+| | |
+| :--- | :--- |
+| Costs | Calls at your plan's rate, ₹5 a minute on T5. A number bought through Mirai is ₹1,500 for 3 months. |
+| Runs in | Indian +91 phone numbers |
+| You need | ₹1,500 of available credit to buy a number through Mirai |
+
 ## What you'll build
 
 A phone number that answers incoming calls with your agent's greeting and
@@ -20,14 +29,20 @@ instructions. You can set it up in the console or from your backend.
 
 Choose the option that suits your business:
 
-| Option | What you do |
-| :--- | :--- |
-| **Buy a number through Mirai** | Open **Phone numbers → Add a number**, choose **Mirai wallet** as the billing account, complete any required business verification, and confirm the number rental. You do not need your own Plivo account or credentials. |
-| **Connect your own telco** | Connect your supported provider account and import a voice number you own. You keep your provider account and its billing. Bring a Plivo account, or connect any carrier through [your own SIP trunk](/v2/sip-trunk). |
+| Option | Cost | What you do |
+| :--- | :--- | :--- |
+| **Buy a number through Mirai** | ₹1,500 for 3 months, from your wallet. Renews automatically. | Open **Phone numbers → Add a number**, choose **Mirai wallet** as the billing account, complete any required business verification, and confirm the number rental. You do not need your own Plivo account or credentials. |
+| **Connect your own telco** | Your telco bills the number and its minutes. | Connect your supported provider account and import a voice number you own. You keep your provider account and its billing. Bring a Plivo account, or connect any carrier through [your own SIP trunk](/v2/sip-trunk). |
 
 Both options add a dedicated number to your workspace. You then use the same
-agent assignment and activation steps. Numbers purchased through Mirai are
-recurring rentals; review their charges and renewal terms before confirming.
+agent assignment and activation steps. Calls on either number are billed at
+your plan's rate.
+
+A number bought through Mirai needs ₹1,500 of available credit in your wallet
+when you buy it. It renews every 3 months for ₹1,500 from the wallet, with no
+setup fee. If the wallet does not have ₹1,500 on the renewal date, the number
+is released and nothing is charged. You can turn renewal off on the
+**Phone numbers** page.
 
 This recipe currently supports **Indian +91 voice numbers**. WhatsApp calling has a
 [separate cookbook](/cookbooks/whatsapp-calling-for-partners).
@@ -82,8 +97,8 @@ send `POST /v2/calls` to receive a call. That endpoint starts an outgoing call.
 2. Complete **Verify your business** if prompted. Submit the requested details
    and documents, then use **Refresh status** to check the review result.
 3. After approval, search the available numbers and select one for your business.
-4. Review the rental amount, renewal terms, and separate call-usage charges.
-   Confirm the rental from your workspace wallet.
+4. Review the rental: ₹1,500 for 3 months, renewing automatically, with call
+   usage billed separately. Confirm the rental from your workspace wallet.
 5. Once the purchase completes and the number appears in your workspace,
    continue to agent assignment below.
 
@@ -410,8 +425,9 @@ restoring previous voice routing if you move away from Mirai.
 ## Billing and privacy
 
 Mirai call usage follows your workspace's [pricing](/general/tiers). For BYO
-Plivo, Plivo bills your provider account separately. Managed number rental and
-renewal charges are separate from call usage; review the displayed terms.
+Plivo, Plivo bills your provider account separately. A number bought through
+Mirai costs ₹1,500 for 3 months, charged to the wallet separately from call
+usage, and renews automatically.
 
 Tell callers they are speaking with an AI voice agent and provide appropriate
 recording notices. Keep API keys, Plivo tokens, webhook secrets, transcripts,
@@ -427,3 +443,6 @@ recipe does not establish regulatory compliance.
   have passed the audio and result checks.
 - Webhook verification, caller notices, result access, and retention are set up.
 - Your expected concurrent-call volume and number renewal arrangements are confirmed.
+- You went live and switched to production: base URL
+  `https://prod.voice.miraiminds.co` and a key from the live console. See
+  [Go live](/v2/go-live).

@@ -13,6 +13,15 @@ The [example app on GitHub](https://github.com/MiraiMinds/node-flow-builder)
 uses React Flow for the canvas and Express for the backend. It includes a
 working local demo and a live mode that sends requests to your workspace.
 
+
+{/* Costs: mirai-voice console/static/pricing.json; number rental: RentalAmountPaise and RentalTermMonths in mirai-conductor internal/telephony/rentals.go. */}
+
+| | |
+| :--- | :--- |
+| Costs | Calls at your plan's rate, ₹5 a minute on T5. Node-based agents cost the same as any other agent. |
+| Runs in | Your product, with phone and browser calls |
+| Example | [node-flow-builder on GitHub](https://github.com/MiraiMinds/node-flow-builder) |
+
 ## What you will build
 
 The sample agent handles delivery questions. It greets the caller, moves to an
@@ -625,3 +634,7 @@ Start by adapting `shared/example.js` and the forms in `src/main.jsx`. Keep
 the server boundary and revision handling when you move the editor into your
 application. The [full source](https://github.com/MiraiMinds/node-flow-builder)
 includes the sample tool, error handling, and tests.
+
+When your users are ready for real calls, [go live](/v2/go-live) and switch the
+API host to `https://prod.voice.miraiminds.co`, with a key from the live
+console.

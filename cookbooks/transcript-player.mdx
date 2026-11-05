@@ -10,6 +10,15 @@ the job finishes, then the transcript with speakers, in step with the audio. The
 same pattern fits call quality review, sales coaching, recorded interviews and
 subtitles for recorded calls.
 
+
+{/* Costs: mirai-voice console/static/pricing.json; number rental: RentalAmountPaise and RentalTermMonths in mirai-conductor internal/telephony/rentals.go. */}
+
+| | |
+| :--- | :--- |
+| Costs | ₹15 per hour of audio, so a 5-minute call costs ₹1.25. Failed jobs are free. |
+| Runs in | Your server and a web page |
+| Time | About 30 seconds for a two-minute call |
+
 ## What you'll build
 
 - A reviewer chooses a recording (WAV, MP3 or M4A, up to 45 MB), adds a line of
@@ -802,6 +811,9 @@ a job before they touch it.
 - [ ] You have a retention period for transcripts and enforce it.
 - [ ] Callers are told about recording and transcription.
 - [ ] You ran the test call above and got four lines for ₹0.12.
+- [ ] You went live and switched to production: base URL
+  `https://prod.voice.miraiminds.co` and a key from the live console. See
+  [Go live](/v2/go-live).
 
 ## Related
 

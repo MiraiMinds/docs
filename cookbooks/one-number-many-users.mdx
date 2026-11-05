@@ -11,6 +11,15 @@ user reads. Call-screening apps, shared support lines, personal assistant
 numbers and any app that gives many accounts one number follow the same
 pattern.
 
+
+{/* Costs: mirai-voice console/static/pricing.json; number rental: RentalAmountPaise and RentalTermMonths in mirai-conductor internal/telephony/rentals.go. */}
+
+| | |
+| :--- | :--- |
+| Costs | Calls at your plan's rate, ₹5 a minute on T5. The pre-call lookup is a tool run, free while we measure usage. |
+| Runs in | One shared phone number, Indian +91 |
+| Number | ₹1,500 for 3 months through Mirai, or your own telco's |
+
 ## What you'll build
 
 - A shared number whose calls go to one agent.
@@ -639,6 +648,9 @@ Create it as in step 3 and assign it to your number, then:
   by the call `id` saved during the lookup.
 - Your app can end a call with `POST /v2/calls/{id}/abort`, and you've tested
   it on a live call.
+- You went live and switched to production: base URL
+  `https://prod.voice.miraiminds.co` and a key from the live console. See
+  [Go live](/v2/go-live).
 
 ## Related
 

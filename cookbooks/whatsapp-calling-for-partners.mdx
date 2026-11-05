@@ -86,12 +86,27 @@ under your existing Meta arrangement, separate from Voice Infra billing.
 
 ## Step 1: Activate the partner workspace
 
-Complete **Go live** and the billing setup with Voice Infra once for your partner
-workspace. Confirm your billing contact, commercial terms, funded balance and
-call limit. There is no public partner-signup endpoint that turns a sandbox key
-into production access.
+{/* Costs: WhatsApp calls are billed at the plan's agent rate with no Mirai
+    telco charge (mirai-voice console/static/pricing.json, every tier). */}
 
-We supply these values through a private channel:
+| | |
+| :--- | :--- |
+| Status | Early access |
+| Costs | Your plan's per-minute rate, ₹5 on T5. No line charge from us. |
+| Meta | Bills its own charges under your Meta arrangement |
+| You need | A live workspace, then WhatsApp calling turned on |
+
+<a className="mm-cta" href="https://sandbox.voice.miraiminds.co/#/live">Go live</a> [Request WhatsApp calling](mailto:help@miraiminds.co?subject=Request%20WhatsApp%20calling)
+
+[Go live](/v2/go-live) once for your partner workspace: ₹100 to start on T5,
+plus GST, all of it call credit. Then request WhatsApp calling with your
+expected call capacity, and we turn it on for the workspace. There is no public
+partner-signup endpoint that turns a sandbox key into production access.
+
+Create the API key in the
+[live console](https://console.voice.miraiminds.co/#/developers) under
+**Developers**; its webhook signing secret comes with it. Our reply to your
+request confirms the call capacity. Keep these values on your backend:
 
 | Value | Purpose |
 | :--- | :--- |
@@ -778,6 +793,9 @@ those workflows.
   failure, wallet exhaustion, alerting and recovery tests.
 - Credential rotation, brand updates and disconnects work as documented.
 - Brand isolation, retention, caller notices and settled usage are verified.
+- You went live and switched to production: base URL
+  `https://prod.voice.miraiminds.co` and a key from the live console. See
+  [Go live](/v2/go-live).
 
 <Note>
 Do not enable every brand just because the first number registered. Keep each
