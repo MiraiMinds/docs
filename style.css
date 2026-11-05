@@ -191,3 +191,21 @@ html, body { background-color: var(--c-paper); }
 [data-component-part="code-block-root"], .code-block {
   border-color: var(--c-line) !important;
 }
+
+/* ── one primary action per page ────────────────────────────────────────
+   A page's main next step (Go live, Create your API key) is a solid ink
+   button, the same as the console's primary button and the navbar's. Every
+   other link on the page stays a plain underlined link. */
+#content-area a.mm-cta {
+  display: inline-block;
+  background: var(--c-ink);
+  color: var(--c-on-dark) !important;
+  text-decoration: none !important;
+  padding: 9px 16px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 14.5px;
+  line-height: 1.3;
+  margin: 4px 12px 4px 0;
+}
+#content-area a.mm-cta:hover { background: #000; }

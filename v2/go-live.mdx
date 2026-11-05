@@ -1,0 +1,164 @@
+---
+title: "Go live: move your sandbox to production"
+sidebarTitle: "Go live"
+description: "Go live in the console for ₹100 of call credit, plus GST. Your agents, calls and numbers move across, and you change two things in your code: the base URL and the API key."
+---
+
+import OutOfCredit from "/snippets/out-of-credit.mdx";
+
+{/* Figures: pricing.json (rates, commitments), LIVE_PAYG_OPENING_PAISE and
+    LIVE_GST_BASIS_POINTS (mirai-voice console/webphone.py), MIRA_CODE_DEFAULT_DAYS
+    (14), what moves: mirai-conductor internal/adopt/adopt.go (Moved, Kept), what
+    stops: console/access_ends.py and conductor internal/v2/access.go. */}
+
+Going live turns your sandbox into a company workspace with no end date, and
+everything you built moves with it.
+
+| | |
+| :--- | :--- |
+| First payment | ₹118: ₹100 of call credit and ₹18 GST |
+| Per minute | ₹5 to start, ₹1.50 all-in at volume |
+| Moves across | Agents, calls, campaigns, numbers |
+| You change | Base URL and API key |
+
+<a className="mm-cta" href="https://sandbox.voice.miraiminds.co/#/live">Go live in the console</a> [Compare the plans](/general/tiers)
+
+## What changes
+
+| | Sandbox | After Go live |
+| :--- | :--- | :--- |
+| API base URL | `sandbox.voice.miraiminds.co` | `prod.voice.miraiminds.co` |
+| Console | [Sandbox console](https://sandbox.voice.miraiminds.co) | [Live console](https://console.voice.miraiminds.co) |
+| API key | Sandbox key | A new key |
+| Webhook secret | Sandbox `whsec_…` | A new `whsec_…` |
+| Price | T5, ₹5 a minute | Your plan |
+| Credit | ₹200 starter credit | What you pay in |
+| End date | Yes | None |
+
+The routes, request bodies and responses are the same on both addresses. A
+sandbox key sent to the production address gets
+`403 production_workspace_required`, so change the key and the base URL
+together.
+
+## Steps
+
+<Steps>
+<Step title="Open Go live">
+Press **Go live** in the [sandbox console](https://sandbox.voice.miraiminds.co/#/live).
+Only someone who has confirmed their work email can go live.
+</Step>
+
+<Step title="Choose a plan">
+
+| Plan | Per minute | First payment | Commitment |
+| :--- | :--- | :--- | :--- |
+| T5 | ₹5 | ₹100 + GST | None |
+| T3 | ₹3 | ₹50,000 + GST | ₹50,000 a month |
+| T1 | ₹1.50 all-in | ₹1,00,000 + GST | ₹1,00,000 a month |
+
+GST is 18%, so the first payment is ₹118, ₹59,000 or ₹1,18,000. Everything
+before GST lands in your wallet as call credit. T1 is ₹1 a minute for the
+voice AI, plus ₹0.30 for our phone line and ₹0.20 for call insights; T5 and T3
+include both. Every plan runs the same stack. See
+[Billing & tiers](/general/tiers).
+</Step>
+
+<Step title="Confirm it's you">
+We email a six-digit code to the address you give. Type it in, or use the
+sign-in link in the same email.
+</Step>
+
+<Step title="Add your business details">
+These go on your invoices. Type your GSTIN and the rest fills in, or choose
+**I don't have a GSTIN** and fill in five short fields.
+</Step>
+
+<Step title="Pay">
+The last screen shows your plan, your business and what moves across. Pay
+through Razorpay: card, UPI or net banking. On T3 and T1 you choose how each
+month is paid: in the app each month, or automatically by bank mandate.
+</Step>
+
+<Step title="Switch your code to production">
+In the [live console](https://console.voice.miraiminds.co/#/developers), go to
+**Developers** and press **Create key**. Then:
+
+1. Set your base URL to `https://prod.voice.miraiminds.co`.
+2. Replace the sandbox key with the new one.
+3. Add your webhook endpoint again, and verify with the new `whsec_…` secret.
+
+```bash
+curl https://prod.voice.miraiminds.co/v2/wallet \
+  -H "Authorization: Bearer sk_live_YOUR_PRODUCTION_KEY"
+```
+
+```json
+{ "balance_inr": 100, "currency": "INR", "updated_at": "2026-11-05T09:12:44Z" }
+```
+</Step>
+</Steps>
+
+## What moves across
+
+Everything you built moves into the company workspace and keeps its id, so a
+call still links to its agent and a number to its agent.
+
+| Moves | Stays in the sandbox |
+| :--- | :--- |
+| Agents and their versions | Starter credit and its statement |
+| Calls, transcripts and results | API keys |
+| Campaigns and their contacts | Webhook endpoints and secrets |
+| Phone numbers, pools and rentals | |
+| Do-not-call list | |
+| Knowledge bases and tool secrets | |
+| Custom voices | |
+
+<Tip>
+Pause any campaign that is dialling in the sandbox before you pay. The move
+waits until no campaign is running.
+</Tip>
+
+## When a sandbox ends
+
+Every sandbox has an end date, shown in the console. A self-serve sandbox gets
+14 days. On that date two things stop:
+
+| What stops | What you see |
+| :--- | :--- |
+| Console sign-in | The sign-in page says your sandbox has ended. |
+| API keys | Every request gets `403 access_expired`. |
+
+```json title="403 Forbidden"
+{
+  "error": {
+    "code": "access_expired",
+    "message": "Sandbox access for this workspace ended on 5 Nov 2026. Sign in to the console and go live to keep using the API."
+  }
+}
+```
+
+You can still go live after the end date. Open the
+[sandbox console](https://sandbox.voice.miraiminds.co/#/live) and continue to
+**Go live** from the sign-in page. Your agents move across as they would have
+the day before.
+
+## Out of credit
+
+<OutOfCredit />
+
+## Related
+
+<CardGroup cols={3}>
+  <Card title="Billing & tiers" icon="indian-rupee-sign" href="/general/tiers">
+    Every plan, and what a minute costs.
+  </Card>
+  <Card title="Wallet" icon="wallet" href="/v2/wallet">
+    Balance, statement and low-balance alerts.
+  </Card>
+  <Card title="Errors" icon="triangle-exclamation" href="/v2/errors">
+    Money and access errors first, with the fix.
+  </Card>
+</CardGroup>
+
+Questions about going live? Write to
+[help@miraiminds.co](mailto:help@miraiminds.co?subject=Going%20live).

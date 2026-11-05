@@ -53,6 +53,7 @@
               "index",
               "v2/start-building",
               "v2/quickstart",
+              "v2/go-live",
               "v2/overview"
             ]
           },
@@ -608,17 +609,17 @@
   "navbar": {
     "links": [
       {
-        "label": "Schedule Demo",
-        "href": "https://calendar.google.com/calendar/appointments/schedules/AcZssZ0xP6nxXZ5RWb6zQrYcADLF1-g6p-fyyMm5rdE6z6SHqNQPBPEJzoVdY--CLtVXGHy8H80RTyHV?gv=true"
+        "label": "Sign in",
+        "href": "https://console.voice.miraiminds.co"
       },
       {
         "label": "Support",
-        "href": "mailto:sneh@miraiminds.co"
+        "href": "mailto:help@miraiminds.co?subject=Help%20with%20Voice%20Infra"
       }
     ],
     "primary": {
       "type": "button",
-      "label": "Open console",
+      "label": "Start free",
       "href": "https://sandbox.voice.miraiminds.co"
     }
   },
@@ -653,6 +654,19 @@
           {
             "label": "Mira TTS",
             "href": "https://voice.miraiminds.co/models/text-to-speech"
+          }
+        ]
+      },
+      {
+        "header": "Help",
+        "items": [
+          {
+            "label": "help@miraiminds.co",
+            "href": "mailto:help@miraiminds.co?subject=Help%20with%20Voice%20Infra"
+          },
+          {
+            "label": "Book a call",
+            "href": "https://cal.com/sneh-mehta/15min"
           }
         ]
       }

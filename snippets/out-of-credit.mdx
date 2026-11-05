@@ -1,0 +1,19 @@
+{/* The one "Out of credit" box. Import it; don't copy it. Figures: the ₹100
+    opening is LIVE_PAYG_OPENING_PAISE and GST is LIVE_GST_BASIS_POINTS in
+    mirai-voice console/webphone.py. What stops and what keeps working is
+    conductor's pre-dial check and the campaign's insufficient_balance pause. */}
+
+<Note>
+**Out of credit**
+
+| | |
+| :--- | :--- |
+| Stops | New calls and paid requests get `402 insufficient_balance`. Nothing is dialled or charged. |
+| Keeps working | Calls in progress finish. Campaigns pause and keep their place. |
+| Kept | Your agents, call history and contacts. |
+| Not live yet | [Go live](https://sandbox.voice.miraiminds.co/#/live): ₹100 to start, plus GST. All ₹100 is call credit. |
+| Live | [Add credit on Billing](https://console.voice.miraiminds.co/#/billing). New calls work at once. |
+
+Start a paused campaign again after you add credit. Retry a refused call with
+the same `Idempotency-Key`.
+</Note>
