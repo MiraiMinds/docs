@@ -18,7 +18,7 @@ For a walkthrough instead of a reference, start with the
 | Environment | Base URL | Use it for |
 | :--- | :--- | :--- |
 | Sandbox | `https://sandbox.voice.miraiminds.co` | Trial workspaces, before your company goes live. Calls run and bill at the T5 rate. |
-| Production | `https://prod.voice.miraiminds.co` | Workspaces that have gone live, billed at your plan's tier. |
+| Production | `https://prod.voice.miraiminds.co` | Workspaces that have [gone live](/v2/go-live), billed at your plan's tier. |
 
 The routes are the same on both. The console's **Developers** page shows the
 base URL for your key; a sandbox key sent to the production URL is refused.
@@ -47,6 +47,10 @@ same way. Without the header, a request acts on your own workspace.
 | Header missing, not `Bearer`, or key unknown | `401` | `unauthorized` |
 | Key revoked | `403` | `forbidden` |
 | Sandbox key sent to the production URL | `403` | `production_workspace_required` |
+| Sandbox ended | `403` | `access_expired` |
+
+The fix for each money and access error is in
+[Errors](/v2/errors#money-and-access). To move to production, [go live](/v2/go-live).
 
 Keep the key on your server. A browser or a mobile app never gets it: for
 [browser calls](/api-reference/calls/start-a-browser-call) and speech streams

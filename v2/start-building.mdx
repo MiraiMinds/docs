@@ -4,7 +4,6 @@ sidebarTitle: "Start building"
 description: "Go from a secret key to a running campaign in ten minutes. Every request is ready to copy, and the go-live checklist is at the end."
 ---
 
-
 This page is the partner on-ramp, and it takes ten minutes from start to
 finish. You check your key, make one agent, ring one phone, run one campaign
 and read the report. You can paste every request below as it is; the only
@@ -13,17 +12,19 @@ things to change are the key and the phone number.
 **You need:** your `sk_live_` key, a phone number you are allowed to call, and
 (for step 5) a public HTTPS URL.
 
-```bash
-https://sandbox.voice.miraiminds.co
-```
+| | Base URL | Key from |
+| :--- | :--- | :--- |
+| Sandbox, now | `https://sandbox.voice.miraiminds.co` | [Sandbox console](https://sandbox.voice.miraiminds.co/#/developers) |
+| Production, after [Go live](/v2/go-live) | `https://prod.voice.miraiminds.co` | [Live console](https://console.voice.miraiminds.co/#/developers) |
+
+Every request below uses the sandbox. After you go live, change the base URL,
+the key and the webhook secret. The requests stay the same.
 
 <Note>
-Your Mirai contact sends your key in the same message as this link. You can
-also create one yourself in the [console](https://sandbox.voice.miraiminds.co)
-under **Developers → Create key**. It looks like `sk_live_` followed by 32 hex
-characters, and it is shown only **once**. We store only its SHA-256, so we
-cannot recover a lost key; you rotate it instead. Put it in your secret manager
-now, before you go further.
+Create your key in the console under **Developers → Create key**. It looks like
+`sk_live_` followed by 32 hex characters, and it is shown only **once**. We
+store only its SHA-256, so we cannot recover a lost key; you rotate it instead.
+Put it in your secret manager now, before you go further.
 
 You also get a webhook signing secret, `whsec_…`. It belongs to the workspace
 rather than the key, so rotating a key does not change it and your receiver
@@ -333,20 +334,37 @@ hygiene.
 
 <AccordionGroup>
 
+<Accordion title="Go live and switch the base URL">
+Your sandbox has an end date, and its keys stop on that date. Going live keeps
+everything you built and gives it no end date.
+
+| | |
+| :--- | :--- |
+| First payment | ₹100 + GST on T5, all of it call credit |
+| Moves across | Agents, calls, campaigns, numbers |
+| You change | Base URL and API key |
+
+Press **Go live** in the [sandbox console](https://sandbox.voice.miraiminds.co/#/live).
+Then create a key in the live console, point your code at
+`https://prod.voice.miraiminds.co`, and add your webhook endpoint again with the
+new secret. [Go live](/v2/go-live) has every step.
+</Accordion>
+
 <Accordion title="Verify webhook signatures — and reject what fails">
 Verify `X-Mirai-Signature` over the **raw** body, enforce the 5-minute timestamp
 window, and return `401` when it does not match. Dedupe on the event `id`,
 since retries repeat it. Don't order your state machine by arrival order,
 because a retried `call.started` can land after `call.completed`. Order by
 `data.call.status` instead.
-[Reference](/v2/webhooks#signature-verification).
+See [signature verification](/v2/webhooks#signature-verification).
 </Accordion>
 
 <Accordion title="Wire the do-not-call list to your opt-outs">
 Every "stop calling me", whether it comes on a call, over WhatsApp or by email,
 should become a `POST /v2/dnc` in the same minute. The request is idempotent, so
 you don't need a read-modify-write. We check suppression at dial time, so it
-also takes effect on campaigns that are already running. [Reference](/v2/dnc).
+also takes effect on campaigns that are already running. See the
+[do-not-call list](/v2/dnc).
 </Accordion>
 
 <Accordion title="Cap every campaign with budget_paise">
@@ -362,7 +380,8 @@ Check `GET /v2/wallet` and alert at a threshold that covers a day of traffic.
 A `402` in the middle of a campaign is an expensive way to learn that your
 wallet is empty. An underfunded campaign still starts, dials what it can, and
 then pauses itself on `insufficient_balance`.
-Once your company is live, top up from the **Billing** page of the console.
+Once your company is live,
+[add credit on Billing](https://console.voice.miraiminds.co/#/billing).
 </Accordion>
 
 <Accordion title="Know the three limits that will actually bite you">
@@ -380,13 +399,14 @@ it before the campaign starts. See [Limits](/v2/limits).
 <Accordion title="Handle these errors specifically">
 | `error.code` | Status | Do |
 | :--- | :--- | :--- |
-| `insufficient_balance` | `402` | Stop dialling, alert, top up. No call was placed and nothing was charged. |
+| `insufficient_balance` | `402` | Stop dialling and alert. No call was placed and nothing was charged. See [Out of credit](/v2/errors#out-of-credit). |
 | `rate_limited` | `429` | Back off and honour `Retry-After`. `message` says which ceiling you hit. |
 | `duplicate_call` | `409` | This is not an error. The same `Idempotency-Key` is still in flight, and we place no second call. |
 | `at_capacity` | `429` | Every line is busy. Retry in 30 seconds. |
 | `fleet_offline` | `503` | Speech capacity is down. Retry in a few minutes; nothing was charged. |
 | `contract_unavailable` | `403` | The call's `tier` is not your plan's, or the company has not finished going live. Leave `tier` out. |
-| `campaigns_unavailable` | `503` | Campaigns are not enabled on your workspace. Ask us, because retrying will not clear it. |
+| `access_expired` | `403` | Your sandbox has ended. [Go live](/v2/go-live) to keep calling. |
+| `campaigns_unavailable` | `503` | Campaigns are not enabled on your workspace. [Ask us](mailto:help@miraiminds.co?subject=Enable%20campaigns), because retrying will not clear it. |
 
 Branch on status first, then on `error.code`. [Errors](/v2/errors) has the full
 table and a retry wrapper in two languages.
@@ -406,20 +426,20 @@ costs one clause, and it reduces early hang-ups.
 ## Where to go next
 
 <CardGroup cols={2}>
-  <Card title="Campaigns" icon="list-check">
-    Windows, retries, budgets, per-contact reporting. [Reference](/v2/campaigns).
+  <Card title="Go live" icon="flag-checkered" href="/v2/go-live">
+    ₹100 to start, plus GST. Your agents and campaigns move across.
   </Card>
-  <Card title="Agents" icon="robot">
-    Prompts, voices, voicemail behaviour, duration caps. [Reference](/v2/agents).
+  <Card title="Campaigns" icon="list-check" href="/v2/campaigns">
+    Windows, retries, budgets, per-contact reporting.
   </Card>
-  <Card title="Webhooks" icon="circle-check">
-    Every event, the signature scheme, retries. [Guide](/v2/webhooks).
+  <Card title="Agents" icon="robot" href="/v2/agents">
+    Prompts, voices, voicemail behaviour, duration caps.
   </Card>
-  <Card title="Billing & tiers" icon="indian-rupee-sign">
-    The price ladder and what a minute costs. [Reference](/general/tiers).
+  <Card title="Webhooks" icon="circle-check" href="/v2/webhooks">
+    Every event, the signature scheme, retries.
   </Card>
 </CardGroup>
 
 If you are stuck on something this page does not cover, email
-[help@miraiminds.co](mailto:help@miraiminds.co) with the `call_id` or
-`campaign_id`, and we can see exactly what happened.
+[help@miraiminds.co](mailto:help@miraiminds.co?subject=Help%20with%20my%20integration)
+with the `call_id` or `campaign_id`, and we can see exactly what happened.
