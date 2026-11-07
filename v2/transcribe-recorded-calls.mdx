@@ -148,8 +148,8 @@ weren't speech, each as a `start` and `end` in seconds. It is absent when
 nothing was left out, or when you sent `diarize: false`.
 
 Send `words: true` for the time of every word. Word timings are added when they
-line up with the audio, which today means Hindi recordings; Gujarati and
-English recordings come back without them. `diarization.words.applied` tells
+line up with the audio, which today means Hindi recordings; recordings in
+other languages come back without them. `diarization.words.applied` tells
 you whether they were added. They need speaker separation, which is on unless
 you send `diarize: false`.
 
@@ -157,9 +157,17 @@ you send `diarize: false`.
 
 Mira Transcribe is built for phone calls in Hindi and Hinglish. `language`
 defaults to `auto`, which detects the main language of the call. You can set it
-to `hi`, `gu`, `en`, `mr`, `pa`, `bn` or `ur` when you know the main language
-and detection gets it wrong. Speech in another language inside the call is kept
-as it was spoken.
+to `hi`, `gu`, `en`, `mr`, `pa`, `bn`, `ta`, `te`, `kn`, `ml` or `ur` when you
+know the main language and detection gets it wrong. Speech in another language
+inside the call is kept as it was spoken.
+
+Every job also tells you what was spoken, whether you set `language` or not.
+`detected_language` is the main language of the recording, and
+`language_probability` says how sure the detection is, from 0 to 1. Each
+segment of a finished transcript has its own `language`, so a customer who
+starts in Hindi and moves to English shows up as `hi` and then `en`.
+`languages_heard` lists the languages in the order they came up. A segment too
+short to judge, such as a quick "हाँ", carries the recording's language.
 
 When a call is mostly in English with some Hindi, or mostly Hindi with some
 English, the parts in the less-used language can come back less accurate than
