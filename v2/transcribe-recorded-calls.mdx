@@ -158,8 +158,10 @@ you send `diarize: false`.
 Mira Transcribe is built for phone calls in Hindi and Hinglish. `language`
 defaults to `auto`, which detects the main language of the call. You can set it
 to `hi`, `gu`, `en`, `mr`, `pa`, `bn`, `ta`, `te`, `kn`, `ml` or `ur` when you
-know the main language and detection gets it wrong. Speech in another language
-inside the call is kept as it was spoken.
+know the main language and detection gets it wrong. Automatic detection does
+not pick out Tamil, Telugu, Kannada or Malayalam yet, so set `language` for
+recordings in those languages. Speech in another language inside the call is
+kept as it was spoken.
 
 Every job also tells you what was spoken, whether you set `language` or not.
 `detected_language` is the main language of the recording, and
