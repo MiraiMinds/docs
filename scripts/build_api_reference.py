@@ -63,7 +63,7 @@ INSERT_AFTER = {"POST /v2/calls": ["api-reference/calls/start-a-browser-call"]}
 #: Group order in the tab. A group not named here goes before "Reference".
 TAG_ORDER = ("Agents", "Calls", "Flows", "Tools and secrets", "Campaigns", "Do-not-call list",
              "Phone numbers", "Phone pools", "Telephony", "Transcriptions", "Speech to text",
-             "Text to speech", "Wallet", "Reference")
+             "Text to speech", "Wallet", "Webhooks", "Reference")
 
 #: Endpoints that exist in the contract but are not served on the public hosts
 #: (probed without a key: 404), or that are not v2 paths.
@@ -72,6 +72,7 @@ TAG_ORDER = ("Agents", "Calls", "Flows", "Tools and secrets", "Campaigns", "Do-n
 #: scripts/postman/spec and drop these lines; the pages then generate.
 KNOWLEDGE_PENDING = "no Postman request yet (knowledge bases)"
 VOICE_CLONES_PENDING = "no Postman request yet (voice clones; see v2/custom-voices)"
+PENDING = "no Postman request yet"
 
 SKIP_CONTRACT = {
     ("DELETE", "/v2/voice-clones/{id}"): VOICE_CLONES_PENDING,
@@ -102,6 +103,16 @@ SKIP_CONTRACT = {
     ("POST", "/v2/knowledge-bases/{id}/search"): KNOWLEDGE_PENDING,
     ("POST", "/v2/knowledge-bases/{id}/sources"): KNOWLEDGE_PENDING,
     ("POST", "/v2/knowledge-bases/{id}/sources/{source_id}/sync"): KNOWLEDGE_PENDING,
+    ("GET", "/v2/knowledge-bases/provided"): KNOWLEDGE_PENDING,
+    ("DELETE", "/v2/custom-voices/{id}"): VOICE_CLONES_PENDING,
+    ("GET", "/v2/custom-voices"): VOICE_CLONES_PENDING,
+    ("GET", "/v2/custom-voices/{id}"): VOICE_CLONES_PENDING,
+    ("PATCH", "/v2/custom-voices/{id}"): VOICE_CLONES_PENDING,
+    ("POST", "/v2/custom-voices"): VOICE_CLONES_PENDING,
+    ("POST", "/v2/custom-voices/{id}/preview"): VOICE_CLONES_PENDING,
+    ("GET", "/v2/models"): PENDING,
+    ("GET", "/v2/models/{id}"): PENDING,
+    ("GET", "/v2/telephony/inbound-misses"): PENDING,
 }
 
 #: Postman requests left out of the reference, with the reason. Each was
@@ -298,7 +309,7 @@ def build_openapi(src: dict[str, bytes]) -> tuple[dict, list[tuple[str, list[str
     spec = {
         "openapi": "3.1.0",
         "info": {
-            "title": "Mirai Voice API",
+            "title": "Voice Infra API",
             "version": contract["info"]["version"],
             "description": (
                 "The v2 API for voice agents, calls, campaigns, phone numbers and speech. "
@@ -325,7 +336,11 @@ def build_openapi(src: dict[str, bytes]) -> tuple[dict, list[tuple[str, list[str
 
     nav: list[tuple[str, list[str]]] = []  # (tag, ["METHOD /path", ...])
     tag_pages: dict[str, list[str]] = {}
-    used: set[tuple[str, str]] = set()
+    #: (method, path shape) -> the path as the reference publishes it. A second
+    #: worked request for a route can name its path variables differently (the
+    #: SIP trunk variant of PATCH /v2/telephony/connections/{id} says
+    #: {sip_connection_id}), so its examples are merged by shape.
+    used: dict[tuple[str, str], str] = {}
 
     def add_tag(name: str, description: str):
         if name not in tag_pages:
@@ -337,7 +352,7 @@ def build_openapi(src: dict[str, bytes]) -> tuple[dict, list[tuple[str, list[str
         key = (method, shape(path))
         if key in used:
             raise SystemExit(f"duplicate operation {method} {path}")
-        used.add(key)
+        used[key] = path
         spec["paths"].setdefault(path, {})[method.lower()] = op
         tag_pages[tag].append(f"{method} {path}")
 
@@ -356,7 +371,7 @@ def build_openapi(src: dict[str, bytes]) -> tuple[dict, list[tuple[str, list[str
                     # A second worked request for the same route (a browser call
                     # on POST /v2/calls): its body and answers join the first
                     # request's page as more examples.
-                    merge_variant(spec["paths"][path][method.lower()],
+                    merge_variant(spec["paths"][used[(method, shape(path))]][method.lower()],
                                   operation_from_postman(item, method, path, names, query, {}, variables))
                 continue  # the main collection already has it (List voices)
             add_tag(tag, (folder or {}).get("description", "") if not only_tag else

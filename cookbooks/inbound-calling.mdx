@@ -23,7 +23,7 @@ Choose the option that suits your business:
 | Option | What you do |
 | :--- | :--- |
 | **Buy a number through Mirai** | Open **Phone numbers → Add a number**, choose **Mirai wallet** as the billing account, complete any required business verification, and confirm the number rental. You do not need your own Plivo account or credentials. |
-| **Connect your own telco** | Connect your supported provider account and import a voice number you own. You keep your provider account and its billing. **Plivo is the currently supported BYO provider.** |
+| **Connect your own telco** | Connect your supported provider account and import a voice number you own. You keep your provider account and its billing. Bring a Plivo account, or connect any carrier through [your own SIP trunk](/v2/sip-trunk). |
 
 Both options add a dedicated number to your workspace. You then use the same
 agent assignment and activation steps. Numbers purchased through Mirai are
@@ -56,7 +56,7 @@ you advertise the number.
 sequenceDiagram
     participant Caller
     participant Number as Your dedicated phone number
-    participant Mirai as Mirai Voice
+    participant Mirai as Voice Infra
     participant App as Your backend
     Caller->>Number: Calls your business number
     Number->>Mirai: Delivers the incoming call

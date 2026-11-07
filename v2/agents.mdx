@@ -58,7 +58,8 @@ only `pre_call` and `post_call` tools are allowed. See
   "behavior": {
     "interruptions": "normal",
     "adaptive_interruptions": true,
-    "pass_through": []
+    "pass_through": [],
+    "date_awareness": true
   },
   "created_at": "2026-07-26T09:14:02Z",
   "updated_at": "2026-07-26T09:14:02Z"
@@ -82,10 +83,44 @@ only `pre_call` and `post_call` tools are allowed. See
 | `end_call` | object | no | See [Ending a call](#ending-a-call). |
 | `voicemail` | object | no | See [Voicemail](#voicemail). |
 | `background_sound` | string \| object | no | Room ambience under the agent's voice. See [Background sound](#background-sound). Default `off`. |
-| `behavior` | object | no | How the agent takes turns with the caller. See [Behavior](#behavior). Default `{"interruptions": "normal", "adaptive_interruptions": true, "pass_through": []}`. |
+| `behavior` | object | no | How the agent takes turns with the caller, and whether it knows the date. See [Behavior](#behavior). Default `{"interruptions": "normal", "adaptive_interruptions": true, "pass_through": [], "date_awareness": true}`. |
+| `booking` | object \| null | no | A booking window: which days a caller can book. See [Booking window](#booking-window). Present on the agent object only when set. PATCH replaces the whole block; `null` removes it. |
 | `flow` | object \| null | no | A node graph. Makes this a [node-based agent](/v2/node-agents). Present on the agent object only when set. PATCH replaces the whole graph; `null` removes it. |
 
 Server-set and read-only: `id`, `object`, `created_at`, `updated_at`.
+
+### Booking window
+
+`booking` is for agents that book appointments. In the console it is **Agent
+Studio → Integrations → Booking**.
+
+```json
+{
+  "booking": {
+    "window_days": 30,
+    "same_day": true,
+    "closed_weekdays": ["sunday"],
+    "closed_dates": ["2026-11-08"]
+  }
+}
+```
+
+| Field | Type | Description |
+| :--- | :--- | :--- |
+| `window_days` | integer | How far ahead a caller can book: from today up to this many days after today. `1`–`366`, default `30`. |
+| `same_day` | boolean | Whether today itself can be booked. Default `true`. |
+| `closed_weekdays` | array of strings | Days of the week you are closed, `monday` … `sunday`. Saved in week order; you can't close all seven. Default `[]`. |
+| `closed_dates` | array of strings | Single days you are closed, such as holidays, as `YYYY-MM-DD`. Saved sorted, at most 100. Default `[]`. |
+
+With [date awareness](#date-awareness) on, whenever the caller names a day the
+agent is told whether it can be booked. When it can't, the agent hears why
+(after the last bookable day, closed that weekday or that date, already gone)
+and the nearest day that can be booked, so it never confirms a day you can't
+take. The agent's prompt also states the window. Each date the agent was told
+still shows in the agent's **Logs** tab.
+
+`PATCH` replaces the whole block, so omitted fields take their defaults. Send
+`"booking": null` to remove it.
 
 ### Analysis
 
@@ -226,14 +261,16 @@ Before you turn it on, note two things:
 
 `behavior` sets how the agent takes turns with the caller: when it answers, and
 what makes it stop talking. In the console it is **Agent Studio → Behavior →
-Interruptions**, with the **Adaptive interruptions** switch at the top.
+Interruptions**, with the **Adaptive interruptions** switch at the top. It also
+holds `date_awareness`, **Agent Studio → Behavior → Dates**.
 
 ```json
 {
   "behavior": {
     "adaptive_interruptions": true,
     "interruptions": "normal",
-    "pass_through": []
+    "pass_through": [],
+    "date_awareness": true
   }
 }
 ```
@@ -243,6 +280,7 @@ Interruptions**, with the **Adaptive interruptions** switch at the top.
 | `adaptive_interruptions` | boolean | Mirai's turn-taking. Default `true`. See [Adaptive interruptions](#adaptive-interruptions). |
 | `interruptions` | `easy` \| `normal` \| `firm` \| `never` | How much the caller has to say before the agent stops talking. Default `normal`. See [Fixed rules](#fixed-rules). |
 | `pass_through` | array of strings | Your own words that never interrupt the agent, on top of built-in ones such as "haan" and "ok". Default `[]`. See [Pass-through words](#pass-through-words). |
+| `date_awareness` | boolean | The agent knows today's date and the exact date of every day a caller names. Default `true`. See [Date awareness](#date-awareness). |
 
 #### Adaptive interruptions
 
@@ -334,11 +372,40 @@ the JSON decoder's message instead.
 A [Realtime session](/v2/realtime) started from the agent does not use
 `pass_through` yet.
 
+#### Date awareness
+
+With `date_awareness` on, the default for every agent, the agent knows today's
+date, and whenever the caller names a day it is told the exact date before it
+replies. It never has to work out a date or a weekday itself.
+
+- Today's date is read in the call's timezone: the campaign's, or India time.
+- It understands days the way callers say them, in Hindi, Gujarati and
+  English: "Saturday", "शनिवार", "अगले शनिवार", "next week Wednesday", "कल",
+  "परसों", "tomorrow", "15 तारीख", "पंद्रह नवंबर", "November 15th", "3 दिन
+  बाद", "in two weeks", "अगले महीने". English day and month names and numbers
+  work in every language.
+- When the words have two meanings, the agent gets both and goes by how the
+  caller said it. "कल" is tomorrow or yesterday, and "Saturday" on its own is
+  the coming one or the last one.
+- A day that does not exist, such as 31 November, is caught, so the agent asks
+  again instead of confirming it.
+
+Each date the agent was told is a row in the agent's **Logs** tab, under
+Prompt, for example `Date · “शनिवार” → Saturday 31 October 2026`.
+
+Turn it off only if your own prompt or tools already supply dates:
+
+```json
+{ "behavior": { "date_awareness": false } }
+```
+
 #### Change behavior with PATCH
 
 `PATCH` merges `behavior` field by field: the fields you send change and the
 others keep their values, unlike other nested objects, which are replaced
 whole. `pass_through` is a list, so the list you send replaces the saved one.
+`{"behavior": {"date_awareness": false}}` turns date awareness off and leaves
+the other fields as they are.
 To add a word, read the agent, add the word to `behavior.pass_through` and send
 the whole list. Send `[]` or `null` to clear the list, or `"behavior": null` to
 go back to the defaults. The change takes effect on the next call and is saved

@@ -47,7 +47,7 @@ the **host** to tell the two apart.
 | :--- | :--- |
 | `x-public-key: pk_…` | — |
 | `x-private-key: sk_…` | `Authorization: Bearer sk_live_…` |
-| `workspace: 6690a1b2c3d4e5f600000002` | — (the key is workspace-scoped) |
+| `workspace: 6690a1b2c3d4e5f600000002` | Only to pick one of your brands, when you run them as [sub-workspaces](/v2/sub-workspaces#coming-from-v1). Otherwise leave it out: the key is workspace-scoped. |
 
 v2 takes one header. The key carries the workspace, so valid credentials cannot
 reach the wrong workspace by accident. Create a key, and get the workspace's
@@ -57,8 +57,10 @@ webhook secret, in the [console](https://sandbox.voice.miraiminds.co) under
 <Note>
 The v2 API also accepts a v1 key pair, sent as the same `x-public-key` and
 `x-private-key` headers, once we have linked that pair to your v2 workspace.
-Ask your Mirai contact before you rely on it. The `workspace` header is not
-read. A linked pair is a bridge for the move: v2 keys are the ones you can
+Ask your Mirai contact before you rely on it. The `workspace` header picks one
+of your [sub-workspaces](/v2/sub-workspaces). A value that names neither a
+sub-workspace nor your own workspace is refused with `404 workspace_not_found`,
+so leave the header out if you don't run brands as sub-workspaces. A linked pair is a bridge for the move: v2 keys are the ones you can
 create, rotate and revoke in the console, so switch to one when you can.
 </Note>
 
@@ -66,7 +68,7 @@ create, rotate and revoke in the console, so switch to one when you can.
 
 | v1 | v2 | Notes |
 | :--- | :--- | :--- |
-| `POST /v2/workspace/onboard/custom` | — | Your workspace is provisioned with your key. |
+| `POST /v2/workspace/onboard/custom` and `/shopify` | [The same paths](/v2/sub-workspaces#onboard-a-brand-with-your-v1-code) | Each creates a sub-workspace for one brand, with the v1 body and response. A single-brand integration doesn't need them: your workspace comes with your key. |
 | `POST /v1/admin/assistant/create` | [`POST /v2/agents`](/v2/agents#create-an-agent) | "Assistant" is now "agent". |
 | `GET /v1/admin/assistant/get/{id}` | [`GET /v2/agents/{id}`](/v2/agents#get-an-agent) | |
 | `GET /v1/admin/assistant/list` | [`GET /v2/agents`](/v2/agents#list-agents) | Now cursor-paginated. |
@@ -76,7 +78,7 @@ create, rotate and revoke in the console, so switch to one when you can.
 | — | [`GET /v2/calls/{id}`](/v2/calls#get-a-call) | **New.** v1 had no call read. |
 | — | [`GET /v2/calls`](/v2/calls#list-calls) | **New.** |
 | `POST /v2/call/abort` with `{callId}` in body | [`POST /v2/calls/{id}/abort`](/v2/calls#abort-a-call) | ID moves into the path. |
-| `PUT /v2/call/{callId}` (update payload) | — | No equivalent. Set everything at create time. |
+| `PUT /v2/call/{callId}` (update payload) | — | No equivalent for a single call. Set everything at create time. For a queued call, see [the call queue](#retries-calling-hours-and-concurrency). |
 | `POST /v2/call/web` | [`POST /v2/calls`](/v2/web-calls#create-the-call) with `channel: "web"` | Your backend creates the call and gives the page an audio link and a live event link. See [Browser calls](/v2/web-calls). |
 | `GET /v1/number-pool/*` | `/v2/phone-numbers` and `/v2/telephony/*` | Different resources and IDs. Follow the [inbound setup recipe](/cookbooks/inbound-calling); importing does not change routing until activation. |
 | `/v1/admin/tool/api` (all methods) | [`/v2/agents/{id}/tools/{name}`](/v2/tools#api-routes) | Tools belong to an agent; recreate the definition instead of copying a v1 ID. |
@@ -187,10 +189,33 @@ stays open after the list is done. See
 | `retryProtocol.maxRescheduleCount` | The agent's [callback tool](/v2/tools#schedule-a-callback) |
 | a call's `payload` and `metadata` | the contact's `variables` and `metadata`, with the same limits as a call |
 
-Two differences to plan for. A campaign holds each phone number once, so adding
-a number already in it is counted as a duplicate and not called again. And an
+Two differences to plan for. In an always-on campaign, give each contact its
+own `id` (an order or cart id): the same number with a new `id` is called
+again, while a contact without an `id` is held once per phone number. And an
 add to a campaign that has been stopped, or whose `end_date` has passed, gets
 `409 conflict`. Any `200` means the numbers are in line to be called.
+
+If you queued calls through v1, each queue call has a campaign equivalent:
+
+| v1 call queue | v2 always-on campaign |
+| :--- | :--- |
+| `POST /v2/call/initiate` | [`POST /v2/campaigns/{id}/contacts`](/v2/campaigns#add-contacts), with your own contact `id` |
+| `callId`, one per number across all its attempts | The contact `id` you chose. Each attempt also gets its own `call_…` ID. Webhooks carry both, as `data.call.contact_id` and `data.call.id`. |
+| `PUT /v2/call/{callId}` (update payload) | `DELETE /v2/campaigns/{id}/contacts/{contact_id}`, then add the contact again with the same `id`. Works only before its first call. |
+| `POST /v2/call/abort` | [`POST /v2/campaigns/{id}/contacts/{contact_id}/cancel`](/v2/campaigns#cancel-a-contact) answers `200` with the contact `cancelled`, both before the first call and while it waits for a retry. A call in progress is not cut off: `409 contact_in_call`, so send it again once the call ends. `409 contact_finished` means the contact already has an outcome. |
+
+Like v1's abort, a cancel also stops a pending retry. The contact keeps its
+attempts and last call, is never called again, and stays in the
+[report](/v2/campaigns#campaign-report) as `cancelled`. Cancelling twice
+answers `200` both times. [`DELETE /v2/campaigns/{id}/contacts/{contact_id}`](/v2/campaigns#remove-a-contact)
+still removes a contact outright, but only before its first call.
+
+To decide at dial time instead, give the agent a pre-call
+[`skip_call`](/v2/tools#skip-when-a-condition-holds) that checks whether the
+call is still needed, for example whether the order has been placed. A skipped
+attempt ends `aborted` with `ended_reason: "skipped-by-condition"`, costs
+nothing and is not retried. To stop every call to a number, add it to the
+[do-not-call list](/v2/dnc).
 
 ## Statuses
 
@@ -239,7 +264,7 @@ a test vector.
 | `call.timeout` | `call.failed` with `data.call.status: "timeout"` |
 | `call.failed`, `call.busy`, `call.no-answer` | `call.failed` with `data.call.status` `failed`, `busy` or `no_answer` |
 | `call.validation-failed` | No event: `POST /v2/calls` answers `400 invalid_request` |
-| `call.skip` | No event: the campaign contact's status becomes `suppressed` |
+| `call.skip` | `call.aborted` with `ended_reason: "skipped-by-condition"` when a pre-call `skip_call` skips the call. A number on the do-not-call list gets no event: the campaign contact's status becomes `suppressed`. |
 | `call.rescheduled` | No event: the campaign contact goes back to `pending` for its retry |
 | `call.aborted` | `call.aborted` |
 | — | `call.voicemail` (**new**) |
@@ -257,8 +282,9 @@ Exactly one terminal event fires per call: `call.completed`, `call.voicemail`,
 | :--- | :--- |
 | `metadata` (top level) | `data.call.metadata` |
 | `event.type` | `type` |
-| `event.data.call.id` | `data.call.id` (`call_…`) |
+| `event.data.call.id` | `data.call.id` (`call_…`), one per attempt. On a campaign call, `data.call.contact_id` is the contact `id` you chose, the same on every attempt, as v1's `callId` was. |
 | `event.data.call.status` | `data.call.status` (see [Statuses](#statuses)) |
+| — | `data.call.ended_reason`: why the call ended, such as `customer-busy`, `customer-did-not-answer` or `no-media`. v1 sent no reason. See [ended reasons](/v2/calls#ended-reasons). |
 | `startedAt` / `endedAt` | `data.call.started_at` / `data.call.ended_at` |
 | `durationSeconds` | `data.call.duration_secs` |
 | `recordingUrl` | [`GET /v2/calls/{id}/recording`](/v2/calls#get-the-recording), an authenticated request that redirects to a 15-minute signed URL |

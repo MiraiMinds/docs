@@ -27,7 +27,7 @@
     "eyebrows": "section",
     "codeblocks": "system"
   },
-  "description": "Developer docs for Mirai Voice: AI voice agents that call in Hindi, English and Hinglish, plus Hindi text-to-speech and call transcription APIs.",
+  "description": "Voice AI at scale. Developer docs for Voice Infra: voice agents for phone, browser and WhatsApp calls in Hindi, Gujarati, Marathi, Bengali, Tamil, Telugu, Kannada, Malayalam and Hinglish, plus text-to-speech, speech-to-text and language model APIs.",
   "api": {
     "playground": {
       "display": "interactive"
@@ -70,9 +70,13 @@
               "v2/realtime",
               "v2/campaigns",
               "v2/phone-numbers",
+              "v2/sip-trunk",
               "general/campaign",
               "v2/dnc",
-              "v2/webhooks"
+              "v2/webhooks",
+              "v2/webhook-subscriptions",
+              "v2/webhook-secrets",
+              "v2/sub-workspaces"
             ]
           },
           {
@@ -172,6 +176,7 @@
               "GET /v2/calls/{call_id}",
               "GET /v2/calls",
               "GET /v2/calls/summary",
+              "GET /v2/insights",
               "GET /v2/calls/{call_id}/events",
               "POST /v2/calls/{call_id}/control",
               "GET /v2/calls/{call_id}/control/{control_id}",
@@ -219,6 +224,7 @@
               "POST /v2/campaigns",
               "POST /v2/campaigns/{campaign_id}/contacts",
               "DELETE /v2/campaigns/{campaign_id}/contacts/{contact_id}",
+              "POST /v2/campaigns/{campaign_id}/contacts/{contact_id}/cancel",
               "PATCH /v2/campaigns/{campaign_id}",
               "POST /v2/campaigns/{campaign_id}/start",
               "GET /v2/campaigns/{campaign_id}",
@@ -227,6 +233,7 @@
               "GET /v2/campaign-groups",
               "POST /v2/campaigns/{campaign_id}/pause",
               "POST /v2/campaigns/{campaign_id}/resume",
+              "GET /v2/campaigns/{campaign_id}/history",
               "POST /v2/campaigns/{campaign_id}/contacts/{contact_id}/retry",
               "GET /v2/campaigns/{campaign_id}/report",
               "GET /v2/campaigns/{campaign_id}/insights",
@@ -281,6 +288,7 @@
               "POST /v2/telephony/onboarding",
               "POST /v2/telephony/onboarding/{onboarding_id}/refresh",
               "GET /v2/telephony/compliances",
+              "GET /v2/telephony/available-cities",
               "GET /v2/telephony/available-numbers",
               "POST /v2/telephony/quotes",
               "POST /v2/telephony/rentals/{rental_id}/purchase",
@@ -329,6 +337,46 @@
             ]
           },
           {
+            "group": "Webhooks",
+            "pages": [
+              "GET /v2/webhooks/event-types",
+              "POST /v2/webhooks/endpoints",
+              "GET /v2/webhooks/endpoints",
+              "GET /v2/webhooks/endpoints/{webhook_endpoint_id}",
+              "PATCH /v2/webhooks/endpoints/{webhook_endpoint_id}",
+              "DELETE /v2/webhooks/endpoints/{webhook_endpoint_id}",
+              "POST /v2/webhooks/endpoints/{webhook_endpoint_id}/rotate-secret",
+              "POST /v2/webhooks/endpoints/{webhook_endpoint_id}/test",
+              "POST /v2/webhooks/subscriptions",
+              "GET /v2/webhooks/subscriptions",
+              "GET /v2/webhooks/subscriptions/{webhook_subscription_id}",
+              "PATCH /v2/webhooks/subscriptions/{webhook_subscription_id}",
+              "DELETE /v2/webhooks/subscriptions/{webhook_subscription_id}",
+              "GET /v2/webhooks/events",
+              "GET /v2/webhooks/events/{webhook_event_id}",
+              "GET /v2/webhooks/deliveries",
+              "GET /v2/webhooks/deliveries/{webhook_delivery_id}",
+              "GET /v2/webhooks/deliveries/{webhook_delivery_id}/attempts",
+              "POST /v2/webhooks/deliveries/{webhook_delivery_id}/retry",
+              "GET /v2/webhooks/settings",
+              "PATCH /v2/webhooks/settings",
+              "GET /v2/webhooks/call-deliveries"
+            ]
+          },
+          {
+            "group": "Sub-workspaces",
+            "pages": [
+              "POST /v2/workspaces",
+              "GET /v2/workspaces",
+              "GET /v2/workspaces/{sub_workspace_id}",
+              "PATCH /v2/workspaces/{sub_workspace_id}",
+              "POST /v2/workspaces/{sub_workspace_id}/archive",
+              "POST /v2/workspaces/{sub_workspace_id}/restore",
+              "POST /v2/workspace/onboard/custom",
+              "POST /v2/workspace/onboard/shopify"
+            ]
+          },
+          {
             "group": "Reference",
             "pages": [
               "GET /v2/voices",
@@ -344,6 +392,12 @@
             "group": "Cookbooks",
             "pages": [
               "cookbooks/overview"
+            ]
+          },
+          {
+            "group": "Call results",
+            "pages": [
+              "cookbooks/post-call-results"
             ]
           },
           {
@@ -586,7 +640,7 @@
     },
     "links": [
       {
-        "header": "Mirai Voice",
+        "header": "Voice Infra",
         "items": [
           {
             "label": "Pricing",

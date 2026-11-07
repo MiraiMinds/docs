@@ -59,6 +59,10 @@ workspace. A key created after your company goes live carries your plan's
 T1. You create, rotate and revoke keys yourself in the
 [console](https://sandbox.voice.miraiminds.co) under **Developers**.
 
+If you run many brands as [sub-workspaces](/v2/sub-workspaces), the same key
+also reaches each of them: add a `Mirai-Workspace` header with the brand's
+sub-workspace id or your `external_id` for it.
+
 We store only the SHA-256 of your key, so we cannot recover a lost key. Rotate
 it instead. Never ship a secret key to a browser or a mobile app.
 

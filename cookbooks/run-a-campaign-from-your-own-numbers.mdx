@@ -193,10 +193,10 @@ The answer is `201` with the pool, its `members` and their health. Keep the
 ### In the console
 
 In the campaign form, open **Calls come from**. The list shows your pools first,
-then your numbers with how each is doing, and last the Mirai shared line. Pick
-the pool. When you choose nothing, the campaign uses its agent's choice, then your
-workspace's default pool, then the shared line, and the form says which one it
-used.
+then your numbers with how each is doing. The Mirai shared line isn't listed once
+you have a number of your own. Pick the pool. When you choose nothing, the
+campaign uses its agent's choice, then your workspace's default pool, then your
+own number, and the form says which one it used.
 
 Under the picker, read the capacity line. It compares what the campaign will
 try with what the pool can carry. If **Calls at once** is higher than the pool
@@ -471,8 +471,9 @@ agent.
 - The campaign's `webhook_url` verifies signatures, dedupes on `id`, and tells a
   person when a pool is degraded.
 - Someone knows what to do when a number cools, and who can resume or retire it.
-- You have a default pool or an agent `calls_from`, so a campaign never falls to
-  the shared line by accident.
+- You have a default pool or an agent `calls_from` if you want campaigns spread
+  across several numbers. With neither, a campaign rings from one of your own
+  numbers (see [which number a call comes from](/v2/phone-numbers#which-number-a-call-comes-from)).
 
 ## Related
 

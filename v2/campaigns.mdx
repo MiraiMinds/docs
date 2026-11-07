@@ -12,7 +12,9 @@ use at once, how often to retry, and how much it is allowed to spend.
 You upload the list once and start it. After that the platform handles the
 dialling. It paces itself, waits through the night, retries calls that did not
 connect, skips numbers on your [do-not-call list](/v2/dnc), pauses itself when
-the money runs out, and gives you a per-contact report at the end.
+the money runs out or when it has [connected as many calls as you
+asked for](#pause-after-connected-calls), and gives you a per-contact report at
+the end.
 
 A campaign can also stay open. With [`always_on`](#always-on-campaigns) it keeps
 running after its list is done, and you add numbers whenever your system has
@@ -50,6 +52,9 @@ rate.
   "spent_paise": 12900,
   "webhook_url": "https://example.com/mirai/webhook",
   "always_on": false,
+  "pause_after_connected": 200,
+  "pause_after_connected_count": 174,
+  "pause_after_connected_since": "2026-08-11T04:30:00Z",
   "created_at": "2026-08-10T09:21:44Z",
   "updated_at": "2026-08-10T11:04:02Z",
   "counters": { "pending": 812, "dialing": 2, "completed": 174, "no_answer": 9, "suppressed": 3 }
@@ -75,6 +80,9 @@ rate.
 | `spent_paise` | integer | Billed so far, in paise. |
 | `webhook_url` | string | Receives both this campaign's `campaign.*` events and every child call's `call.*` events. |
 | `always_on` | boolean | `true` keeps the campaign running after everyone on its list has been called, so contacts added later are called too. Always present. See [always-on campaigns](#always-on-campaigns). |
+| `pause_after_connected` | integer \| null | The campaign pauses itself once this many calls have connected. `null` means no limit. Always present. See [pause after connected calls](#pause-after-connected-calls). |
+| `pause_after_connected_count` | integer | Read-only. Connected calls counted toward `pause_after_connected` so far. Present only while a limit is set, and only when you read one campaign (omitted from list pages). |
+| `pause_after_connected_since` | string | Read-only. RFC 3339 time the current count began. Present with `pause_after_connected_count`. |
 | `counters` | object | Contacts by [status](#contact-statuses). Present on `GET /v2/campaigns/{id}`, omitted from list pages. |
 
 <Warning>
@@ -95,6 +103,7 @@ stateDiagram-v2
     draft --> stopped: POST /stop
     play --> paused: POST /pause
     play --> paused: budget gate
+    play --> paused: connected-call limit
     paused --> play: POST /resume
     paused --> play: POST /start
     play --> completed: nothing left to dial (not always_on)
@@ -120,15 +129,23 @@ because those rows would never ring.
 ### Pause reasons
 
 `pause_reason` tells you whether the operator paused the campaign or we paused
-it for them. A pause you asked for has no reason (`null`). The money gate sets
-the next two reasons below, and a number or pool that cannot call sets the last.
+it for them. A pause you asked for has no reason (`null`), or the `reason` you
+sent with it. The money gate sets `insufficient_balance` and
+`budget_exhausted`, your connected-call limit sets `connected_limit_reached`,
+and a number or pool that cannot call sets `calls_from_unavailable`.
 
 | `pause_reason` | Set when | What to do |
 | :--- | :--- | :--- |
-| `null` | You called [`POST /pause`](#pause-a-campaign). | Resume when you are ready. |
+| `null` | You called [`POST /pause`](#pause-a-campaign) with no body. | Resume when you are ready. |
+| `<by>: <reason>` | You called `POST /pause` with a [`reason` or `by`](#pause-a-campaign). | Resume when you are ready. |
 | `insufficient_balance` | The wallet cannot cover another minute at this campaign's tier. | [Top up](/v2/wallet#top-up), then `POST /start` or `/resume`. |
 | `budget_exhausted` | `spent_paise` has reached `budget_paise`. | Raise `budget_paise` with `PATCH`, then resume. |
+| `connected_limit_reached` | `pause_after_connected` calls have connected since the count began. | Resume when you want the next batch; the count starts again from zero. See [pause after connected calls](#pause-after-connected-calls). |
 | `calls_from_unavailable: …` | The pool or number the campaign calls from can no longer place calls. The reason names it. | Add a ready number to the pool, or [choose another](/v2/phone-numbers#point-a-call-a-campaign-or-an-agent-at-a-pool), then resume. |
+
+Every pause, and every start, resume, stop and change to the connected-call
+limit, is recorded in the campaign's [history](#campaign-history), with who did
+it.
 
 <Note>
 Being outside the calling window is **not** a pause. The campaign stays `play`
@@ -142,7 +159,7 @@ An offline fleet is not a pause either. It is a `503 fleet_offline` refusal at
 
 Every row you upload has its own status. The first block mirrors the
 [call status](/v2/calls#statuses) vocabulary, so a campaign report reads the same
-way the call list does. The last three exist only inside campaigns.
+way the call list does. The rest exist only inside campaigns.
 
 | Status | Terminal | Meaning |
 | :--- | :---: | :--- |
@@ -158,10 +175,17 @@ way the call list does. The last three exist only inside campaigns.
 | `exhausted` | ✅ | Retried up to `retry_count + 1` attempts and never connected. |
 | `suppressed` | ✅ | The number is on your [do-not-call list](/v2/dnc). Never dialled or billed. |
 | `aborted` | ✅ | The campaign was stopped while this contact was pending or in flight. |
+| `skipped` | ✅ | A pre-call [`skip_call`](/v2/tools#skip-when-a-condition-holds) condition held, so we did not dial. Free. Never retried. |
+| `cancelled` | ✅ | You [cancelled](#cancel-a-contact) the contact while it was waiting. Never dialled again unless you [call it again](#call-a-contact-again). |
 
 Watch `exhausted`. It counts the people we tried with every attempt you paid
 for and never reached. A contact that ends `no_answer` still had attempts left;
 one that ends `exhausted` did not.
+
+A contact waiting for its next retry is `pending` again, with `attempts` above
+zero and `eligible_at` set to when the retry may ring. To stop that retry, for
+example because the customer already did what the call was for, [cancel the
+contact](#cancel-a-contact).
 
 ## Calling window
 
@@ -251,6 +275,132 @@ one control that limits the cost of a mistake in the list itself, such as a
 duplicated CSV or a column shifted by one.
 </Tip>
 
+## Pause after connected calls
+
+Set `pause_after_connected` and the campaign pauses itself once that many calls
+have connected. Resume it when you want the next batch. Use it to keep a long
+campaign in step with the people who act on its calls: run a list for a month,
+pause after every 50 conversations, and resume when your team has followed up.
+
+**What counts as connected.** A contact whose call ended `completed` or
+`timeout`, which means a person answered and talked. `voicemail`, `no_answer`,
+`busy`, `failed` and `skipped` don't count. This is narrower than the report's
+[`connected`](#campaign-report), which also counts voicemail.
+
+**When the count starts.** Counting begins when you turn the limit on, from
+`null` to a number. It starts again from zero each time you resume or start the
+campaign after the limit paused it. Other pauses (yours, the wallet, the budget)
+keep the count where it was. Changing the number keeps the count, so with 30
+counted, moving the limit from 50 to 80 means 50 more calls. Setting it back to
+`null` removes the limit and its count.
+
+**How it lands on the number.** Near the limit, the campaign rings only as many
+people as it still needs, so it stops on the number you set. Calls already in
+progress always finish, because a pause never hangs up on anyone. If you lower
+the limit below the current count, the campaign pauses at its next check.
+
+When it pauses, `status` is `paused`, `pause_reason` is
+`connected_limit_reached`, and you get the usual
+[`campaign.paused`](#webhooks) webhook. The pause is in the campaign's
+[history](#campaign-history), with the limit and the count.
+
+| Rule | Value |
+| :--- | :--- |
+| Range | 1–100000, or `null` for no limit. |
+| Set it | On [create](#create-a-campaign), on a copy, or with [`PATCH`](#update-a-campaign). |
+| While running | Yes. `PATCH` takes it on a `play` campaign and it applies from the next call. |
+| Finished campaigns | Can't be edited, like every other setting. |
+
+### Example: pause a running campaign every 50 conversations
+
+<Tabs>
+  <Tab title="cURL">
+    ```bash
+    # Turn the limit on. The count starts now.
+    curl -X PATCH https://sandbox.voice.miraiminds.co/v2/campaigns/cmp_01K7QAC5N9P4R7S3T6V8W2X4YB \
+      -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+      -H "Content-Type: application/json" \
+      -H "Mirai-Actor: Priya (sales ops)" \
+      -d '{ "pause_after_connected": 50 }'
+
+    # Later, when the team is ready for the next 50:
+    curl -X POST https://sandbox.voice.miraiminds.co/v2/campaigns/cmp_01K7QAC5N9P4R7S3T6V8W2X4YB/resume \
+      -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+      -H "Mirai-Actor: Priya (sales ops)"
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    import os, httpx
+
+    API = "https://sandbox.voice.miraiminds.co"
+    auth = {"Authorization": f"Bearer {os.environ['MIRAI_API_KEY']}",
+            "Mirai-Actor": "Priya (sales ops)"}
+    CAMPAIGN = "cmp_01K7QAC5N9P4R7S3T6V8W2X4YB"
+
+
+    def pause_every(n):
+        r = httpx.patch(f"{API}/v2/campaigns/{CAMPAIGN}", headers=auth,
+                        json={"pause_after_connected": n}, timeout=30)
+        return r.raise_for_status().json()
+
+
+    def next_batch():
+        """Resume after the limit paused the campaign. The count starts again."""
+        c = httpx.get(f"{API}/v2/campaigns/{CAMPAIGN}", headers=auth, timeout=30).raise_for_status().json()
+        if c["status"] != "paused" or c["pause_reason"] != "connected_limit_reached":
+            return c["status"]
+        httpx.post(f"{API}/v2/campaigns/{CAMPAIGN}/resume", headers=auth, timeout=30).raise_for_status()
+        return "resumed"
+    ```
+  </Tab>
+  <Tab title="Node.js">
+    ```javascript
+    const API = "https://sandbox.voice.miraiminds.co";
+    const auth = {
+      Authorization: `Bearer ${process.env.MIRAI_API_KEY}`,
+      "Mirai-Actor": "Priya (sales ops)",
+    };
+    const CAMPAIGN = "cmp_01K7QAC5N9P4R7S3T6V8W2X4YB";
+
+    async function pauseEvery(n) {
+      const res = await fetch(`${API}/v2/campaigns/${CAMPAIGN}`, {
+        method: "PATCH",
+        headers: { ...auth, "Content-Type": "application/json" },
+        body: JSON.stringify({ pause_after_connected: n }),
+      });
+      if (!res.ok) throw new Error(`PATCH failed: ${res.status}`);
+      return res.json();
+    }
+
+    // Resume after the limit paused the campaign. The count starts again.
+    async function nextBatch() {
+      const c = await (await fetch(`${API}/v2/campaigns/${CAMPAIGN}`, { headers: auth })).json();
+      if (c.status !== "paused" || c.pause_reason !== "connected_limit_reached") return c.status;
+      const res = await fetch(`${API}/v2/campaigns/${CAMPAIGN}/resume`, { method: "POST", headers: auth });
+      if (!res.ok) throw new Error(`resume failed: ${res.status}`);
+      return "resumed";
+    }
+    ```
+  </Tab>
+</Tabs>
+
+```json title="200 OK — the PATCH answer, trimmed"
+{
+  "id": "cmp_01K7QAC5N9P4R7S3T6V8W2X4YB",
+  "object": "campaign",
+  "status": "play",
+  "pause_reason": null,
+  "pause_after_connected": 50,
+  "pause_after_connected_count": 0,
+  "pause_after_connected_since": "2026-11-05T08:30:00Z"
+}
+```
+
+`GET /v2/campaigns/{id}` shows `pause_after_connected_count` climbing. To act
+the moment a batch is done, listen for `campaign.paused` with
+`data.campaign.pause_reason` set to `connected_limit_reached`.
+
 ---
 
 ## Always-on campaigns
@@ -297,13 +447,14 @@ calling window is open, and when the window next opens otherwise. If that
 wake-up is ever lost, the campaign looks at its list again within five minutes.
 
 <Warning>
-**A number is in a campaign once.** Contacts are deduplicated on `phone` for
-the whole life of the campaign. Adding a number that is already in it counts
-it in `contacts_duplicate`: it is not called again and its `variables` are not
-updated. To call it again with the details it already has, use
-`POST /v2/campaigns/{id}/contacts/{contact_id}/retry`. To call it with new
-details, place a [single call](/v2/calls#create-a-call) or add it to another
-campaign.
+**Give each contact its own `id` in an always-on campaign.** A contact you add
+with an `id`, such as an order or cart id, is unique by that `id`: the same
+number comes back next week under a new `id` and is called again, and the same
+`id` sent twice counts in `contacts_duplicate`. A contact sent without an `id`
+is unique by `phone` for the whole life of the campaign, and so is every
+contact of a campaign that is not always-on. Two contacts on one number are
+never dialled at the same time. To call a contact again with the details it
+already has, use `POST /v2/campaigns/{id}/contacts/{contact_id}/retry`.
 </Warning>
 
 ### Example: one open campaign, numbers added as they come
@@ -375,7 +526,7 @@ Then add each new order as it is placed:
         added = r.raise_for_status().json()
         if added["contacts_rejected"]:
             raise ValueError(added["contacts_rejected"][0]["reason"])
-        return added["contacts_accepted"] == 1  # False: this number is already in the campaign
+        return added["contacts_accepted"] == 1  # False: this contact is already in the campaign
     ```
   </Tab>
   <Tab title="Node.js">
@@ -401,7 +552,7 @@ Then add each new order as it is placed:
       const added = await res.json();
       if (!res.ok) throw new Error(`${added.error.code}: ${added.error.message}`);
       if (added.contacts_rejected.length) throw new Error(added.contacts_rejected[0].reason);
-      return added.contacts_accepted === 1; // false: this number is already in the campaign
+      return added.contacts_accepted === 1; // false: this contact is already in the campaign
     }
     ```
   </Tab>
@@ -439,6 +590,7 @@ POST /v2/campaigns
 | :--- | :--- | :--- | :--- |
 | `name` | string | yes | 1–120 characters. |
 | `agent_id` | string | yes | Must exist in your workspace. |
+| `agent_revision` | integer | no | A saved, published version of the agent to use. Defaults to its current one. |
 | `tier` | string | no | `t1` \| `t3` \| `t5`. Defaults to your key's tier, which is your company's plan, so leave it out. Calls at any other tier are not covered by your plan. Before your company goes live, campaigns run at `t5`, whatever you send. |
 | `timezone` | string | yes | IANA name, e.g. `Asia/Kolkata`. |
 | `start_date` / `end_date` | string | yes | `YYYY-MM-DD`, local, inclusive. |
@@ -452,6 +604,7 @@ POST /v2/campaigns
 | `phone_number_id` | string \| null | no | One of your own [phone numbers](/v2/phone-numbers) to call from. `null` clears it. |
 | `pool_id` | string \| null | no | A [phone pool](/v2/phone-numbers) to call from, spreading calls across its numbers at its pace. Exclusive with `phone_number_id` and `caller_ids`. `null` clears it. The campaign object returns `pool_id` and a `calls_from` object that names where its number comes from. |
 | `always_on` | boolean | no | Default `false`. `true` keeps the campaign open after its list is done, so you can keep adding contacts. See [always-on campaigns](#always-on-campaigns). |
+| `pause_after_connected` | integer \| null | no | 1–100000. The campaign pauses itself once this many calls have connected. Omit it, or send `null`, for no limit. See [pause after connected calls](#pause-after-connected-calls). |
 | `final_results` | boolean | no | Default `true`. Each call ends with one [`call.processed`](/v2/webhooks#final-results) carrying the transcript, the after-call results and the contact's `metadata`. `false` sends the shorter events only. Change it while the campaign is a draft or paused. |
 | `contacts` | array | no | Up to **1000** rows per request. `{phone, variables?, metadata?, call_settings?, id?}`. Add more later. |
 
@@ -537,7 +690,7 @@ bad ones by index instead of failing the whole upload with `400`:
 | Counter | Meaning |
 | :--- | :--- |
 | `contacts_accepted` | Rows stored and dialable. |
-| `contacts_duplicate` | The phone number was already in this campaign, or repeated inside this batch. We deduplicate on purpose, so this is not an error. |
+| `contacts_duplicate` | The contact was already in this campaign, or repeated inside this batch: the same `id` in an always-on campaign, otherwise the same phone number. We deduplicate on purpose, so this is not an error. |
 | `contacts_rejected` | Rows we could not store, each with the **index in the array you sent** and why. |
 
 Two things do fail the whole request: more than 1000 rows
@@ -568,6 +721,12 @@ lead came from. Put those in `metadata`, not `variables`:
 - It follows the same rules as call metadata: up to 16 keys, string values of
   up to 256 characters, 4 KB in total. A row that breaks them is rejected by
   index like any other bad row.
+
+A value the agent needs and your system matches on, like a loan number, can go
+in both: `variables` for the agent and `metadata` for your webhooks. In the
+console, a CSV column set to **Extra info** is sent as `metadata`, and **Both**
+sends it in each. See
+[Campaigns in the console](/general/campaign#match-your-columns).
 
 <Note>
 If the agent declares its variables (`input_schema`), a variable it does not
@@ -687,15 +846,16 @@ PATCH /v2/campaigns/{id}
 While the campaign is `draft` or `paused` you can change: `name`, `slots`,
 `start_date`, `end_date`, `max_concurrent`, `retry_count`,
 `re_attempt_period_secs`, `max_duration_secs`, `budget_paise`, `webhook_url`,
-`skip_called_before`, `final_results` and `always_on`. Not patchable:
-`agent_id`, `tier`, `timezone`.
+`skip_called_before`, `final_results`, `always_on` and
+`pause_after_connected`. Not patchable: `agent_id`, `tier`, `timezone`.
 
-While it is running, only the pacing can change: `max_concurrent` and `slots`.
-They take effect straight away. Anything else returns `409 conflict`, because
-changing the retry policy or the budget under a live dialler would leave the
-campaign's own report describing settings that were never in force for half of
-its calls. Pause it, patch it, then resume it. A finished campaign can't be
-edited.
+While it is running, only the pacing, the agent's version and the
+connected-call limit can change: `max_concurrent`, `slots`, `agent_revision`
+and `pause_after_connected`. They take effect straight away. Anything else
+returns `409 conflict`, because changing the retry policy or the budget under a
+live dialler would leave the campaign's own report describing settings that
+were never in force for half of its calls. Pause it, patch it, then resume it.
+A finished campaign can't be edited.
 
 ```bash
 curl -X PATCH https://sandbox.voice.miraiminds.co/v2/campaigns/cmp_01K7QAC5N9P4R7S3T6V8W2X4YB \
@@ -704,7 +864,40 @@ curl -X PATCH https://sandbox.voice.miraiminds.co/v2/campaigns/cmp_01K7QAC5N9P4R
   -d '{ "budget_paise": 120000, "max_concurrent": 4 }'
 ```
 
-Returns `200 OK` with the campaign object.
+Returns `200 OK` with the campaign object. A change to `pause_after_connected`
+is recorded in the campaign's [history](#campaign-history).
+
+### Switch to the agent's latest version
+
+A campaign keeps the version of its agent it was created with. If you change
+the agent later (a new voice, a new prompt), the campaign's calls don't pick
+that up on their own. The campaign object shows the version it uses in
+`agent_revision`, and `GET /v2/agents/{id}` shows the agent's current
+`revision`.
+
+To move the campaign onto the new version, send that revision. This works
+while the campaign is running, so you don't need to pause it:
+
+```bash
+curl -X PATCH https://sandbox.voice.miraiminds.co/v2/campaigns/cmp_01K7QAC5N9P4R7S3T6V8W2X4YB \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "agent_revision": 5 }'
+```
+
+The next calls use the new version. Calls already in progress finish as they
+started. A contact whose own [`call_settings`](#voice-and-language-per-contact)
+name a voice keeps that voice. You can also send an older revision to go back.
+In the console, the campaign page shows **Use the latest version** when the
+agent has changed.
+
+| Status | Code | When |
+|---|---|---|
+| `400` | `invalid_request` | `agent_revision` is not a positive number, or that revision is a draft. Publish the agent first. |
+| `404` | `not_found` | The agent has no such revision. |
+| `409` | `agent_archived` | The agent is archived. Restore it first. |
+| `409` | `agent_inputs_changed` | That version needs variables some waiting contacts don't have. The message names the first one. |
+| `503` | `fleet_offline` | A running campaign only: calling capacity for that version's voice is offline. Try again in a few minutes. |
 
 ---
 
@@ -810,6 +1003,183 @@ one without [`call_settings`](#voice-and-language-per-contact) has no
 
 ---
 
+## Call a contact again
+
+```http
+POST /v2/campaigns/{id}/contacts/{contact_id}/retry
+```
+
+Puts one contact back in line, even one that has used all its retries:
+`completed`, `voicemail`, `no_answer`, `busy`, `timeout`, `failed`,
+`exhausted` or `cancelled`. It becomes `pending`, eligible now, and keeps
+`attempts`, `last_call_id` and `last_status`. `attempts` goes up by one when
+the new call is placed. On a running campaign it rings as soon as the calling
+window and pacing allow, and the call spends credit.
+
+Answers `200` with the contact, in the same shape as
+[List contacts](#list-contacts). Allowed while the campaign is `draft`,
+`paused` or `play`.
+
+| Status | `error.code` | Cause |
+| :--- | :--- | :--- |
+| `409` | `contact_in_progress` | The contact is already waiting or being called. A second retry is refused, so a double click never calls anyone twice. |
+| `409` | `contact_suppressed` | The contact is `suppressed` or `skipped`, its number is on the [do-not-call list](/v2/dnc), or `skip_called_before` applies. |
+| `409` | `campaign_finished` | The campaign is `stopped` or `completed`. Start a new campaign for these contacts. |
+| `409` | `campaign_archived` | Restore the campaign first. |
+| `404` | `not_found` | No such campaign in your workspace, or no such contact in it. |
+
+---
+
+## Remove a contact
+
+```http
+DELETE /v2/campaigns/{id}/contacts/{contact_id}
+```
+
+Takes a contact off the list before its first call, for example a number added
+by mistake. Only a contact that has never been dialled can be removed: status
+`pending`, `attempts` 0, not being called. Answers `204` with no body, and the
+campaign's counters no longer include it. The number can be added again.
+
+Once a contact has a call it is part of the campaign's record and stays. To
+stop its next retry, [cancel it](#cancel-a-contact). To stop every future call
+to a number, add it to the [do-not-call list](/v2/dnc).
+
+```bash
+curl -X DELETE https://sandbox.voice.miraiminds.co/v2/campaigns/cmp_01K7QAC5N9P4R7S3T6V8W2X4YB/contacts/cust-2002 \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY"
+```
+
+| Status | `error.code` | Cause |
+| :--- | :--- | :--- |
+| `409` | `contact_dialled` | The contact has been called, or is being called right now. |
+| `409` | `campaign_finished` | The campaign is `stopped` or `completed`. Its list is its record. |
+| `404` | `not_found` | No such campaign in your workspace, or no such contact in it, including one already removed. |
+
+---
+
+## Cancel a contact
+
+```http
+POST /v2/campaigns/{id}/contacts/{contact_id}/cancel
+```
+
+Stops calling one contact that is waiting: one not called yet, or one waiting
+for its next retry after a call nobody picked up. Use it when the reason for
+the call goes away between attempts. A shopper completes the order you were
+going to remind them about, a customer pays the bill, a lead books on your
+site.
+
+The contact becomes `cancelled`. It is not called again, and the campaign no
+longer waits for it, so a campaign that is not
+[always-on](#always-on-campaigns) can complete without it. Its `attempts`,
+`last_call_id` and `last_status` stay, and it stays in
+[List contacts](#list-contacts) and the [report](#campaign-report). Allowed
+while the campaign is `draft`, `paused` or `play`.
+
+A call that is already ringing or in conversation is **never cut off**. The
+cancel answers `409 contact_in_call`. Send it again once the call ends: if the
+call reached nobody and a retry is booked, the retry is cancelled. To end a
+live call, use [`POST /v2/calls/{id}/abort`](/v2/calls#abort-a-call) with that
+call's id (`data.call.id` in its webhooks).
+
+<Tabs>
+  <Tab title="cURL">
+    ```bash
+    curl -X POST https://sandbox.voice.miraiminds.co/v2/campaigns/cmp_01K8QAC5N9P4R7S3T6V8W2X4YB/contacts/order-8842/cancel \
+      -H "Authorization: Bearer sk_live_YOUR_API_KEY"
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    import os, time
+    from urllib.parse import quote
+
+    import httpx
+
+    API = "https://sandbox.voice.miraiminds.co"
+    auth = {"Authorization": f"Bearer {os.environ['MIRAI_API_KEY']}"}
+    CAMPAIGN = "cmp_01K8QAC5N9P4R7S3T6V8W2X4YB"
+
+
+    def cancel_order_call(order_id, tries=5):
+        """Stop calling about an order once it has been placed."""
+        url = f"{API}/v2/campaigns/{CAMPAIGN}/contacts/{quote(f'order-{order_id}', safe='')}/cancel"
+        for _ in range(tries):
+            r = httpx.post(url, headers=auth, timeout=30)
+            if r.status_code == 200:
+                return "cancelled"
+            code = r.json()["error"]["code"] if r.status_code in (404, 409) else None
+            if code == "contact_in_call":
+                time.sleep(60)  # a call is in progress; it is never cut off
+                continue
+            if code in ("contact_finished", "campaign_finished", "not_found"):
+                return code  # nothing is waiting to be cancelled
+            r.raise_for_status()
+        return "still_in_call"
+    ```
+  </Tab>
+  <Tab title="Node.js">
+    ```javascript
+    const API = "https://sandbox.voice.miraiminds.co";
+    const auth = { Authorization: `Bearer ${process.env.MIRAI_API_KEY}` };
+    const CAMPAIGN = "cmp_01K8QAC5N9P4R7S3T6V8W2X4YB";
+
+    // Stop calling about an order once it has been placed.
+    async function cancelOrderCall(orderId, tries = 5) {
+      const contact = encodeURIComponent(`order-${orderId}`);
+      const url = `${API}/v2/campaigns/${CAMPAIGN}/contacts/${contact}/cancel`;
+      for (let i = 0; i < tries; i++) {
+        const res = await fetch(url, { method: "POST", headers: auth });
+        if (res.ok) return "cancelled";
+        const { error } = await res.json();
+        if (error.code === "contact_in_call") {
+          await new Promise((r) => setTimeout(r, 60_000)); // never cut off; try after it ends
+          continue;
+        }
+        if (["contact_finished", "campaign_finished", "not_found"].includes(error.code)) {
+          return error.code; // nothing is waiting to be cancelled
+        }
+        throw new Error(`${error.code}: ${error.message}`);
+      }
+      return "still_in_call";
+    }
+    ```
+  </Tab>
+</Tabs>
+
+```json title="200 OK"
+{
+  "id": "order-8842",
+  "phone": "+919876543210",
+  "status": "cancelled",
+  "attempts": 1,
+  "variables": { "customer_name": "Rahul", "order_id": "8842" },
+  "metadata": { "order_id": "8842" },
+  "last_call_id": "call_01K8QB4M8N3P6R2S5T7V9W1YA",
+  "last_status": "no_answer",
+  "eligible_at": "2026-10-15T11:19:02Z",
+  "updated_at": "2026-10-15T11:16:40Z"
+}
+```
+
+The answer is the contact, in the same shape as [List contacts](#list-contacts).
+Cancelling a contact that is already `cancelled` answers `200` with it again,
+so a repeated request (a webhook delivered twice, a retried job) is safe. To
+call a cancelled contact after all, [call it again](#call-a-contact-again).
+
+| Status | `error.code` | Cause |
+| :--- | :--- | :--- |
+| `409` | `contact_in_call` | The contact is being called right now. The call is not cut off; try again after it ends. |
+| `409` | `contact_finished` | The contact already has an outcome (`completed`, `voicemail`, `timeout`, `exhausted`, `skipped`, `suppressed`, `aborted` and the like) and is not waiting for any call. The message names its status. |
+| `409` | `campaign_finished` | The campaign is `stopped` or `completed`. A stop already marked every waiting contact `aborted`. |
+| `404` | `not_found` | No such campaign in your workspace, or no such contact in it. |
+
+Percent-encode `contact_id` in the path when your ids contain `/`, spaces or
+other reserved characters.
+
+---
+
 ## Start a campaign
 
 ```http
@@ -819,7 +1189,9 @@ POST /v2/campaigns/{id}/start
 Allowed from `draft` and from `paused`. Starting a paused campaign is how you
 resume one whose dialler is no longer running (after a top-up, for example),
 because `start` re-runs the fleet and wallet preflight that a bare
-[resume](#resume-a-campaign) skips.
+[resume](#resume-a-campaign) skips. Starting a campaign that the
+[connected-call limit](#pause-after-connected-calls) paused starts its count
+again from zero, as a resume does.
 
 ```bash
 curl -X POST https://sandbox.voice.miraiminds.co/v2/campaigns/cmp_01K7QAC5N9P4R7S3T6V8W2X4YB/start \
@@ -913,6 +1285,17 @@ now, use [`POST /v2/calls/{id}/abort`](/v2/calls#abort-a-call).
 
 Only a `play` campaign can be paused; anything else is `409 conflict`.
 
+The body is optional. Send `reason` and `by` to say why and who, and the
+campaign's `pause_reason` reads `<by>: <reason>` (at most 300 characters
+together):
+
+```bash
+curl -X POST https://sandbox.voice.miraiminds.co/v2/campaigns/cmp_01K7QAC5N9P4R7S3T6V8W2X4YB/pause \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "reason": "agent script under review", "by": "Priya (sales ops)" }'
+```
+
 ---
 
 ## Resume a campaign
@@ -934,6 +1317,11 @@ wallet and fleet preflight.
 again, exactly as on start. The campaign stays `paused`. Extend `end_date` or
 widen `slots` with [`PATCH`](#update-a-campaign), then resume.
 
+Resuming a campaign paused with `connected_limit_reached` starts the
+[connected-call count](#pause-after-connected-calls) again from zero, so it
+calls the next batch and pauses again. To call more before the next pause,
+raise `pause_after_connected` first. To stop pausing, set it to `null`.
+
 ---
 
 ## Stop a campaign
@@ -951,6 +1339,80 @@ contacts are marked `aborted`, and the campaign will never dial again. Allowed
 from `draft`, `play` and `paused`.
 
 If you might want to continue later, [pause](#pause-a-campaign) instead.
+
+---
+
+## Campaign history
+
+```http
+GET /v2/campaigns/{id}/history?limit=
+```
+
+The campaign's log: every start, pause, resume, stop and completion, and every
+change to its [connected-call limit](#pause-after-connected-calls), with when
+it happened, who did it and why. It is how you tell a pause someone pressed
+from one the campaign made on its own.
+
+| Query param | Description |
+| :--- | :--- |
+| `limit` | 1–200, default 50. Entries come newest first. |
+
+```bash
+curl -G https://sandbox.voice.miraiminds.co/v2/campaigns/cmp_01K7QAC5N9P4R7S3T6V8W2X4YB/history \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+  --data-urlencode "limit=20"
+```
+
+```json title="200 OK"
+{
+  "object": "list",
+  "data": [
+    { "type": "resumed", "at": "2026-11-06T05:00:12Z", "by": "Priya (sales ops)",
+      "reason": null, "count_restarted": true },
+    { "type": "paused", "at": "2026-11-05T09:02:11Z", "by": null,
+      "reason": "connected_limit_reached", "pause_after_connected": 50, "connected": 50 },
+    { "type": "resumed", "at": "2026-11-05T07:55:40Z", "by": "Priya (sales ops)",
+      "reason": null },
+    { "type": "paused", "at": "2026-11-05T07:40:03Z", "by": null,
+      "reason": "insufficient_balance" },
+    { "type": "pause_rule_changed", "at": "2026-11-05T04:30:00Z", "by": "Priya (sales ops)",
+      "reason": null, "pause_after_connected": 50, "previous_pause_after_connected": null },
+    { "type": "started", "at": "2026-11-05T04:29:31Z", "by": "Priya (sales ops)",
+      "reason": null }
+  ]
+}
+```
+
+| Field | Type | Description |
+| :--- | :--- | :--- |
+| `type` | enum | `started` \| `paused` \| `resumed` \| `stopped` \| `completed` \| `pause_rule_changed`. |
+| `at` | string | RFC 3339 time it happened. |
+| `by` | string \| null | Who did it: the [`Mirai-Actor`](#who-did-it-mirai-actor) they sent. `null` when the campaign did it on its own, such as an automatic pause or a completion. Always present. |
+| `reason` | string \| null | On `paused`, the campaign's [`pause_reason`](#pause-reasons) at that moment. On `completed`, `list_finished` or `end_date`. Otherwise `null`. Always present. |
+| `pause_after_connected` | integer \| null | On `pause_rule_changed`, the new limit (`null` means it was removed). On a pause with `connected_limit_reached`, the limit it reached. Absent otherwise. |
+| `previous_pause_after_connected` | integer \| null | On `pause_rule_changed` only: the limit before the change (`null` means there was none). |
+| `connected` | integer | On a pause with `connected_limit_reached` only: the connected calls it counted. |
+| `count_restarted` | boolean | `true` on `started` or `resumed` when the connected-call count started again. Absent otherwise. |
+
+The history starts on the day this endpoint shipped. Older campaigns have no
+entries from before it. `404 not_found` for an unknown id and for one in another
+workspace.
+
+### Who did it: `Mirai-Actor`
+
+Add a `Mirai-Actor` header to any campaign write (create, `PATCH`, start,
+pause, resume, stop) to name the person or system behind it. It is up to 120
+characters and appears as `by` in the history.
+
+```bash
+curl -X POST https://sandbox.voice.miraiminds.co/v2/campaigns/cmp_01K7QAC5N9P4R7S3T6V8W2X4YB/resume \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+  -H "Mirai-Actor: crm-sync (nightly)"
+```
+
+Without the header, `by` is the `by` you sent in a [pause body](#pause-a-campaign),
+then your API key's label, then `API`. Changes made in the console carry your
+workspace's name.
 
 ---
 
@@ -1033,7 +1495,7 @@ signed with the same workspace secret and verified by the same code path.
 | Type | Fires when |
 | :--- | :--- |
 | `campaign.started` | The first `POST /start` takes effect. Once per campaign, never on an internal restart. |
-| `campaign.paused` | You paused it, or the money gate did. Read `data.campaign.pause_reason`. |
+| `campaign.paused` | You paused it, or the campaign paused itself: the money gate, the [connected-call limit](#pause-after-connected-calls) or its number. Read `data.campaign.pause_reason`. |
 | `campaign.resumed` | Dialling resumed. |
 | `campaign.completed` | Every contact reached a final state, or the date range ran out. An always-on campaign sends it only when the date range runs out. |
 | `campaign.stopped` | You stopped it. |

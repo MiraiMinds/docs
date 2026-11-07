@@ -64,6 +64,13 @@ Repeating it in the prompt only spends turns and tokens.
 None of this belongs in your prompt. Use the prompt for the job the call has to
 do.
 
+<Note>
+Running your own voice agent on the [language model API](/v2/llm)? The engine
+is not in that call, so end your system prompt with the
+[phone rules](/v2/llm#8-prompt-it-for-a-phone-call) and handle voicemail in
+your pipeline.
+</Note>
+
 <Warning>
 **The agent can only do what its tools do.**
 
