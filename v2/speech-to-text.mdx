@@ -45,7 +45,8 @@ accurate and the fastest. When callers may switch to other languages you know,
 add up to three of them in `secondary_languages`. When you don't know the
 language, connect with `language_code=auto` and Mira STT works out the
 language of each utterance. In both cases each transcript carries the
-`language` it was heard in. [Languages](/v2/stt-languages) explains the three
+`language` it was heard in, and each final also `language_probability`, how
+sure Mira STT is of it. [Languages](/v2/stt-languages) explains the three
 choices and has the status of each language.
 
 ## Connect
@@ -269,7 +270,7 @@ open a new one to change them.
 | `vad.speech_start` | `utterance_idx`, `confidence` | `vad` only. Speech began. |
 | `vad.speech_end` | `utterance_idx`, `confidence` | `vad` only. The silence after speech reached `silence_duration_ms`. |
 | `transcript.partial` | `utterance_idx`, `text`; `language` in an `auto` or secondary-language session | While an utterance is open. `text` is the whole utterance so far. |
-| `transcript.final` | `utterance_idx`, `text`; `language` in an `auto` or secondary-language session | Once per utterance, after it ends. |
+| `transcript.final` | `utterance_idx`, `text`; `language` and `language_probability` in an `auto` or secondary-language session | Once per utterance, after it ends. |
 | `config.updated` | `applied`, `config` | After a valid `config.update`. |
 | `pong` | none | After your `ping`. |
 | `session.draining` | `reason`; from the recogniser also `audio_samples_received`, `sample_rate` | We are ending the session: a restart, the 1-hour limit or an empty wallet. See [Closing](#closing). |
@@ -335,11 +336,12 @@ recognisable speech still gets its final, with `text` set to `""`.
 In a session opened with `language_code=auto` or with `secondary_languages`,
 partials and finals also carry `language`, the language Mira STT heard that
 utterance in. A partial's `language` can differ from its final's, the way its
-words can, so go by the final. When an utterance switches to a different
-language, its final can take a little longer.
+words can, so go by the final. The final also carries `language_probability`,
+from 0 to 1: how sure Mira STT is of that language. When an utterance switches
+to a different language, its final can take a little longer.
 
 ```json title="transcript.final, language_code=auto"
-{ "event": "transcript.final", "utterance_idx": 4, "text": "நாளைக்கு காலை பத்து மணிக்கு வாங்க", "language": "ta-IN" }
+{ "event": "transcript.final", "utterance_idx": 4, "text": "நாளைக்கு காலை பத்து மணிக்கு வாங்க", "language": "ta-IN", "language_probability": 0.9731 }
 ```
 
 ```json title="config.updated"

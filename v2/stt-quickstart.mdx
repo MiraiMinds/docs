@@ -138,19 +138,28 @@ send `language=auto`.
   </Tab>
 </Tabs>
 
-The answer's `language` is the language of most of the speech in the clip.
-With `verbose_json`, each segment also says its own. An utterance that
-switches language can take a little longer to transcribe.
+The answer's `language` is the language of most of the speech in the clip,
+and `language_probability` (0 to 1) is how sure Mira STT is of it. With
+`verbose_json`, each segment also has its own `language` and
+`language_probability`. An utterance that switches language can take a little
+longer to transcribe.
+
+```json title="200 OK, language=auto"
+{ "text": "நாளைக்கு காலை பத்து மணிக்கு வாங்க", "language": "ta-IN", "language_probability": 0.9731 }
+```
 
 ### Response formats
 
 `json`, the default, is the text and its language. The language is the full
 code, such as `gu-IN` even when you sent `gu`; with `auto` or
-`secondary_languages`, it is the language of most of the speech. `text` is the
-text alone as a plain body (`text/plain; charset=utf-8`), with no JSON around
-it. `verbose_json` adds the audio's length in seconds and one segment for each
+`secondary_languages`, it is the language of most of the speech, and
+`language_probability` says how sure Mira STT is of it. A clip in the one
+language you named has no `language_probability`. `text` is the text alone as
+a plain body (`text/plain; charset=utf-8`), with no JSON around it.
+`verbose_json` adds the audio's length in seconds and one segment for each
 utterance we found, with where it starts and ends in the clip and its own
-language. `srt` and `vtt` are not offered.
+language (and, with `auto` or `secondary_languages`, its own
+`language_probability`). `srt` and `vtt` are not offered.
 
 ```json title="verbose_json"
 {
@@ -189,7 +198,8 @@ wss://sandbox.voice.miraiminds.co/v1/audio/transcriptions/stream?language_code=g
 
 For callers who switch languages, add `&secondary_languages=hi-IN,en-IN`, or
 connect with `language_code=auto` when you don't know the language. Each
-transcript then carries the `language` it was heard in. See
+transcript then carries the `language` it was heard in, and each final its
+`language_probability`. See
 [Languages](/v2/stt-languages#choose-how-mira-stt-picks-the-language).
 
 Send your key in the `Authorization: Bearer` header, as on every other
@@ -298,9 +308,7 @@ stt = MiraiSTTService(api_key=os.environ["MIRA_API_KEY"], language="gu-IN")
 
 It opens one socket per call, uses your pipeline's VAD to mark the start and
 end of each utterance, sends 8 kHz phone audio as it is, and reconnects without
-losing what the caller said. From pipecat-mirai 0.7.0 it also takes
-`language="auto"` and `secondary_languages=[...]`. See
-[Pipecat](/v2/pipecat#transcribe-with-miraisttservice).
+losing what the caller said. See [Pipecat](/v2/pipecat#transcribe-with-miraisttservice).
 
 ## For phone calls
 

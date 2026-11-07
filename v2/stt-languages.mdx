@@ -1,36 +1,28 @@
 ---
 title: "Speech to text languages: Hindi, Gujarati, Tamil, Telugu and six more"
 sidebarTitle: "STT languages"
-description: "The ten Indian languages Mira STT transcribes, how to pass the language code, secondary languages and automatic language identification, how English inside an Indian language comes back, and each language's status."
+description: "The ten Indian languages Mira STT transcribes, how to pass the language code, secondary languages and automatic language identification, which language each answer says it heard and how sure it is, and how English inside an Indian language comes back."
 ---
 
 Mira STT transcribes ten languages, on HTTP and on the socket alike:
 
-| Code | Language | Status |
-| :--- | :--- | :--- |
-| `hi-IN` | Hindi, including Hinglish | Live |
-| `en-IN` | English (Indian), for speech that is English throughout | Live |
-| `gu-IN` | Gujarati | Live |
-| `ta-IN` | Tamil | Live |
-| `te-IN` | Telugu | Live |
-| `mr-IN` | Marathi | Preview |
-| `pa-IN` | Punjabi | Preview |
-| `bn-IN` | Bengali | Preview |
-| `kn-IN` | Kannada | Preview |
-| `ml-IN` | Malayalam | Preview |
+| Code | Language |
+| :--- | :--- |
+| `hi-IN` | Hindi, including Hinglish |
+| `en-IN` | English (Indian), for speech that is English throughout |
+| `gu-IN` | Gujarati |
+| `ta-IN` | Tamil |
+| `te-IN` | Telugu |
+| `mr-IN` | Marathi |
+| `pa-IN` | Punjabi |
+| `bn-IN` | Bengali |
+| `kn-IN` | Kannada |
+| `ml-IN` | Malayalam |
 
-## What the status means
-
-- **Live** is ready for production calls. Hindi with the English mixed into
-  it (Hinglish), English, Gujarati, Tamil and Telugu are live, and the same
-  languages are live in [text to speech](/v2/tts-languages).
-- **Preview** is accepted and transcribed today, and we have not yet published
-  accuracy for it. Measured numbers are published here as each language clears
-  our evaluation. Test on recordings from your own callers before you rely on
-  it.
-
-The status is a label on this page only. Every language takes the same
-requests, returns the same events and costs the same.
+All ten are live for production calls. Every language takes the same requests,
+returns the same events and costs the same. Hindi with the English mixed into
+it (Hinglish), English, Gujarati, Tamil and Telugu are also live in
+[text to speech](/v2/tts-languages).
 
 ## Pass the language
 
@@ -75,7 +67,6 @@ the new language.
 | :--- | :--- |
 | HTTP | Comma-separated in a form field: `-F language=gu-IN -F secondary_languages=hi-IN,en-IN`. |
 | WebSocket | Comma-separated on the URL: `?language_code=gu-IN&secondary_languages=hi-IN,en-IN`. |
-| Pipecat | `MiraiSTTService(language="gu-IN", secondary_languages=["hi-IN", "en-IN"])`, from pipecat-mirai 0.7.0 |
 
 Codes take the same forms as `language` (`hi` works too). A duplicate, or the
 main language repeated, is dropped. A code outside the ten, more than three
@@ -99,7 +90,6 @@ the same, for clients written for Sarvam.
 | :--- | :--- |
 | HTTP | `-F language=auto` |
 | WebSocket | `?language_code=auto` |
-| Pipecat | `MiraiSTTService(language="auto")`, from pipecat-mirai 0.7.0 |
 
 ### What to expect
 
@@ -107,27 +97,30 @@ the same, for clients written for Sarvam.
   "hello" or "haan" says little about the language, so the first few turns of
   a caller who speaks a secondary language can come back in your main language
   until Mira STT is sure.
-- Mira STT can't yet reliably tell Indian English apart from Tamil, Telugu,
-  Kannada or Malayalam. When English and one of those are both possible, it
-  keeps whichever of them you listed first. With `auto` that is English, so
-  `auto` does not pick out Tamil, Telugu, Kannada or Malayalam. For callers who
-  speak those languages, name the language, or add it to
-  `secondary_languages` without `en-IN`.
+- Check `language_probability` before you act on a language. A low value,
+  often on a turn of a word or two, means Mira STT was not sure.
 
 ### The language in the answer
 
-| Where | Field |
+Every answer says which language Mira STT heard. When Mira STT picked the
+language itself, with `auto` or `secondary_languages`, it also says how sure it
+is: `language_probability`, from 0 to 1.
+
+| Where | Fields |
 | :--- | :--- |
-| HTTP | `language` in the `json` and `verbose_json` answers: the language of most of the speech in the clip. In `verbose_json`, each segment also has its own `language`. |
-| WebSocket | `language` on `transcript.partial` and `transcript.final`, in an `auto` or secondary-language session: the language of that utterance. |
-| Pipecat | `TranscriptionFrame.language`, the language of that utterance. |
+| HTTP | `language` in the `json` and `verbose_json` answers: the language of most of the speech in the clip. `language_probability` is how sure Mira STT is of it, averaged over the speech in that language. In `verbose_json`, each segment also has its own `language` and `language_probability`. |
+| WebSocket | `language` on `transcript.partial` and `transcript.final`, in an `auto` or secondary-language session: the language of that utterance. The final also carries `language_probability`. |
+
+A clip or session in the one language you named has no `language_probability`:
+Mira STT did not pick the language, so `language` is the one you sent. A
+segment with no words has none either.
 
 ```json title="HTTP, language=auto"
-{ "text": "નમસ્તે મારે કાલે સાંજે પાંચ વાગ્યાની appointment બુક કરવી છે", "language": "gu-IN" }
+{ "text": "நாளைக்கு காலை பத்து மணிக்கு வாங்க", "language": "ta-IN", "language_probability": 0.9731 }
 ```
 
 ```json title="WebSocket, language_code=auto"
-{ "event": "transcript.final", "utterance_idx": 3, "text": "हाँ ठीक है कल शाम को आ जाइए", "language": "hi-IN" }
+{ "event": "transcript.final", "utterance_idx": 3, "text": "हाँ ठीक है कल शाम को आ जाइए", "language": "hi-IN", "language_probability": 0.9912 }
 ```
 
 ### Change the language mid-session
@@ -173,5 +166,5 @@ which detects the main language of the recording, and its own codes: `hi`,
 
 ## Ask for a language
 
-If your callers speak a language that is not here, or a preview language
-matters to your business, tell your Mirai contact which one.
+If your callers speak a language that is not here, tell your Mirai contact
+which one.
