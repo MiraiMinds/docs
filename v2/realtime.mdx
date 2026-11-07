@@ -40,7 +40,7 @@ your company has gone live, `sandbox.voice.miraiminds.co` with a sandbox key.
 | Query parameter | Required | What it does |
 | :--- | :--- | :--- |
 | `model` | no | Accepted and ignored. Every session runs Mirai's stack at your workspace's tier, and reports its model as `mira-realtime`. Pipecat adds this parameter itself. |
-| `agent_id` | no | Start from one of your [agents](/v2/agents): its prompt, tools, voice and language. Without it, the session starts empty and your `session.update` supplies the instructions, tools and voice. Node-based agents are not supported. |
+| `agent_id` | no | Start from one of your [agents](/v2/agents): its prompt, tools, voice, language and secondary languages. Without it, the session starts empty and your `session.update` supplies the instructions, tools and voice. Node-based agents are not supported. |
 | `variables` | no | A JSON object, URL-encoded: the values for the agent's `{{placeholders}}`, as for a [call](/v2/calls#variables). Send them when your agent's prompt expects inputs. |
 | `webhook_url` | no | Where this session's [webhooks](/v2/webhooks) go (`call.started`, `call.completed` and the rest), as for a [call](/v2/calls#create-a-call). URL-encode it. |
 | `max_duration_secs` | no | Ends the session after this many seconds, from 30 to 1800. See [limits](#limits) for the default. |
@@ -316,7 +316,7 @@ ignored. Any other event type returns an `error` with code `invalid_event`.
 | `audio.output.voice` | Yes, at any time | A Mirai voice: `neha`, `ashu`, `shruti`, `sameer`, `munshi` or `tanvi` ([listen](/v2/voices)). An unknown voice keeps the agent's or workspace's voice. |
 | `audio.input.turn_detection` | Yes, at any time | `server_vad` and `semantic_vad` both use Mirai's turn detection. `create_response: false` makes us wait for your `response.create` after each turn. `interrupt_response: false` stops the caller's speech from cutting the agent off. `null` means you decide when the caller has finished: send `input_audio_buffer.commit` and `response.create` yourself. |
 | `max_output_tokens` | Yes, at any time | 1 to 4096, or `"inf"`. Caps the length of each reply. |
-| `audio.input.transcription.language` | First update only | The caller's language, such as `hi` or `en`. Leave it out to detect it. |
+| `audio.input.transcription.language` | First update only | The caller's language, such as `hi` or `en`. When neither you nor the agent sets a language, speech recognition works out the language of each utterance among its [ten languages](/v2/stt-languages). See [Languages](#languages). |
 | `audio.input.format`, `audio.output.format` | First update only | `audio/pcm` at 24 kHz (the default), or `audio/pcmu` / `audio/pcma` at 8 kHz for telephony audio, which saves you two resamples. Any other rate is an error. |
 | `audio.output.speed` | No | Mirai voices speak at their tuned rate. |
 | `threshold`, `prefix_padding_ms`, `silence_duration_ms`, `eagerness`, `idle_timeout_ms` (in `turn_detection`) | No | Mirai's turn detection decides when the caller has finished. |
@@ -371,6 +371,31 @@ validate it strictly: an unknown key returns an `error` with code
 Pipecat 1.8.1's `SessionProperties` drops fields it does not know, so stock
 Pipecat cannot send the `mirai` block. `MiraiRealtimeLLMService` from
 [`pipecat-mirai`](/v2/pipecat) sends it: pass `language=` and `mirai={...}`.
+
+### Languages
+
+Speech recognition listens in the caller's language: the one you set in
+`session.update`, else your agent's `language`. If you know it, set it. A
+fixed language is the most accurate and the fastest.
+
+Your agent's [`secondary_languages`](/v2/agents#fields), or the call's
+[`call_settings`](/v2/calls#call-settings), reach speech recognition too: the
+first three that are among its ten languages. The main language stays the
+default, and a turn moves to a secondary language only when speech recognition
+is confident it is in that language. This fits callers who switch between
+languages you know, such as Hindi and English.
+
+When neither you nor the agent sets a language, speech recognition works out
+the language of each turn among its [ten languages](/v2/stt-languages) and
+remembers what it heard earlier in the session. A turn that switches to a
+different language can take a little longer to transcribe.
+
+In a session with secondary languages, or with no language set, each turn's
+[metrics](#turn-metrics) include `mirai_user_language`, the language the
+caller spoke in.
+
+Detection changes what the agent hears, not your prompt. For replies in the
+caller's language, say so in the prompt, as the example above does.
 
 ## Tools
 
@@ -440,6 +465,7 @@ accepts the event:
 | `mirai_tts_ms` | Time for speech synthesis to produce its first audio. |
 | `mirai_stt_provider`, `mirai_llm_provider`, `mirai_tts_provider` | Which provider served each step: `mira` for our own, otherwise the [fallback](#fallback) that took over, such as `sarvam_realtime` or `sarvam`. |
 | `mirai_fallback` | `"true"` when any step of the turn ran on a fallback provider. |
+| `mirai_user_language` | The language speech recognition heard the caller's turn in, such as `gu-IN`. Only in a session that listens for more than one language: with no language set, or with secondary languages. |
 
 A time that was not measured for a turn is left out. In the example the model's
 time is missing, and speech recognition and speech synthesis both ran on their
