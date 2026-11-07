@@ -43,6 +43,9 @@ A finished job, as `GET /v2/transcriptions/{id}` returns it:
   "file_name": "synthetic_call.wav",
   "bytes": 370308,
   "language": null,
+  "detected_language": "hi",
+  "language_probability": 0.97,
+  "languages_heard": ["hi", "en", "hi", "en"],
   "diarize": true,
   "words": false,
   "text": "नमस्ते मैं Mira University के admissions desk से बात कर रही हूँ क्या आपके पास दो मिनट हैं yes tell me I wanted to ask about the BBA course fees जी ज़रूर BBA की fees एक लाख बीस हज़ार रुपये प्रति वर्ष है आप Aadhaar के साथ online apply कर सकते हैं okay thank you I will apply this week",
@@ -52,28 +55,36 @@ A finished job, as `GET /v2/transcriptions/{id}` returns it:
       "speaker_id": "spk0",
       "start": 0,
       "end": 6.57,
-      "text": "नमस्ते मैं Mira University के admissions desk से बात कर रही हूँ क्या आपके पास दो मिनट हैं"
+      "text": "नमस्ते मैं Mira University के admissions desk से बात कर रही हूँ क्या आपके पास दो मिनट हैं",
+      "language": "hi",
+      "language_probability": 0.93
     },
     {
       "speaker": "Customer",
       "speaker_id": "spk1",
       "start": 7.21,
       "end": 11.32,
-      "text": "yes tell me I wanted to ask about the BBA course fees"
+      "text": "yes tell me I wanted to ask about the BBA course fees",
+      "language": "en",
+      "language_probability": 0.88
     },
     {
       "speaker": "Agent",
       "speaker_id": "spk0",
       "start": 11.98,
       "end": 19.56,
-      "text": "जी ज़रूर BBA की fees एक लाख बीस हज़ार रुपये प्रति वर्ष है आप Aadhaar के साथ online apply कर सकते हैं"
+      "text": "जी ज़रूर BBA की fees एक लाख बीस हज़ार रुपये प्रति वर्ष है आप Aadhaar के साथ online apply कर सकते हैं",
+      "language": "hi",
+      "language_probability": 0.95
     },
     {
       "speaker": "Customer",
       "speaker_id": "spk1",
       "start": 20.21,
       "end": 23.05,
-      "text": "okay thank you I will apply this week"
+      "text": "okay thank you I will apply this week",
+      "language": "en",
+      "language_probability": 0.84
     }
   ],
   "diarization": {
@@ -102,7 +113,10 @@ A finished job, as `GET /v2/transcriptions/{id}` returns it:
 | `source` | enum | `upload` for a multipart file, `url` for a link we fetched. |
 | `file_name` | string | The uploaded file's name, or the last part of the link's path. |
 | `bytes` | integer | Size of the recording. |
-| `language` | string \| null | The language you set, or `null` when it was detected. |
+| `language` | string \| null | The language you set, or `null` when you left it on automatic detection. What was spoken is in `detected_language`. |
+| `detected_language` | string \| null | The main language spoken in the recording, as a short code (`hi`, `en`, `gu`, `mr`, `pa`, `bn`, `ta`, `te`, `kn`, `ml`). It is filled in whether or not you set `language`. `null` until the recording has been decoded, for a failed job, and for jobs made before language detection was added. See [languages](/v2/transcribe-recorded-calls#languages). |
+| `language_probability` | number \| null | How sure the detection is about `detected_language`, from 0 to 1. `null` when `detected_language` is. |
+| `languages_heard` | array | The segments' languages in the order they were spoken, with repeats in a row counted once, such as `["hi", "en", "hi"]`. Completed jobs only. Absent when the segments carry no language. |
 | `diarize` | boolean | Whether speaker separation was requested. |
 | `words` | boolean | Whether word timings were requested. |
 | `text` | string | The whole transcript as one string. Completed jobs only. |
@@ -112,7 +126,7 @@ A finished job, as `GET /v2/transcriptions/{id}` returns it:
 | `error` | object \| null | For a failed job, `code` and `message`. See [why a job failed](#why-a-job-failed). `null` otherwise. |
 | `cost` | object | `status` is `pending` until the job finishes, then `charged` or `free`. `amount_inr` is `null` while pending, then what the job was charged (`0` when free). `rate_inr_per_hour` is the rate fixed on the job when it was accepted. |
 
-`text`, `segments`, `draft` and `diarization` appear only on
+`text`, `segments`, `languages_heard`, `draft` and `diarization` appear only on
 `GET /v2/transcriptions/{id}`. The create response and
 [the list](#list-transcriptions) carry every other field.
 
@@ -123,7 +137,9 @@ A finished job, as `GET /v2/transcriptions/{id}` returns it:
 | `speaker` | The role: `Agent`, `Customer` or `Other`. Every segment with the same `speaker_id` has the same role. It is worked out from what each person says and can be wrong. It is empty when it could not be told. |
 | `speaker_id` | The person: `spk0`, `spk1` and so on. Agent voices are numbered first, then Customer voices, then any others, each in the order they first speak. On a call between an agent and a customer, the agent is `spk0` and the customer `spk1`. Present when speaker separation was applied. Group lines by this field. |
 | `start`, `end` | Seconds from the start of the recording. |
-| `text` | What was said, as it was spoken: Hindi in Devanagari and English in Latin script, though common English loanwords can stay in Devanagari. Nothing is translated. |
+| `text` | What was said, as it was spoken: each Indian language in its own script, such as Hindi in Devanagari, and English in Latin script, though common English loanwords can stay in Devanagari. Nothing is translated. |
+| `language` | The language spoken in this segment, as a short code. A segment too short or too unclear to tell, such as a quick "हाँ", carries the recording's `detected_language`. Absent on transcripts made before language detection was added. |
+| `language_probability` | How sure the detection is about this segment's `language`, from 0 to 1. Absent when the segment was too short to measure. |
 | `words` | Word timings, present when you sent `words: true` and the words lined up with the audio. |
 
 With `words: true`, each segment also carries its words:
@@ -256,7 +272,7 @@ M4A, OGG, FLAC, WebM, AMR and others).
 | `file` | yes | The recording. One file per request. |
 | `context` | no | What the call is about: who is calling whom and why. Up to 2,000 characters. Helps the transcript spell names and terms. |
 | `vocabulary` | no | Names, brands and terms to spell right, separated by commas or new lines. Up to 200 terms of up to 100 characters each. Repeats are dropped. |
-| `language` | no | `auto` (default) detects the main language. Or `hi`, `gu`, `en`, `mr`, `pa`, `bn`, `ur`. |
+| `language` | no | `auto` (default) detects the main language. Or `hi`, `gu`, `en`, `mr`, `pa`, `bn`, `ta`, `te`, `kn`, `ml`, `ur` when you know it. The answer's `detected_language` says what was spoken either way. |
 | `diarize` | no | `true` (default) or `false`. Speaker separation: a `speaker_id` per voice. |
 | `words` | no | `false` (default) or `true`. Word timings on each segment. |
 
@@ -415,6 +431,8 @@ Location: /v2/transcriptions/trn_01M3XRSFXW77RHEQ85979AJXAF
   "file_name": "synthetic_call.wav",
   "bytes": 370308,
   "language": null,
+  "detected_language": null,
+  "language_probability": null,
   "diarize": true,
   "words": false,
   "error": null,
@@ -545,6 +563,8 @@ job is `merging`, it carries `draft`:
   "file_name": "synthetic_call.wav",
   "bytes": 370308,
   "language": null,
+  "detected_language": "hi",
+  "language_probability": 0.97,
   "diarize": true,
   "words": false,
   "draft": [
@@ -565,8 +585,8 @@ and replace it with `segments` when the job completes.
 
 A completed job is charged whether or not anyone reads it, so you can stop
 polling at any time. If a finished transcript is no longer kept, the job still
-answers `completed` with its `cost`, but without `text`, `segments` and
-`diarization`. Copy transcripts into your own storage when they complete.
+answers `completed` with its `cost` and `detected_language`, but without
+`text`, `segments` and `diarization`. Copy transcripts into your own storage when they complete.
 
 | Status | `error.code` | Cause |
 | :--- | :--- | :--- |
@@ -652,6 +672,8 @@ job by its ID for those.
       "file_name": "synthetic_call.wav",
       "bytes": 370308,
       "language": null,
+      "detected_language": "hi",
+      "language_probability": 0.97,
       "diarize": true,
       "words": false,
       "error": null,
@@ -670,6 +692,8 @@ job by its ID for those.
       "file_name": "synthetic_call.wav",
       "bytes": 370308,
       "language": null,
+      "detected_language": "gu",
+      "language_probability": 0.81,
       "diarize": true,
       "words": true,
       "error": null,

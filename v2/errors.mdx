@@ -152,7 +152,7 @@ Grouped by area. Each links to the page with the detail.
 
 | `error.code` | Status | When | Fix |
 | :--- | :--- | :--- | :--- |
-| `invalid_config` | `400` | A [speech-to-text](/v2/stt-quickstart#when-something-fails) field is missing, unknown or out of range, including a `language` outside the [ten we transcribe](/v2/stt-languages). | Fix the field `message` names. |
+| `invalid_config` | `400` | A [speech-to-text](/v2/stt-quickstart#when-something-fails) field is missing, unknown or out of range: a `language` that is neither `auto` nor one of the [ten we transcribe](/v2/stt-languages), or `secondary_languages` with `auto`, outside the ten or more than three. | Fix the field `message` names. |
 | `model_not_found` | `404` | `model` is not one we serve. | Send `mira-tts` or `mira-stt`, or [another name](/v2/speech-compatibility#other-model-names). |
 | `audio_too_long` | `413` | A speech-to-text clip over 120 seconds, or an offline job over 2 hours. Nothing was charged. | Send long recordings to [offline transcription](/v2/transcriptions). |
 | `unsupported_media` | `415` | We could not decode the file. Nothing was charged. | Send WAV, a common format, or raw audio with `encoding` and `sample_rate`. |
