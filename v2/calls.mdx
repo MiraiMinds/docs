@@ -48,6 +48,8 @@ a key from a workspace that has not gone live is refused with
   "recording_available": true,
   "transcript_available": true,
   "transcript_status": "ready",
+  "languages_heard": ["hi", "en", "hi"],
+  "language": "hi",
   "metadata": { "order_id": "8842" },
   "call_settings": {
     "voice_id": "neha",
@@ -86,6 +88,8 @@ a key from a workspace that has not gone live is refused with
 | `recording_available` | boolean | Whether [`GET /recording`](#get-the-recording) will return audio. |
 | `transcript_available` | boolean | Whether [`GET /transcript`](#get-the-transcript) will return turns. |
 | `transcript_status` | enum | `pending` while the call runs and until its transcript is stored; `ready` when [`GET /transcript`](#get-the-transcript) returns turns; `empty` when nobody spoke; `failed` when the transcript could not be stored. |
+| `languages_heard` | string[] | The languages the caller spoke, in order, as short codes (`hi`, `en`, `ta`). Consecutive turns in one language count once, so `["hi", "en", "hi"]` is a caller who moved to English and came back. Set when the transcript is stored. Absent when no caller turn has a [`language`](#get-the-transcript). |
+| `language` | string | The language the caller spoke most, counted in words over turns of four words or more. Absent when no turn was long enough to count. |
 | `metadata` | object | Your [`metadata`](#metadata) from create, unchanged. For a campaign call, the contact's [`metadata`](/v2/campaigns#your-own-fields-metadata). Absent when the call has none. |
 | `phone_number_id` | string | The [phone number](/v2/phone-numbers) the call rang from, when it came from one of your own. |
 | `pool_id` | string | The [phone pool](/v2/phone-numbers) that picked the number. Only when a pool did, and then `calls_from_source` is `pool`. |
@@ -407,6 +411,14 @@ you send them.
 - On a [node-based agent](/v2/node-agents#variables-in-node-text), variables
   fill the node prompts, the start node's greeting and extraction prompts.
   Transition conditions are not filled in.
+- `caller_language` is filled in for you on an outbound phone call to a number
+  this workspace has spoken to before. It is the [`language`](#the-call-object)
+  of that number's last connected call, when that call had at least two caller
+  turns of four words or more with a language. Use `{{caller_language}}` in a
+  prompt if you need it. A `caller_language` you send wins. It is never set
+  when the call's language was chosen for it (`call_settings.language` from your
+  request, a campaign contact or a pre-call tool), and it does not appear in the
+  call's `variables`.
 
 ### Per-call prompt
 
@@ -693,14 +705,14 @@ curl https://sandbox.voice.miraiminds.co/v2/calls/call_01K7Q9B4M8N3P6R2S5T7V9W1Y
       "start_ms": 420,
       "end_ms": 4980
     },
-    { "role": "user", "text": "हाँ बोलिए", "start_ms": 5640, "end_ms": 6390 },
+    { "role": "user", "text": "हाँ बोलिए", "start_ms": 5640, "end_ms": 6390, "language": "hi" },
     {
       "role": "assistant",
       "text": "आपका order AC-88213 kal shaam 6 baje deliver hoga. Ye slot theek hai?",
       "start_ms": 7010,
       "end_ms": 14880
     },
-    { "role": "user", "text": "haan theek hai", "start_ms": 15900, "end_ms": 17240 }
+    { "role": "user", "text": "haan theek hai", "start_ms": 15900, "end_ms": 17240, "language": "hi" }
   ]
 }
 ```
@@ -710,6 +722,7 @@ curl https://sandbox.voice.miraiminds.co/v2/calls/call_01K7Q9B4M8N3P6R2S5T7V9W1Y
 | `role` | `assistant` or `user`. Nothing else appears, because internal steps are not part of the conversation. |
 | `text` | The turn as spoken. Hindi, Hinglish and English arrive as they were said; nothing is translated. |
 | `start_ms`, `end_ms` | Milliseconds from the start of the **recording**, so a turn lines up with the audio. `end_ms` can be `null` on the last turn of a call that was cut off. |
+| `language` | `user` turns only: the language the caller spoke in that turn, as a short code (`hi`, `en`, `gu`, `ta`, `te`, `kn`, `ml`, `mr`, `bn`, `pa`). Present when speech recognition identified it. A call that listens for one language only does not identify it, so its turns have no `language`. |
 
 `404 not_found` while the call is still running, and for a call that produced no
 speech at all. Check `transcript_status` on the

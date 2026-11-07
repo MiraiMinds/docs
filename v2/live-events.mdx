@@ -299,7 +299,7 @@ Each event is one SSE message with three lines:
 ```text
 id: 1792490414114-0
 event: transcript.turn
-data: {"v":1,"seq":9,"type":"transcript.turn","call_id":"call_01K8D7R2T4V6X8Z0B2D4F6H8JK","at":"2026-10-20T10:00:14.114Z","data":{"role":"user","text":"Haan, kal shaam ko main ghar par hoon.","turn":4,"interrupted":false}}
+data: {"v":1,"seq":9,"type":"transcript.turn","call_id":"call_01K8D7R2T4V6X8Z0B2D4F6H8JK","at":"2026-10-20T10:00:14.114Z","data":{"role":"user","text":"Haan, kal shaam ko main ghar par hoon.","turn":4,"interrupted":false,"language":"hi"}}
 ```
 
 - `id` is the position in the stream. Treat it as opaque: it is what a
@@ -367,6 +367,7 @@ One event per completed turn, for both speakers.
 | `text` | What was said in that turn. |
 | `turn` | The turn's number within the call. |
 | `interrupted` | `true` when the person cut the agent off. `text` is then what they actually heard, not the full reply the agent had planned. |
+| `language` | `user` turns only: the language the person spoke in that turn, as a short code (`hi`, `en`, `ta`). Present when speech recognition identified it, the same value as the turn's `language` in [`GET /v2/calls/{id}/transcript`](/v2/calls#get-the-transcript). |
 
 Text arrives once per **completed** turn: the person's after they finish
 speaking, the agent's after its turn ends. There are no word-by-word captions
