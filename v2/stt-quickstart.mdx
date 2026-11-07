@@ -78,7 +78,7 @@ so give your client a timeout of 120 seconds.
 | :--- | :--- | :--- |
 | `file` | The audio, up to 25 MB and 120 seconds. WAV, raw PCM, μ-law or A-law, or a compressed format such as MP3, M4A, OGG/Opus or FLAC, which we convert. Stereo is mixed down to mono. | Required |
 | `model` | `mira-stt` | `mira-stt` |
-| `language` | One of the [ten languages](/v2/stt-languages), as `gu-IN` or `gu`, in any case. There is no automatic detection, so name the language you expect. | `hi-IN` |
+| `language` | One of the [ten languages](/v2/stt-languages), as `gu-IN` or `gu`, in any case, or `auto` to detect it. The answer's `language` says which one was heard. | `hi-IN` |
 | `response_format` | `json`, `verbose_json` or `text`. See below. | `json` |
 | `encoding`, `sample_rate` | Only for raw audio with no header: `linear16`, `mulaw` or `alaw`, at `8000` or `16000`. Leave them out for WAV and compressed files. | |
 
