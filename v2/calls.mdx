@@ -987,8 +987,16 @@ curl -G https://sandbox.voice.miraiminds.co/v2/insights \
   "by_origin": { "campaign": { "calls": 698, "connected": 433, "…": "…" }, "inbound": { "…": "…" } },
   "by_agent": [ { "agent_id": "agt_…", "name": "Service reminder", "calls": 754, "v2v_p50_ms": 1100, "…": "…" } ],
   "daily": [ { "day": "2026-10-07", "calls": 31, "connected": 21, "…": "…" } ],
+  "caller_languages": {
+    "calls_read": 512,
+    "languages": [ { "language": "hi", "calls": 431 }, { "language": "ta", "calls": 41 }, { "language": "en", "calls": 40 } ],
+    "by_agent": [ { "agent_id": "agt_…", "name": "Service reminder", "deleted": false, "agent_languages": ["hi", "en"],
+                    "calls_read": 228, "languages": [ { "language": "hi", "calls": 175 }, { "language": "ta", "calls": 41 }, "…" ] } ]
+  },
   "attention": [
-    { "code": "wallet", "severity": "act", "count": 35, "last_at": "2026-11-05T06:30:00Z", "subject": null }
+    { "code": "wallet", "severity": "act", "count": 35, "last_at": "2026-11-05T06:30:00Z", "subject": null, "language": null },
+    { "code": "caller_language", "severity": "watch", "count": 41, "last_at": null,
+      "subject": { "kind": "agent", "id": "agt_…", "name": "Service reminder" }, "language": "ta" }
   ],
   "…": "…"
 }
@@ -1003,8 +1011,9 @@ curl -G https://sandbox.voice.miraiminds.co/v2/insights \
 | `by_origin` | The same calls split into `campaign`, `inbound`, `outbound` (one at a time, from your code or the console), `web`, `text` and `realtime`. |
 | `by_agent` | Up to 50 agents, most calls first, each with its own counts, success rate and typical reply time. |
 | `daily` | One row per India (Asia/Kolkata) day the window touches, oldest first, days with no calls included. |
+| `caller_languages` | The language each call's caller spoke, one per call. `calls_read` counts the calls whose language we could tell, `languages` splits them by short code (`hi`, `en`, `ta`, …), most calls first, and `by_agent` does the same for up to 50 agents, with `agent_languages`, the languages each agent has now (primary first). We read a call from the caller's turns of four words or more: the transcriber's language for the turn when it gives one, otherwise the script it's written in. An agent that listens for one language writes every caller in that language, so other languages show up once the agent listens for them. Text chats aren't counted. |
 | `refused`, `tools`, `numbers`, `inbound_misses` | Calls turned away before they started, by reason; tool runs on calls and how many failed; each number's answer rate; and calls that reached a number you haven't added to this workspace. |
-| `attention` | What needs you, most urgent first (`act` before `watch`). |
+| `attention` | What needs you, most urgent first (`act` before `watch`). `language` names the language of a `caller_language` item and is `null` on every other code. |
 
 Every key is always present. A rate, a cost per unit or a reply time is `null`
 when there's nothing to divide or measure, never `0`.
@@ -1019,6 +1028,7 @@ when there's nothing to divide or measure, never `0`.
 | `tool_failures` | `watch` | Tools on your calls are failing often. |
 | `short_calls` | `watch` | Callers often hang up within 15 seconds on one agent (`subject`). |
 | `number_resting` | `watch` | One of your numbers (`subject`) is resting or cooling down to protect its answer rate. |
+| `caller_language` | `watch` | At least 10 of an agent's calls (`subject`), and at least 5% of the ones we could read, were in a language (`language`) the agent doesn't have. Add it to the agent's `secondary_languages`, or tick it in **Agent Studio → Behavior → Language**. At most three of these, most calls first. |
 
 | Status | Code | When |
 | :--- | :--- | :--- |
