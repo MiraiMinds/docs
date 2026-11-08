@@ -272,6 +272,7 @@ M4A, OGG, FLAC, WebM, AMR and others).
 | `file` | yes | The recording. One file per request. |
 | `context` | no | What the call is about: who is calling whom and why. Up to 2,000 characters. Helps the transcript spell names and terms. |
 | `vocabulary` | no | Names, brands and terms to spell right, separated by commas or new lines. Up to 200 terms of up to 100 characters each. Repeats are dropped. |
+| `keyterms` | no | Another name for `vocabulary`, the name our other speech routes use. Its terms follow the [keyterm rules](/v2/keyterms#rules-and-limits) (1 to 50 characters and at most 5 words each) and go after `vocabulary`'s. Both together are at most 200 terms. |
 | `language` | no | `auto` (default) detects the main language. Or `hi`, `gu`, `en`, `mr`, `pa`, `bn`, `ta`, `te`, `kn`, `ml`, `ur` when you know it. The answer's `detected_language` says what was spoken either way. |
 | `diarize` | no | `true` (default) or `false`. Speaker separation: a `speaker_id` per voice. |
 | `words` | no | `false` (default) or `true`. Word timings on each segment. |
@@ -342,12 +343,13 @@ Any other form field is refused with `400 invalid_request`.
 ### Send a link
 
 The same options as JSON, with `url` in place of the file. `diarize` and
-`words` are JSON booleans, and `vocabulary` can also be an array of strings.
+`words` are JSON booleans, and `vocabulary` and `keyterms` can also be arrays
+of strings.
 
 | Field | Required | Description |
 | :--- | :--- | :--- |
 | `url` | yes | An `https` link to the recording, up to 2,048 characters, such as a pre-signed link to your storage. |
-| `context`, `vocabulary`, `language`, `diarize`, `words` | no | As for an upload. |
+| `context`, `vocabulary`, `keyterms`, `language`, `diarize`, `words` | no | As for an upload. |
 
 We fetch the link once, before we answer, and do not store it. It must point
 to a public address on the default `https` port, with no user name or password
@@ -763,6 +765,7 @@ rules.
 | Length of a recording | 2 hours | The job fails with `audio_too_long`, free. |
 | `context` | 2,000 characters | `400 invalid_request` |
 | `vocabulary` | 200 terms of up to 100 characters, no commas inside a term | `400 invalid_request` |
+| `keyterms` | Counted with `vocabulary` toward the 200. Each term up to 50 characters and 5 words, no commas | `400 invalid_request` |
 | `Idempotency-Key` | 255 characters | `400 invalid_request` |
 | Unfinished jobs | 20 per workspace | `429 at_capacity`, `Retry-After: 30` |
 | New jobs | 120 an hour per workspace | `429 rate_limited` with `Retry-After` |

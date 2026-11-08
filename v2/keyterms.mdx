@@ -1,0 +1,220 @@
+---
+title: "Words to catch (keyterms)"
+sidebarTitle: "Words to catch"
+description: "List the brand, product, place and people names your callers say, so speech recognition listens for them on every call of an agent or a campaign."
+---
+
+Speech recognition knows everyday words well. The words it misses are the ones
+only your business uses: your brand, your product and plan names, the areas you
+deliver to, the names of your doctors or branches. **Keyterms** are a list of
+those words. Give the list to an agent or a campaign, and its calls listen for
+them. In the console the list is called **Words to catch**.
+
+```json
+{ "keyterms": ["Zylora", "Zylora Max", "Koramangala", "Dr. Subramaniam"] }
+```
+
+## What to put on the list
+
+Put a word on the list when callers say it and a stranger would not know how to
+spell it. Leave off words that any Hindi or English speaker already knows.
+
+| Add | Leave off |
+| :--- | :--- |
+| Your brand: `Zylora` | Everyday words: `order`, `delivery`, `refund` |
+| Product and plan names: `Zylora Max`, `Gold Plus` | Words callers say to agree or pause: `haan`, `achha`, `theek hai` |
+| Places you serve: `Koramangala`, `Vashi` | Whole sentences: `I want to cancel my order` |
+| People callers ask for: `Dr. Subramaniam` | Several names in one entry: `Zylora, Zylora Max` |
+| Scheme and product codes said as words: `PM Kisan` | Things that change on every call, such as an order number |
+
+Each word on the list makes the recogniser a little more ready to hear it.
+Everyday words are already heard well, so they gain nothing, and a long list of
+them can turn a sound that is merely close into one of them. Keep the list to
+the rare words that matter.
+
+Things that change call by call, like a customer's name or order number, belong
+in [`variables`](/v2/calls#variables), where the agent reads them.
+
+## Spellings and scripts
+
+On a call in an Indian language, Mira STT writes common English words in Latin
+script, but it often writes a brand or a name it has not met before in the
+call's own script. On a Hindi call, "Zylora" can come back as "ज़ायलोरा". A keyterm
+is matched as it is written, so the spelling in the call's script is the one
+that helps.
+
+For agents and campaigns you don't need to type those spellings. After you save
+the list, we write each term in the scripts of the agent's `language` and
+`secondary_languages`, and the calls listen for both:
+
+- A term in English letters gets a spelling in Hindi, Marathi, Gujarati,
+  Punjabi, Bengali, Tamil, Telugu, Kannada, Malayalam or Odia, whichever the
+  agent speaks. "Zylora" becomes "ज़ायलोरा" for a Hindi agent.
+- A term in an Indian script gets a spelling in English letters when English is
+  one of the agent's languages.
+- Each term keeps at most two spellings per language.
+
+The spellings are ready a short while after you save. `GET /v2/agents/{id}` and
+`GET /v2/campaigns/{id}` show them in `keyterm_spellings`, by term and then by
+language. You can't edit them, and the field is left out while there are none:
+
+```json title="GET /v2/agents/{id} (excerpt)"
+{
+  "language": "hi-IN",
+  "keyterms": ["Zylora", "Koramangala"],
+  "keyterm_spellings": {
+    "Zylora": { "hi-IN": ["ज़ायलोरा"] },
+    "Koramangala": { "hi-IN": ["कोरमंगला"] }
+  }
+}
+```
+
+The [speech-to-text API](#on-the-speech-to-text-api) adds no spellings. There,
+send each spelling yourself: `["Zylora", "ज़ायलोरा"]`.
+
+## Set them on an agent
+
+In the console, open the agent and go to **Agent Studio → Behavior → Words to
+catch**. Type a word and press Enter (or type a comma), then **Save**.
+
+With the API, send `keyterms` when you create or update the agent:
+
+<Tabs>
+  <Tab title="cURL">
+    ```bash
+    curl -X PATCH https://sandbox.voice.miraiminds.co/v2/agents/agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ \
+      -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+      -H "Content-Type: application/json" \
+      -d '{ "keyterms": ["Zylora", "Zylora Max", "Koramangala"] }'
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    import os, httpx
+
+    API = "https://sandbox.voice.miraiminds.co"
+    auth = {"Authorization": f"Bearer {os.environ['MIRAI_API_KEY']}"}
+
+    agent = httpx.patch(
+        f"{API}/v2/agents/agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ",
+        headers=auth,
+        json={"keyterms": ["Zylora", "Zylora Max", "Koramangala"]},
+        timeout=30,
+    ).raise_for_status().json()
+
+    print(agent["keyterms"])
+    ```
+  </Tab>
+  <Tab title="Node.js">
+    ```javascript
+    const API = "https://sandbox.voice.miraiminds.co";
+    const auth = { Authorization: `Bearer ${process.env.MIRAI_API_KEY}` };
+
+    const res = await fetch(`${API}/v2/agents/agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ`, {
+      method: "PATCH",
+      headers: { ...auth, "Content-Type": "application/json" },
+      body: JSON.stringify({ keyterms: ["Zylora", "Zylora Max", "Koramangala"] }),
+    });
+    if (!res.ok) throw new Error(JSON.stringify(await res.json()));
+    const agent = await res.json();
+    ```
+  </Tab>
+</Tabs>
+
+- The list you send replaces the saved one. To add a word, read the agent, add
+  it to `keyterms` and send the whole list. `[]` or `null` clears it.
+- The agent object always has `keyterms`, `[]` when there are none.
+- The list is saved with each [revision](/v2/agents#update-an-agent), like the
+  rest of the agent. The agent's next call uses it: phone, browser and inbound
+  calls alike.
+- A campaign keeps the agent revision it was created with. To bring a new list
+  to a running campaign, [move the campaign onto the new
+  revision](/v2/campaigns#switch-to-the-agent%E2%80%99s-latest-version), or give the
+  campaign its own keyterms.
+
+## Set them on a campaign
+
+A campaign can have up to 100 keyterms of its own. In the console they are under
+**Words to catch** on the campaign form, when you create, duplicate or edit a
+campaign. With the API, send `keyterms` on
+[`POST /v2/campaigns`](/v2/campaigns#create-a-campaign) or
+[`PATCH /v2/campaigns/{id}`](/v2/campaigns#words-to-catch):
+
+```bash
+curl -X PATCH https://sandbox.voice.miraiminds.co/v2/campaigns/cmp_01K7QAC5N9P4R7S3T6V8W2X4YB \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "keyterms": ["Diwali Bonanza", "Gold Plus"] }'
+```
+
+You can change a campaign's list while it is dialling, without pausing it. The
+next call uses the new list, and calls already in progress keep theirs. A
+campaign's calls listen for its own terms first, then its agent's, at most 200
+in all.
+
+## The agent knows the words too
+
+When a call has keyterms, the agent's prompt gets one short line that names
+them and says the transcript may spell them differently. If the transcript says
+"Zailora" or "ज़ायलोरा", the agent can still tell that the caller means Zylora.
+The line names at most 40 terms, or 600 characters, with your typed terms ahead
+of the added spellings.
+
+## Rules and limits
+
+| Limit | Value |
+| :--- | :--- |
+| Terms on an agent | 100 |
+| Terms on a campaign | 100 |
+| Terms on one call, or on one speech-to-text request | 200 |
+| One term | 1 to 50 characters, at most 5 words, any script |
+
+We save each term like this:
+
+- Unicode is normalised (NFC), spaces at either end are trimmed, and runs of
+  spaces inside collapse to one.
+- A term may not contain a comma, a new line, a tab or any other control
+  character. A comma separates terms in a URL or a form field, so send each term
+  as its own entry.
+- Repeats are dropped ignoring case. The first spelling and the order are kept,
+  so `["Zylora", "ZYLORA", "Gold Plus"]` is saved as `["Zylora", "Gold Plus"]`.
+
+On an agent or a campaign, a list that breaks a rule is refused with
+`400 invalid_request`. The message names `keyterms` and the term:
+
+| Message | Cause |
+| :--- | :--- |
+| `keyterms: entries must not be empty` | An entry is empty or only spaces. |
+| `keyterms: "Zylora, Zylora Max" contains a comma; send each term as its own entry` | Two terms in one entry. |
+| `keyterms: "<term>" is 62 characters, the maximum is 50` | A term is longer than 50 characters. |
+| `keyterms: "<term>" is 6 words, the maximum is 5` | A term has more than 5 words. |
+| `keyterms has 101 terms, the maximum is 100` | More than 100 terms remain after repeats are dropped. |
+
+When a call's list is longer than 200 with the added spellings, we keep every
+term you typed first, then each term's spelling in the agent's main language,
+then its spellings in the secondary languages.
+
+## On the speech-to-text API
+
+The same list works when you call Mira STT yourself. Here nothing adds spellings
+for you, so include the spelling in the call's script.
+
+| Where | How |
+| :--- | :--- |
+| [One clip over HTTP](/v2/stt-quickstart#names-and-brands) | A `keyterms` form field, up to 200 terms. |
+| [The WebSocket](/v2/speech-to-text#keyterms) | A `keyterms` query parameter, or `{"event": "config.update", "keyterms": [...]}` right after you connect. |
+| [Offline transcription](/v2/transcriptions#upload-a-file) | `keyterms`, another name for `vocabulary`. |
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Agents" icon="robot" href="/v2/agents#keyterms">
+    The `keyterms` field on the agent object.
+  </Card>
+  <Card title="Campaigns" icon="bullhorn" href="/v2/campaigns#words-to-catch">
+    Keyterms on a campaign, changed while it runs.
+  </Card>
+  <Card title="Languages" icon="language" href="/v2/stt-languages">
+    The ten languages and English inside them.
+  </Card>
+</CardGroup>

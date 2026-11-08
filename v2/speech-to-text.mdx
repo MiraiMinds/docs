@@ -49,6 +49,41 @@ language of each utterance. In both cases each transcript carries the
 sure Mira STT is of it. [Languages](/v2/stt-languages) explains the three
 choices and has the status of each language.
 
+## Keyterms
+
+Keyterms are the names Mira STT should listen for: your brand, products,
+places and people, the words a recogniser most often gets wrong. A session
+takes up to 200. Each term is 1 to 50 characters and at most 5 words, in any
+script, with no comma inside it, and repeats are dropped ignoring case. On a
+call in an Indian language, Mira STT often writes a brand in that language's
+script, so send that spelling as well: `["Zylora", "ज़ायलोरा"]`.
+
+Send the list right after you connect, before the first audio, in a
+`config.update`:
+
+```json
+{ "event": "config.update", "keyterms": ["Zylora", "ज़ायलोरा", "Zylora Max", "Koramangala"] }
+```
+
+- `keyterms` is an array of strings, or one comma-separated string. Each
+  message replaces the whole list, and `[]` or `""` clears it.
+- Like a language change, the list applies from the next utterance. An
+  utterance in progress keeps the list it started with.
+- You get a `config.updated` with `"applied": ["keyterms=4"]`, and its
+  `config` shows `"keyterms": 4` while a list is in force. The terms themselves
+  are never sent back.
+- A list that breaks a rule gets a non-fatal `invalid_config` error naming the
+  term. Nothing in that message changes, and the socket stays open.
+
+A short list in English letters can go on the URL instead, as
+`keyterms=Zylora,Koramangala`, checked before the upgrade like every other
+parameter. The `config.updated` for it arrives right after `session.begin`.
+Send long lists, and lists in an Indian script, in the message, so the URL stays
+short.
+
+For your agents and campaigns, see [Words to catch](/v2/keyterms): there we
+add the script spellings for you.
+
 ## Connect
 
 ```text
@@ -87,6 +122,7 @@ Everything about the session is set on the URL, checked before the upgrade:
 | `encoding` | `linear16` (signed 16-bit little-endian PCM), `mulaw` or `alaw` (G.711). | `linear16` |
 | `sample_rate` | `8000` or `16000`. | `16000` |
 | `endpointing` | `manual` or `vad`. See [Manual or VAD endpointing](#manual-or-vad-endpointing). | `vad` |
+| `keyterms` | Up to 200 names to listen for, comma-separated (`Zylora,Koramangala`). See [Keyterms](#keyterms). Send long or non-Latin lists in a `config.update` instead. | None |
 | `return_timestamps` | `true` or `false`. `true` adds `start_s` and `end_s` to each `transcript.final`: where the utterance sits in the audio you have sent, in seconds, padding included. | `false` |
 | `silence_duration_ms` | `vad` only. How long a pause ends an utterance, 0 to 10,000. | `1000` |
 | `threshold` | `vad` only. Speech probability that counts as speech, 0 to 1. | `0.3` |
@@ -109,7 +145,7 @@ gets an ordinary HTTP response with the usual [error envelope](/v2/errors):
 
 | Status | `code` | Why | What to do |
 | :--- | :--- | :--- | :--- |
-| 400 | `invalid_config` | A query parameter is unknown or out of range. | Fix the parameter `message` names. |
+| 400 | `invalid_config` | A query parameter is unknown or out of range, or a `keyterms` term breaks [the rules](#keyterms). | Fix the parameter `message` names. |
 | 401 | `unauthorized` | No credentials, an unknown key, or an API key in the URL. | Send the key in the `Authorization` header, or use a stream token. |
 | 401 | `invalid_token` | The stream token is unknown, expired or already used. | Mint a new token. Each one opens one socket. |
 | 402 | `insufficient_balance` | Your wallet is empty. | [Add credit](/v2/wallet#top-up). |
@@ -228,7 +264,7 @@ Every message is a JSON text frame with an `event` field.
 | `speech_start` | none | `manual` only. Opens an utterance. |
 | `speech_end` | none | `manual` only. Closes the open utterance; its final follows. |
 | `flush` | none | `manual` only. The same as `speech_end`. |
-| `config.update` | Any of `language_code`, `secondary_languages`, `stream_type`, `endpointing`, `threshold`, `silence_duration_ms`, `min_speech_duration_ms` | Changes settings mid-session. Answered with `config.updated`. |
+| `config.update` | Any of `language_code`, `secondary_languages`, `keyterms`, `stream_type`, `endpointing`, `threshold`, `silence_duration_ms`, `min_speech_duration_ms` | Changes settings mid-session. Answered with `config.updated`. |
 | `ping` | none | Answered with `pong`. Keeps a quiet socket open. |
 | `end` | none | Finishes the open utterance, sends its final and `session.end`, then closes the socket. |
 
@@ -253,9 +289,9 @@ Every message is a JSON text frame with an `event` field.
 Keys go at the top level, beside `event`. We check every key before applying
 any of them, so a bad value changes nothing and you get an `invalid_config`
 error. `threshold`, `silence_duration_ms` and `min_speech_duration_ms` apply at
-once. `language_code`, `secondary_languages`, `stream_type` and `endpointing`
-apply from the next utterance, so an utterance in progress keeps the settings
-it started with. `secondary_languages` is a comma-separated string, as on the
+once. `language_code`, `secondary_languages`, `keyterms`, `stream_type` and
+`endpointing` apply from the next utterance, so an utterance in progress keeps
+the settings it started with. `secondary_languages` is a comma-separated string, as on the
 URL, and `""` clears it. A session with secondary languages that moves to
 `auto` clears them in the same message:
 `{"event": "config.update", "language_code": "auto", "secondary_languages": ""}`.
@@ -431,7 +467,7 @@ session ends, and the session appears in your
 
 | `code` | Fatal | What happened | What to do |
 | :--- | :--- | :--- | :--- |
-| `invalid_config` | no | A `config.update` had an unknown key, a bad value, or a key fixed for the socket. | Fix the message. Nothing changed. |
+| `invalid_config` | no | A `config.update` had an unknown key, a bad value (such as a [keyterm](#keyterms) that breaks the rules), or a key fixed for the socket. | Fix the message. Nothing changed. |
 | `invalid_message` | no | A binary frame, or a text frame that is not a JSON object. | Send JSON text frames. |
 | `invalid_audio` | no | `audio` was not base64, or was not whole samples. | Send whole samples, base64-encoded. |
 | `invalid_event` | no | An unknown `event`, `speech_start`/`speech_end`/`flush` with `vad` endpointing, or `speech_start` while an utterance is open. | Send `speech_end` before the next `speech_start`. |

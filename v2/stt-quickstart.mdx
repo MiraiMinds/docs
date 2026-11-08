@@ -89,6 +89,7 @@ so give your client a timeout of 120 seconds.
 | `model` | `mira-stt` | `mira-stt` |
 | `language` | One of the [ten languages](/v2/stt-languages), as `gu-IN` or `gu`, in any case. Or `auto` (also `unknown`) when you don't know it: Mira STT works out the language of each utterance. See [Languages](/v2/stt-languages#choose-how-mira-stt-picks-the-language). | `hi-IN` |
 | `secondary_languages` | Only with a named `language`. Up to three more of the ten, comma-separated (`hi-IN,en-IN`), that callers may switch to. `language` stays the default. See [Secondary languages](/v2/stt-languages#secondary-languages). | None |
+| `keyterms` | Up to 200 words or short phrases to listen for, such as brand, product, place and people names. Separate them with commas or new lines, or send one `keyterms` (or `keyterms[]`) part per term. See [Names and brands](#names-and-brands). | None |
 | `response_format` | `json`, `verbose_json` or `text`. See below. | `json` |
 | `encoding`, `sample_rate` | Only for raw audio with no header: `linear16`, `mulaw` or `alaw`, at `8000` or `16000`. Leave them out for WAV and compressed files. | |
 
@@ -157,6 +158,46 @@ longer to transcribe.
 { "text": "நாளைக்கு காலை பத்து மணிக்கு வாங்க", "language": "ta-IN", "language_probability": 0.9731 }
 ```
 
+### Names and brands
+
+Names that only your business uses, like your brand, your products or the areas
+you serve, are the words a recogniser most often gets wrong. List them in
+`keyterms`. On a call in an Indian language, Mira STT often writes a brand in
+that language's script, so add that spelling too.
+
+<Tabs>
+  <Tab title="cURL">
+    ```bash
+    curl https://sandbox.voice.miraiminds.co/v1/audio/transcriptions \
+      -H "Authorization: Bearer $MIRA_API_KEY" \
+      -F file=@call.wav \
+      -F model=mira-stt \
+      -F language=hi-IN \
+      -F "keyterms=Zylora,ज़ायलोरा,Zylora Max,Koramangala"
+    ```
+  </Tab>
+  <Tab title="Python (OpenAI SDK)">
+    ```python
+    # client is the OpenAI client from step 2
+    with open("call.wav", "rb") as f:
+        result = client.audio.transcriptions.create(
+            model="mira-stt",
+            file=f,
+            language="hi",
+            extra_body={"keyterms": ["Zylora", "ज़ायलोरा", "Zylora Max", "Koramangala"]},
+        )
+    print(result.text)
+    ```
+  </Tab>
+</Tabs>
+
+Each term is 1 to 50 characters and at most 5 words, in any script, with no
+comma inside it. Repeats are dropped ignoring case. A list that breaks a rule is
+refused with `400 invalid_config`, and the message names the term. On the
+socket, send the list as a `keyterms` query parameter or in a
+[`config.update`](/v2/speech-to-text#keyterms). On your agents and campaigns
+we add the script spellings for you: see [Words to catch](/v2/keyterms).
+
 ### Response formats
 
 `json`, the default, is the text and its language. The language is the full
@@ -209,7 +250,8 @@ For callers who switch languages, add `&secondary_languages=hi-IN,en-IN`, or
 connect with `language_code=auto` when you don't know the language. Each
 transcript then carries the `language` it was heard in, and each final its
 `language_probability`. See
-[Languages](/v2/stt-languages#choose-how-mira-stt-picks-the-language).
+[Languages](/v2/stt-languages#choose-how-mira-stt-picks-the-language). For
+names and brands, send [`keyterms`](/v2/speech-to-text#keyterms).
 
 Send your key in the `Authorization: Bearer` header, as on every other
 request. This script streams a WAV file as if it were live: it opens an
@@ -504,7 +546,7 @@ the API:
 | Status | `code` | Cause |
 | :--- | :--- | :--- |
 | 400 | `invalid_request` | No `file` in the form. |
-| 400 | `invalid_config` | A field is out of range: a `language` that is neither `auto` nor one of the [ten](/v2/stt-languages), `secondary_languages` with `auto`, with a code outside the ten or with more than three languages, a `response_format` other than `json`, `verbose_json` or `text` (such as `srt` or `vtt`), or `encoding` and `sample_rate` that don't fit. The message names the field. |
+| 400 | `invalid_config` | A field is out of range: a `language` that is neither `auto` nor one of the [ten](/v2/stt-languages), `secondary_languages` with `auto`, with a code outside the ten or with more than three languages, a `keyterms` list that breaks [the rules](#names-and-brands), a `response_format` other than `json`, `verbose_json` or `text` (such as `srt` or `vtt`), or `encoding` and `sample_rate` that don't fit. The message names the field. |
 | 401 | `unauthorized` | Missing or unknown key. Check the `Authorization: Bearer sk_live_…` header. |
 | 402 | `insufficient_balance` | Your wallet is empty. Nothing was transcribed and nothing was charged. |
 | 404 | `model_not_found` | `model` is not `mira-stt` or one of its [other names](/v2/speech-compatibility#other-model-names). |

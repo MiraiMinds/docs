@@ -178,6 +178,7 @@ before the upgrade. The limit is raised on request, with no change to your code.
 | Utterances waiting for a final | 8 |
 | Idle socket | Closed after 120 seconds with no message from you. `ping` keeps it open. |
 | Session length on the socket | 1 hour |
+| `keyterms` | 200 per clip or socket session, each 1 to 50 characters and at most 5 words. A bad list is `400 invalid_config`, or a non-fatal `invalid_config` event on an open socket. See [Words to catch](/v2/keyterms). |
 | Request rate | 10 requests/second, burst 20, per key. Opening a socket and minting tokens count as requests too. |
 
 See the [STT quickstart](/v2/stt-quickstart#limits) and the
@@ -280,7 +281,7 @@ request.
 | Recording sent by `url` | 200 MB. Over it, `413 request_too_large`. |
 | Length of a recording | 120 minutes. A longer recording is accepted, then the job fails with `audio_too_long`, free. |
 | `context` | 2,000 characters |
-| `vocabulary` | 200 terms of up to 100 characters each |
+| `vocabulary` | 200 terms of up to 100 characters each, `keyterms` included |
 | Time to finish | 24 hours after the job was accepted. After that, the job fails with `timed_out`, free. |
 
 ## Campaign ceilings
@@ -299,6 +300,7 @@ with `400 invalid_request`.
 | `budget_paise` | positive integer | Paise, not rupees. Omit for no cap. |
 | `name` | 120 characters | |
 | Contact `variables` | 32 keys, 512 chars per value | Same rule as call variables. |
+| `keyterms` | 100 terms, each 1–50 characters and at most 5 words | A call listens for at most 200: the campaign's, then the agent's. See [words to catch](/v2/keyterms#rules-and-limits). |
 
 Bad contact rows do **not** fail the batch: they come back by index in
 `contacts_rejected`. Only exceeding 1000 rows fails the whole request.
