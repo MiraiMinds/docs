@@ -2596,6 +2596,24 @@
               }
             }
           },
+          "401": {
+            "description": "The key is missing or unknown",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "Unknown key": {
+                    "summary": "401 — unknown key",
+                    "value": {
+                      "error": {
+                        "code": "unauthorized",
+                        "message": "Unknown or invalid key."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
           "402": {
             "description": "The wallet will not cover a minute",
             "content": {
@@ -2610,6 +2628,95 @@
                       }
                     }
                   }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Refused: the key was revoked, the sandbox has ended, a sandbox key was sent to the production URL or the tier is outside your plan. Each fix is in [Money and access](/v2/errors#money-and-access).",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "The key was revoked": {
+                    "summary": "403 — the key was revoked",
+                    "value": {
+                      "error": {
+                        "code": "forbidden",
+                        "message": "This key has been revoked."
+                      }
+                    }
+                  },
+                  "The sandbox has ended": {
+                    "summary": "403 — the sandbox has ended",
+                    "value": {
+                      "error": {
+                        "code": "access_expired",
+                        "message": "Sandbox access for this workspace ended on 5 Nov 2026. Sign in to the console and go live to keep using the API."
+                      }
+                    }
+                  },
+                  "A sandbox key on the production URL": {
+                    "summary": "403 — a sandbox key on the production URL",
+                    "value": {
+                      "error": {
+                        "code": "production_workspace_required",
+                        "message": "This key belongs to a sandbox workspace. Complete Go live in the console first."
+                      }
+                    }
+                  },
+                  "A tier outside your plan": {
+                    "summary": "403 — a tier outside your plan",
+                    "value": {
+                      "error": {
+                        "code": "contract_unavailable",
+                        "message": "this call is not covered by an active production contract"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The same Idempotency-Key is still in flight. No second call is placed",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "The same Idempotency-Key is still in flight": {
+                    "summary": "409 — the same Idempotency-Key is still in flight",
+                    "value": {
+                      "error": {
+                        "code": "duplicate_call",
+                        "message": "a call with this idempotency anchor is already being placed"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests. Wait for Retry-After, then send it again",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "Too many requests": {
+                    "summary": "429 — too many requests",
+                    "value": {
+                      "error": {
+                        "code": "rate_limited",
+                        "message": "Too many requests."
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before you send the request again.",
+                "schema": {
+                  "type": "integer"
                 }
               }
             }
@@ -12852,6 +12959,60 @@
               }
             }
           },
+          "401": {
+            "description": "The key is missing or unknown",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "Unknown key": {
+                    "summary": "401 — unknown key",
+                    "value": {
+                      "error": {
+                        "code": "unauthorized",
+                        "message": "Unknown or invalid key."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Refused: the key was revoked, the sandbox has ended or a sandbox key was sent to the production URL. Each fix is in [Money and access](/v2/errors#money-and-access).",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "The key was revoked": {
+                    "summary": "403 — the key was revoked",
+                    "value": {
+                      "error": {
+                        "code": "forbidden",
+                        "message": "This key has been revoked."
+                      }
+                    }
+                  },
+                  "The sandbox has ended": {
+                    "summary": "403 — the sandbox has ended",
+                    "value": {
+                      "error": {
+                        "code": "access_expired",
+                        "message": "Sandbox access for this workspace ended on 5 Nov 2026. Sign in to the console and go live to keep using the API."
+                      }
+                    }
+                  },
+                  "A sandbox key on the production URL": {
+                    "summary": "403 — a sandbox key on the production URL",
+                    "value": {
+                      "error": {
+                        "code": "production_workspace_required",
+                        "message": "This key belongs to a sandbox workspace. Complete Go live in the console first."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
           "409": {
             "description": "Already running",
             "content": {
@@ -12866,6 +13027,32 @@
                       }
                     }
                   }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests. Wait for Retry-After, then send it again",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "Too many requests": {
+                    "summary": "429 — too many requests",
+                    "value": {
+                      "error": {
+                        "code": "rate_limited",
+                        "message": "Too many requests."
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before you send the request again.",
+                "schema": {
+                  "type": "integer"
                 }
               }
             }
@@ -19920,17 +20107,17 @@
               }
             }
           },
-          "413": {
-            "description": "Longer than 2 minutes",
+          "401": {
+            "description": "The key is missing or unknown",
             "content": {
               "application/json": {
                 "examples": {
-                  "Longer than 2 minutes": {
-                    "summary": "413 — longer than 2 minutes",
+                  "Unknown key": {
+                    "summary": "401 — unknown key",
                     "value": {
                       "error": {
-                        "code": "audio_too_long",
-                        "message": "a recording longer than 120 s goes to POST /v2/transcriptions"
+                        "code": "unauthorized",
+                        "message": "unknown api key"
                       }
                     }
                   }
@@ -19949,6 +20136,51 @@
                       "error": {
                         "code": "insufficient_balance",
                         "message": "wallet balance is 0.00 INR; top up before transcribing"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Refused: the key was revoked or the sandbox has ended. Each fix is in [Money and access](/v2/errors#money-and-access).",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "The key was revoked": {
+                    "summary": "403 — the key was revoked",
+                    "value": {
+                      "error": {
+                        "code": "forbidden",
+                        "message": "api key has been revoked"
+                      }
+                    }
+                  },
+                  "The sandbox has ended": {
+                    "summary": "403 — the sandbox has ended",
+                    "value": {
+                      "error": {
+                        "code": "access_expired",
+                        "message": "Sandbox access for this workspace ended on 5 Nov 2026. Sign in to the console and go live to keep using the API."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Longer than 2 minutes",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "Longer than 2 minutes": {
+                    "summary": "413 — longer than 2 minutes",
+                    "value": {
+                      "error": {
+                        "code": "audio_too_long",
+                        "message": "a recording longer than 120 s goes to POST /v2/transcriptions"
                       }
                     }
                   }
@@ -21801,6 +22033,24 @@
               }
             }
           },
+          "401": {
+            "description": "The key is missing or unknown",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "Unknown key": {
+                    "summary": "401 — unknown key",
+                    "value": {
+                      "error": {
+                        "code": "unauthorized",
+                        "message": "unknown api key"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
           "402": {
             "description": "Wallet will not cover it",
             "content": {
@@ -21812,6 +22062,33 @@
                       "error": {
                         "code": "insufficient_balance",
                         "message": "Wallet balance does not cover this synthesis."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Refused: the key was revoked or the sandbox has ended. Each fix is in [Money and access](/v2/errors#money-and-access).",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "The key was revoked": {
+                    "summary": "403 — the key was revoked",
+                    "value": {
+                      "error": {
+                        "code": "forbidden",
+                        "message": "api key has been revoked"
+                      }
+                    }
+                  },
+                  "The sandbox has ended": {
+                    "summary": "403 — the sandbox has ended",
+                    "value": {
+                      "error": {
+                        "code": "access_expired",
+                        "message": "Sandbox access for this workspace ended on 5 Nov 2026. Sign in to the console and go live to keep using the API."
                       }
                     }
                   }

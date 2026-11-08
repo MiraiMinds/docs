@@ -47,9 +47,9 @@ Changes are automatically deployed to production when pushed to the main branch 
 
 For questions or assistance:
 
-- Email: [sneh@miraiminds.co](mailto:sneh@miraiminds.co)
+- Email: [help@miraiminds.co](mailto:help@miraiminds.co?subject=Help%20with%20Voice%20Infra)
 - Discord: [Join our community](https://discord.gg/T2pMwq5RVg)
-- Schedule Demo: [Book a call](https://calendar.google.com/calendar/appointments/schedules/AcZssZ0xP6nxXZ5RWb6zQrYcADLF1-g6p-fyyMm5rdE6z6SHqNQPBPEJzoVdY--CLtVXGHy8H80RTyHV?gv=true)
+- Book a call: [cal.com/sneh-mehta/15min](https://cal.com/sneh-mehta/15min)
 
 ## License
 

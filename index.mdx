@@ -1,16 +1,61 @@
 ---
 title: "Voice AI at scale"
 sidebarTitle: "Introduction"
-description: "Voice agents and speech APIs for Indian languages, on one API key. Agents cost ₹1 a minute with a ₹1,00,000 monthly commitment, or ₹5 a minute pay as you go."
+description: "₹200 of real calls to start (about 40 minutes), then ₹5 a minute. Voice agents and speech APIs for Indian languages, on one API key."
 ---
 
-Voice Infra runs voice agents that call your customers, answer your business
-number, and talk to people in the browser and on WhatsApp. The same API key
-also gives you the speech models underneath: text to speech, speech to text and
-a language model, each with its own API.
+{/* Figures: STARTER_PAISE (₹200) in mirai-voice console/campaigns_proxy.py;
+    rates and commitments in console/static/pricing.json. ₹1.50 is T1's ₹1
+    voice rate plus ₹0.30 phone line plus ₹0.20 insights. */}
+
+Voice agents that call your customers, answer your business number, and talk
+to people in the browser and on WhatsApp. The same key gives you text to
+speech, speech to text and a language model.
+
+| | |
+| :--- | :--- |
+| To start | ₹200 of real calls, about 40 minutes |
+| Then | ₹5 a minute, pay as you go |
+| At volume | ₹1.50 a minute all-in, on T1 |
+| Languages | 8 Indian languages, plus Hinglish |
+
+<a className="mm-cta" href="https://sandbox.voice.miraiminds.co/#/developers">Create your API key</a> [Read the quickstart](/v2/quickstart)
 
 Agents speak and understand Hindi, Gujarati, Marathi, Bengali, Tamil, Telugu,
 Kannada and Malayalam, and the Hinglish that most real calls are in.
+
+## Your first call
+
+Open **Developers** in the [sandbox](https://sandbox.voice.miraiminds.co/#/developers)
+and press **Create key**. The first time, give your work email. The key is
+shown once, so put it in your secret manager. Then create an agent:
+
+```bash
+curl -X POST https://sandbox.voice.miraiminds.co/v2/agents \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Order confirmation",
+    "system_prompt": "You are Ashu from Acme. Confirm the order and ask whether the delivery address is unchanged. Keep replies short. When the customer is done, thank them and end the call.",
+    "first_message": "नमस्ते, मैं Acme से आशु बोल रहा हूँ।",
+    "voice": { "voice_id": "ashu", "language": "hi-IN" },
+    "language": "hi-IN"
+  }'
+```
+
+Then call a phone you are allowed to call, with the `id` you got back:
+
+```bash
+curl -X POST https://sandbox.voice.miraiminds.co/v2/calls \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "agent_id": "agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ", "to": "+919876543210" }'
+```
+
+The [Quickstart](/v2/quickstart) has both requests in Python and Node, and the
+webhook that tells you how the call went. When you are ready for real traffic,
+[go live](/v2/go-live) and send the same requests to
+`https://prod.voice.miraiminds.co`.
 
 ## Start here
 
@@ -18,11 +63,11 @@ Kannada and Malayalam, and the Hinglish that most real calls are in.
   <Card title="Quickstart" icon="rocket" href="/v2/quickstart">
     Create a key and an agent, then place one real phone call in five minutes.
   </Card>
-  <Card title="Start building" icon="flag-checkered" href="/v2/start-building">
-    For partners: your first campaign, the report and the go-live checklist.
+  <Card title="Go live" icon="flag-checkered" href="/v2/go-live">
+    ₹100 to start, plus GST. Your agents move across. Then switch your base URL, key and webhook.
   </Card>
-  <Card title="API overview" icon="code" href="/v2/overview">
-    One auth header, money in rupees, pagination and idempotency keys.
+  <Card title="Start building" icon="list-check" href="/v2/start-building">
+    For partners: your first campaign, the report and the go-live checklist.
   </Card>
   <Card title="API reference" icon="book" href="/api-reference/introduction">
     Every endpoint, with a request you can send from the page and a Postman collection.
@@ -95,46 +140,16 @@ Kannada and Malayalam, and the Hinglish that most real calls are in.
 
 ## Pricing
 
-Agent minutes cost ₹5 pay as you go, ₹3 with a ₹50,000 monthly commitment, or
-₹1 with a ₹1,00,000 monthly commitment. Every company starts on pay as you go.
-On the ₹1 plan, call insights (₹0.20 a minute, on by default) and our phone
-line (₹0.30 a minute, if you use it) are added on top. Prices exclude GST.
+| Plan | Per minute | Commitment |
+| :--- | :--- | :--- |
+| T5 | ₹5 | None |
+| T3 | ₹3 | ₹50,000 a month |
+| T1 | ₹1.50 all-in | ₹1,00,000 a month |
 
-[Billing & tiers](/general/tiers) explains each plan and how a call is billed.
-The speech APIs are priced on their own; see the
+Every company starts on T5. T1 is ₹1 a minute for the voice AI, plus ₹0.30 for
+our phone line and ₹0.20 for call insights; T5 and T3 include both. Calls are
+billed in 10-second blocks. Prices exclude GST.
+[Billing & tiers](/general/tiers) has every plan and how a call is billed. The
+speech APIs have their own prices on the
 [Speech API](/v2/speech#languages-and-prices) and
 [language model](/v2/llm) pages.
-
-## Your first call
-
-Open the [console](https://sandbox.voice.miraiminds.co), go to **Developers**
-and press **Create key**. The first time, the console asks for your work email
-and sends you a confirmation link. The key is shown once, so put it in your
-secret manager.
-
-Create an agent:
-
-```bash
-curl -X POST https://sandbox.voice.miraiminds.co/v2/agents \
-  -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Order confirmation",
-    "system_prompt": "You are Ashu from Acme. Confirm the order and ask whether the delivery address is unchanged. Keep replies short. When the customer is done, thank them and end the call.",
-    "first_message": "नमस्ते, मैं Acme से आशु बोल रहा हूँ।",
-    "voice": { "voice_id": "ashu", "language": "hi-IN" },
-    "language": "hi-IN"
-  }'
-```
-
-Then call a phone you are allowed to call, with the `id` you got back:
-
-```bash
-curl -X POST https://sandbox.voice.miraiminds.co/v2/calls \
-  -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{ "agent_id": "agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ", "to": "+919876543210" }'
-```
-
-The [Quickstart](/v2/quickstart) has both requests in Python and Node, and the
-webhook that tells you how the call went.

@@ -112,7 +112,7 @@ gets an ordinary HTTP response with the usual [error envelope](/v2/errors):
 | 400 | `invalid_config` | A query parameter is unknown or out of range. | Fix the parameter `message` names. |
 | 401 | `unauthorized` | No credentials, an unknown key, or an API key in the URL. | Send the key in the `Authorization` header, or use a stream token. |
 | 401 | `invalid_token` | The stream token is unknown, expired or already used. | Mint a new token. Each one opens one socket. |
-| 402 | `insufficient_balance` | Your wallet is empty. | [Top up](/v2/wallet#top-up). |
+| 402 | `insufficient_balance` | Your wallet is empty. | [Add credit](/v2/wallet#top-up). |
 | 403 | `forbidden` | The key, or the key that minted the token, was revoked. | Use a current key. |
 | 426 | `upgrade_required` | A plain HTTP request reached the endpoint. | Connect with a WebSocket client (`wss://`). |
 | 429 | `at_capacity` | Your workspace already has 10 sessions running (`Retry-After: 5`), or the service is at its own ceiling. Carries `Retry-After`. | Close the sessions you are done with, then retry after that delay. |
@@ -440,7 +440,7 @@ session ends, and the session appears in your
 | `overloaded` | yes | Eight utterances were waiting for their finals, or the recogniser fell behind. | Reconnect. If it repeats, tell us. |
 | `backend_error` | yes | The recogniser failed on an utterance. | Reconnect and send that utterance again. |
 | `idle_timeout` | yes | No message from you for 120 seconds. The recogniser may report the same thing as `inactivity_timeout`. | Keep audio flowing, or send `ping` during long silences. |
-| `insufficient_balance` | yes | Your wallet ran out during the session. The open utterance is finished and `session.end` follows. | [Top up](/v2/wallet#top-up), then reconnect. |
+| `insufficient_balance` | yes | Your wallet ran out during the session. The open utterance is finished and `session.end` follows. | [Add credit](/v2/wallet#top-up), then reconnect. |
 | `engine_unavailable` | yes | We lost the connection to the recogniser. | Reconnect and send the open utterance again. |
 | `internal_error` | yes | Something failed on our side. | Reconnect. Quote `session_id` if you write to us. |
 
@@ -487,7 +487,7 @@ answered for 60 seconds. Most WebSocket libraries answer pings for you. Pings
 do not count as activity for the idle limit: keep sending audio, or send
 `{"event": "ping"}` during long silences.
 
-If you need more than 10 sessions at once, ask your Mirai contact. It is a
+If you need more than 10 sessions at once, [ask us](mailto:help@miraiminds.co?subject=More%20STT%20sessions). It is a
 provisioning change and needs no change to your code.
 
 ## Request log and billing

@@ -9,6 +9,15 @@ mock interviews, oral assessments, language practice or structured feedback
 calls. To screen applicants over the phone instead, see
 [recruitment screening calls](https://voice.miraiminds.co/use-cases/recruitment-screening).
 
+
+{/* Costs: mirai-voice console/static/pricing.json; number rental: RentalAmountPaise and RentalTermMonths in mirai-conductor internal/telephony/rentals.go. */}
+
+| | |
+| :--- | :--- |
+| Costs | About ₹50 for a 10-minute interview on T5 (₹5 a minute). Browser calls carry no line charge. |
+| Runs in | The candidate's browser, from the sandbox or production |
+| Test | About two minutes with the short timers below |
+
 ## What you'll build
 
 - A candidate opens your page, allows the microphone and talks to an AI
@@ -1058,6 +1067,9 @@ Run three interviews:
   starts.
 - [ ] You ran the three test interviews above on the tier you will use in
   production.
+- [ ] You went live and switched to production: base URL
+  `https://prod.voice.miraiminds.co` and a key from the live console. See
+  [Go live](/v2/go-live).
 
 ## Common questions
 

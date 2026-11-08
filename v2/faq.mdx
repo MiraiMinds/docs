@@ -7,8 +7,8 @@ description: "Quick answers about keys, calls, pricing, webhooks, limits and whe
 ## Getting started
 
 **How do I get a key?**
-Create one in the [console](https://sandbox.voice.miraiminds.co) under
-**Developers → Create key**. The first time, the console asks for your work
+Open **Developers** in the [sandbox console](https://sandbox.voice.miraiminds.co/#/developers)
+and press **Create key**. The first time, the console asks for your work
 email; confirm it from the mail, then press **Create key** again. You get a
 secret key, a webhook secret and a starting wallet balance immediately, and you
 can rotate or revoke the key on the same page.
@@ -27,13 +27,15 @@ starter credit to ₹200 on T5, ₹5 a minute, pay as you go.
 If you give the same email again later, we send a sign-in link to the sandbox
 you already have instead of starting a new one. If we gave you an access code,
 press **Have an access code?** in the console and enter it there. If you would
-rather set things up with our team, [talk to us](https://cal.com/srikrishna-pothel-y5vpeq).
+rather set things up with our team, [book a call](https://cal.com/sneh-mehta/15min).
 
-**Is there a sandbox or test key?**
-Not yet. There is no `sk_test_` and no simulated call. Every call is a real
-call and costs real money, so test against your own phone with a small wallet
-balance. The [webhook test vector](/v2/webhooks#test-vector) lets you build and
-verify your handler without placing a call at all.
+**Is there a sandbox?**
+Yes. Every new workspace starts in the sandbox with ₹200 of real calls, about
+40 minutes at ₹5 a minute. The calls are real and ring real phones, so test
+against your own number. There is no `sk_test_` key and no simulated call. The
+[webhook test vector](/v2/webhooks#test-vector) lets you build and verify your
+handler without placing a call at all. When you are ready for real traffic,
+[go live](/v2/go-live).
 
 **Is there an SDK?**
 Yes, for Python:
@@ -111,10 +113,12 @@ calls are billed for the time they were connected, like any other call. One
 aborted before it connects costs nothing.
 
 **Which languages work?**
-The stack is tuned for Hindi and Indian English, including Hindi-English
-code-switching, which is how most real calls sound. Write the prompt in the
-language you want spoken, using Devanagari for Hindi. For other languages, ask
-us before you build on them.
+Agents speak and understand Hindi, Gujarati, Marathi, Bengali, Tamil, Telugu,
+Kannada and Malayalam, plus Hinglish and English. Most real calls mix Hindi and
+English, and the agents handle that. Write the prompt in the language you want
+spoken, with Hindi in Devanagari. The [prompting guide](/v2/prompting-guide)
+has the rules, and [speech to text languages](/v2/stt-languages) lists what the
+transcription API covers.
 
 **Does the agent sound like a human?**
 It sounds like a good phone voice. Callers usually work out that it is a machine
@@ -124,15 +128,18 @@ costs you nothing, and it reduces early hang-ups.
 ## Billing
 
 **What does a call cost?**
-Voice agents cost ₹1 a minute on the volume plan, or ₹5 a minute pay as you
-go. Every company starts on T5, the ₹5 plan. A ₹50,000 monthly commitment
-moves you to T3 at ₹3 a minute. A ₹1,00,000 commitment moves you to T1 at ₹1.
 
-T5 and T3 include Mirai phone calling and call insights. On T1, both are
-add-ons. Mirai phone calling adds ₹0.30 a minute, and only when we supply the
-phone line. Call insights add ₹0.20 a minute. They start on, and you can turn
-them off in **Billing**. Calls on your own telco, WhatsApp or the browser carry no
-telco charge from us.
+| Plan | Per minute | Commitment |
+| :--- | :--- | :--- |
+| T5 | ₹5 | None |
+| T3 | ₹3 | ₹50,000 a month |
+| T1 | ₹1.50 all-in | ₹1,00,000 a month |
+
+Every company starts on T5. T5 and T3 include our phone line and call
+insights. On T1 the voice AI is ₹1 a minute, our phone line adds ₹0.30 when we
+supply it, and call insights add ₹0.20 (on by default; turn them off in
+**Billing**). Calls on your own telco, WhatsApp or the browser carry no line
+charge.
 
 Calls are billed in 10-second blocks, rounded up, with a one-block minimum. On
 T3, a 96-second call costs ₹5.00 and an 8-second call costs ₹0.50. See
@@ -154,19 +161,21 @@ Yes, because media went live and audio was generated. An 18-second voicemail is
 two billed blocks, which is ₹1.00 on T3.
 
 **What happens when I run out of credit?**
-`POST /v2/calls` returns [`402 insufficient_balance`](/v2/wallet#402-insufficient-balance)
-and nothing is dialled. Calls already in flight finish normally.
+New calls get [`402 insufficient_balance`](/v2/wallet#402-insufficient-balance)
+and nothing is dialled. Calls already in flight finish normally, and running
+campaigns pause and keep their place.
 
 **How do I top up?**
-Once your company has gone live, add credit from the **Billing** page of the
-[console](https://sandbox.voice.miraiminds.co); before that, ask your Mirai
-contact. Credits land as a `credit` row in
+Once your company has gone live,
+[add credit on Billing](https://console.voice.miraiminds.co/#/billing). A
+sandbox has its ₹200 starter credit; for more, [go live](/v2/go-live) for ₹100,
+plus GST, all of it call credit. Credits land as a `credit` row in
 [`GET /v2/wallet/transactions`](/v2/wallet#list-transactions) and take effect
 immediately.
 
 **Which tier am I on?**
 Your company's plan sets the tier. Every company starts on T5, pay as you go.
-Complete **Go live** in the console and you can call today. Commit ₹50,000 a
+[Go live](/v2/go-live) in the console and you can call today. Commit ₹50,000 a
 month to move to T3, or ₹1,00,000 a month to move to T1. Every tier runs on the
 same Mira stack, and the price is the only difference. See
 [Billing & tiers](/general/tiers).
@@ -217,8 +226,9 @@ need to confirm your own legal obligations.
 ## Operations
 
 **What is your uptime target?**
-We operate the API and the call path as a pilot service. Ask your account
-contact for the current SLA before you put a revenue-critical flow behind it.
+We operate the API and the call path as a pilot service.
+[Ask us for the current SLA](mailto:help@miraiminds.co?subject=SLA) before you
+put a revenue-critical flow behind it.
 
 **Where does my data go?**
 Media (audio, ASR, TTS and the model) runs in India. The control plane, which is

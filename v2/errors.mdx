@@ -1,9 +1,42 @@
 ---
 title: "Error codes and how to handle them"
 sidebarTitle: "Errors"
-description: "Every error the API returns: status codes, error codes and tool validation errors, with what each one means and whether to retry."
+description: "Money and access errors first, with the fix for each. Then every other error code by area, and whether to retry."
 ---
 
+import OutOfCredit from "/snippets/out-of-credit.mdx";
+
+## Money and access
+
+These five stop calls for a reason only you can fix. Each has one fix.
+
+| `error.code` | Status | What happened | Fix |
+| :--- | :--- | :--- | :--- |
+| `insufficient_balance` | `402` | Out of credit | [Add credit or go live](#out-of-credit) |
+| `access_expired` | `403` | Your sandbox ended | [Go live](https://sandbox.voice.miraiminds.co/#/live) |
+| `production_workspace_required` | `403` | Sandbox key on production | [Go live first](/v2/go-live) |
+| `contract_unavailable` | `403` | Tier outside your plan | [Leave `tier` out](/general/tiers#setting-the-tier) |
+| `forbidden` | `403` | Key revoked | Create a new key in Developers: [sandbox](https://sandbox.voice.miraiminds.co/#/developers) or [live](https://console.voice.miraiminds.co/#/developers) |
+
+- **`insufficient_balance`**: the wallet can't cover one minute of the call,
+  or it is empty when you generate a flow, transcribe or call the language
+  model. Nothing was dialled, run or charged. Inside a running
+  [campaign](/v2/campaigns) this is not an error: the campaign pauses with
+  `pause_reason: "insufficient_balance"`.
+- **`access_expired`**: the sandbox's end date has passed, so its keys stop.
+  The message gives the date. See [when a sandbox ends](/v2/go-live#when-a-sandbox-ends).
+- **`production_workspace_required`**: a key from a workspace that has not
+  gone live was sent to `https://prod.voice.miraiminds.co`. Use
+  `https://sandbox.voice.miraiminds.co` until you go live.
+- **`contract_unavailable`**: `tier` is not your company's plan, or the company
+  has not finished going live. Nothing was dialled. Calls default to your
+  plan's tier.
+
+### Out of credit
+
+<OutOfCredit />
+
+## The error envelope
 
 Most v2 errors use the envelope below. Two validation errors are exceptions:
 [tool definitions](/v2/tools#validation-and-runtime-errors) return
@@ -11,8 +44,7 @@ Most v2 errors use the envelope below. Two validation errors are exceptions:
 [node graphs](/v2/node-agents#errors) return
 `{"error":"invalid_flow","details":[...]}`, each with every offending field
 path. [Flow generation](/v2/node-agents#generation-errors) uses the same shape
-for `flow_generation_failed`. Handle those shapes when saving agent tools or a
-flow, or generating one.
+for `flow_generation_failed`.
 
 ```json
 {
@@ -26,7 +58,7 @@ flow, or generating one.
 | Field | Description |
 | :--- | :--- |
 | `code` | Stable, `snake_case`, machine-readable. **Branch on this.** |
-| `message` | Human-readable, written for a developer reading a log. It is not stable, so never parse it or show it to an end user verbatim. |
+| `message` | Written for a developer reading a log. It is not stable, so never parse it or show it to an end user verbatim. |
 
 ## Status codes
 
@@ -34,76 +66,112 @@ flow, or generating one.
 | :--- | :--- | :--- |
 | `400` | The request is malformed or a field is invalid. | No. Fix the request. |
 | `401` | Missing, malformed or unknown key, or an invalid token on a browser call's media link, a call's events link or a [speech stream](/v2/speech-compatibility#browser-stream-tokens). | No. |
-| `402` | Wallet cannot cover the call, or is empty when you generate a flow or transcribe a recording. | After topping up. |
-| `403` | The key is valid but **revoked**, the call is not covered by your company's plan, it asks for recording on a workspace with recording turned off, or it uses [sub-workspaces](/v2/sub-workspaces) that are not turned on or are archived. | No. |
+| `402` | The wallet can't cover the call or request. | After you add credit. |
+| `403` | The key is revoked, the sandbox has ended, the request is outside your plan, recording is off, or [sub-workspaces](/v2/sub-workspaces) are off or archived. | No. |
 | `404` | No such resource in your workspace, including one that exists in someone else's. | No. |
-| `413` | The request body, or a file you sent by link, is over the endpoint's limit, such as an offline transcription upload over 45 MB. | No. Send a smaller request. |
-| `415` | [Speech to text](/v2/stt-quickstart#when-something-fails) could not decode the audio file you sent. | No. Send WAV, a common compressed format, or raw audio with `encoding` and `sample_rate`. |
-| `422` | The request was valid but the work could not produce a usable result, such as a flow generation that stayed invalid or a recording with no conversation in it. | Not as is. Change the request. |
-| `409` | State conflict: a request with the same `Idempotency-Key` still in flight, or an operation the current state forbids (such as controlling a call that is not in progress, a call option a node-based agent does not take, or starting a campaign whose calling window has closed for good). | No. |
-| `426` | A plain HTTP request reached a WebSocket endpoint, such as the [TTS stream](/v2/tts-websocket). | No. Connect with a WebSocket client. |
-| `429` | Request-rate limit, or no capacity for the request (`at_capacity`). Reaching your *call* concurrency limit does not return `429`: those calls queue. | Yes, with backoff. |
+| `409` | State conflict: the same `Idempotency-Key` still in flight, or an operation the current state forbids. | No. |
+| `413` | The request body, or a file you sent by link, is over the endpoint's limit. | No. Send a smaller request. |
+| `415` | [Speech to text](/v2/stt-quickstart#when-something-fails) could not decode the audio file. | No. Send WAV or a common format. |
+| `422` | Valid request, but no usable result: a flow that stayed invalid, or a recording with no conversation. | Not as is. |
+| `426` | A plain HTTP request reached a WebSocket endpoint. | No. Connect with a WebSocket client. |
+| `429` | Request-rate limit, or no capacity (`at_capacity`). Reaching your *call* concurrency limit does not return `429`: those calls queue. | Yes, with backoff. |
 | `500` | Our fault. | Yes, with backoff. |
 | `501` | The feature exists in the contract but is not live yet. | No. |
-| `502` | A model behind the request failed: the [speech engine](/v2/tts-quickstart#when-something-fails) or the [language model](/v2/llm#when-something-fails) refused, returned nothing or stalled (`upstream_error`). Nothing was charged. | Yes. |
-| `503` | Temporarily unavailable (deploy, capacity), or a feature that is not provisioned for your workspace. | Yes for `fleet_offline` and `upstream_unavailable`. No for `campaigns_unavailable` and `transcription_unavailable`, which clear only when the feature is provisioned. |
-| `504` | [Speech to text](/v2/stt-quickstart#when-something-fails) over HTTP did not get the transcript back in time (`upstream_timeout`). Nothing was charged. | Yes. |
+| `502` | A model behind the request failed (`upstream_error`). Nothing was charged. | Yes. |
+| `503` | Temporarily unavailable, or a feature not provisioned for your workspace. | Yes, except `campaigns_unavailable` and `transcription_unavailable`. |
+| `504` | [Speech to text](/v2/stt-quickstart#when-something-fails) over HTTP timed out (`upstream_timeout`). Nothing was charged. | Yes. |
 
 ## Error codes
 
+Grouped by area. Each links to the page with the detail.
+
+### Requests and keys
+
 | `error.code` | Status | When | Fix |
 | :--- | :--- | :--- | :--- |
-| `invalid_request` | `400` | Missing required field, wrong type, `to` not E.164, `max_duration_secs` out of range, unknown `voice_id`, malformed JSON. | Read `message`; it names the field. |
-| `invalid_flow` | `400` | A [node graph](/v2/node-agents) breaks a rule (including a node's `data.tools` naming a tool the agent doesn't have), a node-based agent has `end_call` enabled, or your tier's model cannot run flows. Sent as `{"error":"invalid_flow","details":[{"path","message"}]}`, not in the envelope. | Fix every listed path. See [node-based agent errors](/v2/node-agents#errors). |
-| `unauthorized` | `401` | No `Authorization` header, not `Bearer `-prefixed, or the key is unknown. | Check the header. A trailing newline from `cat`-ing a key file is the usual culprit. |
-| `invalid_token` | `401` | The `token` on a [browser call](/v2/web-calls)'s media link, or on any call's [events link](/v2/live-events), is unknown, expired, already used (the media link is single use), or belongs to another call. On a [TTS stream](/v2/tts-websocket#from-a-browser), the stream token is unknown, older than 60 seconds or already used. | Use the links exactly as returned. For audio, create a new call, because the media link cannot be reused. For live events, your API key opens the same stream. For a TTS stream, mint a new token for each connection. |
-| `upgrade_required` | `426` | A plain HTTP request reached a WebSocket endpoint, such as the [TTS stream](/v2/tts-websocket). | Connect with a WebSocket client (`wss://`). |
-| `forbidden` | `403` | The key was revoked. | Get a new key. |
-| `production_workspace_required` | `403` | A key from a workspace that has not gone live was sent to the production address, `https://prod.voice.miraiminds.co`. | Use `https://sandbox.voice.miraiminds.co`, or complete [Go live](/general/tiers#your-plan) in the console first. |
-| `recording_disabled` | `403` | `recording_enabled: true` on a workspace whose recording is turned off. Nothing was created. | Leave `recording_enabled` out, or send `false`. |
-| `contract_unavailable` | `403` | The call is not covered by an active production contract: `tier` is not your company's plan, or the company has not finished going live. Nothing was dialled. | Leave `tier` out. Calls default to your plan's tier. See [setting the tier](/general/tiers#setting-the-tier). |
-| `insufficient_balance` | `402` | The wallet failed the pre-dial balance check, or it is empty when you [generate a flow](/v2/node-agents#what-a-draft-costs), [transcribe a recording for a flow](/v2/node-agents#what-transcription-costs) or start an [offline transcription](/v2/transcribe-recorded-calls#pricing), or it is empty (counting usage not yet charged) when you call the [language model](/v2/llm#price). No call was placed, no model ran and nothing was charged. Inside a running [campaign](/v2/campaigns), the same condition is not an error: the campaign pauses with `pause_reason: "insufficient_balance"`. | [Top up](/v2/wallet#top-up) and retry with the same `Idempotency-Key`. |
-| `not_found` | `404` | Unknown `agt_`/`call_`/`cmp_`/`trn_` ID, a soft-deleted agent, a number not on the [do-not-call list](/v2/dnc), a transcript or recording that does not exist, or an ID that belongs to another workspace. | Check the ID. For artifacts, check `transcript_available` / `recording_available` on the call. |
-| `duplicate_call` | `409` | A request with this `Idempotency-Key` is still being processed; when the original completes, the same key replays its stored response. | Not an error if you are retrying. No second call was placed. |
-| `conflict` | `409` | The operation is illegal in the current state: aborting a call that has already ended, editing or starting a campaign that is `play`, adding contacts to one that is `stopped`/`completed`, or resuming one with no running dialler. | Read the resource's `status` first. To resume a paused campaign that has no dialler, use [`POST /start`](/v2/campaigns#start-a-campaign). |
-| `number_retired` | `409` | A call, campaign or agent names a [phone number](/v2/phone-numbers#rest-resume-and-retire) that you retired, or you tried to rest one. | Resume the number, or choose another. |
-| `number_resting` | `409` | `POST /v2/calls` names a number that is resting or cooling. The message gives the time it is back. | Wait, resume it, or choose another. A campaign on it waits instead. |
-| `pool_busy` | `409` | `POST /v2/calls` names a [pool](/v2/phone-numbers#errors) whose numbers are all resting or at their hourly pace. | Honour `Retry-After`, or raise the pool's pace. |
-| `pool_unavailable` | `409` | The pool has no number that can place a call. | Add a ready number to it, or choose another. |
-| `pool_in_use` | `409` | You deleted a pool that a campaign or agent calls from. The message names them. | Move them to another pool or number, then delete. |
-| `sub_workspaces_disabled` | `403` | You created a [sub-workspace](/v2/sub-workspaces) or onboarded a brand before sub-workspaces were turned on for your workspace. | Ask your Mirai contact to turn them on. |
-| `sub_workspace_limit` | `409` | Creating, onboarding or restoring a sub-workspace would take you over your limit of active sub-workspaces. | Archive a brand you no longer serve, or ask your Mirai contact for a higher limit. |
-| `workspace_exists` | `409` | A sub-workspace already has this `external_id`, or an active one has this `name`. The response carries it as `workspace`, next to `error`. | If its `external_id` is the one you sent, a retry already created it: use it. Otherwise choose another name or `external_id`. |
-| `workspace_not_found` | `404` | The `Mirai-Workspace` header, or a `/v2/workspaces/{id}` path, names no sub-workspace of your workspace. | Check the id or `external_id`. |
-| `workspace_archived` | `403` | The `Mirai-Workspace` header names a sub-workspace you archived. | [Restore](/v2/sub-workspaces#archive-and-restore) it first. |
-| `workspace_busy` | `409` | You archived a sub-workspace while one of its campaigns is playing. | Pause or stop the campaign with the brand's header, then archive. |
-| `window_closed` | `409` | A [campaign start or resume](/v2/campaigns#calling-window) was refused because its calling window can never open again: no slot opens on or before `end_date` in the campaign's `timezone`. The usual cause is `start_date` and `end_date` both set to today, with the last slot already over. Nothing was dialled and the campaign kept its status. | Extend `end_date` or widen `slots` with [`PATCH`](/v2/campaigns#update-a-campaign), then start or resume again. |
-| `rate_limited` | `429` | Request rate exceeded, or your queue is full (500 calls accepted and not yet ended), or your workspace has used its [flow generations](/v2/node-agents#generate-a-flow-from-a-brief) or [recording transcriptions](/v2/node-agents#transcribe-a-recording) for the hour, or the generator or transcriber is busy. On [offline transcription](/v2/transcriptions#errors), it means your workspace has started 120 jobs in the past hour, or uploads are busy for a few seconds. Being at your *concurrency* ceiling does **not** produce this: those calls queue. `error.message` says which limit you hit. | Honour `Retry-After` and back off. See [Limits](/v2/limits). |
-| `at_capacity` | `429` | No capacity for this request. On calls, every line on the deployment is busy; that ceiling is fleet-wide, not your workspace's. On [text to speech](/v2/tts-quickstart#limits) it also means your workspace already has as many requests in flight as its limit allows (10 by default), or, when you open a [TTS stream](/v2/tts-websocket), that it already has 20 sockets open. On [offline transcription](/v2/transcriptions#errors), your workspace already has 20 unfinished jobs, and `Retry-After` is 30 seconds. Nothing was charged in any of these cases. | Honour `Retry-After` and retry. |
-| `call_not_active` | `409` | A [live control](/v2/web-calls#live-control) was sent to a call that is not in progress: still `queued` (the page has not connected its audio) or already ended. | Wait for `call.started`; after a terminal event there is nothing left to control. |
-| `unsupported_channel` | `400` | A [live control](/v2/web-calls#live-control) was sent to a call that is not a browser call. | Live control is for `channel: "web"` calls. To stop a phone call, use [`POST /abort`](/v2/calls#abort-a-call). |
-| `flow_agent_voice_only` | `409` | A text chat (`channel: "text"`) named a [node-based agent](/v2/node-agents). Nothing was created. | Use `phone` or `web`, or a single-prompt agent for text. |
-| `flow_generation_failed` | `422` | [Flow generation](/v2/node-agents#generate-a-flow-from-a-brief) could not produce a valid graph. Sent as `{"error":"flow_generation_failed","details":[{"path","message"}]}`, not in the envelope, with the generation's `id`, `model`, `usage` and `cost`. Nothing was saved; the tokens used are charged. | Rephrase the brief (name each step and branch), try another model, or fix the graph by hand. |
-| `transcription_failed` | `422` | [Transcribing a recording for a flow](/v2/node-agents#transcribe-a-recording) found no conversation in it. The body carries the transcription's `id`, `model`, `duration_secs`, `usage` and `cost` beside `error`: the model listened to the audio, so it is charged. An [offline transcription](/v2/transcriptions#why-a-job-failed) uses the same code differently: it is the `error.code` of a failed job, not an HTTP error, and that job is free. | Check that the file is a phone call with speech. |
-| `request_too_large` | `413` | The request is over the endpoint's limit: a [recording to transcribe for a flow](/v2/node-agents#transcribe-a-recording) or a [speech-to-text clip](/v2/stt-quickstart#limits) over 25 MB, or an [offline transcription](/v2/transcriptions#errors) upload over 45 MB or file at `url` over 200 MB. Nothing was charged. | Send a smaller file, such as a mono mp3. For offline transcription, send a file over 45 MB by link. |
-| `flow_first_message_unsupported` | `409` | A call sent `first_message` for a node-based agent. Nothing was created. | Leave `first_message` out. The start node's `greeting` opens the call; personalise it with `variables`. |
-| `flow_system_prompt_unsupported` | `409` | A call sent a [per-call `system_prompt`](/v2/calls#per-call-prompt) for a node-based agent. Nothing was created. | Leave `system_prompt` out. The nodes' prompts run the call; personalise them with `variables`. |
-| `tier_unavailable` | `501` | `tier` names a tier that is not enabled on this deployment. | Leave `tier` out. Calls default to your plan's tier. See [tiers](/general/tiers#setting-the-tier). |
-| `campaigns_unavailable` | `503` | Campaigns are not enabled for your workspace. Every `/v2/campaigns` and `/v2/dnc` route answers this; everything else keeps working. | Your request is not at fault, and retrying will not clear it. Ask your Mirai contact to enable campaigns. |
-| `transcription_unavailable` | `503` | [Offline transcription](/v2/transcriptions) is not available on this deployment. Every `/v2/transcriptions` route answers this; everything else keeps working. Nothing was charged. | Retrying will not clear it. Ask your Mirai contact. |
-| `upstream_unavailable` | `503` | A service the request depends on is briefly unavailable, such as the flow generator's or the transcriber's model. Nothing was saved. A flow generation whose model had already answered is charged for what it did, and the body carries `id`, `model`, `usage` and `cost`. A transcription is never charged on a `503`. A failed [offline transcription](/v2/transcriptions#why-a-job-failed) job can also carry this code as its `error.code`: the job failed because of a problem on our side, not with the recording, and it is free. | Honour `Retry-After` and retry. For a failed job, send the recording again in a few minutes. |
-| `format_unavailable` | `503` | A [text-to-speech](/v2/tts-quickstart#output-formats) request asked for `mp3`, `opus`, `aac` or `flac` and our server cannot encode it right now. Nothing was charged. | Ask for `pcm` or `wav`, or retry later. |
-| `fleet_offline` | `503` | Speech capacity is offline, so a [campaign start](/v2/campaigns#start-a-campaign) was refused. Nothing was charged and the campaign stayed where it was. | Honour `Retry-After` (300s) and start it again. |
-| `invalid_config` | `400` | A [speech-to-text](/v2/stt-quickstart#when-something-fails) field or socket query parameter is missing, unknown or out of range, including a `language` that is neither `auto` nor one of the [ten we transcribe](/v2/stt-languages), and `secondary_languages` with `auto`, outside the ten or more than three. On an open socket, a `config.update` that changed nothing. `message` names the field. | Fix the field and send again. |
-| `model_not_found` | `404` | `model` is not one we serve: `mira-tts` for [text to speech](/v2/tts-quickstart#when-something-fails), `mira-stt` for [speech to text](/v2/stt-quickstart#when-something-fails), or one of their [other names](/v2/speech-compatibility#other-model-names). | Send the model name. |
-| `audio_too_long` | `413` | A [speech-to-text](/v2/stt-quickstart#limits) clip longer than 120 seconds. Nothing was charged. An [offline transcription](/v2/transcriptions#why-a-job-failed) job over 2 hours also fails with this code, free. | Send long recordings to [offline transcription](/v2/transcriptions). |
-| `unsupported_media` | `415` | We could not decode the file sent to [speech to text](/v2/stt-quickstart#when-something-fails). Nothing was charged. | Send WAV, a common compressed format, or raw audio with `encoding` and `sample_rate`. |
-| `unavailable` | `503` | The speech-to-text recogniser is briefly unreachable or restarting, or a [speech socket](/v2/speech-to-text#when-the-connection-is-refused) reached a server that is restarting. Nothing was charged. | Honour `Retry-After` and retry. |
-| `maintenance_window` | `503` | Rare. A [speech API](/v2/speech#availability) request arrived while that API was down for planned maintenance. The speech APIs are otherwise available around the clock. Nothing was charged. | Retry after `Retry-After`, which counts the seconds until the API is back. |
-| `billing_unavailable` | `503` | We could not read your wallet, so a [speech-to-text session](/v2/speech-to-text#when-the-connection-is-refused) was not opened. | Retry in a couple of seconds. |
-| `upstream_error` | `502` | The model behind the request failed. On [text to speech](/v2/tts-quickstart#when-something-fails), the engine refused, returned no audio or stalled. On the [language model](/v2/llm#when-something-fails), the model was unavailable or returned nothing usable, and the body carries a `correlation_id`. Nothing was charged. | Retry. Quote `X-Request-Id` or `correlation_id` if you ask us about it. |
-| `upstream_timeout` | `504` | [Speech to text](/v2/stt-quickstart#when-something-fails) over HTTP did not get the transcript back in time. Nothing was charged. | Retry. For a long clip, use [offline transcription](/v2/transcriptions). |
-| `internal` | `500` | Our bug. It has already raised an alert on our side. | Retry with backoff; if it persists, send us the `call_id`. |
+| `invalid_request` | `400` | A field is missing, the wrong type or out of range, or the JSON is malformed. | Read `message`; it names the field. |
+| `unauthorized` | `401` | No `Authorization` header, no `Bearer ` prefix, or an unknown key. | Check the header. A trailing newline from `cat`-ing a key file is the usual culprit. |
+| `invalid_token` | `401` | A [browser call](/v2/web-calls)'s media link, a call's [events link](/v2/live-events) or a [TTS stream](/v2/tts-websocket#from-a-browser) token is unknown, expired or already used. | Use links exactly as returned, and mint a new stream token for each connection. |
+| `not_found` | `404` | Unknown or deleted ID, or one from another workspace. | Check the ID. For a transcript or recording, check `transcript_available` / `recording_available`. |
+| `recording_disabled` | `403` | `recording_enabled: true` on a workspace with recording off. Nothing was created. | Leave it out, or send `false`. |
+| `request_too_large` | `413` | Over the endpoint's size limit: 25 MB for a [flow recording](/v2/node-agents#transcribe-a-recording) or an [STT clip](/v2/stt-quickstart#limits); 45 MB upload or 200 MB link for [offline transcription](/v2/transcriptions#errors). Nothing was charged. | Send a smaller file, such as mono mp3, or a large one by link. |
+| `upgrade_required` | `426` | A plain HTTP request reached a WebSocket endpoint. | Connect with `wss://`. |
+
+### Calls
+
+| `error.code` | Status | When | Fix |
+| :--- | :--- | :--- | :--- |
+| `duplicate_call` | `409` | A request with this `Idempotency-Key` is still being processed. | Not an error on a retry. No second call was placed. |
+| `conflict` | `409` | Not allowed in the current state, such as aborting a call that has ended. | Read the resource's `status` first. |
+| `call_not_active` | `409` | A [live control](/v2/web-calls#live-control) reached a call that is not in progress. | Wait for `call.started`. |
+| `unsupported_channel` | `400` | A live control reached a call that is not a browser call. | Stop a phone call with [`POST /abort`](/v2/calls#abort-a-call). |
+| `flow_agent_voice_only` | `409` | A text chat named a [node-based agent](/v2/node-agents). | Use `phone` or `web`. |
+| `flow_first_message_unsupported` | `409` | A call sent `first_message` for a node-based agent. | Leave it out; personalise with `variables`. |
+| `flow_system_prompt_unsupported` | `409` | A call sent a [per-call `system_prompt`](/v2/calls#per-call-prompt) for a node-based agent. | Leave it out; personalise with `variables`. |
+| `tier_unavailable` | `501` | `tier` names a tier not enabled here. | Leave `tier` out. |
+
+### Campaigns
+
+| `error.code` | Status | When | Fix |
+| :--- | :--- | :--- | :--- |
+| `conflict` | `409` | Editing or starting a campaign that is `play`, adding contacts to one that ended, or resuming one with no dialler. | To resume without a dialler, use [`POST /start`](/v2/campaigns#start-a-campaign). |
+| `window_closed` | `409` | The [calling window](/v2/campaigns#calling-window) can never open again before `end_date`. | Extend `end_date` or widen `slots`, then start again. |
+| `fleet_offline` | `503` | Speech capacity is offline, so a [campaign start](/v2/campaigns#start-a-campaign) was refused. Nothing was charged. | Honour `Retry-After` (300 s) and start again. |
+| `campaigns_unavailable` | `503` | Campaigns are not enabled for your workspace. | [Ask us to enable them](mailto:help@miraiminds.co?subject=Enable%20campaigns). Retrying won't clear it. |
+
+### Phone numbers and pools
+
+| `error.code` | Status | When | Fix |
+| :--- | :--- | :--- | :--- |
+| `number_retired` | `409` | A call, campaign or agent names a [number you retired](/v2/phone-numbers#rest-resume-and-retire). | Resume it, or choose another. |
+| `number_resting` | `409` | A call names a number that is resting. The message says when it is back. | Wait, resume it, or choose another. |
+| `pool_busy` | `409` | Every number in the [pool](/v2/phone-numbers#errors) is resting or at its hourly pace. | Honour `Retry-After`, or raise the pace. |
+| `pool_unavailable` | `409` | The pool has no number that can call. | Add a ready number. |
+| `pool_in_use` | `409` | You deleted a pool a campaign or agent uses. The message names them. | Move them, then delete. |
+
+### Sub-workspaces
+
+| `error.code` | Status | When | Fix |
+| :--- | :--- | :--- | :--- |
+| `sub_workspaces_disabled` | `403` | [Sub-workspaces](/v2/sub-workspaces) are not turned on for your workspace. | [Ask us to turn them on](mailto:help@miraiminds.co?subject=Turn%20on%20sub-workspaces). |
+| `sub_workspace_limit` | `409` | Over your limit of active sub-workspaces. | Archive a brand, or [ask for a higher limit](mailto:help@miraiminds.co?subject=Sub-workspace%20limit). |
+| `workspace_exists` | `409` | A sub-workspace already has this `external_id`, or an active one this `name`. Returned as `workspace`. | Same `external_id`: a retry already made it. Otherwise pick another. |
+| `workspace_not_found` | `404` | The `Mirai-Workspace` header or path names no sub-workspace of yours. | Check the id or `external_id`. |
+| `workspace_archived` | `403` | The header names a sub-workspace you archived. | [Restore](/v2/sub-workspaces#archive-and-restore) it first. |
+| `workspace_busy` | `409` | You archived a brand while one of its campaigns plays. | Pause or stop the campaign, then archive. |
+
+### Flows
+
+| `error.code` | Status | When | Fix |
+| :--- | :--- | :--- | :--- |
+| `invalid_flow` | `400` | A [node graph](/v2/node-agents#errors) breaks a rule. Sent outside the envelope, with each path. | Fix every listed path. |
+| `flow_generation_failed` | `422` | [Generation](/v2/node-agents#generate-a-flow-from-a-brief) could not produce a valid graph. Nothing was saved; the tokens are charged. | Name each step and branch, try another model, or edit by hand. |
+| `transcription_failed` | `422` | No conversation was heard in a [recording for a flow](/v2/node-agents#transcribe-a-recording). It is charged. On an [offline job](/v2/transcriptions#why-a-job-failed) it is the job's `error.code`, and free. | Check the file is a call with speech. |
+
+### Speech and transcription
+
+| `error.code` | Status | When | Fix |
+| :--- | :--- | :--- | :--- |
+| `invalid_config` | `400` | A [speech-to-text](/v2/stt-quickstart#when-something-fails) field is missing, unknown or out of range: a `language` that is neither `auto` nor one of the [ten we transcribe](/v2/stt-languages), or `secondary_languages` with `auto`, outside the ten or more than three. | Fix the field `message` names. |
+| `model_not_found` | `404` | `model` is not one we serve. | Send `mira-tts` or `mira-stt`, or [another name](/v2/speech-compatibility#other-model-names). |
+| `audio_too_long` | `413` | A speech-to-text clip over 120 seconds, or an offline job over 2 hours. Nothing was charged. | Send long recordings to [offline transcription](/v2/transcriptions). |
+| `unsupported_media` | `415` | We could not decode the file. Nothing was charged. | Send WAV, a common format, or raw audio with `encoding` and `sample_rate`. |
+| `format_unavailable` | `503` | We can't encode `mp3`, `opus`, `aac` or `flac` right now. Nothing was charged. | Ask for `pcm` or `wav`, or retry later. |
+| `transcription_unavailable` | `503` | [Offline transcription](/v2/transcriptions) is not available here. Nothing was charged. | [Write to us](mailto:help@miraiminds.co?subject=Offline%20transcription). Retrying won't clear it. |
+| `billing_unavailable` | `503` | We couldn't read your wallet or check your plan just now. | Retry in a couple of seconds. |
+| `maintenance_window` | `503` | A [speech API](/v2/speech#availability) is down for planned maintenance. Nothing was charged. | Retry after `Retry-After`. |
+| `unavailable` | `503` | The recogniser is restarting, or a [speech socket](/v2/speech-to-text#when-the-connection-is-refused) reached one that is. Nothing was charged. | Honour `Retry-After`. |
+
+### Capacity and outages
+
+| `error.code` | Status | When | Fix |
+| :--- | :--- | :--- | :--- |
+| `rate_limited` | `429` | Request rate, a full queue (500 calls), or an hourly limit on [flow generation](/v2/node-agents#generate-a-flow-from-a-brief) or [offline transcription](/v2/transcriptions#errors). `message` says which. Your call *concurrency* never causes it. | Honour `Retry-After`. See [Limits](/v2/limits). |
+| `at_capacity` | `429` | No capacity: every line is busy, or your workspace is at its [TTS](/v2/tts-quickstart#limits), [stream](/v2/tts-websocket) or [offline transcription](/v2/transcriptions#errors) limit. Nothing was charged. | Honour `Retry-After` and retry. |
+| `upstream_unavailable` | `503` | A service we depend on is briefly down. A flow generation whose model had answered is charged for what it did. | Honour `Retry-After` and retry. |
+| `upstream_error` | `502` | The model failed: [TTS](/v2/tts-quickstart#when-something-fails) or the [language model](/v2/llm#when-something-fails). Nothing was charged. | Retry. Quote `X-Request-Id` or `correlation_id` to us. |
+| `upstream_timeout` | `504` | [Speech to text](/v2/stt-quickstart#when-something-fails) over HTTP did not finish in time. Nothing was charged. | Retry. Send long clips to [offline transcription](/v2/transcriptions). |
+| `internal` | `500` | Our bug. It has already alerted us. | Retry with backoff. If it persists, [send us the `call_id`](mailto:help@miraiminds.co?subject=Error%20500). |
 
 <Note>
 `error.code` is an **open enum**. We add new codes without a version bump, so
@@ -119,9 +187,10 @@ enumeration oracle, letting someone probe which IDs are real on the platform by
 watching the status code change. A `Mirai-Workspace` value that names a
 workspace outside your own is answered the same way, with
 `404 workspace_not_found`. `403` never means "someone else's ID". It means your
-own key has been revoked, your workspace is not allowed what the request asks for
-(`contract_unavailable`, `recording_disabled`, `sub_workspaces_disabled`), or you
-archived the sub-workspace you named (`workspace_archived`).
+own key has been revoked, your sandbox has ended (`access_expired`), your
+workspace is not allowed what the request asks for (`contract_unavailable`,
+`production_workspace_required`, `recording_disabled`, `sub_workspaces_disabled`),
+or you archived the sub-workspace you named (`workspace_archived`).
 </Warning>
 
 ## Handling errors
@@ -249,7 +318,8 @@ To handle every error, branch on the status first and then on the code.
   the same way. `503 campaigns_unavailable` and `503 transcription_unavailable`
   belong in this group too, because they clear only when the feature is
   provisioned.
-- **`402` is retryable only after a top-up**, not on a timer.
+- **`402` is retryable only after you add credit**, not on a timer. See
+  [Out of credit](#out-of-credit).
 - **Always send `Idempotency-Key` on `POST /v2/calls`.** A timeout does not
   tell you whether the phone rang, and without the key, your retry places a
   second call to a real person.

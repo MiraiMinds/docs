@@ -180,6 +180,56 @@ TEXT_FIXES = (
     ("`{{base_url}}/v1`", "`https://sandbox.voice.miraiminds.co/v1`"),
 )
 
+#: Refusals a key-authenticated route can answer before it does any work. The
+#: Postman collection documents each route's own answers, so these are added
+#: to the routes below as more examples, in the servers' own words. The console
+#: answers calls and campaign starts (mirai-voice console/api_v2.py
+#: `_authorize`). nginx sends /v2/tts and /v2/stt to conductor
+#: (deploy/gateway/units/mira-model-api.conf), which answers with its own words
+#: (mirai-conductor cmd/api/v2.go `authKey`); a `_speech` key is that wording.
+#: Checked against both live hosts with an unknown key on 8 Nov 2026.
+#: These belong in the Postman spec (mirai-voice scripts/postman/spec/); move
+#: them there and delete this table.
+#: code -> (status, label, message).
+ACCESS_ENDED = ("Sandbox access for this workspace ended on 5 Nov 2026. "
+                "Sign in to the console and go live to keep using the API.")
+REFUSALS = {
+    "unauthorized": ("401", "Unknown key", "Unknown or invalid key."),
+    "unauthorized_speech": ("401", "Unknown key", "unknown api key"),
+    "forbidden": ("403", "The key was revoked", "This key has been revoked."),
+    "forbidden_speech": ("403", "The key was revoked", "api key has been revoked"),
+    "access_expired": ("403", "The sandbox has ended", ACCESS_ENDED),
+    "production_workspace_required": ("403", "A sandbox key on the production URL",
+                                      "This key belongs to a sandbox workspace. Complete Go live in the console first."),
+    "contract_unavailable": ("403", "A tier outside your plan",
+                             "this call is not covered by an active production contract"),
+    "duplicate_call": ("409", "The same Idempotency-Key is still in flight",
+                       "a call with this idempotency anchor is already being placed"),
+    "rate_limited": ("429", "Too many requests", "Too many requests."),
+}
+#: Why a route said 403, one phrase per code. A route's 403 description names
+#: only the codes that route can return.
+FORBIDDEN_BECAUSE = {
+    "forbidden": "the key was revoked",
+    "access_expired": "the sandbox has ended",
+    "production_workspace_required": "a sandbox key was sent to the production URL",
+    "contract_unavailable": "the tier is outside your plan",
+}
+#: The description a status gets when the collection has no answer for it.
+REFUSAL_STATUS = {
+    "401": "The key is missing or unknown",
+    "409": "The same Idempotency-Key is still in flight. No second call is placed",
+    "429": "Too many requests. Wait for Retry-After, then send it again",
+}
+REFUSAL_ROUTES = {
+    ("POST", "/v2/calls"): ("unauthorized", "forbidden", "access_expired", "production_workspace_required",
+                            "contract_unavailable", "duplicate_call", "rate_limited"),
+    ("POST", "/v2/campaigns/{campaign_id}/start"): ("unauthorized", "forbidden", "access_expired",
+                                                    "production_workspace_required", "rate_limited"),
+    ("POST", "/v2/tts"): ("unauthorized_speech", "forbidden_speech", "access_expired"),
+    ("POST", "/v2/stt"): ("unauthorized_speech", "forbidden_speech", "access_expired"),
+}
+
 HTTP_METHODS = ("get", "post", "put", "patch", "delete")
 TEMPLATE_VAR = re.compile(r"\{\{\s*([$A-Za-z0-9_]+)\s*\}\}")
 
@@ -558,6 +608,38 @@ def responses_from_postman(item, cop, variables) -> dict:
     return out
 
 
+def forbidden_description(codes) -> str:
+    """'Refused: the key was revoked or the sandbox has ended. …' for one route's 403 codes."""
+    reasons = [FORBIDDEN_BECAUSE[c.removesuffix("_speech")] for c in codes
+               if REFUSALS[c][0] == "403"]
+    listed = reasons[0] if len(reasons) == 1 else ", ".join(reasons[:-1]) + " or " + reasons[-1]
+    return ("Refused: " + listed + ". Each fix is in "
+            "[Money and access](/v2/errors#money-and-access).")
+
+
+def add_refusals(spec: dict) -> dict:
+    """Add the REFUSALS examples to the REFUSAL_ROUTES operations."""
+    for (method, path), codes in REFUSAL_ROUTES.items():
+        op = spec["paths"].get(path, {}).get(method.lower())
+        if op is None:
+            raise SystemExit(f"REFUSAL_ROUTES names {method} {path}, which the reference no longer has")
+        responses = op.setdefault("responses", {})
+        descriptions = {**REFUSAL_STATUS, "403": forbidden_description(codes)}
+        for code in codes:
+            status, label, message = REFUSALS[code]
+            resp = responses.setdefault(status, {"description": descriptions[status]})
+            examples = resp.setdefault("content", {}).setdefault("application/json", {}).setdefault("examples", {})
+            error_code = code.removesuffix("_speech")
+            examples.setdefault(label, {"summary": f"{status} — {label[:1].lower() + label[1:]}",
+                                        "value": {"error": {"code": error_code, "message": message}}})
+            if status == "429":
+                resp.setdefault("headers", {"Retry-After": {
+                    "description": "Seconds to wait before you send the request again.",
+                    "schema": {"type": "integer"}}})
+        op["responses"] = dict(sorted(responses.items()))
+    return spec
+
+
 def slug(text: str) -> str:
     """How Mintlify turns a tag or a summary into a URL segment."""
     return re.sub(r"[^a-z0-9]+", "-", text.lower().replace("'", "")).strip("-")
@@ -631,7 +713,7 @@ def main() -> int:
 
     src = load_sources(args.sources)
     spec, nav = build_openapi(src)
-    spec = finish(spec, nav)
+    spec = add_refusals(finish(spec, nav))
 
     files = {
         OPENAPI_FILE: render(spec).encode(),

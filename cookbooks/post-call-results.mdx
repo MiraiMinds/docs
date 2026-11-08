@@ -9,6 +9,15 @@ once more after the hangup. You get a short summary, a yes or no on whether the
 call was a success, and the facts you asked for, such as "did the customer
 confirm the order" or "when should we call back".**
 
+
+{/* Costs: mirai-voice console/static/pricing.json; number rental: RentalAmountPaise and RentalTermMonths in mirai-conductor internal/telephony/rentals.go. */}
+
+| | |
+| :--- | :--- |
+| Costs | Included in the call rate on T5 and T3. On T1, call insights add ₹0.20 a minute. |
+| Runs in | Every call your agent finishes: phone, browser and campaigns |
+| Set up in | The console or the API |
+
 This cookbook walks you through it in three parts:
 
 1. [In the console](#part-1-set-it-up-in-the-console): turn it on, test it and
@@ -672,6 +681,9 @@ the `call.processed` event, signed with your Call webhook secret. See
   records.
 - You read `data.call.metadata`, or the call id, to match each result to the
   right customer.
+- You went live and switched to production: base URL
+  `https://prod.voice.miraiminds.co` and a key from the live console. See
+  [Go live](/v2/go-live).
 
 For every field, the follow-up message picker and the errors, see
 [Call analysis](/v2/analysis).

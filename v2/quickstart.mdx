@@ -4,10 +4,17 @@ sidebarTitle: "Quickstart"
 description: "Make your first AI phone call in five minutes. Get a key, create an agent, place a real call and verify the webhook, in cURL, Python or Node."
 ---
 
+import OutOfCredit from "/snippets/out-of-credit.mdx";
 
-In five minutes you send four requests and place one real phone call. Calls are
-billed at your plan's [tier](/general/tiers). Every new workspace starts on T5,
-₹5 a minute, and the example call below ran there.
+In five minutes you send four requests and place one real phone call. Your
+sandbox starts with ₹200 of real calls, about 40 minutes at ₹5 a minute.
+
+| | Sandbox now | Production after [Go live](/v2/go-live) |
+| :--- | :--- | :--- |
+| Base URL | `https://sandbox.voice.miraiminds.co` | `https://prod.voice.miraiminds.co` |
+| Key | From the sandbox | From the live console |
+| Price | ₹5 a minute | Your plan |
+| Credit | ₹200 starter | What you add |
 
 <Note>
 If you are a partner, [**Start building**](/v2/start-building) is the longer
@@ -15,44 +22,14 @@ version of this page. It has the same first call, plus your first campaign and
 the go-live checklist.
 </Note>
 
-**You need:** a secret key, a phone number you are allowed to call, and a public
-HTTPS URL for webhooks (ngrok is fine while you build).
+**You need:** a phone number you are allowed to call, and a public HTTPS URL
+for webhooks (ngrok is fine while you build).
 
 <Steps>
 <Step title="Create a key">
-Open the [sandbox](https://sandbox.voice.miraiminds.co). There is nothing to
-sign up for, and you can look around first. When you are ready, go to
-**Developers** and press **Create key**.
-
-The first time, the console asks for your work email. We send you an access
-code and a confirmation link. Open the link, press **Continue to your
-workspace**, then press **Create key** again. If we already gave you an access
-code, press **Have an access code?** and enter it instead of your email.
-
-You get three things on the spot:
-
-| | Looks like | Used for |
-| :--- | :--- | :--- |
-| Secret key | `sk_live_YOUR_API_KEY` | every API request |
-| Webhook secret | `whsec_7d4f1a09c2e58b36a1f0d7c93b2e64a8` | verifying events we send you |
-| Starting wallet balance | `₹200` | pays for call minutes at ₹5 a minute (T5) |
-
-**The key is shown once.** We store only its SHA-256, so we cannot recover a
-lost key; you rotate it instead. Keep both secrets in your secret manager and
-out of git.
-
-You can rotate and revoke keys on the same page. Rotating issues the
-replacement before it revokes the old key, so there is never a moment when
-neither key works. Deploy the new key, then revoke the old one.
-
-Every request on this page goes to the sandbox at
-`https://sandbox.voice.miraiminds.co`. Once your company has
-[gone live](/general/tiers#your-plan), send the same requests to
-`https://prod.voice.miraiminds.co`. On the production address, a key from a
-workspace that has not gone live is refused with
-`403 production_workspace_required`.
-
-Check that it works:
+Open **Developers** in the [sandbox](https://sandbox.voice.miraiminds.co/#/developers)
+and press **Create key**. The first time, give your work email and open the
+link we send. Then check the key:
 
 ```bash
 curl https://sandbox.voice.miraiminds.co/v2/wallet \
@@ -62,6 +39,22 @@ curl https://sandbox.voice.miraiminds.co/v2/wallet \
 ```json
 { "balance_inr": 200, "currency": "INR", "updated_at": "2026-07-26T09:12:44Z" }
 ```
+
+You get three things on the spot:
+
+| | Looks like | Used for |
+| :--- | :--- | :--- |
+| Secret key | `sk_live_YOUR_API_KEY` | every API request |
+| Webhook secret | `whsec_7d4f1a09c2e58b36a1f0d7c93b2e64a8` | verifying events we send you |
+| Starting balance | `₹200` | about 40 minutes of calls at ₹5 a minute |
+
+**The key is shown once.** We store only its SHA-256, so we cannot recover a
+lost key; you rotate it instead. Keep both secrets in your secret manager and
+out of git. Rotating issues the replacement before it revokes the old key, so
+there is never a moment when neither key works.
+
+If we gave you an access code, press **Have an access code?** in the console
+and enter it instead of your email.
 </Step>
 
 <Step title="Create an agent">
@@ -350,6 +343,7 @@ minimum.
 - [Webhooks](/v2/webhooks): every event type, retries and replay protection.
 - [Calls](/v2/calls): statuses, `ended_reason`, transcripts, recordings and
   abort.
+- [Go live](/v2/go-live): move your agents to production and switch the base URL.
 - [Billing & tiers](/general/tiers): the price ladder and what a minute costs.
 - [Limits](/v2/limits): rate limits, concurrency and India calling-window rules.
 
@@ -358,9 +352,15 @@ minimum.
 | Symptom | Cause | Fix |
 | :--- | :--- | :--- |
 | `401 unauthorized` | Missing `Bearer ` prefix, or a copy-paste with a newline | Re-copy the key; check `Authorization: Bearer sk_live_…` |
-| `402 insufficient_balance` | Wallet cannot cover one minute at your tier (₹5 on T5) | Check `GET /v2/wallet`; add credit from the console's **Billing** page, or ask your Mirai contact before you go live |
+| `402 insufficient_balance` | Wallet cannot cover one minute at your tier (₹5 on T5) | See [Out of credit](#out-of-credit) below |
+| `403 access_expired` | Your sandbox has ended | [Go live](/v2/go-live) to keep using the API |
+| `403 production_workspace_required` | A sandbox key sent to `prod.voice` | Use the sandbox URL, or [go live](/v2/go-live) first |
 | `400 invalid_request` on `voice_id` | The voice is not in the catalogue | Use `ashu`, `neha`, `shruti`, `sameer`, `munshi` or `tanvi`, which work on every tier; see [Voices](/v2/voices) |
 | `400 invalid_request` on `to` | Number not E.164 | Use `+919876543210`, not `9876543210` or `091 98765 43210` |
 | Call ends instantly, `status: no_answer` | Number unreachable or DND-blocked | Try another handset; see [compliance](/v2/limits#india-calling-rules) |
 | No webhook arrives | URL not publicly reachable, or not HTTPS | Test with `curl -X POST` against your own URL first |
 | Signature never verifies | Framework parsed and re-serialized the body | Sign over the **raw** bytes; see [Webhooks](/v2/webhooks#raw-body) |
+
+## Out of credit
+
+<OutOfCredit />

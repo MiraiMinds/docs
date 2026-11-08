@@ -11,6 +11,15 @@ and react when a number stops getting answered. It suits
 [payment reminders](https://voice.miraiminds.co/use-cases/payment-reminders),
 winbacks and any outbound list that runs for more than a day.
 
+
+{/* Costs: mirai-voice console/static/pricing.json; number rental: RentalAmountPaise and RentalTermMonths in mirai-conductor internal/telephony/rentals.go. */}
+
+| | |
+| :--- | :--- |
+| Costs | Calls at your plan's rate, ₹5 a minute on T5. Unanswered calls are free. |
+| Numbers | ₹1,500 each for 3 months through Mirai, or your own telco's |
+| Runs in | Outbound campaigns from a pool of Indian +91 numbers |
+
 ## What you'll build
 
 - A pool of three or four numbers, set to 60 calls an hour each.
@@ -474,6 +483,9 @@ agent.
 - You have a default pool or an agent `calls_from` if you want campaigns spread
   across several numbers. With neither, a campaign rings from one of your own
   numbers (see [which number a call comes from](/v2/phone-numbers#which-number-a-call-comes-from)).
+- You went live and switched to production: base URL
+  `https://prod.voice.miraiminds.co` and a key from the live console. See
+  [Go live](/v2/go-live).
 
 ## Related
 

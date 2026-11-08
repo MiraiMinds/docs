@@ -1,24 +1,32 @@
 ---
 title: "Pricing, billing and tiers"
 sidebarTitle: "Billing & tiers"
-description: "Voice agents cost ₹1 a minute on the volume plan, or ₹5 a minute pay as you go. How tiers, 10-second billing and your wallet work."
+description: "Voice agents cost ₹5 a minute to start and ₹1.50 a minute all-in at volume. The plans, 10-second billing and your wallet."
 ---
 
+import OutOfCredit from "/snippets/out-of-credit.mdx";
 
-Voice agents cost ₹1 a minute on the volume plan, or ₹5 a minute pay as you go.
-The [pricing page](https://voice.miraiminds.co/pricing) shows the plans side by
-side.
+{/* Hand-written glance table: keep in step with agents.* in mirai-voice
+    console/static/pricing.json. All-in on our line is rate_inr, plus
+    telco_rate_inr and insights_rate_inr where a plan charges them. */}
 
-Every company starts on **T5: ₹5 / minute for voice AI, pay as you go**, with
-no monthly commitment. Commit to a monthly amount and the voice rate drops:
+| Plan | Per minute | All-in on our line | Commitment |
+| :--- | :--- | :--- | :--- |
+| T5 | ₹5 | ₹5 | None |
+| T3 | ₹3 | ₹3 | ₹50,000 a month |
+| T1 | ₹1 | ₹1.50 | ₹1,00,000 a month |
 
-- **₹50,000 a month → T3 at ₹3 / minute**.
-- **₹1,00,000 a month → T1 at ₹1 / minute**. Call insights are on by
-  default at ₹0.20 / minute; you can turn them off in **Billing**.
+All-in on our line is the voice AI, our phone line and call insights. T5 and
+T3 include both; on T1 the line adds ₹0.30 and insights ₹0.20 a minute. Your
+own telco, WhatsApp and browser calls carry no line charge. Calls are billed in
+10-second blocks. Prices exclude GST.
 
-T5 and T3 include Mirai phone calling and insights. On T1, optional Mirai
-phone calling adds ₹0.30 / minute only when Mirai supplies the phone connection.
-BYO telco, WhatsApp and browser calls have no Mirai telco charge.
+<a className="mm-cta" href="https://sandbox.voice.miraiminds.co/#/live">Go live in the console</a> [Price for performance against Sarvam](https://voice.miraiminds.co/guides/ai-voice-agent-pricing-india#performance)
+
+Every company starts on T5. Going live costs ₹100 to start, plus GST (₹118),
+and all ₹100 is call credit. [Go live](/v2/go-live) has the steps.
+
+<Accordion title="Every plan in detail">
 
 {/* pricing:agents:start */}
 
@@ -36,6 +44,8 @@ Your workspace's agreed contract determines your charges. Advertised rates do no
 
 {/* pricing:agents:end */}
 
+</Accordion>
+
 ## One stack on every tier
 
 Every tier runs on the same Mira stack. **The price is the only difference.**
@@ -52,12 +62,16 @@ recordings, or both.
 A company is on one plan, and every call it makes is billed at that plan's
 rate.
 
-- **Start today on T5.** Complete **Go live** in the
-  [console](https://sandbox.voice.miraiminds.co) — it is self-serve, with no
-  monthly commitment. You pay for the minutes you use from prepaid credit.
+- **Start today on T5.** [Go live](/v2/go-live) in the console: ₹100 to
+  start, plus GST, and all ₹100 is call credit. No monthly commitment.
 - **Or commit for a lower rate.** Choose T3 (₹50,000 a month) or T1
-  (₹1,00,000 a month) when you go live. A company already on T5 moves up by
-  contacting us today; moving up from the console's Billing page is coming.
+  (₹1,00,000 a month) when you go live.
+- **Move up any time.** On T5 or T3, open
+  [Billing](https://console.voice.miraiminds.co/#/billing) and pay the new
+  plan's first month. The lower rate starts when you pay. If a bank mandate
+  pays your months, write to
+  [help@miraiminds.co](mailto:help@miraiminds.co?subject=Change%20my%20plan)
+  to move up.
 - **Commitments are minimum spend.** Fund the minimum upfront each month. Paid
   workspace usage counts towards it. At the end of the billing month, only the
   unused minimum is settled from your wallet. Extra top-up credit carries forward.
@@ -178,11 +192,11 @@ curl https://sandbox.voice.miraiminds.co/v2/wallet \
 
 - **Debits happen at call end**, one ledger row per billable call, carrying the
   `call_id`.
-- **Top up from the console.** Once your company has gone live, add credit
-  from the **Billing** page of the
-  [console](https://sandbox.voice.miraiminds.co) whenever you need it. On T3
-  and T1, each monthly commitment is credited to the same wallet. Before you
-  go live, your Mirai contact credits the workspace.
+- **Top up from the console.** Once your company has gone live,
+  [add credit on Billing](https://console.voice.miraiminds.co/#/billing)
+  whenever you need it. On T3 and T1, each monthly commitment is credited to
+  the same wallet. A sandbox has its ₹200 starter credit; for more,
+  [go live](/v2/go-live).
 - **Top-up credit carries forward.** The monthly minimum still applies to T3
   and T1. In **Billing**, review paid usage, the remaining minimum and promotional
   credit. Each month-end shortfall appears separately in your wallet statement.
@@ -216,6 +230,8 @@ full minute of headroom. If the wallet cannot cover it:
 - **Inside a [campaign](/v2/campaigns) this is not an error.** The campaign
   pauses itself with `pause_reason: "insufficient_balance"`, keeps every
   contact's place, and continues from there once you top up and start it again.
+
+<OutOfCredit />
 
 Alert on balance yourself, hourly, at a threshold covering a day of traffic. A
 `402` mid-campaign is an expensive way to find out.
