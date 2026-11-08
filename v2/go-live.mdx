@@ -1,7 +1,7 @@
 ---
 title: "Go live: move your sandbox to production"
 sidebarTitle: "Go live"
-description: "Go live in the console for ₹100 of call credit, plus GST. Your agents, calls and numbers move across, and you change two things in your code: the base URL and the API key."
+description: "Go live in the console for ₹100 of call credit, plus GST. Your agents, calls and numbers move across. In your code you change the base URL and API key, and add your webhook endpoint again with its new secret."
 ---
 
 import OutOfCredit from "/snippets/out-of-credit.mdx";
@@ -19,7 +19,7 @@ everything you built moves with it.
 | First payment | ₹118: ₹100 of call credit and ₹18 GST |
 | Per minute | ₹5 to start, ₹1.50 all-in at volume |
 | Moves across | Agents, calls, campaigns, numbers |
-| You change | Base URL and API key |
+| You change | Base URL, API key, webhook endpoint and secret |
 
 <a className="mm-cta" href="https://sandbox.voice.miraiminds.co/#/live">Go live in the console</a> [Compare the plans](/general/tiers)
 
@@ -33,7 +33,7 @@ everything you built moves with it.
 | Webhook secret | Sandbox `whsec_…` | A new `whsec_…` |
 | Price | T5, ₹5 a minute | Your plan |
 | Credit | ₹200 starter credit | What you pay in |
-| End date | Yes | None |
+| End date | 14 days on a self-serve sandbox | None |
 
 The routes, request bodies and responses are the same on both addresses. A
 sandbox key sent to the production address gets
@@ -75,8 +75,10 @@ These go on your invoices. Type your GSTIN and the rest fills in, or choose
 
 <Step title="Pay">
 The last screen shows your plan, your business and what moves across. Pay
-through Razorpay: card, UPI or net banking. On T3 and T1 you choose how each
-month is paid: in the app each month, or automatically by bank mandate.
+through Razorpay: card, UPI or net banking. UPI goes up to ₹1,00,000, so
+T1's first payment of ₹1,18,000 is by card or net banking. On T3 and T1 you
+choose how each month is paid: in the app each month, or automatically by bank
+mandate.
 </Step>
 
 <Step title="Switch your code to production">
@@ -114,14 +116,15 @@ call still links to its agent and a number to its agent.
 | Custom voices | |
 
 <Tip>
-Pause any campaign that is dialling in the sandbox before you pay. The move
-waits until no campaign is running.
+Pause any campaign that is dialling in the sandbox before you pay. If one is
+still running, nothing moves. Pause it, then press **Move my sandbox now** in
+the live console.
 </Tip>
 
 ## When a sandbox ends
 
-Every sandbox has an end date, shown in the console. A self-serve sandbox gets
-14 days. On that date two things stop:
+If your sandbox has an end date, the console shows it. A self-serve sandbox
+gets 14 days. On that date two things stop:
 
 | What stops | What you see |
 | :--- | :--- |
