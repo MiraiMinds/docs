@@ -86,6 +86,7 @@ rate.
 | `pause_after_connected_since` | string | Read-only. RFC 3339 time the current count began. Present with `pause_after_connected_count`. |
 | `keyterms` | array of strings | Words speech recognition listens for on this campaign's calls, before its agent's own: brand, product, place and people names. Up to 100. Always present, `[]` when there are none. See [words to catch](#words-to-catch). |
 | `keyterm_spellings` | object | Read-only. The keyterms written in the scripts of the calls' languages, which the calls also listen for, by term and then language. Only when you read one campaign, and absent while there are none. See [spellings](/v2/keyterms#spellings-and-scripts). |
+| `keyterms_auto_learn` | boolean | Keep learning: the campaign adds the misheard words it is surest about to `keyterms` on its own. Default `false`. Present when you read or edit one campaign. See [keep learning](/v2/stt-accuracy#keep-learning). |
 | `counters` | object | Contacts by [status](#contact-statuses). Present on `GET /v2/campaigns/{id}`, omitted from list pages. |
 
 <Warning>
@@ -609,6 +610,7 @@ POST /v2/campaigns
 | `always_on` | boolean | no | Default `false`. `true` keeps the campaign open after its list is done, so you can keep adding contacts. See [always-on campaigns](#always-on-campaigns). |
 | `pause_after_connected` | integer \| null | no | 1–100000. The campaign pauses itself once this many calls have connected. Omit it, or send `null`, for no limit. See [pause after connected calls](#pause-after-connected-calls). |
 | `keyterms` | array of strings | no | Up to 100 words for speech recognition to listen for on this campaign's calls, before the agent's own. See [words to catch](#words-to-catch). |
+| `keyterms_auto_learn` | boolean | no | Default `false`. `true` turns on [keep learning](/v2/stt-accuracy#keep-learning). |
 | `final_results` | boolean | no | Default `true`. Each call ends with one [`call.processed`](/v2/webhooks#final-results) carrying the transcript, the after-call results and the contact's `metadata`. `false` sends the shorter events only. Change it while the campaign is a draft or paused. |
 | `contacts` | array | no | Up to **1000** rows per request. `{phone, variables?, metadata?, call_settings?, id?}`. Add more later. |
 
@@ -851,12 +853,13 @@ While the campaign is `draft` or `paused` you can change: `name`, `slots`,
 `start_date`, `end_date`, `max_concurrent`, `retry_count`,
 `re_attempt_period_secs`, `max_duration_secs`, `budget_paise`, `webhook_url`,
 `skip_called_before`, `final_results`, `always_on`,
-`pause_after_connected` and `keyterms`. Not patchable: `agent_id`, `tier`,
-`timezone`.
+`pause_after_connected`, `keyterms` and `keyterms_auto_learn`. Not patchable:
+`agent_id`, `tier`, `timezone`.
 
 While it is running, only the pacing, the agent's version, the connected-call
 limit and the keyterms can change: `max_concurrent`, `slots`, `agent_revision`,
-`pause_after_connected` and `keyterms`. They take effect straight away. Anything else
+`pause_after_connected`, `keyterms` and `keyterms_auto_learn`. They take effect
+straight away. Anything else
 returns `409 conflict`, because changing the retry policy or the budget under a
 live dialler would leave the campaign's own report describing settings that
 were never in force for half of its calls. Pause it, patch it, then resume it.
@@ -930,7 +933,8 @@ curl -X PATCH https://sandbox.voice.miraiminds.co/v2/campaigns/cmp_01K7QAC5N9P4R
 
 The agent's own keyterms come from the revision the campaign uses. In the
 console, the list is **Words to catch** on the campaign form. [Words to
-catch](/v2/keyterms) covers what to put on the list.
+catch](/v2/keyterms) covers what to put on the list, and [How well your agent
+hears](/v2/stt-accuracy) shows which words a campaign's calls still mishear.
 
 ---
 
