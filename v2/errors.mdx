@@ -118,10 +118,6 @@ Grouped by area. Each links to the page with the detail.
 | `window_closed` | `409` | The [calling window](/v2/campaigns#calling-window) can never open again before `end_date`. | Extend `end_date` or widen `slots`, then start again. |
 | `fleet_offline` | `503` | Speech capacity is offline, so a [campaign start](/v2/campaigns#start-a-campaign) was refused. Nothing was charged. | Honour `Retry-After` (300 s) and start again. |
 | `campaigns_unavailable` | `503` | Campaigns are not enabled for your workspace. | [Ask us to enable them](mailto:help@miraiminds.co?subject=Enable%20campaigns). Retrying won't clear it. |
-| `keyterms_full` | `409` | [Adding a suggested word](/v2/stt-accuracy#add-a-suggested-word) would take the campaign past 100 keyterms. Nothing was added. | Remove a keyterm with `PATCH`, then add it again. |
-| `campaign_finished` | `409` | You added a suggested word to a stopped or completed campaign. | Add it to the agent's keyterms instead. |
-| `agent_scope_unsupported` | `409` | A suggested word was sent with `scope: "agent"`. | Add it with [`PATCH /v2/agents/{id}`](/v2/keyterms#set-them-on-an-agent). |
-| `stt_accuracy_unavailable` | `503` | [Accuracy checks](/v2/stt-accuracy) are not available on this deployment. | [Write to us](mailto:help@miraiminds.co?subject=Speech%20accuracy%20checks). Retrying won't clear it. |
 
 ### Phone numbers and pools
 

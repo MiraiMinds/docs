@@ -4,10 +4,6 @@ sidebarTitle: "Words to catch"
 description: "List the brand, product, place and people names your callers say, so speech recognition listens for them on every call of an agent or a campaign."
 ---
 
-<Note>
-Live speech recognition starts using keyterms once the speech update is live on your workspace.
-</Note>
-
 Speech recognition knows everyday words well. The words it misses are the ones
 only your business uses: your brand, your product and plan names, the areas you
 deliver to, the names of your doctors or branches. **Keyterms** are a list of
@@ -129,8 +125,8 @@ With the API, send `keyterms` when you create or update the agent:
   it to `keyterms` and send the whole list. `[]` or `null` clears it.
 - The agent object always has `keyterms`, `[]` when there are none.
 - The list is saved with each [revision](/v2/agents#update-an-agent), like the
-  rest of the agent. The agent's next call uses it: phone, browser, inbound and
-  [Realtime](/v2/realtime) calls alike.
+  rest of the agent. The agent's next call uses it: phone, browser and inbound
+  calls alike.
 - A campaign keeps the agent revision it was created with. To bring a new list
   to a running campaign, [move the campaign onto the new
   revision](/v2/campaigns#switch-to-the-agent%E2%80%99s-latest-version), or give the
@@ -209,19 +205,9 @@ for you, so include the spelling in the call's script.
 | [The WebSocket](/v2/speech-to-text#keyterms) | A `keyterms` query parameter, or `{"event": "config.update", "keyterms": [...]}` right after you connect. |
 | [Offline transcription](/v2/transcriptions#upload-a-file) | `keyterms`, another name for `vocabulary`. |
 
-## Check that it worked
-
-[How well your agent hears](/v2/stt-accuracy) checks a sample of each
-campaign's calls every day. It shows how often your keyterms were heard right,
-which words are still misheard and what they were heard as, and suggests words
-to add.
-
 ## Related
 
 <CardGroup cols={2}>
-  <Card title="How well your agent hears" icon="ear-listen" href="/v2/stt-accuracy">
-    Daily accuracy checks, misheard words and suggested keyterms.
-  </Card>
   <Card title="Agents" icon="robot" href="/v2/agents#keyterms">
     The `keyterms` field on the agent object.
   </Card>
