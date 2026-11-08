@@ -438,7 +438,7 @@ completes.
 
 | Limit | Default | Over the limit |
 | :--- | :--- | :--- |
-| Sessions at once | **10 per workspace**, counting HTTP requests in flight and open sockets together | `429 at_capacity` with `Retry-After`. |
+| Sessions at once | **20 per workspace**, **100** on a monthly plan (T1 or T3), counting HTTP requests in flight and open sockets together | `429 at_capacity` with `Retry-After`. |
 | One HTTP clip | **25 MB and 120 seconds** of audio | Over 25 MB, `413 request_too_large`. Over 120 seconds, `413 audio_too_long`. Send longer recordings to [offline transcription](/v2/transcriptions). |
 | Request rate | Per key (see [Limits](/v2/limits)) | `429 rate_limited` with `Retry-After`. Opening a socket counts as a request. |
 
@@ -553,7 +553,7 @@ the API:
 | 413 | `request_too_large` | The upload is over 25 MB. Nothing was charged. |
 | 413 | `audio_too_long` | The clip is longer than 120 seconds. Send it to [offline transcription](/v2/transcriptions), which takes recordings of up to two hours. |
 | 415 | `unsupported_media` | We could not decode the file. Send WAV or a common compressed format, or raw audio with `encoding` and `sample_rate`. |
-| 429 | `at_capacity` | Your workspace already has 10 sessions running, or the service is at its own ceiling. Honour `Retry-After`. |
+| 429 | `at_capacity` | Your workspace is at its session limit (20, or 100 on a monthly plan), or the service is at its own ceiling. Honour `Retry-After`. |
 | 429 | `rate_limited` | Per-key request rate. Honour `Retry-After`, and see [Limits](/v2/limits). |
 | 503 | `maintenance_window` | Rare. Speech to text is down for planned maintenance. `Retry-After` counts the seconds until it is back. Nothing was charged. See [Availability](/v2/speech#availability). |
 | 503 | `unavailable` | The recogniser is briefly unreachable or restarting. Nothing was charged. Honour `Retry-After`. |

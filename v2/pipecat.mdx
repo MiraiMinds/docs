@@ -296,7 +296,7 @@ start. Its usage metric is seconds of audio, which is what you're billed for
 
 ### Limits for STT
 
-A workspace can have 10 sessions open at once: one per live call, plus the few
+A workspace can have 20 sessions open at once (100 on a monthly plan): one per live call, plus the few
 sockets each process keeps open and waiting so a call's first audio does not
 wait for a handshake. Before a load test with more calls than
 that, tell us the number and we raise the limit. The

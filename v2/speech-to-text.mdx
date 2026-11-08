@@ -151,7 +151,7 @@ gets an ordinary HTTP response with the usual [error envelope](/v2/errors):
 | 402 | `insufficient_balance` | Your wallet is empty. | [Add credit](/v2/wallet#top-up). |
 | 403 | `forbidden` | The key, or the key that minted the token, was revoked. | Use a current key. |
 | 426 | `upgrade_required` | A plain HTTP request reached the endpoint. | Connect with a WebSocket client (`wss://`). |
-| 429 | `at_capacity` | Your workspace already has 10 sessions running (`Retry-After: 5`), or the service is at its own ceiling. Carries `Retry-After`. | Close the sessions you are done with, then retry after that delay. |
+| 429 | `at_capacity` | Your workspace is at its session limit, 20 or 100 on a monthly plan (`Retry-After: 5`), or the service is at its own ceiling. Carries `Retry-After`. | Close the sessions you are done with, then retry after that delay. |
 | 429 | `rate_limited` | Your key's request rate. | Honour `Retry-After`. |
 | 503 | `maintenance_window` | Rare. Speech to text is down for planned maintenance. `Retry-After` counts the seconds until it is back. Stream tokens are not minted during maintenance either. | Reconnect after that delay. See [Availability](/v2/speech#availability). |
 | 503 | `unavailable` | The server is restarting, the recogniser is briefly unreachable, or streaming speech to text is not switched on for this server. Carries `Retry-After` when retrying helps. | Reconnect after that delay. |
@@ -508,7 +508,7 @@ The close frame's reason text names the cause.
 
 | Limit | Value | Over the limit |
 | :--- | :--- | :--- |
-| Sessions at once | **10 per workspace**, counting open sockets and HTTP requests in flight together | `429 at_capacity` before the upgrade, with `Retry-After`. |
+| Sessions at once | **20 per workspace**, **100** on a monthly plan (T1 or T3), counting open sockets and HTTP requests in flight together | `429 at_capacity` before the upgrade, with `Retry-After`. |
 | One `audio_input` | 128,000 bytes of raw audio before base64 (4 seconds of 16 kHz PCM) | Fatal `audio_too_large`; the socket closes with 1011. |
 | One utterance, manual endpointing | 60 seconds. Send `speech_end` at a pause at least every 25 seconds. With `vad`, we cut long speech for you. | Fatal `utterance_too_long`, no final for that utterance; the socket closes with 1011. |
 | Utterances waiting for a final | 8 | Fatal `overloaded`. |
@@ -523,7 +523,7 @@ answered for 60 seconds. Most WebSocket libraries answer pings for you. Pings
 do not count as activity for the idle limit: keep sending audio, or send
 `{"event": "ping"}` during long silences.
 
-If you need more than 10 sessions at once, [ask us](mailto:help@miraiminds.co?subject=More%20STT%20sessions). It is a
+If you need more sessions at once than your limit, [ask us](mailto:help@miraiminds.co?subject=More%20STT%20sessions). It is a
 provisioning change and needs no change to your code.
 
 ## Request log and billing
