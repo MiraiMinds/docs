@@ -15,7 +15,7 @@ those words. Give the list to an agent or a campaign, and its calls listen for
 them. In the console the list is called **Words to catch**.
 
 ```json
-{ "keyterms": ["Zeton", "Zeton Max", "Koramangala", "Dr. Subramaniam"] }
+{ "keyterms": ["Zylora", "Zylora Max", "Koramangala", "Dr. Subramaniam"] }
 ```
 
 ## What to put on the list
@@ -25,10 +25,10 @@ spell it. Leave off words that any Hindi or English speaker already knows.
 
 | Add | Leave off |
 | :--- | :--- |
-| Your brand: `Zeton` | Everyday words: `order`, `delivery`, `refund` |
-| Product and plan names: `Zeton Max`, `Gold Plus` | Words callers say to agree or pause: `haan`, `achha`, `theek hai` |
+| Your brand: `Zylora` | Everyday words: `order`, `delivery`, `refund` |
+| Product and plan names: `Zylora Max`, `Gold Plus` | Words callers say to agree or pause: `haan`, `achha`, `theek hai` |
 | Places you serve: `Koramangala`, `Vashi` | Whole sentences: `I want to cancel my order` |
-| People callers ask for: `Dr. Subramaniam` | Several names in one entry: `Zeton, Zeton Max` |
+| People callers ask for: `Dr. Subramaniam` | Several names in one entry: `Zylora, Zylora Max` |
 | Scheme and product codes said as words: `PM Kisan` | Things that change on every call, such as an order number |
 
 Each word on the list makes the recogniser a little more ready to hear it.
@@ -43,7 +43,7 @@ in [`variables`](/v2/calls#variables), where the agent reads them.
 
 On a call in an Indian language, Mira STT writes common English words in Latin
 script, but it often writes a brand or a name it has not met before in the
-call's own script. On a Hindi call, "Zeton" can come back as "ज़ेटन". A keyterm
+call's own script. On a Hindi call, "Zylora" can come back as "ज़ायलोरा". A keyterm
 is matched as it is written, so the spelling in the call's script is the one
 that helps.
 
@@ -53,7 +53,7 @@ the list, we write each term in the scripts of the agent's `language` and
 
 - A term in English letters gets a spelling in Hindi, Marathi, Gujarati,
   Punjabi, Bengali, Tamil, Telugu, Kannada, Malayalam or Odia, whichever the
-  agent speaks. "Zeton" becomes "ज़ेटन" for a Hindi agent.
+  agent speaks. "Zylora" becomes "ज़ायलोरा" for a Hindi agent.
 - A term in an Indian script gets a spelling in English letters when English is
   one of the agent's languages.
 - Each term keeps at most two spellings per language.
@@ -65,16 +65,16 @@ language. You can't edit them, and the field is left out while there are none:
 ```json title="GET /v2/agents/{id} (excerpt)"
 {
   "language": "hi-IN",
-  "keyterms": ["Zeton", "Koramangala"],
+  "keyterms": ["Zylora", "Koramangala"],
   "keyterm_spellings": {
-    "Zeton": { "hi-IN": ["ज़ेटन"] },
+    "Zylora": { "hi-IN": ["ज़ायलोरा"] },
     "Koramangala": { "hi-IN": ["कोरमंगला"] }
   }
 }
 ```
 
 The [speech-to-text API](#on-the-speech-to-text-api) adds no spellings. There,
-send each spelling yourself: `["Zeton", "ज़ेटन"]`.
+send each spelling yourself: `["Zylora", "ज़ायलोरा"]`.
 
 ## Set them on an agent
 
@@ -89,7 +89,7 @@ With the API, send `keyterms` when you create or update the agent:
     curl -X PATCH https://sandbox.voice.miraiminds.co/v2/agents/agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ \
       -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
       -H "Content-Type: application/json" \
-      -d '{ "keyterms": ["Zeton", "Zeton Max", "Koramangala"] }'
+      -d '{ "keyterms": ["Zylora", "Zylora Max", "Koramangala"] }'
     ```
   </Tab>
   <Tab title="Python">
@@ -102,7 +102,7 @@ With the API, send `keyterms` when you create or update the agent:
     agent = httpx.patch(
         f"{API}/v2/agents/agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ",
         headers=auth,
-        json={"keyterms": ["Zeton", "Zeton Max", "Koramangala"]},
+        json={"keyterms": ["Zylora", "Zylora Max", "Koramangala"]},
         timeout=30,
     ).raise_for_status().json()
 
@@ -117,7 +117,7 @@ With the API, send `keyterms` when you create or update the agent:
     const res = await fetch(`${API}/v2/agents/agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ`, {
       method: "PATCH",
       headers: { ...auth, "Content-Type": "application/json" },
-      body: JSON.stringify({ keyterms: ["Zeton", "Zeton Max", "Koramangala"] }),
+      body: JSON.stringify({ keyterms: ["Zylora", "Zylora Max", "Koramangala"] }),
     });
     if (!res.ok) throw new Error(JSON.stringify(await res.json()));
     const agent = await res.json();
@@ -160,9 +160,9 @@ in all.
 
 When a call has keyterms, the agent's prompt gets one short line that names
 them and says the transcript may spell them differently. If the transcript says
-"Zetan" or "ज़ेटन", the agent can still tell that the caller means Zeton. The
-line names at most 40 terms, or 600 characters, with your typed terms ahead of
-the added spellings.
+"Zailora" or "ज़ायलोरा", the agent can still tell that the caller means Zylora.
+The line names at most 40 terms, or 600 characters, with your typed terms ahead
+of the added spellings.
 
 ## Rules and limits
 
@@ -181,7 +181,7 @@ We save each term like this:
   character. A comma separates terms in a URL or a form field, so send each term
   as its own entry.
 - Repeats are dropped ignoring case. The first spelling and the order are kept,
-  so `["Zeton", "ZETON", "Gold Plus"]` is saved as `["Zeton", "Gold Plus"]`.
+  so `["Zylora", "ZYLORA", "Gold Plus"]` is saved as `["Zylora", "Gold Plus"]`.
 
 On an agent or a campaign, a list that breaks a rule is refused with
 `400 invalid_request`. The message names `keyterms` and the term:
@@ -189,7 +189,7 @@ On an agent or a campaign, a list that breaks a rule is refused with
 | Message | Cause |
 | :--- | :--- |
 | `keyterms: entries must not be empty` | An entry is empty or only spaces. |
-| `keyterms: "Zeton, Zeton Max" contains a comma; send each term as its own entry` | Two terms in one entry. |
+| `keyterms: "Zylora, Zylora Max" contains a comma; send each term as its own entry` | Two terms in one entry. |
 | `keyterms: "<term>" is 62 characters, the maximum is 50` | A term is longer than 50 characters. |
 | `keyterms: "<term>" is 6 words, the maximum is 5` | A term has more than 5 words. |
 | `keyterms has 101 terms, the maximum is 100` | More than 100 terms remain after repeats are dropped. |

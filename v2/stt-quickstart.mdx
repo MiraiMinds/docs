@@ -177,7 +177,7 @@ that language's script, so add that spelling too.
       -F file=@call.wav \
       -F model=mira-stt \
       -F language=hi-IN \
-      -F "keyterms=Zeton,ज़ेटन,Zeton Max,Koramangala"
+      -F "keyterms=Zylora,ज़ायलोरा,Zylora Max,Koramangala"
     ```
   </Tab>
   <Tab title="Python (OpenAI SDK)">
@@ -188,7 +188,7 @@ that language's script, so add that spelling too.
             model="mira-stt",
             file=f,
             language="hi",
-            extra_body={"keyterms": ["Zeton", "ज़ेटन", "Zeton Max", "Koramangala"]},
+            extra_body={"keyterms": ["Zylora", "ज़ायलोरा", "Zylora Max", "Koramangala"]},
         )
     print(result.text)
     ```

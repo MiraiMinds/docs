@@ -60,13 +60,13 @@ places and people, the words a recogniser most often gets wrong. A session
 takes up to 200. Each term is 1 to 50 characters and at most 5 words, in any
 script, with no comma inside it, and repeats are dropped ignoring case. On a
 call in an Indian language, Mira STT often writes a brand in that language's
-script, so send that spelling as well: `["Zeton", "ज़ेटन"]`.
+script, so send that spelling as well: `["Zylora", "ज़ायलोरा"]`.
 
 Send the list right after you connect, before the first audio, in a
 `config.update`:
 
 ```json
-{ "event": "config.update", "keyterms": ["Zeton", "ज़ेटन", "Zeton Max", "Koramangala"] }
+{ "event": "config.update", "keyterms": ["Zylora", "ज़ायलोरा", "Zylora Max", "Koramangala"] }
 ```
 
 - `keyterms` is an array of strings, or one comma-separated string. Each
@@ -80,7 +80,7 @@ Send the list right after you connect, before the first audio, in a
   term. Nothing in that message changes, and the socket stays open.
 
 A short list in English letters can go on the URL instead, as
-`keyterms=Zeton,Koramangala`, checked before the upgrade like every other
+`keyterms=Zylora,Koramangala`, checked before the upgrade like every other
 parameter. The `config.updated` for it arrives right after `session.begin`.
 Send long lists, and lists in an Indian script, in the message, so the URL stays
 short.
@@ -126,7 +126,7 @@ Everything about the session is set on the URL, checked before the upgrade:
 | `encoding` | `linear16` (signed 16-bit little-endian PCM), `mulaw` or `alaw` (G.711). | `linear16` |
 | `sample_rate` | `8000` or `16000`. | `16000` |
 | `endpointing` | `manual` or `vad`. See [Manual or VAD endpointing](#manual-or-vad-endpointing). | `vad` |
-| `keyterms` | Up to 200 names to listen for, comma-separated (`Zeton,Koramangala`). See [Keyterms](#keyterms). Send long or non-Latin lists in a `config.update` instead. | None |
+| `keyterms` | Up to 200 names to listen for, comma-separated (`Zylora,Koramangala`). See [Keyterms](#keyterms). Send long or non-Latin lists in a `config.update` instead. | None |
 | `return_timestamps` | `true` or `false`. `true` adds `start_s` and `end_s` to each `transcript.final`: where the utterance sits in the audio you have sent, in seconds, padding included. | `false` |
 | `silence_duration_ms` | `vad` only. How long a pause ends an utterance, 0 to 10,000. | `1000` |
 | `threshold` | `vad` only. Speech probability that counts as speech, 0 to 1. | `0.3` |
