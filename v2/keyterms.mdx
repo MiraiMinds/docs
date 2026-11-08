@@ -205,9 +205,19 @@ for you, so include the spelling in the call's script.
 | [The WebSocket](/v2/speech-to-text#keyterms) | A `keyterms` query parameter, or `{"event": "config.update", "keyterms": [...]}` right after you connect. |
 | [Offline transcription](/v2/transcriptions#upload-a-file) | `keyterms`, another name for `vocabulary`. |
 
+## Check that it worked
+
+[How well your agent hears](/v2/stt-accuracy) checks a sample of each
+campaign's calls every day. It shows how often your keyterms were heard right,
+which words are still misheard and what they were heard as, and suggests words
+to add.
+
 ## Related
 
 <CardGroup cols={2}>
+  <Card title="How well your agent hears" icon="ear-listen" href="/v2/stt-accuracy">
+    Daily accuracy checks, misheard words and suggested keyterms.
+  </Card>
   <Card title="Agents" icon="robot" href="/v2/agents#keyterms">
     The `keyterms` field on the agent object.
   </Card>
