@@ -1,0 +1,315 @@
+---
+title: "How well your agent hears"
+sidebarTitle: "How well it hears"
+description: "See how many of your callers' words a campaign's speech recognition gets right, day by day, which names it keeps mishearing, and add them as keyterms in one step."
+---
+
+<Note>
+Live speech recognition starts using keyterms once the speech update is live on your workspace.
+</Note>
+
+Every day we check a sample of each campaign's answered calls. We transcribe
+the caller's side of the recording again, offline, and compare it word by word
+with what live speech recognition heard during the call. The report tells you:
+
+- how many of the caller's words were heard right, and how that has moved since
+  the campaign began;
+- how often your [keyterms](/v2/keyterms) were heard right;
+- the words it keeps mishearing, what it heard instead, and calls you can
+  listen to;
+- which of those words to add as keyterms. Add one with a single request, or
+  let the campaign add them itself.
+
+## How it's measured
+
+- We check answered campaign calls where the caller spoke at least three times
+  and the recording was kept: up to 20 calls a campaign a day
+  (`method.daily_cap` has the exact number), never the same call twice. Calls
+  made with recording turned off can't be checked.
+- The live transcript is compared with our own offline transcription of the
+  caller's side of the recording. We fix each campaign's offline setup at the
+  first call we check: the language, the agent's name and the opening of its
+  prompt, and the keyterms the campaign had then. Words you add later don't
+  change it, so every day is measured the same way.
+- Only the caller's words count, inside the moments the caller was speaking.
+  Case, punctuation and script are not errors: "hotel" and "होटल" are the same
+  word. Numbers count the same however they are written, so "पांच सौ" matches
+  "500". Fillers like "umm" are left out.
+- It is a machine check, not a person listening. Both transcripts come from our
+  own speech recognition, so a mistake both make is not counted, and the error
+  rate reads lower than a person checking the same calls would find. Watch the
+  trend more than the number.
+
+Until checks are switched on for your workspace, the report's `status` is
+`off`.
+
+## Read a campaign's report
+
+```http
+GET /v2/campaigns/{id}/stt-accuracy
+```
+
+<Tabs>
+  <Tab title="cURL">
+    ```bash
+    curl https://sandbox.voice.miraiminds.co/v2/campaigns/cmp_01K7QAC5N9P4R7S3T6V8W2X4YB/stt-accuracy \
+      -H "Authorization: Bearer sk_live_YOUR_API_KEY"
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    import os, httpx
+
+    API = "https://sandbox.voice.miraiminds.co"
+    auth = {"Authorization": f"Bearer {os.environ['MIRAI_API_KEY']}"}
+
+    report = httpx.get(
+        f"{API}/v2/campaigns/cmp_01K7QAC5N9P4R7S3T6V8W2X4YB/stt-accuracy",
+        headers=auth,
+        timeout=30,
+    ).raise_for_status().json()
+
+    s = report["summary"]
+    if report["status"] == "ready" and s["latest_wer"] is not None:
+        print(f"words heard right: {1 - s['latest_wer']:.0%} (first day {1 - s['first_wer']:.0%})")
+    ```
+  </Tab>
+  <Tab title="Node.js">
+    ```javascript
+    const API = "https://sandbox.voice.miraiminds.co";
+    const auth = { Authorization: `Bearer ${process.env.MIRAI_API_KEY}` };
+
+    const res = await fetch(
+      `${API}/v2/campaigns/cmp_01K7QAC5N9P4R7S3T6V8W2X4YB/stt-accuracy`,
+      { headers: auth }
+    );
+    if (!res.ok) throw new Error(JSON.stringify(await res.json()));
+    const report = await res.json();
+    ```
+  </Tab>
+</Tabs>
+
+```json title="200 OK"
+{
+  "status": "ready",
+  "method": { "reference": "offline", "calls_scored": 43, "since": "2026-11-01", "daily_cap": 20 },
+  "summary": {
+    "first_wer": 0.29,
+    "latest_wer": 0.18,
+    "calls_scored": 43,
+    "ref_words": 4640,
+    "keyterm_recall": 0.7667
+  },
+  "daily": [
+    { "date": "2026-11-01", "calls": 3, "ref_words": 240, "wer": 0.375, "keyterm_recall": null },
+    { "date": "2026-11-02", "calls": 20, "ref_words": 2400, "wer": 0.29, "keyterm_recall": 0.4 },
+    { "date": "2026-11-08", "calls": 20, "ref_words": 2000, "wer": 0.18, "keyterm_recall": 0.95 }
+  ],
+  "keyterm_events": [
+    { "at": "2026-11-05T10:15:00+05:30", "term": "Gold Plus", "action": "add", "source": "suggestion", "scope": "campaign" }
+  ],
+  "misheard": [
+    {
+      "term": "कोरमंगला",
+      "heard_as": [{ "text": "कोर मंगला", "count": 6 }, { "text": "", "count": 1 }],
+      "calls": 7,
+      "count": 7,
+      "in_keyterms": false,
+      "example_call_ids": ["call_01K9C1M4Q6S8T0V2X4Z6A8C0EG", "call_01K9C2B4M8N3P6R2S5T7V9W1YA"]
+    }
+  ],
+  "suggestions": [
+    {
+      "term": "कोरमंगला",
+      "reason": "misheard in 7 of 7 calls",
+      "confidence": 1,
+      "calls": 7,
+      "heard_as": ["कोर मंगला"],
+      "spellings": ["कोरमंगला", "Koramangala"]
+    }
+  ],
+  "auto_learn": false
+}
+```
+
+### Status
+
+| `status` | Meaning |
+| :--- | :--- |
+| `off` | Checks are switched off. Numbers already checked are still shown. |
+| `measuring` | No call has been checked yet. |
+| `not_enough_calls` | Fewer than 5 calls checked. The numbers are there but too few to trust. |
+| `ready` | At least 5 calls checked. |
+
+### Fields
+
+Error rates (`wer`) are word error rates: the share of the caller's words that
+live speech recognition got wrong, missed or added, from `0` to `1`. Words heard
+right is `1 - wer`. A rate can go above `1` when the live transcript added many
+words. Each day's rate pools all the words of that day's calls. Dates are India
+dates (Asia/Kolkata).
+
+| Field | Meaning |
+| :--- | :--- |
+| `method.reference` | Always `offline`: what the live transcript was compared with. |
+| `method.calls_scored` | Calls checked so far. |
+| `method.since` | The first day with a checked call, `YYYY-MM-DD`. `null` before any. |
+| `method.daily_cap` | The most calls checked for one campaign in a day. |
+| `summary.first_wer`, `summary.latest_wer` | The error rate on the first and on the latest day with at least 5 checked calls. `null` until there is one. |
+| `summary.calls_scored` | Calls checked. |
+| `summary.ref_words` | Caller words compared. |
+| `summary.keyterm_recall` | Of the times a caller said one of today's keyterms in the last 7 days, the share the live transcript got right, `0` to `1`. Terms are counted from before you added them too, so you can see the change. `null` when no caller said one. |
+| `daily[]` | One row per day with checked calls, oldest first, up to 180 days: `date`, `calls`, `ref_words`, `wer`, `keyterm_recall`. |
+| `keyterm_events[]` | Changes to the keyterms, oldest first: `at` (RFC 3339, India time), `term`, `action` (`add` or `remove`), `source` (`manual` for an edit, `suggestion` for an accepted suggestion, `auto` for [keep learning](#keep-learning)) and `scope` (`campaign` or `agent`). Put them on a chart beside `daily` to see what each change did. |
+| `misheard[]` | Words live speech recognition got wrong in the last 14 days: `term`, `heard_as` (what it wrote instead, with a count; `""` means it wrote nothing), `calls`, `count`, `in_keyterms` (already on the list) and `example_call_ids` to listen to. |
+| `suggestions[]` | Words worth adding as keyterms, from the last 14 days: `term`, `reason`, `confidence` (`0` to `1`), `calls`, `heard_as` and `spellings`. |
+| `auto_learn` | Whether [keep learning](#keep-learning) is on. |
+
+A word in `misheard` and `suggestions` is spelled the way the live transcript
+writes it, because keyterms are matched as written. On a Hindi call that is
+often Devanagari, even for an English or brand word. `term` is the spelling the
+live transcript used when it heard the word right, else the spelling of our
+offline transcript. `spellings` lists `term` first and then every other
+spelling seen. A misheard word and its suggestion carry the same `term`.
+
+## Read an agent's report
+
+```http
+GET /v2/agents/{id}/stt-accuracy
+```
+
+The same report for every campaign of the agent together. `in_keyterms` and
+`keyterm_recall` use the agent's own keyterms, `keyterm_events` include its
+campaigns' changes (with `scope: "campaign"`), and `auto_learn` is always
+`false`: keep learning is set per campaign.
+
+## Add a suggested word
+
+```http
+POST /v2/campaigns/{id}/stt-accuracy/suggestions/accept
+```
+
+Adds a word to the campaign's keyterms, after the ones it has. The campaign's
+next call listens for it, running campaigns included.
+
+| Field | Required | Description |
+| :--- | :--- | :--- |
+| `term` | yes | The word or phrase, usually a suggestion's `term`. It follows the [keyterm rules](/v2/keyterms#rules-and-limits). |
+| `spellings` | no | Up to 10 more spellings of the same word to add with it. Send the suggestion's `spellings`. |
+| `scope` | no | `campaign`, the default. `agent` is refused with `409 agent_scope_unsupported`: add the word to the agent with [`PATCH /v2/agents/{id}`](/v2/keyterms#set-them-on-an-agent) instead. |
+
+<Tabs>
+  <Tab title="cURL">
+    ```bash
+    curl -X POST https://sandbox.voice.miraiminds.co/v2/campaigns/cmp_01K7QAC5N9P4R7S3T6V8W2X4YB/stt-accuracy/suggestions/accept \
+      -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+      -H "Content-Type: application/json" \
+      -d '{ "term": "कोरमंगला", "spellings": ["कोरमंगला", "Koramangala"] }'
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    # report is the campaign's report from above
+    for s in report["suggestions"]:
+        added = httpx.post(
+            f"{API}/v2/campaigns/cmp_01K7QAC5N9P4R7S3T6V8W2X4YB/stt-accuracy/suggestions/accept",
+            headers=auth,
+            json={"term": s["term"], "spellings": s["spellings"][:10]},
+            timeout=30,
+        ).raise_for_status().json()
+        print(added["term"], "added" if added["added"] else "already there")
+    ```
+  </Tab>
+  <Tab title="Node.js">
+    ```javascript
+    // report is the campaign's report from above
+    for (const s of report.suggestions) {
+      const res = await fetch(
+        `${API}/v2/campaigns/cmp_01K7QAC5N9P4R7S3T6V8W2X4YB/stt-accuracy/suggestions/accept`,
+        {
+          method: "POST",
+          headers: { ...auth, "Content-Type": "application/json" },
+          body: JSON.stringify({ term: s.term, spellings: s.spellings.slice(0, 10) }),
+        }
+      );
+      if (!res.ok) throw new Error(JSON.stringify(await res.json()));
+    }
+    ```
+  </Tab>
+</Tabs>
+
+```json title="200 OK"
+{
+  "term": "कोरमंगला",
+  "added": true,
+  "scope": "campaign",
+  "keyterms": ["Gold Plus", "कोरमंगला", "Koramangala"]
+}
+```
+
+`keyterms` is the campaign's whole list after the change. A word the list
+already has, ignoring case, is not added twice: you get `200` with
+`added: false`. The change shows in `keyterm_events` with
+`source: "suggestion"`.
+
+| Status | `error.code` | When |
+| :--- | :--- | :--- |
+| `400` | `invalid_request` | No `term`, more than 10 `spellings`, a `scope` other than `campaign` or `agent`, or a word that breaks the keyterm rules. |
+| `404` | `not_found` | No such campaign in your workspace. |
+| `409` | `agent_scope_unsupported` | `scope` is `agent`. |
+| `409` | `keyterms_full` | The campaign would pass 100 keyterms. Nothing was added. Remove one with [`PATCH /v2/campaigns/{id}`](/v2/campaigns#words-to-catch) first. |
+| `409` | `campaign_finished` | The campaign is stopped or completed. Add the word to its agent instead. |
+
+The messages on this route are plain sentences you can show to people as they
+are.
+
+## Keep learning
+
+Turn on keep learning and the campaign adds the words it is surest about by
+itself:
+
+```bash
+curl -X PATCH https://sandbox.voice.miraiminds.co/v2/campaigns/cmp_01K7QAC5N9P4R7S3T6V8W2X4YB \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "keyterms_auto_learn": true }'
+```
+
+- A suggestion is added when its `confidence` is at least `0.8` and it was
+  seen in at least 3 calls, with all its spellings.
+- At most 5 words are added a day.
+- Each addition shows in `keyterm_events` with `source: "auto"`, so you can see
+  what changed and when. Remove a word you don't want with a normal
+  [`PATCH`](/v2/campaigns#words-to-catch).
+- It is off unless you turn it on. You can set `keyterms_auto_learn` on create
+  or with `PATCH`, while the campaign is running too. A duplicated campaign
+  starts with it off.
+
+## In the console
+
+Open a campaign's **Insights** tab. **How well your agent hears** shows the
+share of words heard right, how it moved since the campaign began, a
+day-by-day line with a mark on each day words were added, and **Words it gets
+wrong**. Press **Add** beside a word to add it to the campaign's words to
+catch, or **Listen** to hear the calls it came from. The **Keep learning**
+switch is on the same card.
+
+For an agent, **Agent Studio → Behavior → How well it hears** shows the same
+check across its campaigns, under [Words to catch](/v2/keyterms).
+
+## Errors
+
+Both reports answer `404 not_found` for a campaign or agent that is not in your
+workspace, and `503 stt_accuracy_unavailable` where accuracy checks are not
+available at all. See [errors](/v2/errors#campaigns).
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Words to catch" icon="spell-check" href="/v2/keyterms">
+    What to put on the list, spellings and limits.
+  </Card>
+  <Card title="Campaigns" icon="bullhorn" href="/v2/campaigns#words-to-catch">
+    Change a campaign's keyterms while it runs.
+  </Card>
+</CardGroup>

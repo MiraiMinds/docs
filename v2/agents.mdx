@@ -47,6 +47,7 @@ only `pre_call` and `post_call` tools are allowed. See
   "first_message": "नमस्ते {{customer_name}}, मैं Acme से Priya बोल रही हूँ।",
   "voice": { "voice_id": "ashu", "language": "hi-IN" },
   "language": "hi-IN",
+  "keyterms": ["Acme", "Acme Gold"],
   "max_duration_secs": 300,
   "end_call": {
     "enabled": true,
@@ -76,6 +77,7 @@ only `pre_call` and `post_call` tools are allowed. See
 | `voice` | object | yes | See [Voice](#voice). |
 | `language` | string | yes | BCP-47 conversation language, e.g. `hi-IN`, `en-IN`. Drives ASR and the model's default output language. |
 | `secondary_languages` | array | no | Other languages callers may speak: up to 4 of `hi`, `en`, `gu`, `mr`, `bn`, `ta`, `te`, `kn`, `ml`, `pa` and `od`. Speech recognition listens for them as well as `language`: `language` stays the default, and an utterance moves to a secondary language only when Mira STT is confident it is in that language. Mira STT takes the first three that are among its [ten languages](/v2/stt-languages). Always returned, `[]` when there are none. |
+| `keyterms` | array of strings | no | Words speech recognition listens for on the agent's calls: brand, product, place and people names. Up to 100. Always returned, `[]` when there are none. See [Keyterms](#keyterms). |
 | `max_duration_secs` | integer | no | Hard cap. When it is reached, the call ends with `ended_reason: exceeded-max-duration`. Minimum `30`, maximum `1800`, default `300`. |
 | `tools` | array | no | Tool definitions for this agent. See [Tools](/v2/tools). PATCH replaces the full list. |
 | `analysis` | object | no | What to work out after each call: a summary, a success verdict, extracted fields and the follow-up message to send. See [Analysis](#analysis). PATCH replaces the whole object. |
@@ -87,7 +89,8 @@ only `pre_call` and `post_call` tools are allowed. See
 | `booking` | object \| null | no | A booking window: which days a caller can book. See [Booking window](#booking-window). Present on the agent object only when set. PATCH replaces the whole block; `null` removes it. |
 | `flow` | object \| null | no | A node graph. Makes this a [node-based agent](/v2/node-agents). Present on the agent object only when set. PATCH replaces the whole graph; `null` removes it. |
 
-Server-set and read-only: `id`, `object`, `created_at`, `updated_at`.
+Server-set and read-only: `id`, `object`, `created_at`, `updated_at`, and
+`keyterm_spellings` on `GET /v2/agents/{id}` (see [Keyterms](#keyterms)).
 
 ### Booking window
 
@@ -496,6 +499,41 @@ If your callers use a laptop's built-in microphone in a busy room, keep
 [Microphone capture](/v2/web-calls#microphone-capture).
 </Tip>
 
+### Keyterms
+
+<Note>
+Live speech recognition starts using keyterms once the speech update is live on your workspace.
+</Note>
+
+`keyterms` lists the words your callers say that a recogniser tends to
+mishear: your brand, products, places and people. The agent's calls listen for
+them. In the console it is **Agent Studio → Behavior → Words to catch**.
+
+```json
+{ "keyterms": ["Acme", "Acme Gold", "Koramangala"] }
+```
+
+- Up to 100 terms. Each is 1 to 50 characters and at most 5 words, in any
+  script, with no comma, new line or tab. Repeats are dropped ignoring case. A
+  list that breaks a rule is refused with `400 invalid_request`, and the message
+  names the term.
+- `PATCH` replaces the whole list. `[]` or `null` clears it.
+- The list is saved with each revision. A campaign keeps the revision it was
+  created with until you [move it onto a newer
+  one](/v2/campaigns#switch-to-the-agent%E2%80%99s-latest-version), and it can
+  add [keyterms of its own](/v2/campaigns#words-to-catch).
+- On a call in an Indian language, Mira STT often writes a brand or a name in
+  that language's script, so we add those spellings for you a short while after
+  you save. `GET /v2/agents/{id}` lists them in `keyterm_spellings`, by term and
+  then by language. A Hindi agent with the term "Zeton" shows
+  `{"Zeton": {"hi-IN": ["ज़ेटन"]}}`. The field is left out while there are
+  none, and list pages and write answers don't carry it.
+- The agent's prompt gets one line naming the terms, so the agent understands a
+  near miss in the transcript.
+
+[Words to catch](/v2/keyterms) covers what to put on the list, the spellings
+and the limits.
+
 ---
 
 ## Create an agent
@@ -577,7 +615,7 @@ Responds with **`201 Created`** and the full [agent object](#the-agent-object).
 
 | Error | `error.code` | Cause |
 | :--- | :--- | :--- |
-| `400` | `invalid_request` | Missing required field, unknown `voice_id`, `max_duration_secs` out of range, a `behavior.pass_through` list outside [its limits](#pass-through-words) |
+| `400` | `invalid_request` | Missing required field, unknown `voice_id`, `max_duration_secs` out of range, a `behavior.pass_through` list outside [its limits](#pass-through-words), a `keyterms` list outside [its limits](/v2/keyterms#rules-and-limits) |
 | `400` | `invalid_flow` | A problem in `flow`, or an `on_call` tool on a node-based agent. The body lists every problem with its path; see [errors](/v2/node-agents#errors). |
 | `401` | `unauthorized` | Bad or missing key |
 

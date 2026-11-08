@@ -113,6 +113,12 @@ too.
   call's events there. Every call ends with one event that carries the
   transcript, the result and the contact's extra info, so your system doesn't
   have to fetch anything. See [webhooks](/v2/campaigns#webhooks).
+- **Words to catch** is optional too. Add the names your contacts may say that
+  are easy to mishear, like a product, an offer or a city: type one and press
+  Enter. Calls in this campaign listen out for them, along with the agent's
+  own. Up to 100, each up to five words. You can change them while the campaign
+  is dialling, and the next call uses the new list. See
+  [Words to catch](/v2/keyterms).
 
 ![Pacing and retries: 5 calls at once with the pace line, 2 retries 60 minutes apart, the Skip numbers box ticked, a 300-second max call length, a ₹5,000 budget and a webhook URL](/images/campaign-integration/pacing-and-retries.png)
 
@@ -280,9 +286,20 @@ Press **Edit settings** to change them. What you can change depends on where the
 campaign is:
 
 - **Draft or paused**: everything except the agent, the timezone and the list.
-- **Dialling**: only calls at once, calling hours and **Pause after**. They
-  apply straight away. Pause it to change the rest.
+- **Dialling**: only calls at once, calling hours, **Pause after** and **Words
+  to catch**. They apply straight away. Pause it to change the rest.
 - **Finished**: nothing. Duplicate it to run it again with other settings.
+
+### How well your agent hears
+
+Once the campaign's calls have been checked, **Insights** also shows **How well
+your agent hears**: the share of your callers' words the agent heard right, a
+line of how it moved day by day, and **Words it gets wrong**, with what it heard
+instead. Press **Add** beside a word to add it to the campaign's words to catch,
+or **Listen** to hear the calls it came from. Turn on **Keep learning** and the
+campaign adds the words it keeps mishearing by itself. The check compares each
+call with our own offline transcript, so it is a machine check, not a person
+listening. See [How well your agent hears](/v2/stt-accuracy).
 
 ### History
 

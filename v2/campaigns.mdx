@@ -55,6 +55,7 @@ rate.
   "pause_after_connected": 200,
   "pause_after_connected_count": 174,
   "pause_after_connected_since": "2026-08-11T04:30:00Z",
+  "keyterms": ["Diwali Bonanza", "Gold Plus"],
   "created_at": "2026-08-10T09:21:44Z",
   "updated_at": "2026-08-10T11:04:02Z",
   "counters": { "pending": 812, "dialing": 2, "completed": 174, "no_answer": 9, "suppressed": 3 }
@@ -83,6 +84,9 @@ rate.
 | `pause_after_connected` | integer \| null | The campaign pauses itself once this many calls have connected. `null` means no limit. Always present. See [pause after connected calls](#pause-after-connected-calls). |
 | `pause_after_connected_count` | integer | Read-only. Connected calls counted toward `pause_after_connected` so far. Present only while a limit is set, and only when you read one campaign (omitted from list pages). |
 | `pause_after_connected_since` | string | Read-only. RFC 3339 time the current count began. Present with `pause_after_connected_count`. |
+| `keyterms` | array of strings | Words speech recognition listens for on this campaign's calls, before its agent's own: brand, product, place and people names. Up to 100. Always present, `[]` when there are none. See [words to catch](#words-to-catch). |
+| `keyterm_spellings` | object | Read-only. The keyterms written in the scripts of the calls' languages, which the calls also listen for, by term and then language. Only when you read one campaign, and absent while there are none. See [spellings](/v2/keyterms#spellings-and-scripts). |
+| `keyterms_auto_learn` | boolean | Keep learning: the campaign adds the misheard words it is surest about to `keyterms` on its own. Default `false`. Present when you read or edit one campaign. See [keep learning](/v2/stt-accuracy#keep-learning). |
 | `counters` | object | Contacts by [status](#contact-statuses). Present on `GET /v2/campaigns/{id}`, omitted from list pages. |
 
 <Warning>
@@ -605,6 +609,8 @@ POST /v2/campaigns
 | `pool_id` | string \| null | no | A [phone pool](/v2/phone-numbers) to call from, spreading calls across its numbers at its pace. Exclusive with `phone_number_id` and `caller_ids`. `null` clears it. The campaign object returns `pool_id` and a `calls_from` object that names where its number comes from. |
 | `always_on` | boolean | no | Default `false`. `true` keeps the campaign open after its list is done, so you can keep adding contacts. See [always-on campaigns](#always-on-campaigns). |
 | `pause_after_connected` | integer \| null | no | 1–100000. The campaign pauses itself once this many calls have connected. Omit it, or send `null`, for no limit. See [pause after connected calls](#pause-after-connected-calls). |
+| `keyterms` | array of strings | no | Up to 100 words for speech recognition to listen for on this campaign's calls, before the agent's own. See [words to catch](#words-to-catch). |
+| `keyterms_auto_learn` | boolean | no | Default `false`. `true` turns on [keep learning](/v2/stt-accuracy#keep-learning). |
 | `final_results` | boolean | no | Default `true`. Each call ends with one [`call.processed`](/v2/webhooks#final-results) carrying the transcript, the after-call results and the contact's `metadata`. `false` sends the shorter events only. Change it while the campaign is a draft or paused. |
 | `contacts` | array | no | Up to **1000** rows per request. `{phone, variables?, metadata?, call_settings?, id?}`. Add more later. |
 
@@ -846,12 +852,14 @@ PATCH /v2/campaigns/{id}
 While the campaign is `draft` or `paused` you can change: `name`, `slots`,
 `start_date`, `end_date`, `max_concurrent`, `retry_count`,
 `re_attempt_period_secs`, `max_duration_secs`, `budget_paise`, `webhook_url`,
-`skip_called_before`, `final_results`, `always_on` and
-`pause_after_connected`. Not patchable: `agent_id`, `tier`, `timezone`.
+`skip_called_before`, `final_results`, `always_on`,
+`pause_after_connected`, `keyterms` and `keyterms_auto_learn`. Not patchable:
+`agent_id`, `tier`, `timezone`.
 
-While it is running, only the pacing, the agent's version and the
-connected-call limit can change: `max_concurrent`, `slots`, `agent_revision`
-and `pause_after_connected`. They take effect straight away. Anything else
+While it is running, only the pacing, the agent's version, the connected-call
+limit and the keyterms can change: `max_concurrent`, `slots`, `agent_revision`,
+`pause_after_connected`, `keyterms` and `keyterms_auto_learn`. They take effect
+straight away. Anything else
 returns `409 conflict`, because changing the retry policy or the budget under a
 live dialler would leave the campaign's own report describing settings that
 were never in force for half of its calls. Pause it, patch it, then resume it.
@@ -898,6 +906,39 @@ agent has changed.
 | `409` | `agent_archived` | The agent is archived. Restore it first. |
 | `409` | `agent_inputs_changed` | That version needs variables some waiting contacts don't have. The message names the first one. |
 | `503` | `fleet_offline` | A running campaign only: calling capacity for that version's voice is offline. Try again in a few minutes. |
+
+### Words to catch
+
+<Note>
+Live speech recognition starts using keyterms once the speech update is live on your workspace.
+</Note>
+
+`keyterms` are the names your contacts may say that a recogniser tends to
+mishear, such as a product, an offer or a city. A campaign's calls listen for
+its own keyterms first, then its agent's, at most 200 in all. You can change
+them while the campaign is running, without pausing it:
+
+```bash
+curl -X PATCH https://sandbox.voice.miraiminds.co/v2/campaigns/cmp_01K7QAC5N9P4R7S3T6V8W2X4YB \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "keyterms": ["Diwali Bonanza", "Gold Plus", "Koramangala"] }'
+```
+
+- The list you send replaces the saved one. `[]` or `null` clears it, and a
+  `PATCH` without `keyterms` leaves it alone.
+- The next call uses the new list. Calls already in progress keep theirs.
+- Up to 100 terms, each 1 to 50 characters and at most 5 words, with no comma.
+  A list that breaks a rule is refused with `400 invalid_request`, and the
+  message names the term.
+- `GET /v2/campaigns/{id}` also returns `keyterm_spellings`: the same terms in
+  the script of the agent's languages, added for you a short while after you
+  save.
+
+The agent's own keyterms come from the revision the campaign uses. In the
+console, the list is **Words to catch** on the campaign form. [Words to
+catch](/v2/keyterms) covers what to put on the list, and [How well your agent
+hears](/v2/stt-accuracy) shows which words a campaign's calls still mishear.
 
 ---
 
