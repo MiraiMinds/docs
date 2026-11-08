@@ -551,7 +551,7 @@ Every brand spends from the parent's wallet. Read each figure with the brand's
 | | Read it with |
 | :--- | :--- |
 | Balance | [`GET /v2/wallet`](/v2/wallet#get-balance). One balance, the same for every brand. |
-| Spend by brand | [`GET /v2/insights`](/v2/calls#how-your-calls-went) with the brand's header: `money.billed_paise` for the window. |
+| Call spend by brand | [`GET /v2/insights`](/v2/calls#how-your-calls-went) with the brand's header: `money.billed_paise` for the window. It counts calls only. Speech, language model and number charges are on the wallet statement, [`GET /v2/wallet/transactions`](/v2/wallet#list-transactions). |
 | Calls by brand | [`GET /v2/calls/summary`](/v2/calls#count-calls) with the brand's header. |
 | Stopped calls | A brand's call gets `402 insufficient_balance` when the parent's wallet can't cover it. `GET /v2/insights` for that brand lists it under `attention` as `wallet`. |
 | Top-ups and invoices | The parent. One top-up covers every brand. See [Out of credit](/v2/errors#out-of-credit). |
@@ -561,7 +561,7 @@ Every brand spends from the parent's wallet. Read each figure with the brand's
 Send the brand's header to the routes you already use:
 
 - [`GET /v2/insights`](/v2/calls#how-your-calls-went) gives the brand's calls,
-  outcomes and spend over a window, in one read.
+  outcomes and call spend over a window, in one read.
 - [`GET /v2/calls/summary`](/v2/calls#count-calls) counts the brand's calls and
   their live time.
 - [`GET /v2/calls`](/v2/calls#list-calls) lists the brand's calls, each with its
