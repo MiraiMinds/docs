@@ -56,4 +56,8 @@
 - Fix wording at the source: the Postman spec in `MiraiMinds/mirai-voice`
   (`scripts/postman/spec/`). Hand-written pages are `api-reference/introduction.mdx`,
   `api-reference/postman.mdx` and `api-reference/calls/start-a-browser-call.mdx`.
+- One exception until it moves into the Postman spec: `REFUSALS` in
+  `scripts/build_api_reference.py` adds the key refusals (401, 403, 409, 429)
+  to four routes. Keep its messages word for word with the console and
+  conductor.
 - There is no v1 documentation. Old v1 URLs redirect to their v2 pages in `docs.json`.

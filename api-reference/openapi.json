@@ -2633,10 +2633,19 @@
             }
           },
           "403": {
-            "description": "Refused: the sandbox has ended, a sandbox key was sent to production, or the request is outside your plan. Each fix is in [Money and access](/v2/errors#money-and-access).",
+            "description": "Refused: the key was revoked, the sandbox has ended, a sandbox key was sent to the production URL or the tier is outside your plan. Each fix is in [Money and access](/v2/errors#money-and-access).",
             "content": {
               "application/json": {
                 "examples": {
+                  "The key was revoked": {
+                    "summary": "403 — the key was revoked",
+                    "value": {
+                      "error": {
+                        "code": "forbidden",
+                        "message": "This key has been revoked."
+                      }
+                    }
+                  },
                   "The sandbox has ended": {
                     "summary": "403 — the sandbox has ended",
                     "value": {
@@ -12969,10 +12978,19 @@
             }
           },
           "403": {
-            "description": "Refused: the sandbox has ended, a sandbox key was sent to production, or the request is outside your plan. Each fix is in [Money and access](/v2/errors#money-and-access).",
+            "description": "Refused: the key was revoked, the sandbox has ended or a sandbox key was sent to the production URL. Each fix is in [Money and access](/v2/errors#money-and-access).",
             "content": {
               "application/json": {
                 "examples": {
+                  "The key was revoked": {
+                    "summary": "403 — the key was revoked",
+                    "value": {
+                      "error": {
+                        "code": "forbidden",
+                        "message": "This key has been revoked."
+                      }
+                    }
+                  },
                   "The sandbox has ended": {
                     "summary": "403 — the sandbox has ended",
                     "value": {
@@ -20126,10 +20144,19 @@
             }
           },
           "403": {
-            "description": "Refused: the sandbox has ended, a sandbox key was sent to production, or the request is outside your plan. Each fix is in [Money and access](/v2/errors#money-and-access).",
+            "description": "Refused: the key was revoked or the sandbox has ended. Each fix is in [Money and access](/v2/errors#money-and-access).",
             "content": {
               "application/json": {
                 "examples": {
+                  "The key was revoked": {
+                    "summary": "403 — the key was revoked",
+                    "value": {
+                      "error": {
+                        "code": "forbidden",
+                        "message": "api key has been revoked"
+                      }
+                    }
+                  },
                   "The sandbox has ended": {
                     "summary": "403 — the sandbox has ended",
                     "value": {
@@ -22043,10 +22070,19 @@
             }
           },
           "403": {
-            "description": "Refused: the sandbox has ended, a sandbox key was sent to production, or the request is outside your plan. Each fix is in [Money and access](/v2/errors#money-and-access).",
+            "description": "Refused: the key was revoked or the sandbox has ended. Each fix is in [Money and access](/v2/errors#money-and-access).",
             "content": {
               "application/json": {
                 "examples": {
+                  "The key was revoked": {
+                    "summary": "403 — the key was revoked",
+                    "value": {
+                      "error": {
+                        "code": "forbidden",
+                        "message": "api key has been revoked"
+                      }
+                    }
+                  },
                   "The sandbox has ended": {
                     "summary": "403 — the sandbox has ended",
                     "value": {
