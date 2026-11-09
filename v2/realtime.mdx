@@ -24,9 +24,17 @@ caller's audio up and plays the agent's audio back. Compared with calling our
 speech-to-text, LLM and text-to-speech APIs one by one, a turn makes one round
 trip to your server instead of three.
 
-A session is a call. It has a call ID, it shows up in your call list, it sends
-[webhooks](/v2/webhooks) and it is [billed per minute](#billing), like a
-[browser call](/v2/web-calls).
+A session is a call, like a [browser call](/v2/web-calls). It has a call ID,
+it shows up in your call list and it sends [webhooks](/v2/webhooks). It costs
+[₹1 a minute](#billing) on every plan, with speech recognition, the model and
+the voice included.
+
+The call ID is the `session.id` you receive in `session.created`, without its
+`sess_` prefix: session `sess_call_01K8…` is call `call_01K8…`. Read the call
+with [`GET /v2/calls/{id}`](/v2/calls#get-a-call), and once the session has
+ended, its transcript with
+[`GET /v2/calls/{id}/transcript`](/v2/calls#get-the-transcript). Realtime
+sessions are not recorded yet, so a session has no recording.
 
 ## Connect
 
@@ -39,16 +47,19 @@ your company has gone live, `sandbox.voice.miraiminds.co` with a sandbox key.
 
 | Query parameter | Required | What it does |
 | :--- | :--- | :--- |
-| `model` | no | Accepted and ignored. Every session runs Mirai's stack at your workspace's tier, and reports its model as `mira-realtime`. Pipecat adds this parameter itself. |
-| `agent_id` | no | Start from one of your [agents](/v2/agents): its prompt, tools, voice and language. Without it, the session starts empty and your `session.update` supplies the instructions, tools and voice. Node-based agents are not supported. |
-| `variables` | no | A JSON object, URL-encoded: the values for the agent's `{{placeholders}}`, as for a [call](/v2/calls#variables). Send them when your agent's prompt expects inputs. |
-| `webhook_url` | no | Where this session's [webhooks](/v2/webhooks) go (`call.started`, `call.completed` and the rest), as for a [call](/v2/calls#create-a-call). URL-encode it. |
+| `model` | no | Accepted and ignored. Every session runs Mirai's stack and reports its model as `mira-realtime`. Pipecat adds this parameter itself. |
+| `agent_id` | no | Start from one of your [agents](/v2/agents): its prompt, tools, voice, languages and [keyterms](#words-to-catch). Without it, the session starts empty and your `session.update` supplies the instructions, tools and voice. Up to 128 characters. Node-based agents are not supported. |
+| `variables` | no | A JSON object, URL-encoded, up to 8 KB: the values for the agent's `{{placeholders}}`, as for a [call](/v2/calls#variables). Send them when your agent's prompt expects inputs. |
+| `webhook_url` | no | Where this session's [webhooks](/v2/webhooks) go (`call.started`, `call.completed` and the rest), as for a [call](/v2/calls#create-a-call). An HTTPS URL of up to 2,048 characters, URL-encoded. |
 | `max_duration_secs` | no | Ends the session after this many seconds, from 30 to 1800. See [limits](#limits) for the default. |
-| `metadata` | no | A JSON object, URL-encoded. It is echoed on the call and in every webhook, and never given to the model. |
+| `metadata` | no | A JSON object of string values, URL-encoded: up to 16 keys, each value up to 256 characters, 4 KB in all, with the [same key rules](/v2/calls#metadata) as a call's. It is echoed on the call and in every webhook, and never given to the model. |
 | `mirai_events` | no | `1` or `true` turns on the [Mirai events](#mirai-events), `mirai.session.applied` and `mirai.turn.metrics`. Off by default. Do not set it with stock Pipecat. |
 
-A malformed parameter fails the upgrade with `400 invalid_request`, and
-`error.param` names the parameter.
+A malformed or out-of-range parameter fails the upgrade with
+`400 invalid_request`, and `error.message` names the parameter. `error.param`
+names it as well when we cannot read the value at all, such as `metadata` that
+is not a JSON object. It is `null` for a readable value outside its limits,
+such as `max_duration_secs` outside 30 to 1800.
 
 Pipecat builds its URL as `base_url + "?model=…"`. A `base_url` that already
 carries a query, such as `…/v2/realtime?agent_id=agt_…`, therefore reaches us as
@@ -66,6 +77,10 @@ Authorization: Bearer sk_live_…
 Clients that cannot set headers can send the key as a WebSocket subprotocol
 instead, `openai-insecure-api-key.sk_live_…`, alongside `realtime`. We answer with
 the `realtime` subprotocol.
+
+To run a session in one of your [sub-workspaces](/v2/sub-workspaces), send the
+`Mirai-Workspace` header with its ID or `external_id`, beside `Authorization`,
+as on any other request.
 
 <Warning>
 The Realtime API is for servers. Never put your API key in a web page or a mobile
@@ -86,6 +101,11 @@ from pipecat_mirai import MiraiRealtimeLLMService
 
 llm = MiraiRealtimeLLMService(voice="neha", language="hi")
 ```
+
+The current release is `pipecat-mirai` 0.6.2. It needs `pipecat-ai` 1.8.1 or
+newer, below 1.13. It connects to the sandbox by default. Once your company has
+gone live, pass `base_url=PRODUCTION_REALTIME_URL`, which the package also
+exports.
 
 Stock Pipecat 1.8.1 works unchanged too. Here is a complete microphone-and-speaker
 agent. Save it as `pipecat_realtime.py`, put on headphones and run it with
@@ -313,12 +333,12 @@ ignored. Any other event type returns an `error` with code `invalid_event`.
 | :--- | :--- | :--- |
 | `instructions` | Yes, at any time | The system prompt. Replaces the agent's prompt when you passed `agent_id`. Used exactly as written: `{{placeholders}}` in it are not filled in. If neither the agent nor you supply one, the session uses a short default prompt. |
 | `tools`, `tool_choice` | Yes, at any time | Function tools only. The Chat Completions shape (`{"type": "function", "function": {…}}`) is accepted too. `tool_choice` is `auto`, `none`, `required` or `{"type": "function", "name": "…"}`. |
-| `audio.output.voice` | Yes, at any time | A Mirai voice: `neha`, `ashu`, `shruti`, `sameer`, `munshi` or `tanvi` ([listen](/v2/voices)). An unknown voice keeps the agent's or workspace's voice. |
+| `audio.output.voice` | Yes, at any time | A Mirai voice: `neha`, `ashu`, `shruti`, `sameer`, `munshi` or `tanvi` ([listen](/v2/voices)). An unknown voice keeps the agent's or workspace's voice. [Custom voices](/v2/custom-voices) (`cv_…`) don't run on Realtime yet, so one sent here counts as unknown. |
 | `audio.input.turn_detection` | Yes, at any time | `server_vad` and `semantic_vad` both use Mirai's turn detection. `create_response: false` makes us wait for your `response.create` after each turn. `interrupt_response: false` stops the caller's speech from cutting the agent off. `null` means you decide when the caller has finished: send `input_audio_buffer.commit` and `response.create` yourself. |
 | `max_output_tokens` | Yes, at any time | 1 to 4096, or `"inf"`. Caps the length of each reply. |
-| `audio.input.transcription.language` | First update only | The caller's language, such as `hi` or `en`. Leave it out to detect it. |
+| `audio.input.transcription.language` | First update only | The caller's language, such as `hi` or `en`, or `auto` to detect it. Leave it out to keep the agent's language, or, without `agent_id`, to detect it. See [languages](#languages). |
 | `audio.input.format`, `audio.output.format` | First update only | `audio/pcm` at 24 kHz (the default), or `audio/pcmu` / `audio/pcma` at 8 kHz for telephony audio, which saves you two resamples. Any other rate is an error. |
-| `audio.output.speed` | No | Mirai voices speak at their tuned rate. |
+| `audio.output.speed` | No | Mirai voices speak at their tuned rate. The value must still be a number from 0.25 to 4. |
 | `threshold`, `prefix_padding_ms`, `silence_duration_ms`, `eagerness`, `idle_timeout_ms` (in `turn_detection`) | No | Mirai's turn detection decides when the caller has finished. |
 | `model`, `audio.input.transcription.model`, `audio.input.transcription.prompt`, `audio.input.noise_reduction`, `tracing`, `prompt`, `include`, `truncation`, `reasoning` | No | Every session runs Mirai's stack, with our own noise suppression. |
 | `output_modalities` without `"audio"` | No | Replies are always spoken. |
@@ -332,11 +352,12 @@ Fields we do not know are ignored. Beta-shaped fields are accepted too:
 `g711_alaw`), `input_audio_transcription`, `turn_detection`, `voice`, `speed`,
 `modalities`, `max_response_output_tokens` and a top-level `temperature`.
 
-An ignored field never causes an error. With [Mirai events](#mirai-events) on,
-`mirai.session.applied` lists each ignored field and the reason. A value that is
-wrong, such as a string where a number belongs or a number out of range, rejects
-the whole update: you get an `error` event whose `param` names the field, and
-nothing in that update is applied.
+With [Mirai events](#mirai-events) on, `mirai.session.applied` lists each
+ignored field and the reason. A value that is wrong, such as a string where a
+number belongs or a number out of range, rejects the whole update, even in a
+field we do not apply: `audio.output.speed` of 5 is an `invalid_value` error.
+You get an `error` event whose `param` names the field, and nothing in that
+update is applied.
 
 ### The `mirai` block
 
@@ -371,6 +392,40 @@ validate it strictly: an unknown key returns an `error` with code
 Pipecat 1.8.1's `SessionProperties` drops fields it does not know, so stock
 Pipecat cannot send the `mirai` block. `MiraiRealtimeLLMService` from
 [`pipecat-mirai`](/v2/pipecat) sends it: pass `language=` and `mirai={...}`.
+
+## Languages
+
+A Realtime session speaks Hindi, English, Hinglish, Gujarati, Tamil and Telugu;
+[Voices](/v2/voices) says which voice speaks which. Kannada, Malayalam, Bengali
+and Marathi, in beta on phone and browser calls, come to Realtime sessions
+later (see the [language roadmap](/v2/tts-languages)).
+
+The language a session listens for is set once, when it starts:
+
+1. `audio.input.transcription.language` (or `mirai.language`) in your first
+   `session.update`, if you send one.
+2. Otherwise the agent's `language`, when you pass `agent_id`.
+3. Otherwise `auto`: we detect the caller's language on each turn.
+
+With `agent_id`, speech recognition also listens for the agent's
+[`secondary_languages`](/v2/agents#fields).
+
+When the session detects languages, with `auto` or with secondary languages,
+each turn reports the caller's language, such as `hi-IN` or `gu-IN`. It is
+`mirai_user_language` in [`response.metadata`](#turn-metrics) and
+`user_language` in [`mirai.turn.metrics`](#mirai-events). A session with one
+fixed language leaves both out.
+
+The setting decides what speech recognition listens for. The language of the
+reply comes from your instructions, so if the agent should answer in the
+caller's language, say so in the prompt.
+
+### Words to catch
+
+A session started with `agent_id` listens for the agent's
+[keyterms](/v2/keyterms): your product names, places and other words that
+speech recognition should get right. You can't send keyterms from the client
+yet, and the `mirai` block has no key for them.
 
 ## Tools
 
@@ -408,6 +463,27 @@ it said things the caller never heard. Pipecat does this for you.
 
 `response.cancel` stops a reply the same way, with reason `client_cancelled`.
 
+## Fillers and check-ins
+
+When we start each reply for you (`create_response` on, the default), the agent
+also covers silences the way a person on a phone call does:
+
+- If a reply has no audio about 1.5 seconds after the caller stopped, the agent
+  may say one short filler, such as "हाँ, एक सेकंड।". If there is still no
+  audio after about 4 seconds, we cancel that reply and run the model once more.
+- If the caller only checks the line, with "hello?" or "are you there?", after
+  the agent has been quiet for 2 seconds or more, the agent says a short line
+  such as "हाँ, मैं यहीं हूँ।" and then repeats its last question.
+
+A filler or check-in line arrives as a response you did not request, with its
+own `response.created`, audio and `response.done`. It can play while the
+real reply is still being generated. It is not added to the model's context or
+to the call's transcript.
+
+None of this happens before the agent's first words, while the caller or the
+agent is speaking, or once the call is ending. With `create_response: false` or
+`turn_detection: null`, you decide when the agent speaks, and we add nothing.
+
 ## Turn metrics
 
 Every `response.done` carries the turn's numbers in `response.metadata`. The
@@ -422,11 +498,12 @@ accepts the event:
     "status": "completed",
     "metadata": {
       "mirai_v2v_ms": "1200.5",
-      "mirai_stt_ms": "300.0",
-      "mirai_stt_provider": "sarvam_realtime",
+      "mirai_stt_ms": "300",
+      "mirai_stt_provider": "mira_stt",
       "mirai_llm_provider": "mira",
       "mirai_tts_provider": "sarvam",
-      "mirai_fallback": "true"
+      "mirai_fallback": "true",
+      "mirai_user_language": "hi-IN"
     }
   }
 }
@@ -438,12 +515,13 @@ accepts the event:
 | `mirai_stt_ms` | Time for speech recognition to return its first result for the turn. |
 | `mirai_llm_ms` | Time for the model to produce its first output. |
 | `mirai_tts_ms` | Time for speech synthesis to produce its first audio. |
-| `mirai_stt_provider`, `mirai_llm_provider`, `mirai_tts_provider` | Which provider served each step: `mira` for our own, otherwise the [fallback](#fallback) that took over, such as `sarvam_realtime` or `sarvam`. |
+| `mirai_stt_provider` | Which provider recognised the caller's speech: `mira_stt` for our own, `sarvam_realtime` for its [fallback](#fallback). |
+| `mirai_llm_provider`, `mirai_tts_provider` | Which provider served the model and the voice: `mira` for our own, otherwise the fallback that took over, such as `sarvam`. |
 | `mirai_fallback` | `"true"` when any step of the turn ran on a fallback provider. |
+| `mirai_user_language` | The caller's language in this turn, such as `hi-IN`, when the session detects languages. See [languages](#languages). |
 
 A time that was not measured for a turn is left out. In the example the model's
-time is missing, and speech recognition and speech synthesis both ran on their
-fallbacks.
+time is missing, and speech synthesis ran on its fallback.
 
 Stock Pipecat 1.8.1 does not keep `response.metadata` when it parses
 `response.done`. `MiraiRealtimeLLMService` from [`pipecat-mirai`](/v2/pipecat)
@@ -496,17 +574,19 @@ during the turn:
   "type": "mirai.turn.metrics",
   "response_id": "resp_…",
   "item_id": "item_…",
-  "stt_ms": 210.0,
-  "llm_ms": 95.0,
-  "tts_ms": 160.0,
+  "stt_ms": 210,
+  "llm_ms": 95,
+  "tts_ms": 160,
   "v2v_ms": 742.6,
-  "providers": { "stt": "sarvam_realtime", "llm": "mira", "tts": "mira" },
-  "fallback": true,
-  "failovers": []
+  "providers": { "stt": "mira_stt", "llm": "mira", "tts": "mira" },
+  "fallback": false,
+  "failovers": [],
+  "user_language": "gu-IN"
 }
 ```
 
-A time that was not measured is `null`. Each entry in `failovers` is
+A time that was not measured is `null`. `user_language` is there only when the
+session detects languages. Each entry in `failovers` is
 `{"kind", "from", "to", "reason"}`, for example
 `{"kind": "tts", "from": "mira", "to": "sarvam", "reason": "no_audio"}`.
 
@@ -517,16 +597,18 @@ If one of them is unavailable during a session, that step moves to a
 third-party fallback and the conversation continues:
 
 - Speech recognition and speech synthesis fall back to Sarvam.
-- The language model falls back to third-party models.
+- The language model falls back to a model hosted in India.
 
-You pay the same per-minute rate either way. The providers that served each
-turn are in [`response.done`](#turn-metrics), so you can tell turns that used a
-fallback apart and compare their latency.
+You pay ₹1 a minute either way. The providers that served each turn are in
+[`response.done`](#turn-metrics), so you can tell turns that used a fallback
+apart and compare their latency.
 
 ## Billing
 
-A session is billed per minute at your workspace's [tier](/general/tiers) rate,
-exactly like a browser call:
+A session costs **₹1 a minute**, on every plan and in the sandbox. Speech
+recognition, the model and the voice are all in that price. A session has no
+phone line, so there is no line charge, and there is no insights add-on. Prices
+exclude GST. See [Realtime API pricing](/general/tiers#realtime-api).
 
 - Billing starts when the session's audio goes live and stops when the socket
   closes.
@@ -556,15 +638,24 @@ an OpenAI-style error body:
 
 | Status | `code` | What to do |
 | :--- | :--- | :--- |
-| `400` | `invalid_request` | A URL parameter is malformed or out of range, such as `max_duration_secs` outside 30 to 1800. The error names the parameter. |
+| `400` | `invalid_request` | A URL parameter is malformed or out of its limits (see [Connect](#connect)), or the agent is a draft. `error.message` says which. |
 | `401` | `missing_api_key`, `unauthorized` | Send a valid key. |
 | `402` | `insufficient_balance` | Top up your wallet. |
-| `403` | `forbidden`, `production_workspace_required`, `contract_unavailable` | The key is revoked, it is a sandbox key on the production address, or your plan does not cover the session. |
+| `403` | `forbidden`, `access_expired`, `production_workspace_required`, `contract_unavailable` | The key is revoked, your sandbox has ended, it is a sandbox key on the production address, or your plan does not cover the session. See [money and access](/v2/errors#money-and-access). |
+| `403` | `workspace_archived` | The `Mirai-Workspace` header names a sub-workspace you archived. [Restore](/v2/sub-workspaces#archive-and-restore) it first. |
 | `404` | `not_found` | The `agent_id` is not in your workspace. |
+| `404` | `workspace_not_found` | The `Mirai-Workspace` header names no sub-workspace of yours. Check the ID or `external_id`. |
 | `409` | `flow_agent_realtime_unsupported` | Node-based agents cannot run as Realtime sessions. Use a single-prompt agent, or leave out `agent_id`. |
-| `429` | `concurrency_limit` | Your workspace already has as many calls and sessions open as it is allowed. Retry after `Retry-After` seconds (5). |
-| `429` | `rate_limited` | Too many requests. Retry after `Retry-After` seconds. |
-| `503` | `at_capacity`, `worker_unavailable`, `fleet_offline`, `upstream_unavailable` | No capacity right now. Retry after `Retry-After` seconds. |
+| `409` | `agent_archived` | The agent is archived. Restore it, or use another. |
+| `409` | `session_ended` | The session ended before it started. Open a new one. |
+| `422` | `voice_not_supported` | The agent speaks in a [custom voice](/v2/custom-voices) (`cv_…`), and custom voices can't run on Realtime yet. Use an agent with a [built-in voice](/v2/voices). |
+| `426` | `upgrade_required` | A plain HTTP request reached the URL. Connect with a WebSocket client. |
+| `429` | `concurrency_limit` | No voice slot is free: your workspace is at its concurrent calls and there is no spare capacity, or the whole platform is full. Sessions are never queued. Retry after `Retry-After` seconds (5). |
+| `429` | `rate_limited` | Too many requests, or too many failed key checks. Retry after `Retry-After` seconds. |
+| `502` | `admission_incomplete` | We admitted the session but could not start it. Nothing was charged. Try again. |
+| `503` | `at_capacity`, `worker_unavailable` | No room for a new session on our side right now. Retry after `Retry-After` seconds: 2 for `at_capacity`, 1 for `worker_unavailable`. |
+| `503` | `fleet_offline` | Our speech servers are offline, starting or stopped. Retry after `Retry-After` seconds (300). |
+| `503` | `upstream_unavailable`, `billing_unavailable`, `unavailable` | A service we depend on is briefly down: the session service, the plan check, or the sub-workspace lookup (`unavailable`). Retry after `Retry-After` seconds, or in a few seconds. |
 | `504` | `start_timeout` | The session could not be set up in time. Try again. |
 
 Clients that authenticate with the subprotocol cannot read an HTTP status, so
@@ -580,7 +671,7 @@ During a session, errors arrive as `error` events:
 | `conversation_already_has_active_response` | `response.create` while a reply is still running. |
 | `response_cancel_not_active` | `response.cancel` with no reply running. |
 | `item_retrieve_invalid_item_id` | `conversation.item.retrieve` for an item we do not have. |
-| `session_expired` | The session reached its maximum duration. The socket closes after it. |
+| `session_expired` | The session reached its maximum duration. The socket closes after it, with code `1008`. |
 | `session_interrupted` | The voice worker serving the session went away. The socket closes with `1011`. Start a new session. |
 
 <Warning>
@@ -597,9 +688,12 @@ ends a Pipecat session.
   With `agent_id`, the agent's own limit applies. Set `max_duration_secs` in the
   URL to change it, from 30 to 1800 seconds. At the limit you get an `error`
   with code `session_expired`, and the socket closes.
-- **Concurrency.** Sessions count towards your workspace's concurrent calls
-  (see [limits](/v2/limits)). A session over the limit is refused with
-  `429 concurrency_limit` and `Retry-After: 5`. It does not queue.
+- **Concurrency.** Sessions and calls draw on the same capacity, and sessions
+  count towards your workspace's concurrent calls (see
+  [limits](/v2/limits#concurrency)). When the platform has spare capacity, a
+  session can start even above that number. A session that finds no free slot
+  is refused with `429 concurrency_limit` and `Retry-After: 5`. Sessions never
+  queue.
 - **Setup time.** If setting up a session takes longer than about 8 seconds,
   for example because an agent's pre-call tools are slow, the upgrade fails with
   `504 start_timeout`.
