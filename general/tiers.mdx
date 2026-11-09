@@ -277,11 +277,14 @@ your plan.
 time you test, create or generate something, it asks for your work email.
 Confirm that email from the message we send, and your sandbox workspace gets
 its ₹200 of starter credit. Every call and campaign in it is billed at T5, ₹5
-a minute, whatever tier your key carries or your request sends.
+a minute, whatever tier your key carries or your request sends. A
+[Realtime API](#realtime-api) session is the exception: it costs ₹1 a minute
+there too.
 
 When you read a call, it shows the `tier` it ran at next to its `cost`, so you
-can always see which rate card it was billed under. A
-[campaign](/v2/campaigns) takes its tier at create time, and every call it
+can always see which rate card it was billed under. A Realtime API session
+still shows your workspace's `tier`, but its `cost` is worked out at ₹1 a
+minute. A [campaign](/v2/campaigns) takes its tier at create time, and every call it
 places inherits it.
 
 ## Model API pricing
