@@ -277,18 +277,22 @@ your plan.
 time you test, create or generate something, it asks for your work email.
 Confirm that email from the message we send, and your sandbox workspace gets
 its ₹200 of starter credit. Every call and campaign in it is billed at T5, ₹5
-a minute, whatever tier your key carries or your request sends.
+a minute, whatever tier your key carries or your request sends. A
+[Realtime API](#realtime-api) session is the exception: it costs ₹1 a minute
+there too.
 
 When you read a call, it shows the `tier` it ran at next to its `cost`, so you
-can always see which rate card it was billed under. A
-[campaign](/v2/campaigns) takes its tier at create time, and every call it
+can always see which rate card it was billed under. A Realtime API session
+still shows your workspace's `tier`, but its `cost` is worked out at ₹1 a
+minute. A [campaign](/v2/campaigns) takes its tier at create time, and every call it
 places inherits it.
 
 ## Model API pricing
 
 The model APIs draw on the same wallet as your calls. Speech to text is sold by
 the minute of audio. Text to speech is sold by the minute on the WebSocket and
-by the character over HTTP. The LLM is sold by the token.
+by the character over HTTP. The LLM is sold by the token. A Realtime API
+session is sold by the minute, at one rate on every plan.
 
 {/* pricing:models:start */}
 
@@ -298,6 +302,7 @@ by the character over HTTP. The LLM is sold by the token.
 | Speech to text | ₹0.30 per minute of audio | ₹0.30 per minute of audio |
 | Speech to text, offline batch | ₹15 per hour of audio | — |
 | LLM | ₹15 input, ₹9.30 cached input, ₹55 output per 1,000,000 tokens | — |
+| Realtime API, speech to speech | — | ₹1 per minute of session |
 
 On the text-to-speech WebSocket you pay for time, not text: every second the socket is open is billed at the per-minute rate, and the speech it carries is not charged again by the character. HTTP requests are billed by the character. Speech to text is billed per second of audio you send, on HTTP and on the WebSocket alike. All prices exclude GST.
 
@@ -328,6 +333,26 @@ Rate limits apply per workspace across all API keys. Shared endpoint. No contrac
 Contact us to activate your LLM plan. Your workspace's agreed contract determines your charges and limits.
 
 {/* pricing:llm:end */}
+
+### Realtime API
+
+A [Realtime API](/v2/realtime) session is priced on its own, never at your
+plan's agent rate.
+
+{/* pricing:realtime:start */}
+
+**₹1 a minute for a Realtime API session, on every plan and in the sandbox.** Speech recognition, the model, the voice and call insights are all in the price. A session is billed on its length in 10-second blocks, rounded up, with a one-block minimum, and there is no phone line charge. That is the T1 agent rate, without T1's ₹1,00,000 monthly minimum or its ₹0.20 insights charge. All prices exclude GST.
+
+| Session length | Billed blocks | Cost |
+| --- | --- | --- |
+| 8 seconds | 1 (10 s) | ₹0.17 |
+| 61 seconds | 7 (70 s) | ₹1.17 |
+| 96 seconds | 10 (100 s) | ₹1.67 |
+| 10 minutes | 60 (600 s) | ₹10.00 |
+
+A failed session costs nothing, the same as a failed call. The session's `cost` on the [call object](/v2/calls#the-call-object) and its debit in the [ledger](/v2/wallet#list-transactions) are the real figures.
+
+{/* pricing:realtime:end */}
 
 {/* Hand-written section: keep in step with transcription.rate_inr_per_hour in mirai-voice console/static/pricing.json. */}
 
