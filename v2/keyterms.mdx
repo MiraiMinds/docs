@@ -126,7 +126,8 @@ With the API, send `keyterms` when you create or update the agent:
 - The agent object always has `keyterms`, `[]` when there are none.
 - The list is saved with each [revision](/v2/agents#update-an-agent), like the
   rest of the agent. The agent's next call uses it: phone, browser and inbound
-  calls alike.
+  calls alike, and [Realtime sessions](/v2/realtime#words-to-catch) started with
+  the agent's `agent_id`.
 - A campaign keeps the agent revision it was created with. To bring a new list
   to a running campaign, [move the campaign onto the new
   revision](/v2/campaigns#switch-to-the-agent%E2%80%99s-latest-version), or give the

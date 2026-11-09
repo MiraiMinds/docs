@@ -317,8 +317,10 @@ llm = MiraiRealtimeLLMService(voice="shruti", language="hi")
 pipeline = Pipeline([transport.input(), ctx.user(), llm, transport.output(), ctx.assistant()])
 ```
 
-Every turn makes one round trip to your server instead of three. A session is
-billed per minute like a browser call, not per character or token.
+Every turn makes one round trip to your server instead of three. A session
+costs [₹1 a minute](/v2/realtime#billing) on every plan, with speech
+recognition, the model and the voice included and nothing per character or
+token.
 
 To start from one of your agents, pass `agent_id` (and `variables` for its
 placeholders). Each reply's timing on our side arrives through an event

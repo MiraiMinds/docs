@@ -14,7 +14,7 @@ Limits are per **secret key**. Requests you send for a
 | Limit | Pilot default | Applies to | Over the limit |
 | :--- | :--- | :--- | :--- |
 | Request rate | 10 requests/second, burst 20 | all `/v2/*` endpoints | `429 rate_limited` |
-| Concurrent live calls | 5 | calls in `dialing` or `in_progress` | the call **queues** |
+| Concurrent live calls | 5 | calls in `dialing` or `in_progress`, and open [Realtime sessions](/v2/realtime#limits) | the call **queues**; a Realtime session is refused with `429 concurrency_limit` |
 | Queue depth | 500 | calls accepted and not yet ended | `429 rate_limited` |
 | TTS requests in flight | 10 **per workspace** | `/v1/audio/speech`, `/v2/tts`, and each sentence being synthesised on a TTS stream | HTTP: `429 at_capacity`. Stream: the sentence waits up to 3 seconds, then `error` `at_capacity`. |
 | Open TTS streams | 200 **per workspace** | WebSockets on `/v1/audio/speech/stream` | `429 at_capacity` with `Retry-After: 5` |
@@ -54,7 +54,8 @@ API, not how many phones are ringing.
 your concurrent-call ceiling is still accepted with `202`. It waits in `queued`
 until a slot frees and then dials, so no call is rejected or lost. On the call
 path, `429` is request-rate only. ([Text to speech](#text-to-speech) over HTTP
-is the one exception: it has no queue, so it refuses the request.)
+and [Realtime sessions](/v2/realtime#limits) are the exceptions: they have no
+queue, so they refuse instead.)
 
 So the ceiling paces your calls instead of refusing them. That has two
 consequences:
@@ -64,6 +65,12 @@ consequences:
   submit it until you have the capacity.
 - Submitting a burst does not fail; it builds a queue that drains at your
   concurrency.
+
+A [Realtime session](/v2/realtime#limits) holds its socket open, so it cannot
+wait in the queue. Sessions count towards the same concurrent calls. When no
+voice slot is free, a session is refused with `429 concurrency_limit` and
+`Retry-After: 5`. When the platform has spare capacity, a session can start
+above your concurrent-call number.
 
 ### Queue depth
 
@@ -444,7 +451,7 @@ recording for that call, and a workspace with recording turned off refuses
 | E.164 destination format | ✅ `400 invalid_request` |
 | Wallet balance before dialling | ✅ `402 insufficient_balance` |
 | Request rate | ✅ `429 rate_limited` |
-| Concurrency ceiling | ✅ over-cap calls wait in `queued` |
+| Concurrency ceiling | ✅ over-cap calls wait in `queued`; a [Realtime session](/v2/realtime#limits) gets `429 concurrency_limit` |
 | TTS requests in flight | ✅ `429 at_capacity` past 10 per workspace over HTTP; a stream sentence waits up to 3 seconds first |
 | Queue depth | ✅ `429 rate_limited` past 500 outstanding |
 | Maximum call duration | ✅ `status: timeout` |
