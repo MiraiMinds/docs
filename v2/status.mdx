@@ -1,0 +1,501 @@
+---
+title: "Status and incidents: outage and maintenance notices"
+sidebarTitle: "Status and incidents"
+description: "How we tell you when calls or APIs are affected: emails to your account's owners, incident and maintenance webhooks, the status API, and what status.miraiminds.co measures."
+---
+
+When part of the platform is down, slow, or due for planned maintenance, we
+write it up as an **incident**. The emails, webhook events and status API below
+all read that one record, so they never disagree. The status page runs its own
+checks of each part, around the clock.
+
+| Channel | Setup | What you get |
+| :--- | :--- | :--- |
+| [Email to your account's owners](#status-emails-to-owners) | None. On by default. | Each update, with your own agents' failed calls. |
+| [Webhook events](#webhook-events) | Subscribe an endpoint to the `status` events. | Signed JSON for each update, with what it did to your workspace. |
+| [Email endpoint](/v2/webhook-subscriptions#send-events-by-email) | Subscribe an email endpoint to the `status` events. | The same updates by email, to addresses you choose, once each one confirms. |
+| [Status API](#read-incidents-with-the-api) | Your API key. | Open incidents and those that ended in the last 30 days. |
+| [status.miraiminds.co](#the-status-page) | None. | Live checks of each part and 90 days of history. |
+
+## What an incident says
+
+An incident has a `kind`: `incident` for something that went wrong, or
+`maintenance` for work we planned.
+
+| `state` | Meaning |
+| :--- | :--- |
+| `investigating` | We know something is wrong and are looking into it. |
+| `identified` | We found the cause and are fixing it. |
+| `monitoring` | The fix is in and we are watching it. If it does not hold, the incident can go back to `investigating`. |
+| `resolved` | It is over. A resolved incident never reopens: if the problem comes back, that is a new incident. |
+| `scheduled` | Maintenance is announced, with its window. |
+| `in_progress` | Maintenance has started. |
+| `completed` | Maintenance is over. |
+
+Maintenance only moves forward, and its window is at most 7 days long.
+
+`impact` is how bad it is: `degraded` (slower or less reliable than usual),
+`partial_outage` (partly down) or `major_outage` (down).
+
+`components` names the parts it touches, from this fixed list:
+
+| Component | Part |
+| :--- | :--- |
+| `calls` | Calls |
+| `inbound` | Inbound calls to your numbers |
+| `campaigns` | Campaigns |
+| `voice_api` | The Voice API |
+| `console` | The console |
+| `speech_to_text` | Speech to text |
+| `text_to_speech` | Text to speech |
+| `llm` | The language model |
+| `realtime` | The Realtime API |
+| `analysis` | Post-call results |
+| `telephony` | Phone numbers |
+
+### Who is told
+
+- An incident on the public status page goes to every workspace that
+  subscribes to its event. Its emails go to the owners of every live account.
+- Any other incident goes only to the workspaces it names: the ones we know it
+  touched. Nobody else can read it.
+- If we name your workspace after an incident has started, you get its latest
+  update straight away. So you can receive `incident.updated` without ever
+  seeing `incident.opened`. Each event carries the whole incident as it
+  stands, so a receiver doesn't need the earlier events.
+
+Each workspace sees only its own numbers: its agents, its failed calls, and
+whether those calls were charged.
+
+## Webhook events
+
+The `status` group has six events. Each one is a single update to an incident.
+
+| Event | When |
+| :--- | :--- |
+| `incident.opened` | Part of the platform is down or degraded and may affect your calls. This is the incident's first update. |
+| `incident.updated` | News on an open incident: what we found, or a new state, impact or set of parts. |
+| `incident.resolved` | The incident is over. A later note on it, such as the root cause, arrives as another `incident.resolved`. |
+| `maintenance.scheduled` | Planned maintenance was announced, or changed before it started. |
+| `maintenance.started` | The maintenance is under way. Notes while it runs come as `maintenance.started` too. |
+| `maintenance.completed` | The maintenance is over. |
+
+Status events belong to the whole workspace. Subscribe with workspace scope:
+
+```bash
+curl https://prod.voice.miraiminds.co/v2/webhooks/subscriptions \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "endpoint_id": "whe_3f9c2a71d4b84e0f9a6b1c2d3e4f5a6b",
+    "scope": {"type": "workspace"},
+    "event_types": [
+      "incident.opened", "incident.updated", "incident.resolved",
+      "maintenance.scheduled", "maintenance.started", "maintenance.completed"
+    ]
+  }'
+```
+
+An agent subscription that lists a status event is refused with `400`. To test
+your receiver, send `{"if_revision": 1, "event_type": "incident.opened"}` to
+[`POST /v2/webhooks/endpoints/{id}/test`](/v2/webhook-subscriptions#set-it-up).
+The test carries made-up data and `"test": true`.
+
+### Payload
+
+Status events use the same envelope, signature and retries as every other
+[subscription event](/v2/webhook-subscriptions#payloads).
+
+```json
+{
+  "id": "evt_3c1d…",
+  "type": "incident.opened",
+  "created_at": "2026-11-11T04:58:12Z",
+  "schema_version": "2026-09-22",
+  "workspace_id": "ws_8c2e…",
+  "subject": {"type": "incident", "id": "inc_5b0e…"},
+  "source_id": "incident:inc_5b0e…:1",
+  "test": false,
+  "data": {
+    "incident": {
+      "id": "inc_5b0e…",
+      "kind": "incident",
+      "title": "Calls failing after the greeting",
+      "state": "investigating",
+      "impact": "major_outage",
+      "components": ["calls", "speech_to_text"],
+      "started_at": "2026-11-11T04:52:00Z",
+      "resolved_at": null,
+      "scheduled_start": null,
+      "scheduled_end": null,
+      "latest_update": {
+        "seq": 1,
+        "state": "investigating",
+        "body": "Calls connect and greet, then end. We are looking into it.",
+        "created_at": "2026-11-11T04:58:12Z"
+      },
+      "status_url": "https://status.miraiminds.co"
+    },
+    "impact": {
+      "agents": [{"id": "agt_01M5…", "name": "Riya", "calls_failed": 12}],
+      "calls_failed": 12,
+      "billed": false
+    }
+  }
+}
+```
+
+| Field | Meaning |
+| :--- | :--- |
+| `subject` | `{"type": "incident", "id": "inc_…"}`, for maintenance too. |
+| `source_id` | `incident:<id>:<seq>`. One per update, so the same update sent twice is the same event. Deduplicate on `id`. |
+| `data.incident` | The incident as this update left it. The fields are described [above](#what-an-incident-says). |
+| `data.incident.started_at` | When the incident began. For maintenance, when the work actually started (`null` until then). |
+| `data.incident.resolved_at` | When it was resolved, or when the maintenance finished. `null` while open. |
+| `data.incident.scheduled_start`, `scheduled_end` | The maintenance window. `null` on an incident. |
+| `data.incident.latest_update` | This update: `seq` (1, 2, 3… per incident), the `state` it left, our words in `body`, and `created_at`. |
+| `data.incident.status_url` | The public status page for an incident shown there. For any other incident, your console. |
+| `data.impact` | What it did to **this** workspace: the `agents` it touched with their `calls_failed`, the total `calls_failed`, and `billed` (whether those calls were charged). `null` when we have no numbers for your workspace. |
+
+Events can arrive out of order. Keep the highest `latest_update.seq` you have
+handled for each incident and ignore any update with a lower one.
+
+<Accordion title="maintenance.scheduled">
+```json
+{
+  "id": "evt_7a20…",
+  "type": "maintenance.scheduled",
+  "created_at": "2026-11-12T09:30:00Z",
+  "schema_version": "2026-09-22",
+  "workspace_id": "ws_8c2e…",
+  "subject": {"type": "incident", "id": "inc_91f4…"},
+  "source_id": "incident:inc_91f4…:1",
+  "test": false,
+  "data": {
+    "incident": {
+      "id": "inc_91f4…",
+      "kind": "maintenance",
+      "title": "Speech recognition upgrade",
+      "state": "scheduled",
+      "impact": "degraded",
+      "components": ["speech_to_text"],
+      "started_at": null,
+      "resolved_at": null,
+      "scheduled_start": "2026-11-14T20:30:00Z",
+      "scheduled_end": "2026-11-14T21:30:00Z",
+      "latest_update": {
+        "seq": 1,
+        "state": "scheduled",
+        "body": "Calls keep working. Speech recognition may answer a little slower for up to an hour.",
+        "created_at": "2026-11-12T09:30:00Z"
+      },
+      "status_url": "https://status.miraiminds.co"
+    },
+    "impact": null
+  }
+}
+```
+</Accordion>
+
+## Forward notices to your own customers
+
+If you run voice agents for other brands, your brands should hear about a
+problem from you, before they notice it themselves. `impact.agents` tells you
+which of your agents an incident touched, so you can tell only the brands it
+affected.
+
+The receiver below keeps a map from agent id to brand. It checks the
+signature, drops repeats, test events and stale updates, then adds up failed
+calls per brand and queues one notice for each.
+
+<CodeGroup>
+```js Node.js
+import express from "express";
+import { verify } from "./verify.js"; // from Webhook subscriptions: Verify the signature
+
+// Your own table: which brand each agent answers for.
+const BRAND_BY_AGENT = {
+  "agt_01M5…": "Zylora",
+  "agt_01M6…": "Zylora",
+  "agt_01M7…": "Kesar Foods",
+};
+
+const seen = new Set();     // use a table with a unique key in production
+const lastSeq = new Map();  // incident id -> newest update handled
+
+const app = express();
+app.post("/mirai/events", express.raw({ type: "application/json" }), (req, res) => {
+  if (!verify(req.body, req.get("X-Mirai-Signature") ?? "", process.env.MIRAI_DESTINATION_SECRET)) {
+    return res.sendStatus(401);
+  }
+  const event = JSON.parse(req.body);
+  if (seen.has(event.id)) return res.sendStatus(200);
+  seen.add(event.id);
+
+  const group = event.type.split(".")[0];
+  if (event.test || (group !== "incident" && group !== "maintenance")) return res.sendStatus(200);
+
+  const { incident, impact } = event.data;
+  const seq = incident.latest_update.seq;
+  if (seq <= (lastSeq.get(incident.id) ?? 0)) return res.sendStatus(200); // an older update came late
+  lastSeq.set(incident.id, seq);
+
+  // Failed calls per brand. No numbers for us: tell every brand.
+  const failed = new Map();
+  if (impact) {
+    for (const agent of impact.agents) {
+      const brand = BRAND_BY_AGENT[agent.id];
+      if (brand) failed.set(brand, (failed.get(brand) ?? 0) + agent.calls_failed);
+    }
+  } else {
+    for (const brand of Object.values(BRAND_BY_AGENT)) failed.set(brand, 0);
+  }
+
+  for (const [brand, callsFailed] of failed) {
+    queueBrandNotice(brand, {
+      title: incident.title,
+      state: incident.state,
+      message: incident.latest_update.body,
+      callsFailed,
+      charged: impact?.billed ?? false,
+    });
+  }
+  res.sendStatus(200);
+});
+```
+
+```python Python
+import json
+import os
+
+from flask import Flask, request
+
+from verify import verify  # from Webhook subscriptions: Verify the signature
+
+# Your own table: which brand each agent answers for.
+BRAND_BY_AGENT = {
+    "agt_01M5…": "Zylora",
+    "agt_01M6…": "Zylora",
+    "agt_01M7…": "Kesar Foods",
+}
+
+seen = set()   # use a table with a unique key in production
+last_seq = {}  # incident id -> newest update handled
+
+app = Flask(__name__)
+
+
+@app.post("/mirai/events")
+def events():
+    raw = request.get_data()
+    if not verify(raw, request.headers.get("X-Mirai-Signature", ""), os.environ["MIRAI_DESTINATION_SECRET"]):
+        return "", 401
+    event = json.loads(raw)
+    if event["id"] in seen:
+        return "", 200
+    seen.add(event["id"])
+
+    group = event["type"].split(".")[0]
+    if event["test"] or group not in ("incident", "maintenance"):
+        return "", 200
+
+    incident, impact = event["data"]["incident"], event["data"]["impact"]
+    seq = incident["latest_update"]["seq"]
+    if seq <= last_seq.get(incident["id"], 0):
+        return "", 200  # an older update came late
+    last_seq[incident["id"]] = seq
+
+    # Failed calls per brand. No numbers for us: tell every brand.
+    failed = {}
+    if impact:
+        for agent in impact["agents"]:
+            brand = BRAND_BY_AGENT.get(agent["id"])
+            if brand:
+                failed[brand] = failed.get(brand, 0) + agent["calls_failed"]
+    else:
+        failed = {brand: 0 for brand in BRAND_BY_AGENT.values()}
+
+    for brand, calls_failed in failed.items():
+        queue_brand_notice(brand, {
+            "title": incident["title"],
+            "state": incident["state"],
+            "message": incident["latest_update"]["body"],
+            "calls_failed": calls_failed,
+            "charged": bool(impact and impact["billed"]),
+        })
+    return "", 200
+```
+</CodeGroup>
+
+A few things to decide on your side:
+
+- `queueBrandNotice` (`queue_brand_notice` in Python) is yours: an email, a WhatsApp message or a banner in your
+  own dashboard. Send it from a queue, after you answer `200`, so a slow mail
+  server never makes us retry the delivery.
+- When `impact` is `null` we have no numbers for your workspace. The example
+  then tells every brand, which suits maintenance and platform-wide incidents.
+  Change that if you would rather wait for numbers.
+- Link brands to `status_url` only when it is `https://status.miraiminds.co`.
+  For any other incident it opens your console, which your brands can't sign
+  in to.
+- Our words in `latest_update.body` are written for you. Read them before you
+  pass them on unchanged, or write your own from `title`, `state` and
+  `calls_failed`.
+- When your receiver starts, read [`GET /v2/status/incidents`](#read-incidents-with-the-api)
+  once to catch anything it missed while it was down.
+
+## Status emails to owners
+
+Your account's owners get an email for every incident and maintenance update
+that concerns you. You don't need to set anything up. Other people on your
+team don't get them.
+
+An update concerns you when the incident names one of your workspaces, or when
+it is on the public status page and your account is live.
+
+You get one email per update. It shows the state, the impact, the parts
+affected and when it started, or the maintenance window in IST. If calls
+failed, it lists your agents that had failures (up to 8, then "and N more"),
+your total failed calls, and whether they were charged. If you run brands as
+[sub-workspaces](/v2/sub-workspaces) and more than one is affected, each agent
+is listed with its brand. The **See status** button opens `status_url`.
+
+| Event | Subject |
+| :--- | :--- |
+| `incident.opened` | `Incident: <title>` |
+| `incident.updated` | `Update: <title>` |
+| `incident.resolved` | `Resolved: <title>` |
+| `maintenance.scheduled` | `Planned maintenance <day>: <title>` |
+| `maintenance.started` | `Maintenance under way: <title>` |
+| `maintenance.completed` | `Maintenance finished: <title>` |
+
+Emails go out after the webhook events, usually within about 15 seconds.
+
+To leave a workspace out, turn `status_email` off:
+
+```bash
+curl -X PATCH https://prod.voice.miraiminds.co/v2/webhooks/settings \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"status_email": false}'
+```
+
+```json Response
+{
+  "object": "webhook_settings",
+  "low_balance_threshold_inr": 500,
+  "status_email": false,
+  "revision": 1,
+  "updated_at": "2026-11-12T06:40:00Z"
+}
+```
+
+`GET /v2/webhooks/settings` shows the current value. It is `true` until you
+change it. The setting covers one workspace. When every workspace an update
+concerns has it off, no email goes out. It does not change webhook events or
+email endpoints.
+
+An owner who already gets the same update through one of your
+[email endpoints](/v2/webhook-subscriptions#send-events-by-email), for every
+workspace the email would cover, is not sent a second copy.
+
+## Read incidents with the API
+
+| Route | Key | Returns |
+| :--- | :--- | :--- |
+| `GET /v2/status/incidents` | Your API key | The incidents your workspace can see that are open or ended in the last 30 days, newest first, each with its `latest_update` and `workspace_impact`. |
+| `GET /v2/status/incidents/{id}` | Your API key | One of those incidents with its full timeline in `updates`, newest first. Any other id answers `404`. |
+| `GET /v2/status/public` | None | What the public status page shows: public incidents with their timelines and nothing about any workspace. |
+
+```bash
+curl "https://prod.voice.miraiminds.co/v2/status/incidents?limit=20" \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY"
+```
+
+```json Response
+{
+  "object": "list",
+  "data": [
+    {
+      "object": "incident",
+      "id": "inc_5b0e…",
+      "kind": "incident",
+      "title": "Calls failing after the greeting",
+      "state": "resolved",
+      "impact": "major_outage",
+      "components": ["calls", "speech_to_text"],
+      "started_at": "2026-11-11T04:52:00Z",
+      "resolved_at": "2026-11-11T08:17:00Z",
+      "scheduled_start": null,
+      "scheduled_end": null,
+      "latest_update": {
+        "seq": 4,
+        "state": "resolved",
+        "body": "Calls work normally again. The failed calls were not charged.",
+        "created_at": "2026-11-11T08:17:00Z"
+      },
+      "status_url": "https://status.miraiminds.co",
+      "updated_at": "2026-11-11T08:17:00Z",
+      "scope": "platform",
+      "workspace_impact": {
+        "agents": [{"id": "agt_01M5…", "name": "Riya", "calls_failed": 31}],
+        "calls_failed": 31,
+        "billed": false
+      }
+    }
+  ],
+  "has_more": false
+}
+```
+
+- An incident has the same fields as `data.incident` in the webhook, plus
+  `updated_at`, `scope` and `workspace_impact`.
+- `scope` is `platform` when the incident may affect any customer, or
+  `workspaces` when it affects only the workspaces it names.
+- `workspace_impact` is the same as `data.impact` in the webhook: your
+  workspace's numbers, or `null`.
+- `limit` is 1 to 100 (default 20). When `has_more` is `true`, pass
+  `next_cursor` as `cursor` for the next page.
+- `GET /v2/status/public` answers `{"object": "status_feed", "incidents": [...]}`
+  with up to 50 incidents and 50 updates each. It may be cached for 30 seconds.
+- If incident records are briefly unavailable, these routes answer
+  `503 status_unavailable`. Retry after a short wait.
+
+## The status page
+
+[status.miraiminds.co](https://status.miraiminds.co) shows whether each part
+works right now, and its uptime for the last 90 days. A server in Germany,
+apart from the servers that run your calls, does the checking and serves the
+page, so the page stays up when the platform is down.
+
+### What it checks
+
+| Check | How often | How |
+| :--- | :--- | :--- |
+| Outside checks | Every 30 seconds | Requests through the same public addresses you use. The Voice API and the console must answer their health checks. The speech-to-text, text-to-speech, LLM and Realtime API addresses must answer. |
+| Real requests | Every 5 minutes, and every minute while one is failing | With a normal API key on the public address: read the agents list, transcribe a short Hindi clip and check the words, speak a sentence, get an answer from the LLM, and hold a short Realtime conversation. |
+| Real campaign calls | Every 30 seconds | How many of the campaign calls that ended in the last 15 minutes failed on our side. With fewer than 10 calls in that time, the last hour is used instead. Test calls and our own calls are never counted. |
+
+A call fails on our side when it ends for a technical reason, or times out
+before any audio. A caller who doesn't answer, is busy or hangs up is not a
+failure, and neither is a call stopped for low balance.
+
+The page also shows the reply time on real calls over the last hour and the
+last 24 hours: a typical turn, and the slowest 1 in 20. Reply time runs from
+when the caller stops talking to the agent's first sound.
+
+### How outages are counted
+
+- One failed check is noise. Two failed checks in a row start an outage. It
+  runs from the first failed check until the next check that passes.
+- A part is down while any of its checks is in an outage.
+- A campaign-calls check fails when a quarter or more of those calls failed
+  on our side. With fewer than 10 calls in the last hour, the page shows
+  **Quiet** instead of counting the part as up.
+- A day's uptime is the share of the time we were measuring that day (IST)
+  that was not inside an outage. A day we did not measure shows as not
+  measured, never as 100%.
+- Outages of 2 minutes or more are listed one by one. Shorter drops are
+  counted, not listed.
+- If the page's numbers are more than 5 minutes old, it says so. The checker
+  may be down while the products are fine.

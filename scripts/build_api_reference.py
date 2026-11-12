@@ -113,6 +113,12 @@ SKIP_CONTRACT = {
     ("GET", "/v2/models"): PENDING,
     ("GET", "/v2/models/{id}"): PENDING,
     ("GET", "/v2/telephony/inbound-misses"): PENDING,
+    #: In the contract since conductor #297, but the public hosts answer 404
+    #: until the gateway sends /v2/status/ to conductor (mirai-voice #581).
+    #: v2/status documents them meanwhile. Once they answer, move them to
+    #: CONTRACT_ONLY (or add Postman requests) so their pages generate.
+    ("GET", "/v2/status/incidents"): "not served on the public hosts yet (gateway route pending)",
+    ("GET", "/v2/status/incidents/{id}"): "not served on the public hosts yet (gateway route pending)",
 }
 
 #: Postman requests left out of the reference, with the reason. Each was

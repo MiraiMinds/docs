@@ -1,7 +1,7 @@
 ---
-title: "Webhook subscriptions: call, campaign, wallet and payment events"
+title: "Webhook subscriptions: call, campaign, wallet, payment and status events"
 sidebarTitle: "Webhook subscriptions"
-description: "Subscribe one HTTPS endpoint to the events you care about, for one agent or the whole workspace: calls, campaigns, low balance, refused calls and payments."
+description: "Subscribe an HTTPS endpoint or a list of email addresses to the events you care about, for one agent or the whole workspace: calls, campaigns, low balance, refused calls, payments, incidents and maintenance."
 ---
 
 A webhook subscription sends events to your HTTPS endpoint without a URL on every call.
@@ -11,6 +11,9 @@ You register an endpoint once, then pick the events it should receive:
 - campaign lifecycle: started, paused, resumed, finished, stopped
 - wallet alerts: balance low, calls refused for balance, balance back up
 - payments: payment received, payment failed
+- status: incidents and planned maintenance that may affect your calls
+
+An endpoint can also be a list of email addresses instead of a URL, for the events a person acts on. See [Send events by email](#send-events-by-email).
 
 The per-call `webhook_url`, the campaign `webhook_url` and a phone number's `webhook_url` keep working as described in [Webhooks](/v2/webhooks).
 If you use both for the same call or campaign with different URLs, both receive it. If a call's `webhook_url` is the same URL as a destination, that URL receives each event once, signed with the destination's secret. See [Which webhook secret do I use?](/v2/webhook-secrets)
@@ -67,7 +70,7 @@ All routes use your API key and act on the key's workspace.
       }'
     ```
 
-    For one agent only, use `"scope": {"type": "agent", "agent_id": "agt_…"}`. Wallet and payment events belong to the whole workspace, so an agent subscription cannot list them (the API answers `400`).
+    For one agent only, use `"scope": {"type": "agent", "agent_id": "agt_…"}`. Wallet, payment and status events belong to the whole workspace, so an agent subscription cannot list them (the API answers `400`).
   </Step>
   <Step title="Send a test">
     ```bash
@@ -81,7 +84,7 @@ All routes use your API key and act on the key's workspace.
   </Step>
 </Steps>
 
-`GET /v2/webhooks/event-types` lists every event with its label, group, one-line description, `scopes`, JSON schema and an example payload.
+`GET /v2/webhooks/event-types` lists every event with its label, group, one-line description, `scopes`, `email` (whether an email endpoint can take it), JSON schema and an example payload. It needs your API key.
 
 ## Event types
 
@@ -134,6 +137,81 @@ The balance in these events is the one [`GET /v2/wallet`](/v2/wallet) shows: wha
 
 If several workspaces share your company's wallet, each workspace with a subscription receives the payment events.
 
+### Status
+
+Scope: the whole workspace only.
+
+| Event | When |
+| :--- | :--- |
+| `incident.opened` | Part of the platform is down or degraded and may affect your calls. |
+| `incident.updated` | News on an open incident: what we found, or a new state, impact or set of parts. |
+| `incident.resolved` | The incident is over. A later note, such as the root cause, is another `incident.resolved`. |
+| `maintenance.scheduled` | Planned maintenance was announced, or changed before it started. |
+| `maintenance.started` | The maintenance is under way. |
+| `maintenance.completed` | The maintenance is over. |
+
+`data.incident` is the incident as the update left it, and `data.impact` is what it did to your workspace: your agents with failed calls, and whether those calls were charged. Incidents on the public status page reach every subscribed workspace. Others reach only the workspaces they affect. See [Status and incidents](/v2/status#webhook-events) for the payload and a receiver that tells your own customers.
+
+Your account's owners also get these updates by email without any subscription. See [Status emails to owners](/v2/status#status-emails-to-owners).
+
+## Send events by email
+
+An endpoint can deliver to email addresses instead of a URL. Use one when a person should act on an event and you have no receiver to build: an incident, a low wallet, a stopped campaign.
+
+```bash
+curl https://sandbox.voice.miraiminds.co/v2/webhooks/endpoints \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Ops inbox", "type": "email", "emails": ["ops@example.com", "oncall@example.com"]}'
+```
+
+```json Response (201)
+{
+  "id": "whe_8d41b0c2e97f4a6b8c3d2e1f0a9b8c7d",
+  "object": "webhook_endpoint",
+  "name": "Ops inbox",
+  "type": "email",
+  "emails": [
+    {"address": "ops@example.com", "state": "confirmed", "confirmed_at": "2026-11-12T06:10:00Z"},
+    {"address": "oncall@example.com", "state": "pending"}
+  ],
+  "header_names": [],
+  "enabled": true,
+  "revision": 1,
+  "created_at": "2026-11-12T06:10:00Z"
+}
+```
+
+Send `type: "email"` and `emails` (1 to 10 plain addresses, each once) instead of `url`. An email endpoint has no `url`, `method`, `headers` or signing secret, so the response has no `signing_secret` and `rotate-secret` answers `400`. Then [subscribe it](#set-it-up) like any other endpoint.
+
+### Who gets the emails
+
+Each address has a `state`:
+
+- `confirmed`: it gets every event the endpoint is subscribed to. Someone on your team who has signed in to the console is confirmed as soon as you add them.
+- `pending`: anyone else first gets one email asking them to confirm, and nothing more until they open the link and press **Confirm**. The link works for 7 days.
+
+Once an address confirms, it is confirmed for every email endpoint in the workspace. To ask a pending address again, save the endpoint with `PATCH /v2/webhooks/endpoints/{id}` and its `emails`: we send a fresh link at most once a day per address. A workspace sends at most 20 confirmation emails a day.
+
+### Which events can go by email
+
+| Group | Events |
+| :--- | :--- |
+| Status | `incident.opened`, `incident.updated`, `incident.resolved`, `maintenance.scheduled`, `maintenance.started`, `maintenance.completed` |
+| Wallet | `wallet.balance_low`, `wallet.depleted`, `wallet.balance_restored` |
+| Payments | `payment.succeeded`, `payment.failed` |
+| Campaigns | `campaign.paused`, `campaign.completed`, `campaign.stopped` |
+
+Call, recording, analysis and processing events go to HTTPS endpoints only. A subscription or test that puts one of them on an email endpoint answers `400`, naming the event. In `GET /v2/webhooks/event-types`, each event says `"email": true` or `"email": false`.
+
+### Sending and receipts
+
+- Each event becomes one email to each confirmed address. Addresses are read when the email is sent, so an address you remove stops getting mail at once, even for events already queued.
+- A delivery's state is `sent` when our mail server accepted the message for every confirmed address. We can't see whether it then reached the inbox.
+- A refused address fails the attempt with `smtp_error`. The [retry schedule](#deliveries-and-retries) then mails only the addresses still owed. An endpoint with no confirmed address fails with `no_confirmed_address`.
+- Test sends are marked `[Test]` in the subject. Each email endpoint takes at most 5 tests in a rolling hour. The next one answers `429 rate_limited`.
+- Email endpoints count toward the workspace's limit of 20 endpoints.
+
 ## Low balance alert level
 
 The alert level is ₹500 until you change it.
@@ -149,12 +227,15 @@ curl -X PATCH https://sandbox.voice.miraiminds.co/v2/webhooks/settings \
 {
   "object": "webhook_settings",
   "low_balance_threshold_inr": 2000,
+  "status_email": true,
   "revision": 1,
   "updated_at": "2026-10-26T06:12:00Z"
 }
 ```
 
 `GET /v2/webhooks/settings` reads it, and also returns `call_webhook_urls`, the `webhook_url`s your calls used in the last 7 days ([details](/v2/webhook-secrets#read-per-call-deliveries-with-the-api)). Set it to `0` to turn `wallet.balance_low` off; `wallet.depleted` still fires. Pass `if_revision` if you want a stale write refused.
+
+The same settings hold `status_email`, `true` until you change it. It controls the incident and maintenance emails your account's owners get without a subscription. Send `{"status_email": false}` to leave this workspace out of them ([details](/v2/status#status-emails-to-owners)). A `PATCH` can change either field, or both; a field you leave out keeps its value.
 
 ## Payloads
 
@@ -167,7 +248,7 @@ Every event has the same envelope.
 | `created_at` | When the event happened (RFC 3339, UTC). |
 | `schema_version` | `2026-09-22`. |
 | `workspace_id` | Your workspace. |
-| `subject` | `{type, id}`: the call, campaign, wallet (your workspace id) or payment the event is about. |
+| `subject` | `{type, id}`: the call, campaign, wallet (your workspace id), payment or incident the event is about. |
 | `source_id` | What produced the event. Repeats of the same occurrence share it. |
 | `test` | `true` for synthetic tests, test calls and test-mode payments. |
 | `data` | The event's content. |
@@ -262,13 +343,55 @@ Every event has the same envelope.
 
     `kind` is `top_up`, `monthly_payment`, `plan_upgrade` or `subscription`. `amount_inr` is the amount credited, before GST. `payment.failed` carries the same `payment` object with a `reason` in the bank's words.
   </Accordion>
+  <Accordion title="incident.opened">
+    ```json
+    {
+      "id": "evt_3c1d…",
+      "type": "incident.opened",
+      "created_at": "2026-11-11T04:58:12Z",
+      "schema_version": "2026-09-22",
+      "workspace_id": "ws_8c2e…",
+      "subject": {"type": "incident", "id": "inc_5b0e…"},
+      "source_id": "incident:inc_5b0e…:1",
+      "test": false,
+      "data": {
+        "incident": {
+          "id": "inc_5b0e…",
+          "kind": "incident",
+          "title": "Calls failing after the greeting",
+          "state": "investigating",
+          "impact": "major_outage",
+          "components": ["calls", "speech_to_text"],
+          "started_at": "2026-11-11T04:52:00Z",
+          "resolved_at": null,
+          "scheduled_start": null,
+          "scheduled_end": null,
+          "latest_update": {
+            "seq": 1,
+            "state": "investigating",
+            "body": "Calls connect and greet, then end. We are looking into it.",
+            "created_at": "2026-11-11T04:58:12Z"
+          },
+          "status_url": "https://status.miraiminds.co"
+        },
+        "impact": {
+          "agents": [{"id": "agt_01M5…", "name": "Riya", "calls_failed": 12}],
+          "calls_failed": 12,
+          "billed": false
+        }
+      }
+    }
+    ```
+
+    `data.impact` is `null` when we have no numbers for your workspace. Every field is described in [Status and incidents](/v2/status#payload).
+  </Accordion>
 </AccordionGroup>
 
 Each event type's full JSON schema is in `GET /v2/webhooks/event-types`.
 
 ## Verify the signature
 
-Every delivery is signed with the endpoint's `signing_secret` (the Destination secret), using the same scheme as [call webhooks](/v2/webhooks#signature-verification):
+Every delivery to an HTTPS endpoint is signed with the endpoint's `signing_secret` (the Destination secret), using the same scheme as [call webhooks](/v2/webhooks#signature-verification). Email endpoints are not signed. A signed delivery carries these headers:
 
 ```http
 X-Mirai-Signature: t=1785057398,v1=771bca27e1647dfbe59ff5d8f32d9de69be246f6e604c05bddcbaefd8604ccb3
@@ -331,7 +454,7 @@ A failed delivery is retried after 1 second, 7 seconds, 49 seconds, about 6 minu
 | Route | Use |
 | :--- | :--- |
 | `GET /v2/webhooks/endpoints` | List endpoints with delivery health. |
-| `PATCH /v2/webhooks/endpoints/{id}` | Change `name`, `url`, `headers` or `enabled` (`if_revision` required). `enabled: false` pauses sending; queued deliveries wait. |
+| `PATCH /v2/webhooks/endpoints/{id}` | Change `name`, `url`, `headers` or `enabled` (`if_revision` required). On an email endpoint, send `emails` to replace the list. An endpoint never changes type. `enabled: false` pauses sending; queued deliveries wait. |
 | `DELETE /v2/webhooks/endpoints/{id}?if_revision=N` | Remove an endpoint and its subscriptions. Unsent deliveries are cancelled. |
 | `GET /v2/webhooks/subscriptions` | List subscriptions; filter by `endpoint_id` or `agent_id`. |
 | `PATCH /v2/webhooks/subscriptions/{id}` | Change `event_types` or `enabled` (`if_revision` required). Endpoint and scope are fixed; create a new subscription to change them. |
@@ -345,4 +468,5 @@ Creating an endpoint, rotating, testing and retrying accept an `Idempotency-Key`
 - `signing_secret` stored; signature checked on the raw body; old timestamps rejected.
 - Events stored by `id` with a unique constraint.
 - Alert level set to the balance at which you want to top up.
+- Status events going to an HTTPS or email endpoint that someone watches.
 - A test event sent and seen in your logs.
