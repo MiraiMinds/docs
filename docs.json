@@ -78,6 +78,7 @@
               "v2/webhooks",
               "v2/webhook-subscriptions",
               "v2/webhook-secrets",
+              "v2/status",
               "v2/sub-workspaces"
             ]
           },

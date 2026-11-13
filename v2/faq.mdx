@@ -206,6 +206,13 @@ our ops team can replay it. You can also reconcile from
 [`GET /v2/calls`](/v2/calls#list-calls), which is what the list endpoint is
 for.
 
+**How do I find out when something on your side is down?**
+Your account's owners get an email for every incident and planned maintenance
+that concerns you, with no setup. Subscribe a webhook to the `status` events to
+get the same updates as JSON, with your agents' failed calls, and pass them on
+to your own customers. [status.miraiminds.co](https://status.miraiminds.co)
+shows live checks of each part. See [Status and incidents](/v2/status).
+
 ## Limits and compliance
 
 **How many concurrent calls can I run?**

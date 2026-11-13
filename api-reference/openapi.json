@@ -7837,6 +7837,9 @@
                           "description": {
                             "type": "string"
                           },
+                          "email": {
+                            "type": "boolean"
+                          },
                           "example": {
                             "properties": {
                               "created_at": {
@@ -7920,6 +7923,7 @@
                           "group",
                           "description",
                           "scopes",
+                          "email",
                           "schema",
                           "example"
                         ],
@@ -8114,6 +8118,18 @@
               "schema": {
                 "additionalProperties": false,
                 "properties": {
+                  "emails": {
+                    "description": "An email endpoint's addresses. Only for type email.",
+                    "items": {
+                      "format": "email",
+                      "maxLength": 254,
+                      "type": "string"
+                    },
+                    "maxItems": 10,
+                    "minItems": 1,
+                    "type": "array",
+                    "uniqueItems": true
+                  },
                   "enabled": {
                     "type": "boolean"
                   },
@@ -8135,6 +8151,14 @@
                     "minLength": 1,
                     "type": "string"
                   },
+                  "type": {
+                    "default": "https",
+                    "enum": [
+                      "https",
+                      "email"
+                    ],
+                    "type": "string"
+                  },
                   "url": {
                     "format": "uri",
                     "maxLength": 2048,
@@ -8144,8 +8168,7 @@
                   }
                 },
                 "required": [
-                  "name",
-                  "url"
+                  "name"
                 ],
                 "type": "object"
               },
@@ -8174,6 +8197,35 @@
                     "created_at": {
                       "format": "date-time",
                       "type": "string"
+                    },
+                    "emails": {
+                      "items": {
+                        "properties": {
+                          "address": {
+                            "type": "string"
+                          },
+                          "confirmed_at": {
+                            "anyOf": [
+                              {
+                                "format": "date-time",
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "state": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "address",
+                          "state"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
                     },
                     "enabled": {
                       "type": "boolean"
@@ -8211,6 +8263,9 @@
                     "signing_secret": {
                       "type": "string"
                     },
+                    "type": {
+                      "type": "string"
+                    },
                     "url": {
                       "type": "string"
                     }
@@ -8219,8 +8274,6 @@
                     "id",
                     "object",
                     "name",
-                    "url",
-                    "method",
                     "header_names",
                     "enabled",
                     "revision",
@@ -8333,6 +8386,35 @@
                             "format": "date-time",
                             "type": "string"
                           },
+                          "emails": {
+                            "items": {
+                              "properties": {
+                                "address": {
+                                  "type": "string"
+                                },
+                                "confirmed_at": {
+                                  "anyOf": [
+                                    {
+                                      "format": "date-time",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "state": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "address",
+                                "state"
+                              ],
+                              "type": "object"
+                            },
+                            "type": "array"
+                          },
                           "enabled": {
                             "type": "boolean"
                           },
@@ -8363,6 +8445,9 @@
                           "revision": {
                             "type": "integer"
                           },
+                          "type": {
+                            "type": "string"
+                          },
                           "url": {
                             "type": "string"
                           }
@@ -8371,8 +8456,6 @@
                           "id",
                           "object",
                           "name",
-                          "url",
-                          "method",
                           "header_names",
                           "enabled",
                           "revision",
@@ -8463,6 +8546,35 @@
                       "format": "date-time",
                       "type": "string"
                     },
+                    "emails": {
+                      "items": {
+                        "properties": {
+                          "address": {
+                            "type": "string"
+                          },
+                          "confirmed_at": {
+                            "anyOf": [
+                              {
+                                "format": "date-time",
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "state": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "address",
+                          "state"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
                     "enabled": {
                       "type": "boolean"
                     },
@@ -8493,6 +8605,9 @@
                     "revision": {
                       "type": "integer"
                     },
+                    "type": {
+                      "type": "string"
+                    },
                     "url": {
                       "type": "string"
                     }
@@ -8501,8 +8616,6 @@
                     "id",
                     "object",
                     "name",
-                    "url",
-                    "method",
                     "header_names",
                     "enabled",
                     "revision",
@@ -8577,6 +8690,18 @@
               "schema": {
                 "additionalProperties": false,
                 "properties": {
+                  "emails": {
+                    "description": "An email endpoint's addresses. Only for type email.",
+                    "items": {
+                      "format": "email",
+                      "maxLength": 254,
+                      "type": "string"
+                    },
+                    "maxItems": 10,
+                    "minItems": 1,
+                    "type": "array",
+                    "uniqueItems": true
+                  },
                   "enabled": {
                     "type": "boolean"
                   },
@@ -8632,6 +8757,35 @@
                       "format": "date-time",
                       "type": "string"
                     },
+                    "emails": {
+                      "items": {
+                        "properties": {
+                          "address": {
+                            "type": "string"
+                          },
+                          "confirmed_at": {
+                            "anyOf": [
+                              {
+                                "format": "date-time",
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "state": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "address",
+                          "state"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
                     "enabled": {
                       "type": "boolean"
                     },
@@ -8662,6 +8816,9 @@
                     "revision": {
                       "type": "integer"
                     },
+                    "type": {
+                      "type": "string"
+                    },
                     "url": {
                       "type": "string"
                     }
@@ -8670,8 +8827,6 @@
                     "id",
                     "object",
                     "name",
-                    "url",
-                    "method",
                     "header_names",
                     "enabled",
                     "revision",
@@ -8964,7 +9119,13 @@
                       "wallet.depleted",
                       "wallet.balance_restored",
                       "payment.succeeded",
-                      "payment.failed"
+                      "payment.failed",
+                      "incident.opened",
+                      "incident.updated",
+                      "incident.resolved",
+                      "maintenance.scheduled",
+                      "maintenance.started",
+                      "maintenance.completed"
                     ],
                     "type": "string"
                   },
@@ -9159,11 +9320,17 @@
                         "wallet.depleted",
                         "wallet.balance_restored",
                         "payment.succeeded",
-                        "payment.failed"
+                        "payment.failed",
+                        "incident.opened",
+                        "incident.updated",
+                        "incident.resolved",
+                        "maintenance.scheduled",
+                        "maintenance.started",
+                        "maintenance.completed"
                       ],
                       "type": "string"
                     },
-                    "maxItems": 22,
+                    "maxItems": 28,
                     "minItems": 1,
                     "type": "array",
                     "uniqueItems": true
@@ -9654,11 +9821,17 @@
                         "wallet.depleted",
                         "wallet.balance_restored",
                         "payment.succeeded",
-                        "payment.failed"
+                        "payment.failed",
+                        "incident.opened",
+                        "incident.updated",
+                        "incident.resolved",
+                        "maintenance.scheduled",
+                        "maintenance.started",
+                        "maintenance.completed"
                       ],
                       "type": "string"
                     },
-                    "maxItems": 22,
+                    "maxItems": 28,
                     "minItems": 1,
                     "type": "array",
                     "uniqueItems": true
@@ -11041,6 +11214,9 @@
                     "revision": {
                       "type": "integer"
                     },
+                    "status_email": {
+                      "type": "boolean"
+                    },
                     "updated_at": {
                       "anyOf": [
                         {
@@ -11056,6 +11232,7 @@
                   "required": [
                     "object",
                     "low_balance_threshold_inr",
+                    "status_email",
                     "revision"
                   ],
                   "type": "object"
@@ -11131,11 +11308,11 @@
                   },
                   "low_balance_threshold_inr": {
                     "type": "number"
+                  },
+                  "status_email": {
+                    "type": "boolean"
                   }
                 },
-                "required": [
-                  "low_balance_threshold_inr"
-                ],
                 "type": "object"
               },
               "examples": {
@@ -11217,6 +11394,9 @@
                     "revision": {
                       "type": "integer"
                     },
+                    "status_email": {
+                      "type": "boolean"
+                    },
                     "updated_at": {
                       "anyOf": [
                         {
@@ -11232,6 +11412,7 @@
                   "required": [
                     "object",
                     "low_balance_threshold_inr",
+                    "status_email",
                     "revision"
                   ],
                   "type": "object"

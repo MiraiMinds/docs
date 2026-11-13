@@ -190,6 +190,7 @@ return, before it starts and while it runs.
 | `upstream_unavailable` | `503` | A service we depend on is briefly down. A flow generation whose model had answered is charged for what it did. | Honour `Retry-After` and retry. |
 | `upstream_error` | `502` | The model failed: [TTS](/v2/tts-quickstart#when-something-fails) or the [language model](/v2/llm#when-something-fails). Nothing was charged. | Retry. Quote `X-Request-Id` or `correlation_id` to us. |
 | `upstream_timeout` | `504` | [Speech to text](/v2/stt-quickstart#when-something-fails) over HTTP did not finish in time. Nothing was charged. | Retry. Send long clips to [offline transcription](/v2/transcriptions). |
+| `status_unavailable` | `503` | The [status API](/v2/status#read-incidents-with-the-api) could not read incident records for a moment. | Retry after a short wait. [status.miraiminds.co](https://status.miraiminds.co) still works. |
 | `internal` | `500` | Our bug. It has already alerted us. | Retry with backoff. If it persists, [send us the `call_id`](mailto:help@miraiminds.co?subject=Error%20500). |
 
 <Note>
