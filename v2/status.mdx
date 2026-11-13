@@ -154,7 +154,7 @@ Status events use the same envelope, signature and retries as every other
 | `data.incident.resolved_at` | When it was resolved, or when the maintenance finished. `null` while open. |
 | `data.incident.scheduled_start`, `scheduled_end` | The maintenance window. `null` on an incident. |
 | `data.incident.latest_update` | This update: `seq` (1, 2, 3… per incident), the `state` it left, our words in `body`, and `created_at`. |
-| `data.incident.status_url` | The public status page for an incident shown there. For any other incident, your console. |
+| `data.incident.status_url` | The public status page for an incident shown there. For any other incident, the **Status** page in your console. |
 | `data.impact` | What it did to **this** workspace: the `agents` it touched with their `calls_failed`, the total `calls_failed`, and `billed` (whether those calls were charged). `null` when we have no numbers for your workspace. |
 
 Events can arrive out of order. Keep the highest `latest_update.seq` you have
@@ -336,8 +336,8 @@ A few things to decide on your side:
   then tells every brand, which suits maintenance and platform-wide incidents.
   Change that if you would rather wait for numbers.
 - Link brands to `status_url` only when it is `https://status.miraiminds.co`.
-  For any other incident it opens your console, which your brands can't sign
-  in to.
+  For any other incident it opens the Status page in your console, which your
+  brands can't sign in to.
 - Our words in `latest_update.body` are written for you. Read them before you
   pass them on unchanged, or write your own from `title`, `state` and
   `calls_failed`.
