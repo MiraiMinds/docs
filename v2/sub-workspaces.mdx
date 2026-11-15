@@ -57,6 +57,31 @@ DND obligations sit with the business placing the calls; see
 [India calling rules](/v2/limits#india-calling-rules).
 </Warning>
 
+### Phone numbers in a sub-workspace
+
+Each sub-workspace can rent its own numbers from Mirai with the
+`Mirai-Workspace` header. A number rented in a sub-workspace is that
+sub-workspace's: it shows in its **Phone numbers**, its agents answer it, and
+only its header reaches it. Your account's wallet pays the ₹1,500 each three
+months, as for every brand.
+
+**Business verification comes from your account when the sub-workspace has
+none.** A sub-workspace without an approved business verification of its own
+rents under your account's approved one. You verify once, and each end
+customer gets its own number. `verification_source` on the options,
+verifications, quotes and rentals says `account`. A sub-workspace that has
+verified itself always uses its own (`verification_source: "workspace"`); we
+recommend that when each brand is a separate business. If neither is
+approved, a quote answers `409 verification_required`. Only your own account's
+verification is ever used: another account's never is.
+
+Renewal reminders (7 days and 24 hours ahead), renewal receipts and releases
+are emailed to your account's owners and billing members. There is no grace
+period: see [Renewal, reminders and release](/v2/phone-numbers#renewal-reminders-and-release).
+As webhooks, they reach the sub-workspace's own subscriptions and your
+account's. `data.workspace_id` names the sub-workspace. See
+[Phone number events](/v2/webhook-subscriptions#phone-numbers).
+
 ### In the console
 
 Anyone on your workspace can switch between it and its brands in the console.
