@@ -414,6 +414,59 @@ retired number, which makes it the Undo for Retire. Resuming restarts the
 number's evidence. A number in another workspace answers `404 not_found`. Resting
 a retired number answers `409 number_retired`, so resume it first.
 
+## Rent a number from Mirai
+
+A number you rent from Mirai is **₹1,500 for 3 months** (₹500 a month), taken
+from your wallet when you rent it and again every three months. There is no
+setup fee; calls on it are billed as usual. Renting needs an approved business
+verification, then three calls: search, quote, rent. The
+[API reference](/api-reference/telephony/rent-the-quoted-number) has every
+request and answer.
+
+1. **Business verification.** `POST /v2/telephony/onboarding` with
+   `account: "mirai"` sends your application. `GET /v2/telephony/onboarding`
+   reads it. We check pending applications in the background and send
+   [`phone_number.verification_updated`](/v2/webhook-subscriptions#phone-numbers)
+   when one is submitted, accepted, rejected (with the reason), suspended or
+   expired. `POST /v2/telephony/onboarding/{id}/refresh` checks right now.
+   `setup_state: "ready"` means you can rent.
+2. **Search.** `GET /v2/telephony/available-numbers?account=mirai&country=IN`.
+3. **Quote.** `POST /v2/telephony/quotes` holds the price for ten minutes.
+4. **Rent.** `POST /v2/telephony/rentals/{id}/purchase` with
+   `accept_terms: true`. The number is in **Phone numbers** at once, ready for
+   an agent.
+
+`verification_source` on `GET /v2/telephony/options`, the verifications list,
+quotes and rentals says whose verification is used: `workspace` (your own) or
+`account` (a [sub-workspace](/v2/sub-workspaces#phone-numbers-in-a-sub-workspace)
+using your account's).
+
+### Renewal, reminders and release
+
+<Warning>
+There is no grace period. If your wallet can't cover the ₹1,500 when the
+number comes up for renewal, the number is released at once and stops taking
+calls. No renewal charge is made, and the number may not be available to rent
+again.
+</Warning>
+
+| When | Email to your owners and billing members | Webhook |
+| :--- | :--- | :--- |
+| 7 days before renewal | Reminder. If the wallet is short, it says by how much and how to add it. | `phone_number.renewal_upcoming` (`days_left: 7`, `wallet_covers`, `short_by_inr`) |
+| 24 hours before renewal | The same reminder, once more. | `phone_number.renewal_upcoming` (`days_left: 1`) |
+| Renewal paid | Receipt: what was charged and the next renewal date. | `phone_number.renewed` |
+| Released | Why: wallet short, or auto-renewal off. | `phone_number.released` (`reason`) |
+| A purchase did not complete | The money held for it is back in your wallet. | `phone_number.purchase_failed` |
+
+The emails go without any setup. The webhooks need a
+[subscription](/v2/webhook-subscriptions#phone-numbers) to the events.
+
+**Turn auto-renewal off** with `PATCH /v2/telephony/rentals/{id}` and
+`{"cancel_at_period_end": true}`. Nothing changes until the end of the term you
+paid for: the number keeps working until `renews_at`, is then released, and is
+not charged again. Send `false` before then to keep it. The 7-day and 24-hour
+reminders still come, saying the number will be released.
+
 ## Errors
 
 | Status | `error.code` | When | What to do |
@@ -426,6 +479,8 @@ a retired number answers `409 number_retired`, so resume it first.
 | `409` | `conflict` | `PATCH /v2/phone-pools/{id}` with a `version` that is no longer current. | Read the pool again and send the new `version`. |
 | `400` | `invalid_request` | A pool field out of range, a number twice, a number that is not yours, not ready or retired, no number that can call right now, `minutes` outside 1 to 1440, or `pool_id` together with `phone_number_id`, `from` or `caller_ids`. | `error.message` names the field. |
 | `404` | `not_found` | A pool or number that does not exist in your workspace, including one that belongs to another. | Check the id. |
+| `409` | `verification_required` | `POST /v2/telephony/quotes` for a Mirai number with no approved business verification (a sub-workspace's own or its account's), or one that doesn't cover the number type. | Complete [business verification](#rent-a-number-from-mirai) first. |
+| `402` | `insufficient_balance` | `POST /v2/telephony/rentals/{id}/purchase` when the wallet can't cover ₹1,500. | Top up your [wallet](/v2/wallet) and send the same purchase again. |
 
 ## Webhook events
 

@@ -1,5 +1,5 @@
 ---
-title: "Webhook subscriptions: call, campaign, wallet, payment and status events"
+title: "Webhook subscriptions: call, campaign, wallet, payment, phone number and status events"
 sidebarTitle: "Webhook subscriptions"
 description: "Subscribe an HTTPS endpoint or a list of email addresses to the events you care about, for one agent or the whole workspace: calls, campaigns, low balance, refused calls, payments, incidents and maintenance."
 ---
@@ -11,6 +11,7 @@ You register an endpoint once, then pick the events it should receive:
 - campaign lifecycle: started, paused, resumed, finished, stopped
 - wallet alerts: balance low, calls refused for balance, balance back up
 - payments: payment received, payment failed
+- rented phone numbers: renewal coming up, renewed, released, purchase failed, and business verification updates
 - status: incidents and planned maintenance that may affect your calls
 
 An endpoint can also be a list of email addresses instead of a URL, for the events a person acts on. See [Send events by email](#send-events-by-email).
@@ -137,6 +138,22 @@ The balance in these events is the one [`GET /v2/wallet`](/v2/wallet) shows: wha
 
 If several workspaces share your company's wallet, each workspace with a subscription receives the payment events.
 
+### Phone numbers
+
+Scope: the whole workspace only.
+
+| Event | When |
+| :--- | :--- |
+| `phone_number.renewal_upcoming` | A number you rent from Mirai renews in 7 days, and again 24 hours before. Says whether your wallet covers the renewal and how much is missing. |
+| `phone_number.renewed` | The renewal was paid from your wallet. The number keeps working for another term. |
+| `phone_number.released` | The number was released and no longer takes calls: auto-renewal was off (`reason` `cancelled`) or the wallet could not cover the renewal (`reason` `insufficient_balance`). No renewal charge was made. |
+| `phone_number.purchase_failed` | A number purchase did not complete. The amount held for it is back in your wallet. |
+| `phone_number.verification_updated` | Your business verification for renting numbers changed state: `submitted`, `accepted`, `rejected` (with the reason), `suspended` or `expired`. `setup_state` `ready` means you can rent now. |
+
+There is no grace period on a rented number: if the wallet cannot cover the renewal when it is due, the number is released. That is why the reminders come twice. The account's owners and billing members also get each of these moments by email (the two reminders, a receipt for each renewal, the release and a failed purchase), with or without a subscription. Pending verifications are checked in the background, so you do not need to poll [refresh](/v2/phone-numbers#rent-a-number-from-mirai).
+
+`data.workspace_id` is the workspace that holds the number. For a [sub-workspace](/v2/sub-workspaces#phone-numbers-in-a-sub-workspace), the event goes to that sub-workspace's subscriptions and to your account's own, because your account's wallet pays. The two copies have different event `id`s and the same `data`. These events cannot go to an email endpoint.
+
 ### Status
 
 Scope: the whole workspace only.
@@ -248,7 +265,7 @@ Every event has the same envelope.
 | `created_at` | When the event happened (RFC 3339, UTC). |
 | `schema_version` | `2026-09-22`. |
 | `workspace_id` | Your workspace. |
-| `subject` | `{type, id}`: the call, campaign, wallet (your workspace id), payment or incident the event is about. |
+| `subject` | `{type, id}`: the call, campaign, wallet (your workspace id), payment, rental, verification or incident the event is about. |
 | `source_id` | What produced the event. Repeats of the same occurrence share it. |
 | `test` | `true` for synthetic tests, test calls and test-mode payments. |
 | `data` | The event's content. |
@@ -342,6 +359,80 @@ Every event has the same envelope.
     ```
 
     `kind` is `top_up`, `monthly_payment`, `plan_upgrade` or `subscription`. `amount_inr` is the amount credited, before GST. `payment.failed` carries the same `payment` object with a `reason` in the bank's words.
+  </Accordion>
+  <Accordion title="phone_number.renewal_upcoming">
+    ```json
+    {
+      "id": "evt_7d2a…",
+      "type": "phone_number.renewal_upcoming",
+      "created_at": "2026-12-15T10:01:00Z",
+      "schema_version": "2026-09-22",
+      "workspace_id": "ws_8c2e…",
+      "subject": {"type": "rental", "id": "rent_01K9…"},
+      "source_id": "rent_01K9…:reminder-7d:2026-12-22T10:00:00Z",
+      "test": false,
+      "data": {
+        "workspace_id": "ws_8c2e…",
+        "rental": {
+          "id": "rent_01K9…",
+          "phone_number_id": "phn_01K8…",
+          "number": "+918000000000",
+          "agent_id": "agt_01M5…",
+          "agent_name": "Riya",
+          "amount_inr": 1500,
+          "amount_paise": 150000,
+          "term_months": 3,
+          "renews_at": "2026-12-22T10:00:00Z",
+          "auto_renew": true,
+          "verification_source": "account"
+        },
+        "days_left": 7,
+        "wallet_covers": false,
+        "short_by_inr": 300,
+        "short_by_paise": 30000,
+        "wallet": {"available_inr": 1200, "available_paise": 120000, "currency": "INR"}
+      }
+    }
+    ```
+
+    `days_left` is `7` for the first reminder and `1` for the one 24 hours before. `wallet_covers` and `short_by_*` are worked out when the event is sent. Top up by `renews_at` to keep the number. `agent_id` and `agent_name` are `null` and `""` when no agent answers the number.
+
+    The other rental events carry the same `data.workspace_id` and `data.rental`, plus:
+
+    | Event | Extra fields |
+    | :--- | :--- |
+    | `phone_number.renewed` | `charged_inr`, `charged_paise`. `rental.renews_at` is the next renewal. |
+    | `phone_number.released` | `reason`: `insufficient_balance` or `cancelled`. `rental.auto_renew` is `false`. |
+    | `phone_number.purchase_failed` | `refunded_inr`, `refunded_paise`. `rental.phone_number_id` and `rental.renews_at` are `null`. |
+  </Accordion>
+  <Accordion title="phone_number.verification_updated">
+    ```json
+    {
+      "id": "evt_4b8e…",
+      "type": "phone_number.verification_updated",
+      "created_at": "2026-11-16T06:20:00Z",
+      "schema_version": "2026-09-22",
+      "workspace_id": "ws_8c2e…",
+      "subject": {"type": "verification", "id": "tbo_01K9…"},
+      "source_id": "tbo_01K9…:rejected/not_started:2026-11-16T06:15:00Z",
+      "test": false,
+      "data": {
+        "workspace_id": "ws_8c2e…",
+        "verification": {
+          "id": "tbo_01K9…",
+          "account": "mirai",
+          "number_type": "local",
+          "state": "rejected",
+          "setup_state": "not_started",
+          "compliance_id": "a1b2c3d4-…",
+          "rejection_reason": "The Letter of Authorisation is not stamped with the company seal.",
+          "updated_at": "2026-11-16T06:15:00Z"
+        }
+      }
+    }
+    ```
+
+    `verification` is the application as [`GET /v2/telephony/onboarding`](/v2/phone-numbers#rent-a-number-from-mirai) returns it. `rejection_reason` is `null` unless `state` is `rejected`. When an application is accepted you get one event with `setup_state` `ready` once your number account is set up, and you can rent.
   </Accordion>
   <Accordion title="incident.opened">
     ```json
