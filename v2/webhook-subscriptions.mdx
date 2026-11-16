@@ -163,7 +163,7 @@ Scope: the whole workspace only.
 | `workspace.spend_limit.warning` | A sub-workspace's charges for ended calls reached 80% of its [spending limit](/v2/sub-workspaces#spending-limits). |
 | `workspace.spend_limit.reached` | A sub-workspace's charges for ended calls reached 100% of its limit, or the first call was refused for the limit. |
 
-Each is sent once per period for each limit setting: once a month on a monthly limit, once on a lifetime limit. Changing the limit's amount or period lets them fire again. The event goes to the sub-workspace's own subscriptions and to your account's, and both events can go to an [email endpoint](#send-events-by-email). `data.workspace_id` names the sub-workspace and `data.parent_id` your account.
+Each is sent once per period for each limit setting: once a month on a monthly limit, once on a lifetime limit. Changing the limit's amount or period lets them fire again. The event goes to the sub-workspace's own subscriptions and to your account's, and both events can go to an [email endpoint](#send-events-by-email). The top-level `workspace_id` is the workspace receiving the copy. `data.workspace_id` always names the sub-workspace and `data.parent_id` your account.
 
 ### Status
 
@@ -429,7 +429,7 @@ Every event has the same envelope.
       "schema_version": "2026-09-22",
       "workspace_id": "ws_5e0c…",
       "subject": {"type": "workspace", "id": "ws_5e0c…"},
-      "source_id": "…",
+      "source_id": "spend_limit:2026-11:r1",
       "test": false,
       "data": {
         "workspace_id": "ws_5e0c…",
@@ -454,6 +454,8 @@ Every event has the same envelope.
       }
     }
     ```
+
+    This is the copy the sub-workspace's own subscriptions receive. Your account's copy has your account's id as the top-level `workspace_id`, a different event `id`, and the same `subject`, `source_id` and `data`. `data.workspace_id` is always the sub-workspace and `data.parent_id` your account. `source_id` is `spend_limit:` then the period (the month in the sub-workspace's timezone, such as `2026-11`, or `lifetime`), then `:r` and the limit setting's revision.
 
     `data.spend` is the object [`GET /v2/workspaces/{id}/spend`](/v2/sub-workspaces#see-how-much-of-the-limit-is-used) returns, without `object`. `workspace.spend_limit.reached` has the same shape with `state` `reached`. When it fired because a call was refused for the limit, it also carries `data.call` with that call's `id`:
 

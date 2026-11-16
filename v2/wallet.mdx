@@ -462,6 +462,11 @@ and when you are back above the level. `payment.succeeded` and
 `payment.failed` report top-ups and failed debits. See
 [webhook subscriptions](/v2/webhook-subscriptions#wallet-and-payments).
 
+These alerts watch your spendable balance, `balance_inr`, which leaves out
+money held for renewals. With [renewal reserve](#wallet-settings) on, the
+low-balance alert can fire earlier than it did, because each renewal is set
+aside before its renewal day.
+
 For a [sub-workspace with a spending limit](/v2/sub-workspaces#spending-limits),
 `workspace.spend_limit.warning` and `workspace.spend_limit.reached` tell you
 when the brand has used 80% and 100% of it. See
@@ -502,7 +507,7 @@ the wallet has credit:
     "code": "spend_limit_reached",
     "message": "this sub-workspace has reached its spending limit",
     "doc_url": "https://docs.miraiminds.co/v2/sub-workspaces/#spending-limits",
-    "spend_limit": { "object": "workspace_spend", "remaining_inr": 3.8, "state": "reached", "…": "…" }
+    "spend_limit": { "object": "workspace_spend", "remaining_inr": 0, "state": "reached", "…": "…" }
   }
 }
 ```

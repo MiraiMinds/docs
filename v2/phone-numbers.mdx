@@ -474,7 +474,8 @@ whatever is held for this renewal covers it. `short_by_inr` (and
 `short_by_paise`) is the amount still missing: ₹1,500 less your spendable
 balance and this renewal's hold, never below 0. `reserved` says whether the
 renewal is held, and `reserved_inr` (and `reserved_paise`) how much, `0` when
-nothing is.
+nothing is. When the renewal is already held, the reminder email says it is
+already set aside.
 
 ### Reserve renewals ahead of time
 
@@ -492,8 +493,10 @@ curl -X PATCH https://prod.voice.miraiminds.co/v2/wallet/settings \
 ```
 
 `days_before` is how many days before `renews_at` the amount is held, from `1`
-to `30`. The default, `7`, is the day of the first reminder.
-[Wallet settings](/v2/wallet#wallet-settings) has the full request and answer.
+to `30`. The default, `7`, is the day of the first reminder. Renewals already
+inside that window when you turn it on are held on the next pass, within about
+a minute. [Wallet settings](/v2/wallet#wallet-settings) has the full request
+and answer.
 
 | | With renewal reserve on |
 | :--- | :--- |
@@ -501,7 +504,7 @@ to `30`. The default, `7`, is the day of the first reminder.
 | What it does to your balance | Held money shows as `reserved_for_renewals_inr` in [`GET /v2/wallet`](/v2/wallet#get-balance) and is not in `balance_inr`. Calls, campaigns and API requests can't spend it. |
 | Wallet short | If the wallet can't cover a hold yet, we try again every minute until it can or the renewal is due. At renewal the usual rule applies: if the wallet is short, the number is released. |
 | At renewal | The held amount is charged as the renewal, one debit as today. Promotional credit can still pay for it. |
-| Released | When you turn auto-renewal off, the number is released, you turn the reserve off, or you lower `days_before` so the renewal is no longer inside it. The money is spendable again at once. |
+| Released | When you turn auto-renewal off, the number is released, you turn the reserve off, or you lower `days_before` so the renewal is no longer inside it. The money is spendable again at once. As a safety net, a hold older than 32 days goes back to your wallet on its own. |
 | Spending limits | A hold never counts towards a sub-workspace's [spending limit](/v2/sub-workspaces#spending-limits). |
 
 ## Errors

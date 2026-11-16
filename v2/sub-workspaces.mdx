@@ -600,7 +600,8 @@ amount in rupees.
 
 - **Monthly** (the default) starts again at 00:00 on the 1st of each month in
   the brand's `timezone`.
-- **Lifetime** counts every call since you set it, and never starts again.
+- **Lifetime** counts every call the brand has made since counting began
+  (below), and never starts again.
 - A brand with no limit spends freely from your wallet, as before.
 
 Counting starts when this feature went live. Calls before that do not count
@@ -655,7 +656,8 @@ The answer is the [workspace object](#the-workspace-object) with its new
 
 - **Change it** by sending a new `spend_limit`. A new amount or period takes
   effect for the next call, and the [limit webhooks](#limit-webhooks) can fire
-  again for the new setting.
+  again for the new setting. Sending the same amount and period again changes
+  nothing.
 - **Remove it** with `"spend_limit": null` or `"spend_limit": { "period": "none" }`.
 - **Leave it as it is** by leaving `spend_limit` out of the `PATCH`.
 
@@ -707,13 +709,18 @@ curl https://prod.voice.miraiminds.co/v2/workspaces/acme-skincare/spend \
 | `spend_limit` | object \| null | The limit as on the [workspace object](#the-workspace-object). `null` without a limit. |
 | `period` | string \| null | `monthly`, `lifetime`, or `null` without a limit. |
 | `timezone` | string | The brand's timezone. A monthly period follows it. |
-| `period_start` | string \| null | Monthly: 00:00 on the 1st of this month in the brand's timezone, as a UTC time. `null` otherwise. |
-| `period_end` | string \| null | Monthly: when the next month starts (the limit is fresh from this moment). `null` otherwise. |
-| `used_inr`, `used_paise` | number, integer | Charges of calls that have ended in this period. |
+| `period_start` | string \| null | 00:00 on the 1st of this month in the brand's timezone, as a UTC time. Set on a monthly limit and when there is no limit. `null` on a lifetime limit. |
+| `period_end` | string \| null | When the next month starts, as a UTC time: a monthly limit is fresh from this moment. Set when `period_start` is. |
+| `used_inr`, `used_paise` | number, integer | Charges of calls that have ended in the period: this month on a monthly limit or with no limit, everything counted so far on a lifetime limit. |
 | `held_inr`, `held_paise` | number, integer | Held for calls running now: each one's [worst-case charge](#what-happens-at-the-limit). |
 | `remaining_inr`, `remaining_paise` | number, integer \| null | The limit, less `used` and `held`. Never below 0. `null` without a limit. |
 | `percent_used` | number \| null | `used` as a percentage of the limit, to 2 decimals. Held money is not in it. `null` without a limit. |
-| `state` | string | `unlimited` (no limit), `ok`, `warning` (80% or more used) or `reached` (100% used, or less than a minute of calls left). |
+| `state` | string | `unlimited` (no limit), `ok`, `warning` (charges of ended calls at 80% of the limit or more) or `reached` (charges of ended calls at or above the limit, or nothing left because calls running now hold the rest). |
+
+**A brand with no limit** answers the same object with `spend_limit`, `period`,
+`remaining_*` and `percent_used` set to `null` and `state: "unlimited"`.
+`period_start`, `period_end`, `used` and `held` still cover this month, so you
+can see what a brand spends before you choose its limit.
 
 A request with the brand's `Mirai-Workspace` header sees the same object as
 `spend` in [`GET /v2/wallet`](/v2/wallet#get-balance), so the brand's own code
@@ -736,13 +743,14 @@ Before a call dials, we hold its **worst case**: its whole
 [`max_duration_secs`](/v2/calls#create-a-call) at the call's rate. The hold is
 taken from your wallet and from the brand's remaining limit at the same time.
 When the call ends, it is charged for the time it actually ran and the rest of
-the hold is released.
+the hold is released. A text chat is the one exception: it takes no hold.
 
 | What | At the limit |
 | :--- | :--- |
 | `POST /v2/calls` | When the remaining limit can't cover one minute at the call's rate, the request answers `402 spend_limit_reached`. Nothing is dialled or charged. |
 | A call that was accepted | When the remaining limit can't hold the call's worst case, the call ends `failed` with `ended_reason: "spend_limit_reached"`. Nothing rings and nothing is charged. |
-| Incoming calls | A call to one of the brand's numbers ends the same way. The caller is not answered. |
+| Incoming calls | A call to one of the brand's numbers, by phone, SIP trunk or WhatsApp, is refused when the remaining limit can't cover one minute. It ends `failed` with `ended_reason: "spend_limit_reached"` and the caller is not answered. A SIP trunk turns it down the same way as a call your wallet can't pay for. |
+| Text chats | No hold. A text chat starts while anything is left of the limit, and its charge counts towards the limit when it ends. |
 | Calls in progress | Never cut off. Their worst case was held before they started, so they finish and can't take spend past the limit. |
 | Campaigns | The brand's playing campaigns pause with `pause_reason: "spend_limit_reached"` and keep their place. |
 | Other brands and your account | Not affected. They keep calling while your wallet can pay. |
@@ -761,13 +769,13 @@ the hold is released.
       "timezone": "Asia/Kolkata",
       "period_start": "2026-10-31T18:30:00Z",
       "period_end": "2026-11-30T18:30:00Z",
-      "used_inr": 4996.2,
-      "used_paise": 499620,
-      "held_inr": 0,
-      "held_paise": 0,
-      "remaining_inr": 3.8,
-      "remaining_paise": 380,
-      "percent_used": 99.92,
+      "used_inr": 4940,
+      "used_paise": 494000,
+      "held_inr": 60,
+      "held_paise": 6000,
+      "remaining_inr": 0,
+      "remaining_paise": 0,
+      "percent_used": 98.8,
       "state": "reached"
     }
   }
@@ -775,7 +783,8 @@ the hold is released.
 ```
 
 `error.spend_limit` is the same object [`GET /v2/workspaces/{id}/spend`](#see-how-much-of-the-limit-is-used)
-returns. Retry a refused call with the same `Idempotency-Key` once there is room.
+returns. Here the brand has used 98.8%, and calls running now hold the rest, so
+nothing is left for a new call. Retry a refused call with the same `Idempotency-Key` once there is room.
 
 **To start calling again**, raise or remove the limit, or wait for the next
 month on a monthly limit. Then start the brand's paused campaigns again with
@@ -803,7 +812,9 @@ and to your account's, and both can go to an
 
 Each is sent once per period for each limit setting: once a month on a monthly
 limit, once on a lifetime limit. Changing the amount or period sets them up to
-fire again. See the [payload](/v2/webhook-subscriptions#payloads).
+fire again. Each copy's top-level `workspace_id` is the workspace that receives
+it (the brand, or your account), while `data.workspace_id` is always the brand.
+See the [payload](/v2/webhook-subscriptions#payloads).
 
 ## See one brand's usage
 
