@@ -1,7 +1,7 @@
 ---
 title: "Wallet API: balance and transactions"
 sidebarTitle: "Wallet"
-description: "Check your prepaid balance, read every credit and debit in the ledger, top up, and handle a 402 when the balance runs out."
+description: "Check your prepaid balance and what is held, read every credit and debit in the ledger, reserve number renewals, top up, and handle a 402 when the balance or a brand's limit runs out."
 ---
 
 import OutOfCredit from "/snippets/out-of-credit.mdx";
@@ -61,17 +61,30 @@ GET /v2/wallet
 
 ```json title="200 OK"
 {
-  "balance_inr": 500,
+  "balance_inr": 1200,
+  "balance_paise": 120000,
   "currency": "INR",
-  "updated_at": "2026-07-26T09:12:44Z"
+  "updated_at": "2026-11-16T05:00:00Z",
+  "reserved_for_renewals_inr": 3000,
+  "reserved_for_renewals_paise": 300000,
+  "held_for_calls_inr": 60,
+  "held_for_calls_paise": 6000,
+  "renewal_reserve": { "enabled": true, "days_before": 7 }
 }
 ```
 
 | Field | Type | Description |
 | :--- | :--- | :--- |
-| `balance_inr` | number | Spendable balance. Never negative. |
+| `balance_inr`, `balance_paise` | number, integer | Spendable balance: what new calls and requests can use now, after every hold below. Never negative. |
 | `currency` | string | Always `INR`. |
 | `updated_at` | string | When the balance last changed. |
+| `reserved_for_renewals_inr`, `reserved_for_renewals_paise` | number, integer | Held for number renewals coming up, when [renewal reserve](#wallet-settings) is on. `0` when it is off. |
+| `held_for_calls_inr`, `held_for_calls_paise` | number, integer | Held for calls running now: each call's worst-case charge, until it ends and is charged. |
+| `renewal_reserve` | object | Your [renewal reserve](#wallet-settings) setting: `enabled` and `days_before`. |
+| `spend` | object | Only on a request with a sub-workspace's `Mirai-Workspace` header: that brand's [spending limit and usage](/v2/sub-workspaces#see-how-much-of-the-limit-is-used). |
+
+Held money is still yours and still in the wallet. It just can't be spent on
+anything else until it is charged or released.
 
 <Tip>
 **Alert on this, don't discover it**
@@ -80,6 +93,85 @@ Poll the balance on a schedule (hourly is plenty) and alert your own team below
 a threshold that covers a day of traffic. A `402` in the middle of a campaign is
 a much worse way to learn you are out of credit.
 </Tip>
+
+### A sub-workspace's view
+
+With a sub-workspace's `Mirai-Workspace` header, the answer is the same shared
+wallet, plus `spend`: the brand's [spending limit](/v2/sub-workspaces#spending-limits)
+and how much of it is used.
+
+```json title="200 OK"
+{
+  "balance_inr": 1200,
+  "balance_paise": 120000,
+  "currency": "INR",
+  "updated_at": "2026-11-16T05:00:00Z",
+  "reserved_for_renewals_inr": 3000,
+  "reserved_for_renewals_paise": 300000,
+  "held_for_calls_inr": 60,
+  "held_for_calls_paise": 6000,
+  "renewal_reserve": { "enabled": true, "days_before": 7 },
+  "spend": {
+    "object": "workspace_spend",
+    "workspace_id": "ws_5e0c7a1f9b3d2e6a4c8f0b17",
+    "spend_limit": { "amount_inr": 5000, "amount_paise": 500000, "period": "monthly", "updated_at": "2026-11-16T05:00:00Z" },
+    "period": "monthly",
+    "timezone": "Asia/Kolkata",
+    "period_start": "2026-10-31T18:30:00Z",
+    "period_end": "2026-11-30T18:30:00Z",
+    "used_inr": 1234.5,
+    "used_paise": 123450,
+    "held_inr": 60,
+    "held_paise": 6000,
+    "remaining_inr": 3705.5,
+    "remaining_paise": 370550,
+    "percent_used": 24.69,
+    "state": "ok"
+  }
+}
+```
+
+## Wallet settings
+
+```http
+GET   /v2/wallet/settings
+PATCH /v2/wallet/settings
+```
+
+Wallet settings hold one choice today: **renewal reserve**. When it is on, the
+₹1,500 for each Mirai number that renews automatically is held in your wallet a
+few days before its renewal, so calls can't spend the money the number needs.
+It is off until you turn it on. See
+[Reserve renewals ahead of time](/v2/phone-numbers#reserve-renewals-ahead-of-time).
+
+```bash
+curl -X PATCH https://prod.voice.miraiminds.co/v2/wallet/settings \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "renewal_reserve": { "enabled": true, "days_before": 7 } }'
+```
+
+```json title="200 OK"
+{
+  "object": "wallet_settings",
+  "renewal_reserve": { "enabled": true, "days_before": 7 },
+  "updated_at": "2026-11-16T05:00:00Z"
+}
+```
+
+| Field | Type | Description |
+| :--- | :--- | :--- |
+| `renewal_reserve.enabled` | boolean | Hold renewals ahead of time. Default `false`. |
+| `renewal_reserve.days_before` | integer | How many days before a renewal to hold its amount: `1` to `30`. Default `7`, the day of the first renewal reminder. |
+| `updated_at` | string \| null | When the settings last changed. `null` if they never have. |
+
+- Send either field on its own. A field you leave out keeps its value.
+- Turning the reserve off releases every renewal hold at once.
+- The settings belong to your account. A request with a sub-workspace's
+  `Mirai-Workspace` header can read them, but a `PATCH` with that header
+  answers `400 invalid_request`: change them from your account.
+- A workspace that has not [gone live](/v2/go-live) has no production wallet,
+  so both routes answer `409 production_wallet_required`.
 
 ## List transactions
 
@@ -370,6 +462,11 @@ and when you are back above the level. `payment.succeeded` and
 `payment.failed` report top-ups and failed debits. See
 [webhook subscriptions](/v2/webhook-subscriptions#wallet-and-payments).
 
+For a [sub-workspace with a spending limit](/v2/sub-workspaces#spending-limits),
+`workspace.spend_limit.warning` and `workspace.spend_limit.reached` tell you
+when the brand has used 80% and 100% of it. See
+[spending limit events](/v2/webhook-subscriptions#spending-limits).
+
 ## `402` insufficient balance
 
 Before dialling, we check the wallet can cover at least one minute at the
@@ -388,20 +485,47 @@ call's tier. If it cannot:
   is created.
 - **Retry after topping up**, with the same `Idempotency-Key` — the failed
   request did not consume it.
-- **Calls already in flight are not killed.** A call that started with credit
-  runs to its natural end, then debits. A wallet can therefore end a busy minute
-  slightly lower than the pre-dial check implied.
+- **Calls already in flight are not killed.** Before a call dials, its
+  worst-case charge is held (`held_for_calls_*`), so a call that started runs to
+  its natural end and is then charged for the time it ran.
 
-Handle it explicitly — it is the one error that is a business condition rather
-than a bug:
+## `402` spend limit reached
+
+A call placed with a [sub-workspace](/v2/sub-workspaces)'s header can also be
+refused because that brand is at the
+[spending limit](/v2/sub-workspaces#spending-limits) you set for it, even when
+the wallet has credit:
+
+```json title="402 Payment Required"
+{
+  "error": {
+    "code": "spend_limit_reached",
+    "message": "this sub-workspace has reached its spending limit",
+    "doc_url": "https://docs.miraiminds.co/v2/sub-workspaces/#spending-limits",
+    "spend_limit": { "object": "workspace_spend", "remaining_inr": 3.8, "state": "reached", "…": "…" }
+  }
+}
+```
+
+`error.spend_limit` is the brand's full [spend object](/v2/sub-workspaces#see-how-much-of-the-limit-is-used).
+Nothing is dialled or charged. Topping up does not clear it: raise or remove the
+brand's limit, or wait for the next month on a monthly limit.
+
+## Handle a `402`
+
+Handle both codes explicitly. They are business conditions rather than bugs:
 
 <Tabs>
   <Tab title="Python">
     ```python
     r = httpx.post(f"{API}/v2/calls", headers=auth, json=payload, timeout=30)
     if r.status_code == 402:
+        err = r.json()["error"]
         pause_campaign()
-        alert_ops(r.json()["error"]["message"])
+        if err["code"] == "spend_limit_reached":
+            alert_ops(f"brand at its limit: {err['spend_limit']['remaining_inr']} INR left")
+        else:  # insufficient_balance
+            alert_ops(err["message"])
     else:
         r.raise_for_status()
     ```
@@ -412,7 +536,11 @@ than a bug:
     if (res.status === 402) {
       const { error } = await res.json();
       await pauseCampaign();
-      await alertOps(error.message);
+      if (error.code === "spend_limit_reached") {
+        await alertOps(`brand at its limit: ${error.spend_limit.remaining_inr} INR left`);
+      } else { // insufficient_balance
+        await alertOps(error.message);
+      }
     } else if (!res.ok) {
       throw new Error(await res.text());
     }
