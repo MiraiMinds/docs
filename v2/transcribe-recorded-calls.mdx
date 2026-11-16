@@ -254,10 +254,10 @@ that is deleted when the request ends, and the transcription service deletes
 the recording once it has decoded it. A recording link is fetched once and is
 not stored.
 
-The transcript stays with the transcription service, so that
-`GET /v2/transcriptions/{id}` can return it. There is no published retention
-period for transcripts yet, so copy each finished transcript into your own
-storage. If a transcript is no longer available, its job still reads
+The transcript is kept, with no expiry today, so that
+`GET /v2/transcriptions/{id}` can return it. Workspace retention settings, and
+APIs to delete call data, are coming in an upcoming release; we'll let you know
+when they ship. If a transcript is no longer available, its job still reads
 `completed` with its cost, but without `text` and `segments`. The job record
 itself (status, file name, size, length and cost) stays with your workspace and
 appears in **Logs**. There is no endpoint to delete a transcript; if you need

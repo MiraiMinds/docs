@@ -338,7 +338,7 @@ tuned for prompts in the hundreds of tokens, not thousands.
 | Wallet ledger | 12 months |
 | Campaigns and their contact rows | For the life of the workspace |
 | Offline transcription audio | Not kept. An upload passes through a temporary file that is deleted when the request ends, a file sent by link is fetched once, and the transcription service deletes the recording once it has decoded it. |
-| Offline transcripts | Kept by the transcription service so that [`GET /v2/transcriptions/{id}`](/v2/transcriptions#get-a-transcription) can return them, with no published retention period. There is no endpoint to delete one yet. |
+| Offline transcripts | No expiry, so that [`GET /v2/transcriptions/{id}`](/v2/transcriptions#get-a-transcription) can return them. There is no endpoint to delete one yet. |
 
 You can fetch recordings and transcripts through the API with
 [`GET /v2/calls/{id}/recording`](/v2/calls#get-the-recording) and
@@ -354,9 +354,8 @@ We don't use your call recordings or transcripts to train models. We may run
 evaluations (quality checks) on some calls, but none of your calls are used for
 training.
 
-Save your own copy of each offline transcript when its job completes. If a
-transcript is no longer available, its job still reads `completed` with its
-cost, but without the text. To have a transcript removed, write to
+If an older offline transcript is no longer available, its job still reads
+`completed` with its cost, but without the text. To have a transcript removed, write to
 [help@miraiminds.co](mailto:help@miraiminds.co).
 
 ---
