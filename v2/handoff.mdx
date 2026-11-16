@@ -431,16 +431,27 @@ webhooks. A call that never had a takeover doesn't have them.
   "cost": {
     "ai_secs": 73,
     "human_secs": 108,
+    "human_per_min_inr": 3,
+    "human_per_min_paise": 300,
     "legs": [
-      { "handoff_id": "hof_01K2M6A1B3C5D7E9F1G3H5J7K9", "telco_secs": 108, "per_min_inr": 0, "amount_inr": 0 }
+      {
+        "handoff_id": "hof_01K2M6A1B3C5D7E9F1G3H5J7K9",
+        "telco_secs": 108,
+        "telco_per_min_inr": 0.3,
+        "telco_per_min_paise": 30,
+        "amount_inr": 0.55,
+        "amount_paise": 55
+      }
     ]
   }
 }
 ```
 
-This shows only the takeover fields of a call on a number from your own telco
-account, so the person's phone call has no Mirai line charge. The other fields
-of the call and of `cost` are as usual.
+This shows only the takeover fields of a call on a number from Mirai, on a plan
+billed at ₹3 a minute. The person's 108-second call is rounded to 110 seconds,
+like the line, and costs ₹0.55. On a number from your own telco account or
+trunk, the leg's rate and amount are `0`. The other fields of the call and of
+`cost` are as usual.
 
 | Field | Description |
 | :--- | :--- |
@@ -448,7 +459,8 @@ of the call and of `cost` are as usual.
 | `handoffs` | Every takeover on the call, with the fields of the [handoff object](#the-handoff-object) that matter afterwards. |
 | `segments` | Who handled each part of the call: `handled_by` (`ai` or `human`), `start_ms` and `end_ms` from the start of the call's audio, and `handoff_id` on a person's part. Absent when nobody joined. |
 | `cost.ai_secs`, `cost.human_secs` | The seconds the agent handled and the seconds the person handled. Together they cover the call's `duration_secs`. |
-| `cost.legs` | One entry for each person who joined: `handoff_id`, their call's `telco_secs`, `per_min_inr` (`0.3` on a number from Mirai, `0` on your own telco or trunk) and `amount_inr`, the charge for their call. |
+| `cost.human_per_min_inr`, `cost.human_per_min_paise` | The rate for the person's part of the call. It is your plan's normal per-minute rate. |
+| `cost.legs` | One entry for each person who joined: `handoff_id`, their call's `telco_secs`, `telco_per_min_inr` / `telco_per_min_paise` (`0.3` / `30` on a number from Mirai, `0` on your own telco or trunk) and `amount_inr` / `amount_paise`, the charge for their call. |
 
 - **Ended reason.** A call that ends while the person is on it ends
   `completed`, with `ended_reason: "transferred"`, whoever hung up.
