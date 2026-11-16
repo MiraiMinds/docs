@@ -62,7 +62,7 @@ when the call is answered.
 | :--- | :--- |
 | Placed and ringing (`queued`, `dialing`) | [Pre-call tool events](#pre-call-tools), when the agent has pre-call tools. Otherwise nothing yet. The stream is open and sends a keep-alive comment every 15 seconds. |
 | Answered | `agent.state`, the first event of the conversation. |
-| In conversation | `agent.state` each time the agent's state changes, one `transcript.turn` per completed turn, `turn.metrics` with how fast each reply came, and `tool.started` and `tool.completed` when the agent runs a tool. A [node-based agent](/v2/node-agents) also sends `flow.node.entered` and `flow.variables.extracted`. A background pre-call tool's `tool.completed` arrives here when it answers. |
+| In conversation | `agent.state` each time the agent's state changes, one `transcript.turn` per completed turn, `turn.metrics` with how fast each reply came, and `tool.started` and `tool.completed` when the agent runs a tool. A [node-based agent](/v2/node-agents) also sends `flow.node.entered` and `flow.variables.extracted`. A background pre-call tool's `tool.completed` arrives here when it answers. A [human takeover](/v2/handoff) sends its [takeover events](#takeover-events). |
 | Ended | `call.ended`, then the stream closes. |
 
 ### A call nobody answers
@@ -140,7 +140,7 @@ campaign and inbound calls, which have no `events_url`.
     call = mirai.calls.create(agent_id="agt_01JZQ8F3K7M2N5P9R4T6V8W0XZ", to="+919876543210")
     for event in mirai.calls.events(call.id):
         if event.type == "agent.state":
-            print("agent is", event.data["state"])  # listening, processing, speaking, ended
+            print("agent is", event.data["state"])  # listening, processing, speaking, paused, ended
         elif event.type == "transcript.turn":
             print(event.data["role"], event.data["text"])
         elif event.type == "call.ended":
@@ -267,7 +267,8 @@ state and the conversation:
     const { role, text, interrupted } = JSON.parse(e.data).data;
     const li = document.createElement("li");
     // textContent, never innerHTML: transcript text is what people said.
-    li.textContent = `${role === "user" ? "Customer" : "Agent"}: ${text}` +
+    const who = { user: "Customer", assistant: "Agent", human: "Your team" }[role] ?? role;
+    li.textContent = `${who}: ${text}` +
       (interrupted ? " (interrupted)" : "");
     $("transcript").append(li);
   });
@@ -312,7 +313,7 @@ data: {"v":1,"seq":9,"type":"transcript.turn","call_id":"call_01K8D7R2T4V6X8Z0B2
 | :--- | :--- |
 | `v` | Schema version. `1`. |
 | `seq` | Sequence number of the event within this call, increasing. Pre-call tool events and the conversation's events share one count. |
-| `type` | `agent.state`, `transcript.turn`, `turn.metrics`, `tool.started`, `tool.completed`, `tool.missing`, `control.applied`, `control.completed` or `call.ended`, plus `flow.node.entered` and `flow.variables.extracted` for a [node-based agent](/v2/node-agents). The same value as the SSE `event` line. |
+| `type` | `agent.state`, `transcript.turn`, `turn.metrics`, `tool.started`, `tool.completed`, `tool.missing`, `control.applied`, `control.completed` or `call.ended`, plus `flow.node.entered` and `flow.variables.extracted` for a [node-based agent](/v2/node-agents), and the [takeover events](#takeover-events) (`handoff.*` and `call.handling`) when a person takes over the call. The same value as the SSE `event` line. |
 | `call_id` | The call this event belongs to. |
 | `at` | When it happened. RFC 3339, UTC. |
 | `data` | The type-specific payload below. |
@@ -338,6 +339,7 @@ Ignore what you do not recognise.
 | `listening` | Waiting for the person on the call. The agent returns here when its audio stops. |
 | `processing` | The person finished a turn; the agent is preparing its reply. |
 | `speaking` | The agent's audio is playing. This follows the actual audio, not the text being written, so it is safe to drive a "speaking" indicator. |
+| `paused` | A person from your team has [taken over the call](/v2/handoff). The agent stays silent from here to the end of the call. |
 | `ended` | The conversation is over. `call.ended` follows. |
 
 On a browser call, the page's own playback buffer can add a short delay
@@ -363,7 +365,8 @@ One event per completed turn, for both speakers.
 
 | Field | Description |
 | :--- | :--- |
-| `role` | `user` (the person on the call, such as your customer on a phone call) or `assistant` (the agent). |
+| `role` | `user` (the person on the call, such as your customer on a phone call), `assistant` (the agent), or `human` (a person from your team who [took over the call](/v2/handoff)). |
+| `handoff_id` | On `human` turns only: the takeover the person joined through. |
 | `text` | What was said in that turn. |
 | `turn` | The turn's number within the call. |
 | `interrupted` | `true` when the person cut the agent off. `text` is then what they actually heard, not the full reply the agent had planned. |
@@ -550,6 +553,53 @@ finished on the line. Neither carries the words.
 | `type` | `instruction`, `say`, `play` or `close`. |
 | `played` | `true` when the audio started and finished, cut short by the caller included. `false` when it never started, for example because the call was ending. Only on `control.completed`. |
 
+### Takeover events
+
+Sent when a person from your team [takes over the call](/v2/handoff). A
+takeover that connects sends `handoff.armed`, then `handoff.connecting`, then
+`handoff.joined` together with `call.handling` and `agent.state` `paused`.
+After that come the conversation's turns, with the person's as
+`role: "human"`, and finally `handoff.ended` and `call.ended`.
+
+```json
+{
+  "v": 1, "seq": 41, "type": "handoff.armed",
+  "call_id": "call_01JZQ9B4M8N3P6R2S5T7V9W1YA", "at": "2026-11-16T10:08:00.020Z",
+  "data": {
+    "handoff_id": "hof_01K2M6A1B3C5D7E9F1G3H5J7K9",
+    "mode": "talk",
+    "connect": { "type": "dial_in", "dial": "+918047360814", "to": "+919812345678" },
+    "expires_at": "2026-11-16T10:09:00.012Z"
+  }
+}
+```
+
+```json
+{
+  "v": 1, "seq": 47, "type": "handoff.ended",
+  "call_id": "call_01JZQ9B4M8N3P6R2S5T7V9W1YA", "at": "2026-11-16T10:10:09.880Z",
+  "data": {
+    "handoff_id": "hof_01K2M6A1B3C5D7E9F1G3H5J7K9",
+    "reason": "human_hung_up",
+    "ended_by": "human",
+    "duration_secs": 108
+  }
+}
+```
+
+| Event | `data` |
+| :--- | :--- |
+| `handoff.armed` | `handoff_id`, `mode`, `connect` (`type`, `dial`: the number to dial, `to`: the handoff number), `expires_at`. |
+| `handoff.connecting` | `handoff_id`, and `leg` with details of the person's call. Their call matched and is being joined. |
+| `handoff.joined` | `handoff_id`, `mode`, `ai` (`paused`), `at_ms`: when the person joined, in milliseconds from the start of the call's audio. |
+| `call.handling` | `from` (`ai`), `to` (`human`), `handoff_id`. The person has the call now. |
+| `handoff.failed` | `handoff_id`, `reason`, such as `join_failed`. The caller is still with the agent. |
+| `handoff.cancelled` | `handoff_id`. You cancelled it before the person joined. |
+| `handoff.expired` | `handoff_id`. No matching call came in time. The caller is still with the agent. |
+| `handoff.ended` | `handoff_id`, `reason`, `ended_by` (`human`, `caller`, `api` or `system`), `duration_secs`. The call ends next. |
+
+Each `reason` is described with the [handoff object](/v2/handoff#the-handoff-object).
+
 ### `call.ended`
 
 Always the last event. The stream closes after it.
@@ -598,7 +648,8 @@ on.
 The stream is read-only. To steer any call while it runs (phone, browser or
 realtime), send a [live control](/v2/live-control): an instruction, a line the
 agent says word for word, an audio clip, or a goodbye. To stop a call at once,
-use [`POST /v2/calls/{id}/abort`](/v2/calls#abort-a-call).
+use [`POST /v2/calls/{id}/abort`](/v2/calls#abort-a-call). To have a person
+from your team join a phone call, arm a [human takeover](/v2/handoff).
 
 ## Privacy
 

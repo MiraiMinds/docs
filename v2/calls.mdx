@@ -82,6 +82,8 @@ a key from a workspace that has not gone live is refused with
 | `cost.telco_per_min_inr` | number | Managed provider rate; absent for BYO telco, WhatsApp and browser calls. |
 | `cost.telco_provider` | string | The managed provider, when a provider charge applies. |
 | `cost.telco_billing_block_secs` | integer | The provider's billing block, which can differ from the voice AI block. |
+| `cost.ai_secs`, `cost.human_secs` | integer | Only on a call with a [human takeover](/v2/handoff): the seconds the agent handled and the seconds a person from your team handled. |
+| `cost.legs` | array | Only on a call with a human takeover: one entry for each person who joined, with `handoff_id`, `telco_secs`, `telco_per_min_paise` and `amount_paise` for their phone call. |
 | `cost_inr` | number \| null | The same total as `cost.amount_inr`, kept for older integrations. `null` until the call is billed and on free calls. Use `cost.amount_inr` in new code. |
 | `recording_available` | boolean | Whether [`GET /recording`](#get-the-recording) will return audio. |
 | `transcript_available` | boolean | Whether [`GET /transcript`](#get-the-transcript) will return turns. |
@@ -93,6 +95,9 @@ a key from a workspace that has not gone live is refused with
 | `contact_id` | string | The campaign contact the call was to: the `id` you sent with the contact, or the one we minted. Only on campaign calls. |
 | `call_settings` | object | The voice and languages the call runs with, and who chose each. See [call settings](#call-settings). Absent on calls from before per-call settings existed (October 2026) and on incoming calls turned away before an agent was found. |
 | `analysis` | object \| null | The [post-call analysis](/v2/analysis#where-the-result-appears) when the agent has `analysis.enabled`: summary, `success`, extracted `data` and, with templates, the chosen follow-up message in `analysis.template`. `null` otherwise. |
+| `handling` | string | Only on a call with a [human takeover](/v2/handoff): `ai` while the agent has the call, `human` once a person from your team has joined. |
+| `handoffs` | array | Only on a call with a human takeover: each takeover's `id`, `mode`, `connect`, `state`, `outcome`, `reason`, `created_at`, `joined_at`, `ended_at` and `duration_secs`. See [on the call](/v2/handoff#on-the-call). |
+| `segments` | array | Only on a call with a human takeover: who handled each part, as `handled_by` (`ai` or `human`), `start_ms`, `end_ms` and, on a person's part, `handoff_id`. |
 
 {/* FLOW-OUTCOME */}
 
@@ -198,14 +203,14 @@ for control flow; use `ended_reason` for analytics and support.
 | `time-limit-close` | `completed` | The [timing policy](/v2/web-calls#timing-policy) closed the call before its hard cap. Billable. |
 | `user-silence-close` | `completed` | The [timing policy](/v2/web-calls#timing-policy) closed the call after the user stayed silent for `user_silence_close_secs`. Billable. |
 | `assistant-error` | `failed` | A failure on our side, while setting the call up or during it. Not billed. |
-| `transferred` | `completed` | Reserved for a call that ends in a warm transfer to a human. Transfer is not available yet, so **no call emits this yet**. See the [roadmap](/general/roadmap). |
+| `transferred` | `completed` | The call ended while a person from your team was on it after a [human takeover](/v2/handoff): the person or the caller hung up, or you ended it with `end`. Billable. |
 | `balance-exhausted` | `completed` | Reserved for a call ended when the wallet emptied mid-call. **Not wired, so no call emits this yet.** |
 
 <Note>
 Treat `ended_reason` as an open vocabulary. We add new values without a version
-bump, so always have a default branch. The last two rows above are in the
-vocabulary, but **no call emits them today**. They arrive when warm transfer
-and later releases ship. See the [roadmap](/general/roadmap).
+bump, so always have a default branch. The last row above is in the
+vocabulary, but **no call emits it today**. It arrives with a later release.
+See the [roadmap](/general/roadmap).
 </Note>
 
 <Warning>
@@ -707,7 +712,7 @@ curl https://sandbox.voice.miraiminds.co/v2/calls/call_01K7Q9B4M8N3P6R2S5T7V9W1Y
 
 | Field | Notes |
 | :--- | :--- |
-| `role` | `assistant` or `user`. Nothing else appears, because internal steps are not part of the conversation. |
+| `role` | `assistant` or `user`, and `human` for a person from your team who [took over the call](/v2/handoff). A `human` turn also carries `handoff_id`. Nothing else appears, because internal steps are not part of the conversation. |
 | `text` | The turn as spoken. Hindi, Hinglish and English arrive as they were said; nothing is translated. |
 | `start_ms`, `end_ms` | Milliseconds from the start of the **recording**, so a turn lines up with the audio. `end_ms` can be `null` on the last turn of a call that was cut off. |
 
@@ -825,6 +830,10 @@ inbound calls, browser calls and realtime sessions.
 | `401` | `invalid_token` | The `token` in a media or events link is unknown, expired, already used, or for another call |
 | `404` | `not_found` | Unknown call or control ID, or one in another workspace |
 | `409` | `call_not_active` | Control sent to a call that has not connected yet (still ringing or `queued`) or has already ended |
+
+To have a person from your team join a phone call and take it over from the
+agent, see [Human takeover](/v2/handoff). It has its own endpoints under
+`/v2/calls/{id}/handoffs`.
 
 ---
 

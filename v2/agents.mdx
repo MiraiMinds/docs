@@ -88,6 +88,7 @@ only `pre_call` and `post_call` tools are allowed. See
 | `behavior` | object | no | How the agent takes turns with the caller, and whether it knows the date. See [Behavior](#behavior). Default `{"interruptions": "normal", "adaptive_interruptions": true, "pass_through": [], "date_awareness": true}`. |
 | `booking` | object \| null | no | A booking window: which days a caller can book. See [Booking window](#booking-window). Present on the agent object only when set. PATCH replaces the whole block; `null` removes it. |
 | `flow` | object \| null | no | A node graph. Makes this a [node-based agent](/v2/node-agents). Present on the agent object only when set. PATCH replaces the whole graph; `null` removes it. |
+| `handoff` | object | no | `{"number": "+91…"}`: the phone number a person from your team calls from to [take over a live call](/v2/handoff). An Indian number in E.164. A takeover request's `connect.to` wins over it. |
 
 Server-set and read-only: `id`, `object`, `created_at`, `updated_at`, and
 `keyterm_spellings` on `GET /v2/agents/{id}` (see [Keyterms](#keyterms)).
