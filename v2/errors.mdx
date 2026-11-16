@@ -135,8 +135,10 @@ case nothing was armed or changed, and the caller is still with the agent.
 | `handoff_disabled` | `403` | Takeover is switched off for the moment. | Try again later, or [write to us](mailto:help@miraiminds.co?subject=Human%20takeover). |
 | `no_handoff_number` | `400` | The request has no `connect.to`, and the agent has no `handoff.number`. | Send `connect.to`, or set `handoff.number` on the agent. |
 | `handoff_in_progress` | `409` | Another takeover on this call is armed, connecting or active. | Wait for it to end, or cancel it. |
+| `handoff_limit_reached` | `409` | The call already had 5 takeovers. | Let the caller finish with the agent, and follow up after the call. |
 | `handoff_unavailable` | `409` | The call could not get ready for a takeover. `message` says why. | Arm again. If it keeps failing, send us the `call_id`. |
 | `handoff_active` | `409` | `cancel` after the person joined. | Use `end`, which ends the call. |
+| `handoff_not_active` | `409` | `end` before the person joined. | Use `cancel`. |
 
 
 ### Campaigns

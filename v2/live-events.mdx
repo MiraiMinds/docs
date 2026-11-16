@@ -590,7 +590,7 @@ After that come the conversation's turns, with the person's as
 | Event | `data` |
 | :--- | :--- |
 | `handoff.armed` | `handoff_id`, `mode`, `connect` (`type`, `dial`: the number to dial, `to`: the handoff number), `expires_at`. |
-| `handoff.connecting` | `handoff_id`, and `leg` with details of the person's call. Their call matched and is being joined. |
+| `handoff.connecting` | `handoff_id`. The person's call matched and is being joined. |
 | `handoff.joined` | `handoff_id`, `mode`, `ai` (`paused`), `at_ms`: when the person joined, in milliseconds from the start of the call's audio. |
 | `call.handling` | `from` (`ai`), `to` (`human`), `handoff_id`. The person has the call now. |
 | `handoff.failed` | `handoff_id`, `reason`, such as `join_failed`. The caller is still with the agent. |

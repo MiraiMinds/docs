@@ -90,6 +90,9 @@ curl -X PATCH https://sandbox.voice.miraiminds.co/v2/agents/agt_01JZQ8F3K7M2N5P9
   -d '{ "handoff": { "number": "+919812345678" } }'
 ```
 
+Send `"handoff": null` to clear it. An agent without one has no `handoff`
+field.
+
 Or send `connect.to` when you arm a takeover. The number in the request wins
 over the agent's. Use it when several people can take over calls for the same
 agent.
@@ -201,7 +204,7 @@ handoff number and a 60-second window.
 | `connect.type` | `dial_in`, the default and the only value today: the person dials in. |
 | `connect.to` | The handoff number for this takeover, `+91` and 10 digits. Defaults to the agent's `handoff.number`. It can't be the call's own number or the caller's number. |
 | `ttl_secs` | How long the window stays open for the person's call. Default `60`, from `15` to `180`. |
-| `instruction` | Text the agent gets as a [live instruction](/v2/live-control) when the takeover is armed, for example to ask the caller to hold. It is not read out word for word. |
+| `instruction` | Up to 1,000 characters. The agent gets it as a [live instruction](/v2/live-control) when the takeover is armed, for example to ask the caller to hold. It is not read out word for word. |
 | `metadata` | Your own fields, up to 2 KB of JSON. Returned on the takeover, unchanged. |
 | `mode` | `talk`, the default and the only value today: the person talks to the caller. |
 | `ai` | `paused`, the default and the only value today: the agent stays silent once the person joins. |
@@ -214,7 +217,8 @@ the caller stays with the agent.
 
 **One at a time.** A call has at most one takeover armed, connecting or active.
 Another request meanwhile is `409 handoff_in_progress`. A call can have up to 5
-takeovers in all, so you can arm again after one expires or fails.
+takeovers in all, so you can arm again after one expires or fails. A sixth is
+`409 handoff_limit_reached`.
 
 **Single use.** A takeover matches one call from the person. A call that
 doesn't match (a second call from the person, a call after the window closes,
@@ -240,8 +244,12 @@ a different body is `409 conflict`.
 | `state` | `armed`, `connecting`, `active` or `ended`. See below. |
 | `outcome` | Once `ended`: `completed`, `failed`, `cancelled` or `expired`. |
 | `reason` | Once `ended`: why, from the table below. |
+
+`outcome`, `reason`, `joined_at`, `ended_at`, `ended_by` and `duration_secs`
+are filled in once they are known.
 | `created_at`, `expires_at` | RFC 3339, UTC. The person's call must arrive before `expires_at`. |
 | `joined_at`, `ended_at` | RFC 3339, UTC. When the person joined, and when the takeover ended. |
+| `ended_by` | Who ended it once the person had joined: `human`, `caller`, `api` or `system`. |
 | `duration_secs` | How long the person was on the call. |
 | `metadata` | Your `metadata`, unchanged. |
 
@@ -297,6 +305,7 @@ curl https://sandbox.voice.miraiminds.co/v2/calls/call_01JZQ9B4M8N3P6R2S5T7V9W1Y
       "expires_at": "2026-11-16T10:09:00.012Z",
       "joined_at": "2026-11-16T10:08:21.402Z",
       "ended_at": "2026-11-16T10:10:09.880Z",
+      "ended_by": "human",
       "duration_secs": 108,
       "metadata": { "app_session": "owner-app-7f3c" }
     }
@@ -311,9 +320,10 @@ POST /v2/calls/{call_id}/handoffs/{handoff_id}/cancel
 ```
 
 Closes the window before the person joins. The caller stays with the agent,
-and a later call from the person is an ordinary incoming call. Cancelling
-again is harmless and returns the same takeover. Once the person has joined,
-cancel answers `409 handoff_active`: use `end` instead.
+and a later call from the person is an ordinary incoming call. It answers `200`
+with the takeover, now `ended` with `outcome: "cancelled"`. Cancelling again
+returns it unchanged. Once the person has joined, cancel answers
+`409 handoff_active`: use `end` instead.
 
 ```bash
 curl -X POST https://sandbox.voice.miraiminds.co/v2/calls/call_01JZQ9B4M8N3P6R2S5T7V9W1YA/handoffs/hof_01K2M6A1B3C5D7E9F1G3H5J7K9/cancel \
@@ -327,15 +337,17 @@ POST /v2/calls/{call_id}/handoffs/{handoff_id}/end
 ```
 
 Ends the whole call after the person has joined: the person's line and the
-caller's. The call ends `completed` with `ended_reason: "transferred"`, and the
-takeover's `reason` is `ended_by_api`. Ending again is harmless.
+caller's. It answers `200` with the takeover. The call ends `completed` with
+`ended_reason: "transferred"`, and the takeover's `reason` is `ended_by_api`.
+Ending again returns the takeover unchanged.
 
 ```bash
 curl -X POST https://sandbox.voice.miraiminds.co/v2/calls/call_01JZQ9B4M8N3P6R2S5T7V9W1YA/handoffs/hof_01K2M6A1B3C5D7E9F1G3H5J7K9/end \
   -H "Authorization: Bearer sk_live_YOUR_API_KEY"
 ```
 
-To stop a takeover before the person joins, cancel it.
+Before the person joins, `end` answers `409 handoff_not_active`: cancel the
+takeover instead.
 
 ## Errors
 
@@ -344,18 +356,17 @@ To stop a takeover before the person joins, cancel it.
 | `404` | `not_found` | Unknown call or takeover ID, or one in another workspace |
 | `403` | `parent_account_required` | The call is in a [sub-workspace](#sub-workspaces) and the request did not come from your parent workspace's key |
 | `400` | `unsupported_channel` | The call is not a phone call on one of your own numbers: a browser call, a realtime session, a text chat, a WhatsApp call, or a call on the Mirai shared line |
-| `400` | `invalid_request` | A field is wrong: `connect.to` not `+91` and 10 digits, or the same as the call's number or the caller's number; `ttl_secs` outside 15 to 180; `metadata` over 2 KB; or a `connect.type`, `mode`, `ai` or `after_human` value other than the ones above |
+| `400` | `invalid_request` | A field is wrong: `connect.to` not `+91` and 10 digits, or the same as the call's number or the caller's number; `ttl_secs` outside 15 to 180; `instruction` over 1,000 characters; `metadata` over 2 KB; or a `connect.type`, `mode`, `ai` or `after_human` value other than the ones above |
 | `403` | `handoff_disabled` | Takeover is switched off for the moment. Nothing was armed, and the caller is still with the agent |
 | `400` | `no_handoff_number` | No `connect.to` in the request, and the agent has no `handoff.number` |
 | `409` | `conflict` | `Idempotency-Key` reused with a different body |
 | `409` | `call_not_active` | The call has not connected yet (still ringing or queued), or has ended |
 | `409` | `handoff_in_progress` | Another takeover on this call is armed, connecting or active |
+| `409` | `handoff_limit_reached` | The call already had 5 takeovers |
 | `503` | `upstream_unavailable` | A service we depend on is briefly down. Nothing was armed. Retry |
 | `409` | `handoff_unavailable` | The call could not get ready for a takeover. Nothing was armed, and the caller is still with the agent. `message` says why |
 | `409` | `handoff_active` | `cancel` after the person joined. Use `end` |
-
-The checks run in the order of this table, so a request with several problems
-gets the first one.
+| `409` | `handoff_not_active` | `end` before the person joined. Use `cancel` |
 
 ## Live events
 
@@ -365,7 +376,7 @@ takeover as it happens:
 | Event | When |
 | :--- | :--- |
 | `handoff.armed` | The takeover is armed. Carries `connect.dial` and `expires_at`. |
-| `handoff.connecting` | The person's call matched. |
+| `handoff.connecting` | The person's call matched and is being joined. |
 | `handoff.joined` | The person is on the call. |
 | `call.handling` | The call moved from the agent to the person: `from: "ai"`, `to: "human"`. |
 | `agent.state` | `paused` while the person has the call. |
@@ -421,23 +432,23 @@ webhooks. A call that never had a takeover doesn't have them.
     "ai_secs": 73,
     "human_secs": 108,
     "legs": [
-      { "handoff_id": "hof_01K2M6A1B3C5D7E9F1G3H5J7K9", "telco_secs": 108, "telco_per_min_paise": 0, "amount_paise": 0 }
+      { "handoff_id": "hof_01K2M6A1B3C5D7E9F1G3H5J7K9", "telco_secs": 108, "per_min_inr": 0, "amount_inr": 0 }
     ]
   }
 }
 ```
 
 This shows only the takeover fields of a call on a number from your own telco
-account, so the person's line costs nothing here. The other fields of the call
-and of `cost` are as usual.
+account, so the person's phone call has no Mirai line charge. The other fields
+of the call and of `cost` are as usual.
 
 | Field | Description |
 | :--- | :--- |
 | `handling` | Who has the call now, or had it at the end: `ai` or `human`. |
 | `handoffs` | Every takeover on the call, with the fields of the [handoff object](#the-handoff-object) that matter afterwards. |
-| `segments` | Who handled each part of the call: `handled_by` (`ai` or `human`), `start_ms` and `end_ms` from the start of the call's audio, and `handoff_id` on a person's part. |
+| `segments` | Who handled each part of the call: `handled_by` (`ai` or `human`), `start_ms` and `end_ms` from the start of the call's audio, and `handoff_id` on a person's part. Absent when nobody joined. |
 | `cost.ai_secs`, `cost.human_secs` | The seconds the agent handled and the seconds the person handled. Together they cover the call's `duration_secs`. |
-| `cost.legs` | One entry for each person who joined: their call's `telco_secs`, the line rate `telco_per_min_paise`, and `amount_paise`. |
+| `cost.legs` | One entry for each person who joined: `handoff_id`, their call's `telco_secs`, the line rate `per_min_inr`, and `amount_inr`. |
 
 - **Ended reason.** A call that ends while the person is on it ends
   `completed`, with `ended_reason: "transferred"`, whoever hung up.
@@ -455,14 +466,21 @@ and of `cost` are as usual.
 
 ## Billing
 
-The call's `cost` shows the takeover apart from the rest of the call: the
-seconds the agent handled (`ai_secs`), the seconds the person handled
-(`human_secs`), and the person's own phone call (`legs`). `cost.amount_inr` is
-the total charged for the call, takeover included, and the debit in your
-[ledger](/v2/wallet#list-transactions) matches it.
+- **The call.** The whole call, the person's part included, is billed at your
+  [plan's](/general/tiers) normal per-minute rate. Nothing changes when a
+  person takes over, and there is no takeover fee.
+- **The person's phone call.** Their call into your number is billed at your
+  plan's Mirai phone calling rate, with the same
+  [rounding](/general/tiers#metering) as the caller's line, and shown on its
+  own in `cost.legs`. On a number from your own telco account or your own SIP
+  trunk there is no Mirai line charge.
+- **A takeover that never connects**, because it expired, failed or was
+  cancelled, costs nothing extra.
 
-A takeover that never connects, because it expired, failed or was cancelled,
-costs nothing.
+`cost.ai_secs` and `cost.human_secs` show how the call's time was split. They
+don't change the rate. `cost.amount_inr` is the total charged for the call,
+the person's phone call included, and the debit in your
+[ledger](/v2/wallet#list-transactions) matches it.
 
 ## Sub-workspaces
 

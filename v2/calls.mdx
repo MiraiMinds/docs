@@ -83,7 +83,7 @@ a key from a workspace that has not gone live is refused with
 | `cost.telco_provider` | string | The managed provider, when a provider charge applies. |
 | `cost.telco_billing_block_secs` | integer | The provider's billing block, which can differ from the voice AI block. |
 | `cost.ai_secs`, `cost.human_secs` | integer | Only on a call with a [human takeover](/v2/handoff): the seconds the agent handled and the seconds a person from your team handled. |
-| `cost.legs` | array | Only on a call with a human takeover: one entry for each person who joined, with `handoff_id`, `telco_secs`, `telco_per_min_paise` and `amount_paise` for their phone call. |
+| `cost.legs` | array | Only on a call where a person joined after a human takeover: one entry for each person, with `handoff_id`, `telco_secs`, `per_min_inr` and `amount_inr` for their phone call. See [billing](/v2/handoff#billing). |
 | `cost_inr` | number \| null | The same total as `cost.amount_inr`, kept for older integrations. `null` until the call is billed and on free calls. Use `cost.amount_inr` in new code. |
 | `recording_available` | boolean | Whether [`GET /recording`](#get-the-recording) will return audio. |
 | `transcript_available` | boolean | Whether [`GET /transcript`](#get-the-transcript) will return turns. |
@@ -97,7 +97,7 @@ a key from a workspace that has not gone live is refused with
 | `analysis` | object \| null | The [post-call analysis](/v2/analysis#where-the-result-appears) when the agent has `analysis.enabled`: summary, `success`, extracted `data` and, with templates, the chosen follow-up message in `analysis.template`. `null` otherwise. |
 | `handling` | string | Only on a call with a [human takeover](/v2/handoff): `ai` while the agent has the call, `human` once a person from your team has joined. |
 | `handoffs` | array | Only on a call with a human takeover: each takeover's `id`, `mode`, `connect`, `state`, `outcome`, `reason`, `created_at`, `joined_at`, `ended_at` and `duration_secs`. See [on the call](/v2/handoff#on-the-call). |
-| `segments` | array | Only on a call with a human takeover: who handled each part, as `handled_by` (`ai` or `human`), `start_ms`, `end_ms` and, on a person's part, `handoff_id`. |
+| `segments` | array | Only on a call where a person joined after a human takeover: who handled each part, as `handled_by` (`ai` or `human`), `start_ms`, `end_ms` and, on a person's part, `handoff_id`. |
 
 {/* FLOW-OUTCOME */}
 
