@@ -306,13 +306,17 @@ POST /v2/calls/{id}/control
 
 Steer or close a browser call while it is in progress. Send it from your
 backend with your API key. If the user starts the action in the page, the page
-asks your backend.
+asks your backend. Live control works the same on phone calls and realtime
+sessions; [Live control](/v2/live-control) is the full reference, including
+`say` (a line the agent says word for word) and `play` (an audio clip).
 
 | Field | Required | Description |
 | :--- | :--- | :--- |
-| `type` | yes | `instruction` or `close`. |
-| `text` | `instruction` only | 1 to 1,000 characters. The direction to give the agent. |
+| `type` | yes | `instruction`, `say`, `play` or `close`. |
+| `text` | `instruction` and `say` | 1 to 1,000 characters. The direction to give the agent, or the line it says. |
 | `message` | no | `close` only, up to 500 characters. The goodbye line to speak. |
+| `interrupt` | no | `say` and `play` only. `true` cuts the agent off; `false` (default) waits for its sentence. |
+| `audio_url` | `play` (or upload a file) | An `https` link to a WAV, MP3, OGG or FLAC clip, at most 2 MB and 60 seconds. See [play an audio clip](/v2/live-control#play-an-audio-clip). |
 
 - **`instruction`** adds your text to the agent's context. The agent follows it
   from its next reply for the rest of the call. The text is not read aloud.
@@ -409,7 +413,7 @@ curl https://sandbox.voice.miraiminds.co/v2/calls/call_01K8B2M4Q6S8T0V2X4Z6A8C0E
 | `pending` | Sent, not yet confirmed by the live call. Check again. |
 | `applied` | The live call accepted it. `applied_at` is set. |
 | `rejected` | The live call refused it. `reason` says why: `call_ending` (the call is already ending) or `already_closed` (a `close` was already applied). |
-| `failed` | It could not be applied. |
+| `failed` | It could not be applied. For a clip, `reason` is `audio_unavailable`, `invalid_audio` or `audio_too_long`. |
 
 **Idempotency.** Send an `Idempotency-Key`. A repeat with the same key returns
 the same control record and is never delivered twice, so a retry cannot make
@@ -417,8 +421,9 @@ the agent say goodbye twice.
 
 | Status | `error.code` | Cause |
 | :--- | :--- | :--- |
-| `400` | `invalid_request` | Unknown `type`, `text` missing or longer than 1,000 characters, `message` longer than 500 |
-| `400` | `unsupported_channel` | The call is not a browser call. Live control is for `channel: "web"` only. |
+| `400` | `invalid_request` | Unknown `type`, a field that does not belong to it, `text` missing or longer than 1,000 characters, `message` longer than 500, a clip that is not audio or is too big |
+| `400` | `audio_unavailable` | A `play` control's `audio_url` could not be fetched |
+| `400` | `unsupported_channel` | The call is a console text chat. Live control works on phone, browser and realtime calls. |
 | `404` | `not_found` | Unknown call ID, or a call in another workspace |
 | `409` | `call_not_active` | The call is not in progress: still `queued` (the page has not connected yet), or already ended |
 
