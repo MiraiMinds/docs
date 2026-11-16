@@ -194,7 +194,7 @@ for control flow; use `ended_reason` for analytics and support.
 | `skipped-by-condition` | `aborted` | A pre-call [`skip_call`](/v2/tools#skip-when-a-condition-holds) matched, or your [WhatsApp resolver](/cookbooks/whatsapp-calling-for-partners) answered `allow: false`. Nothing was dialled, and an incoming caller is not answered. Free. |
 | `precall-tool-failed` | `failed` | A pre-call tool with `on_failure: "abort"` failed or ran out of time. Nothing was dialled, and an incoming caller is not answered. Free. |
 | `aborted-by-api` | `aborted` | You called [`POST /abort`](#abort-a-call). An abort produces this reason and no other. |
-| `api-ended-call` | `completed` | You sent a [`close` control](/v2/web-calls#live-control): the agent said goodbye and the call ended. Billable. |
+| `api-ended-call` | `completed` | You sent a [`close` control](/v2/live-control): the agent said goodbye and the call ended. Billable. |
 | `time-limit-close` | `completed` | The [timing policy](/v2/web-calls#timing-policy) closed the call before its hard cap. Billable. |
 | `user-silence-close` | `completed` | The [timing policy](/v2/web-calls#timing-policy) closed the call after the user stayed silent for `user_silence_close_secs`. Billable. |
 | `assistant-error` | `failed` | A failure on our side, while setting the call up or during it. Not billed. |
@@ -402,8 +402,7 @@ you send them.
 - Keep values short. They are part of the prompt, and the prompt is on the
   latency path.
 - Variables are **static per call**. There is no way to change them mid-call.
-  On a browser call, an [`instruction`](/v2/web-calls#live-control) can direct
-  the agent mid-call instead.
+  An [`instruction`](/v2/live-control) can direct the agent mid-call instead.
 - On a [node-based agent](/v2/node-agents#variables-in-node-text), variables
   fill the node prompts, the start node's greeting and extraction prompts.
   Transition conditions are not filled in.
@@ -778,8 +777,8 @@ it up mid-conversation. On a [browser call](/v2/web-calls), abort also closes
 the browser's audio socket. Only a call that has already reached a terminal
 status is refused.
 
-Abort is immediate and silent. To end a browser call with a spoken goodbye,
-send a [`close` control](/v2/web-calls#live-control) instead.
+Abort is immediate and silent. To end a call with a spoken goodbye, send a
+[`close` control](/v2/live-control) instead.
 
 ```bash
 curl -X POST https://sandbox.voice.miraiminds.co/v2/calls/call_01JZQ9B4M8N3P6R2S5T7V9W1YA/abort \
@@ -805,22 +804,25 @@ call. An abort while the call is still queued or ringing costs nothing.
 
 ## Live control and events
 
-Three more endpoints work while a call runs. Every call has the live event
-stream. Live control is for browser calls; [Browser calls](/v2/web-calls)
-covers it in full.
+Three more endpoints work while a call runs. Every voice call has the live
+event stream and takes live controls: phone calls you place, campaign and
+inbound calls, browser calls and realtime sessions.
+[Live control](/v2/live-control) covers controls in full.
 
 | Endpoint | What it does |
 | :--- | :--- |
 | `GET /v2/calls/{id}/events` | The live event stream (Server-Sent Events): agent state, each completed turn and, for a [node-based agent](/v2/node-agents), each step. Every call has one: phone calls you place, campaign and inbound calls, browser calls and realtime sessions. Opened with the `events_url` from create, or with your API key. See [Live events](/v2/live-events). |
-| `POST /v2/calls/{id}/control` | Send an `instruction` the agent follows from its next reply, or `close` the call with a spoken goodbye. Browser calls in progress only. See [live control](/v2/web-calls#live-control). |
+| `POST /v2/calls/{id}/control` | Send an `instruction` the agent follows from its next reply, a line it says word for word (`say`), an audio clip to play (`play`), or `close` the call with a spoken goodbye. Any voice call in progress. See [Live control](/v2/live-control). |
 | `GET /v2/calls/{id}/control/{control_id}` | Read a control's current status: `pending`, `applied`, `rejected` or `failed`. |
 
 | Status | `error.code` | Cause |
 | :--- | :--- | :--- |
-| `400` | `unsupported_channel` | Control sent to a call that is not a browser call |
+| `400` | `invalid_request` | A control body that does not fit its `type`, or a clip that is not audio, is over 2 MB or over 60 seconds |
+| `400` | `audio_unavailable` | A `play` control's `audio_url` could not be fetched |
+| `400` | `unsupported_channel` | Control sent to a console text chat |
 | `401` | `invalid_token` | The `token` in a media or events link is unknown, expired, already used, or for another call |
 | `404` | `not_found` | Unknown call or control ID, or one in another workspace |
-| `409` | `call_not_active` | Control sent to a call that is still `queued` or has already ended |
+| `409` | `call_not_active` | Control sent to a call that has not connected yet (still ringing or `queued`) or has already ended |
 
 ---
 

@@ -75,11 +75,11 @@ agent can transfer a call today. Until it ships, have the agent tell the caller
 that the team will call them back, and follow up from your own systems.
 
 **Can I change the prompt or variables mid-call?**
-The prompt and `variables` are fixed for a call. On a
-[browser call](/v2/web-calls), your backend can still direct the agent while it
-runs with a [live `instruction`](/v2/web-calls#live-control), close it with a
-spoken goodbye, and let it wrap up on time with a
-[timing policy](/v2/web-calls#timing-policy).
+The prompt and `variables` are fixed for a call. On any call (phone, browser
+or realtime), your backend can still direct the agent while it runs with a
+[live `instruction`](/v2/live-control), have it say a line word for word, play
+an audio clip, or close the call with a spoken goodbye. A browser call can also
+wrap up on time with a [timing policy](/v2/web-calls#timing-policy).
 
 **Can I get the recording or transcript?**
 Yes. Fetch them with [`GET /v2/calls/{id}/transcript`](/v2/calls#get-the-transcript)

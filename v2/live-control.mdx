@@ -1,0 +1,210 @@
+---
+title: "Live control: steer a call while it runs"
+sidebarTitle: "Live control"
+description: "Send an instruction, a line the agent says word for word, or an audio clip into a phone, browser or realtime call in progress, or end it with a goodbye."
+---
+
+Your backend can step into a call while it is in progress. It works on every
+voice call: phone calls you place, campaign and inbound calls,
+[browser calls](/v2/web-calls) and [realtime sessions](/v2/realtime).
+
+```http
+POST /v2/calls/{id}/control
+GET  /v2/calls/{id}/control/{control_id}
+```
+
+Send controls from your backend with your API key. They never go in a browser.
+
+## Control types
+
+| `type` | Body | What the caller gets |
+| :--- | :--- | :--- |
+| `instruction` | `text`, 1 to 1,000 characters | Nothing directly. The agent follows it from its next reply to the end of the call. It is never read aloud. |
+| `say` | `text`, 1 to 1,000 characters; `interrupt` (optional) | The agent says exactly that text, in its own voice. |
+| `play` | `audio_url`, or an uploaded file; `interrupt` (optional) | An audio clip, played on the line. |
+| `close` | `message`, up to 500 characters (optional) | A goodbye, then the call ends. Without `message`, the agent speaks its [`end_call.message`](/v2/agents#ending-a-call), or else a short goodbye of its own. The call ends `completed` with `ended_reason: "api-ended-call"`. |
+
+`interrupt` decides what happens when the agent is talking:
+
+- `true` cuts the agent off and speaks or plays right away.
+- `false` (the default) waits for the agent to finish its sentence, up to 8
+  seconds.
+
+A field that does not belong to the type, such as `interrupt` on an
+`instruction` or `message` on a `say`, is `400 invalid_request`.
+
+## Tell the agent something, or say it now
+
+Say the owner approves a discount while the agent is still negotiating on a
+phone call. An `instruction` shapes the agent's next reply. A `say` puts the
+words on the line straight away.
+
+<Tabs>
+  <Tab title="cURL">
+    ```bash
+    # Tell the agent, so its next reply uses it
+    curl -X POST https://sandbox.voice.miraiminds.co/v2/calls/call_01JZQ9B4M8N3P6R2S5T7V9W1YA/control \
+      -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+      -H "Content-Type: application/json" \
+      -H "Idempotency-Key: order-8842-approval" \
+      -d '{ "type": "instruction", "text": "The owner approves a final price of ₹4,500. Offer it." }'
+
+    # Or have the agent say it right now
+    curl -X POST https://sandbox.voice.miraiminds.co/v2/calls/call_01JZQ9B4M8N3P6R2S5T7V9W1YA/control \
+      -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+      -H "Content-Type: application/json" \
+      -H "Idempotency-Key: order-8842-approval-say" \
+      -d '{ "type": "say", "text": "Good news, the owner has approved ₹4,500 for you.", "interrupt": true }'
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    import os, httpx
+
+    API = "https://sandbox.voice.miraiminds.co"
+    auth = {"Authorization": f"Bearer {os.environ['MIRAI_API_KEY']}"}
+
+    def control(call_id: str, body: dict, key: str) -> dict:
+        r = httpx.post(
+            f"{API}/v2/calls/{call_id}/control",
+            headers={**auth, "Idempotency-Key": key},
+            json=body,
+            timeout=30,
+        )
+        return r.raise_for_status().json()
+
+    control(call_id, {"type": "say",
+                      "text": "Good news, the owner has approved ₹4,500 for you.",
+                      "interrupt": True},
+            key="order-8842-approval-say")
+    ```
+  </Tab>
+  <Tab title="Node.js">
+    ```javascript
+    const API = "https://sandbox.voice.miraiminds.co";
+    const auth = { Authorization: `Bearer ${process.env.MIRAI_API_KEY}` };
+
+    async function control(callId, body, key) {
+      const res = await fetch(`${API}/v2/calls/${callId}/control`, {
+        method: "POST",
+        headers: { ...auth, "Content-Type": "application/json", "Idempotency-Key": key },
+        body: JSON.stringify(body),
+      });
+      const out = await res.json();
+      if (!res.ok) throw new Error(`${out.error.code}: ${out.error.message}`);
+      return out; // out.status: applied | pending | rejected | failed
+    }
+
+    await control(callId, {
+      type: "say",
+      text: "Good news, the owner has approved ₹4,500 for you.",
+      interrupt: true,
+    }, "order-8842-approval-say");
+    ```
+  </Tab>
+</Tabs>
+
+```json title="200 OK"
+{
+  "id": "ctl_01K2M5X8C2E4G6J8M0P2R4T6V8",
+  "object": "call_control",
+  "call_id": "call_01JZQ9B4M8N3P6R2S5T7V9W1YA",
+  "type": "say",
+  "status": "applied",
+  "created_at": "2026-11-16T10:03:10.120Z",
+  "applied_at": "2026-11-16T10:03:10.410Z"
+}
+```
+
+A `say` line becomes part of the conversation. It is in the transcript, and the
+agent knows it said it.
+
+## Play an audio clip
+
+Give a link to the clip:
+
+```bash
+curl -X POST https://sandbox.voice.miraiminds.co/v2/calls/call_01JZQ9B4M8N3P6R2S5T7V9W1YA/control \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "type": "play", "audio_url": "https://cdn.example.com/clips/owner-approval.mp3" }'
+```
+
+Or upload the file itself as `multipart/form-data`, with the clip in a file
+part named `audio`. Other controls are always sent as JSON.
+
+```bash
+curl -X POST https://sandbox.voice.miraiminds.co/v2/calls/call_01JZQ9B4M8N3P6R2S5T7V9W1YA/control \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+  -F type=play -F interrupt=false -F audio=@owner-approval.wav
+```
+
+- The clip is WAV, MP3, OGG or FLAC, at most 2 MB and 60 seconds. It is
+  converted to the call's audio format, so a phone line and a browser both
+  play it correctly.
+- `audio_url` must be `https` on a public host. Private and internal addresses
+  are refused. The clip is fetched once, when you send the control, and
+  redirects are not followed. If the fetch fails, the answer is
+  `400 audio_unavailable` with the reason, and nothing plays.
+- The agent is told a clip was played, so it can respond naturally if the
+  caller reacts to it.
+
+<Note>
+  A caller who talks over a `say` line or a clip cuts it off, the same as any
+  reply from the agent.
+</Note>
+
+## Responses
+
+The request waits up to 3 seconds for the call to confirm the control.
+
+| HTTP | `status` | Meaning |
+| :--- | :--- | :--- |
+| `200` | `applied` | The call accepted it. `applied_at` is set. For `say` and `play`, the audio is queued and starts as `interrupt` says. |
+| `200` | `rejected` | The call refused it. `reason` says why: `call_ending` (the call is already ending) or `already_closed` (a `close` was already applied). |
+| `200` | `failed` | It could not be applied. For a clip, `reason` is `audio_unavailable`, `invalid_audio` (it does not decode) or `audio_too_long`. |
+| `202` | `pending` | Delivered, not confirmed yet. Read it again with `GET`. |
+
+```bash
+curl https://sandbox.voice.miraiminds.co/v2/calls/call_01JZQ9B4M8N3P6R2S5T7V9W1YA/control/ctl_01K2M5X8C2E4G6J8M0P2R4T6V8 \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY"
+```
+
+Controls can be read for an hour after the call ends.
+
+**Idempotency.** Send an `Idempotency-Key`. A repeat with the same key returns
+the same control and is never delivered twice, so a retry cannot make the agent
+say something twice. The same key with a different body is `409 conflict`.
+
+**Events.** The [live event stream](/v2/live-events) sends `control.applied`
+when a control takes effect, and `control.completed` when a `say` or `play` has
+finished on the line.
+
+**Billing.** Controls cost nothing extra. The call is billed per minute as
+usual.
+
+## Errors
+
+| Status | `error.code` | Cause |
+| :--- | :--- | :--- |
+| `400` | `invalid_request` | Unknown `type`, a field that does not belong to it, text too long, `audio_url` not `https` or on a private address, a clip over 2 MB or 60 seconds, or a file that is not audio |
+| `400` | `audio_unavailable` | `audio_url` could not be fetched: not found, too slow, redirected or too big |
+| `400` | `unsupported_channel` | The call is a console text chat |
+| `404` | `not_found` | Unknown call or control ID, or one in another workspace |
+| `409` | `call_not_active` | The call has not connected yet (a phone still ringing, a browser page not yet connected), or has ended |
+| `409` | `conflict` | `Idempotency-Key` reused with a different body |
+
+## Close or abort
+
+A `close` control ends a call with a goodbye. To stop a call at once with no
+goodbye, use [`POST /v2/calls/{id}/abort`](/v2/calls#abort-a-call).
+
+## Privacy
+
+- The text of an `instruction` or a `say` is never echoed in responses or in
+  the event stream. A `say` line appears in the transcript, like anything the
+  agent says.
+- A clip is used only to play it on that call. It is not kept after it has
+  played.
+- If a clip carries a recorded voice, make sure you have the right to use it,
+  and tell callers about recordings where your rules require it.

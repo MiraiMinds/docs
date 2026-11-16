@@ -312,7 +312,7 @@ data: {"v":1,"seq":9,"type":"transcript.turn","call_id":"call_01K8D7R2T4V6X8Z0B2
 | :--- | :--- |
 | `v` | Schema version. `1`. |
 | `seq` | Sequence number of the event within this call, increasing. Pre-call tool events and the conversation's events share one count. |
-| `type` | `agent.state`, `transcript.turn`, `turn.metrics`, `tool.started`, `tool.completed`, `tool.missing` or `call.ended`, plus `flow.node.entered` and `flow.variables.extracted` for a [node-based agent](/v2/node-agents). The same value as the SSE `event` line. |
+| `type` | `agent.state`, `transcript.turn`, `turn.metrics`, `tool.started`, `tool.completed`, `tool.missing`, `control.applied`, `control.completed` or `call.ended`, plus `flow.node.entered` and `flow.variables.extracted` for a [node-based agent](/v2/node-agents). The same value as the SSE `event` line. |
 | `call_id` | The call this event belongs to. |
 | `at` | When it happened. RFC 3339, UTC. |
 | `data` | The type-specific payload below. |
@@ -530,6 +530,26 @@ something was extracted.
 | `node_id` | The node whose extraction ran. |
 | `variables` | The names that node asked for, with the values extracted: strings, numbers or booleans. |
 
+### `control.applied` and `control.completed`
+
+`control.applied` arrives when one of your [live controls](/v2/live-control)
+takes effect. `control.completed` arrives when a `say` or `play` control has
+finished on the line. Neither carries the words.
+
+```json
+{
+  "v": 1, "seq": 31, "type": "control.completed",
+  "call_id": "call_01JZQ9B4M8N3P6R2S5T7V9W1YA", "at": "2026-11-16T10:03:14.902Z",
+  "data": { "control_id": "ctl_01K2M5X8C2E4G6J8M0P2R4T6V8", "type": "play", "played": true }
+}
+```
+
+| Field | Description |
+| :--- | :--- |
+| `control_id` | The control's id, as `POST /v2/calls/{id}/control` returned it. |
+| `type` | `instruction`, `say`, `play` or `close`. |
+| `played` | `true` when the audio started and finished, cut short by the caller included. `false` when it never started, for example because the call was ending. Only on `control.completed`. |
+
 ### `call.ended`
 
 Always the last event. The stream closes after it.
@@ -575,10 +595,10 @@ on.
 
 ## Steering or stopping a call
 
-The stream is read-only. To steer a browser call or a realtime session while it
-runs, send a [live control](/v2/web-calls#live-control). A phone call answers
-live control with `400 unsupported_channel`. To stop a phone call, use
-[`POST /v2/calls/{id}/abort`](/v2/calls#abort-a-call).
+The stream is read-only. To steer any call while it runs (phone, browser or
+realtime), send a [live control](/v2/live-control): an instruction, a line the
+agent says word for word, an audio clip, or a goodbye. To stop a call at once,
+use [`POST /v2/calls/{id}/abort`](/v2/calls#abort-a-call).
 
 ## Privacy
 
