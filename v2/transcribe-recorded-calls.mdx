@@ -254,14 +254,17 @@ that is deleted when the request ends, and the transcription service deletes
 the recording once it has decoded it. A recording link is fetched once and is
 not stored.
 
-The transcript stays with the transcription service, so that
-`GET /v2/transcriptions/{id}` can return it. There is no published retention
-period for transcripts yet, so copy each finished transcript into your own
-storage. If a transcript is no longer available, its job still reads
+The transcript is kept, with no expiry today, so that
+`GET /v2/transcriptions/{id}` can return it. Workspace retention settings, and
+APIs to delete call data, are coming in an upcoming release; we'll let you know
+when they ship. If a transcript is no longer available, its job still reads
 `completed` with its cost, but without `text` and `segments`. The job record
 itself (status, file name, size, length and cost) stays with your workspace and
 appears in **Logs**. There is no endpoint to delete a transcript; if you need
 one removed, write to [help@miraiminds.co](mailto:help@miraiminds.co).
+
+We don't use your recordings or transcripts to train models. We may run
+evaluations (quality checks) on some, but none are used for training.
 
 Recordings and transcripts of calls are personal data under India's Digital
 Personal Data Protection Act, and under laws such as the GDPR when they cover

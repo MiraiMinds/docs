@@ -88,6 +88,16 @@ transcript in a webhook with [final results](/v2/webhooks#final-results). To
 store no audio, create calls with `recording_enabled: false`. Retention is on
 the [limits page](/v2/limits#data-retention).
 
+**How long do you keep recordings and transcripts?**
+With no expiry today, along with the call logs. Workspace retention settings,
+and APIs to delete call data, are coming in an upcoming release; we'll let you
+know when they ship.
+
+**Do you train models on our calls?**
+No. We don't use your call recordings or transcripts to train models. We may
+run evaluations (quality checks) on some calls, but none of your calls are used
+for training.
+
 **Can I show a phone call on my own dashboard while it runs?**
 Yes. Every call has a [live event stream](/v2/live-events) with the agent's
 state and each turn as it happens. A call you place returns `events_url`, which
