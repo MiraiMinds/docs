@@ -448,7 +448,7 @@ of the call and of `cost` are as usual.
 | `handoffs` | Every takeover on the call, with the fields of the [handoff object](#the-handoff-object) that matter afterwards. |
 | `segments` | Who handled each part of the call: `handled_by` (`ai` or `human`), `start_ms` and `end_ms` from the start of the call's audio, and `handoff_id` on a person's part. Absent when nobody joined. |
 | `cost.ai_secs`, `cost.human_secs` | The seconds the agent handled and the seconds the person handled. Together they cover the call's `duration_secs`. |
-| `cost.legs` | One entry for each person who joined: `handoff_id`, their call's `telco_secs`, the line rate `per_min_inr`, and `amount_inr`. |
+| `cost.legs` | One entry for each person who joined: `handoff_id`, their call's `telco_secs`, `per_min_inr` (`0.3` on a number from Mirai, `0` on your own telco or trunk) and `amount_inr`, the charge for their call. |
 
 - **Ended reason.** A call that ends while the person is on it ends
   `completed`, with `ended_reason: "transferred"`, whoever hung up.
@@ -469,11 +469,11 @@ of the call and of `cost` are as usual.
 - **The call.** The whole call, the person's part included, is billed at your
   [plan's](/general/tiers) normal per-minute rate. Nothing changes when a
   person takes over, and there is no takeover fee.
-- **The person's phone call.** Their call into your number is billed at your
-  plan's Mirai phone calling rate, with the same
-  [rounding](/general/tiers#metering) as the caller's line, and shown on its
-  own in `cost.legs`. On a number from your own telco account or your own SIP
-  trunk there is no Mirai line charge.
+- **The person's phone call.** On a number from Mirai, their call into your
+  number is billed at ₹0.30 a minute on every plan, on top of the plan's
+  included calling, with the same [rounding](/general/tiers#metering) as the
+  caller's line. On a number from your own telco account or SIP trunk it
+  carries no Mirai charge.
 - **A takeover that never connects**, because it expired, failed or was
   cancelled, costs nothing extra.
 
