@@ -443,7 +443,7 @@ other field.
 | `failed` | Yes | `error.stage` says whether transcription or analysis failed. A failed stage is not charged. |
 
 Statuses only move forward, except that [retrying a failed analysis](#retry-a-failed-analysis)
-moves the recording back to `analyzing`. `started_at`, `transcribed_at` and
+moves the recording back to `queued`, then `analyzing`. `started_at`, `transcribed_at` and
 `completed_at` show where the time went.
 
 ### Speakers
@@ -560,7 +560,8 @@ POST /v2/recordings/{id}/analysis/retry
 ```
 
 Send the `analysis.generation` you read. The answer is `202` with the
-recording, now `analyzing`. The retry uses the stored transcript, so the
+recording, now `queued`: it waits for a free slot again, then moves to
+`analyzing`. The retry uses the stored transcript, so the
 recording is not transcribed again, and transcription is not charged again.
 Insight is charged once, when an analysis completes, however many times you
 retry. If the analysis has not failed, or someone retried it already, the
