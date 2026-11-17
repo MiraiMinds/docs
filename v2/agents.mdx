@@ -82,7 +82,7 @@ only `pre_call` and `post_call` tools are allowed. See
 | `tools` | array | no | Tool definitions for this agent. See [Tools](/v2/tools). PATCH replaces the full list. |
 | `analysis` | object | no | What to work out after each call: a summary, a success verdict, extracted fields and the follow-up message to send. See [Analysis](#analysis). PATCH replaces the whole object. |
 | `emit_processed_webhook` | boolean | no | Defaults to `true`. Set `false` to suppress `call.processed` while keeping analysis and post-call tools enabled. |
-| `inbound_pre_call_timeout_ms` | integer \| null | no | How long an incoming call to one of your phone numbers rings while the agent's pre-call tools run, from `1000` to `10000` (1 to 10 seconds). The call is answered as soon as they finish. Without it the wait is about 2 seconds; send `null` to go back to that. Present on the agent object only when set. See [Incoming calls](/v2/tools#incoming-calls). Coming soon, in final testing. |
+| `inbound_pre_call_timeout_ms` | integer \| null | no | How long an incoming call to one of your phone numbers rings while the agent's pre-call tools run, from `1000` to `10000` (1 to 10 seconds). The call is answered as soon as they finish. Without it the wait is about 2 seconds; send `null` to go back to that. Present on the agent object only when set. See [Incoming calls](/v2/tools#incoming-calls). |
 | `end_call` | object | no | See [Ending a call](#ending-a-call). |
 | `voicemail` | object | no | See [Voicemail](#voicemail). |
 | `background_sound` | string \| object | no | Room ambience under the agent's voice. See [Background sound](#background-sound). Default `off`. |
