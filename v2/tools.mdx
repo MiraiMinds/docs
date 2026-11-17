@@ -389,20 +389,51 @@ Inside another tool's template, use `{{ vars.customer_lookup.name }}` instead.
 The pre-call request runs before dialing, before answering an incoming call,
 or before opening browser audio.
 
-On an incoming call the caller is already ringing, so pre-call tools get about
-two seconds in total. A tool still running when that time is up counts as a
-timeout and follows its `on_failure` rule: with `"continue"` the call is
-answered without that tool's values, and with `"abort"` it is not answered.
-On incoming calls, `{{ vars.caller_number }}` and `{{ vars.called_number }}`
-are available to look the caller up. Keep incoming-call lookups fast. Move
-slower work to a [background pre-call tool](#run-a-slow-lookup-in-the-background),
-which doesn't count against the two seconds, or to an on-call tool with
-`execution: "async"` ([background tools](#synchronous-and-background-tools)).
-
 `on_failure: "abort"` prevents the call if this lookup fails. Nothing is
 dialed, or the incoming caller is not answered, and the call ends `failed`
 with `ended_reason: "precall-tool-failed"`. The default, `"continue"`, lets the
 call go ahead, so if you keep it, write the greeting to handle missing values.
+
+### Incoming calls
+
+<Note>
+**Coming soon.** This is in final testing and not live yet. The section below is the spec, so you can build against it now; we'll confirm in the changelog when it ships.
+</Note>
+
+On an incoming call the caller is already ringing while pre-call tools run.
+The call is answered as soon as they finish. By default they get about two
+seconds in total.
+
+To give your server more time, set `inbound_pre_call_timeout_ms` on the agent,
+from `1000` to `10000` (1 to 10 seconds). In the console it is **Agent Studio**
+→ **Behavior** → **Incoming calls**. The caller hears ringing for up to that
+long. Send `null` to go back to the default.
+
+```bash
+curl --fail-with-body -X PATCH "$MIRAI_API_BASE/v2/agents/$MIRAI_AGENT_ID" \
+  -H "Authorization: Bearer $MIRAI_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "inbound_pre_call_timeout_ms": 6000 }'
+```
+
+A tool still running when the wait is up counts as a timeout and follows its
+`on_failure` rule: with `"continue"` the call is answered without that tool's
+values, and with `"abort"` it is not answered and not charged. Tools run in
+order and share the wait, and each still stops at its own `timeout_ms`, so
+raise that too if one tool needs the time.
+
+- It applies to calls to your phone numbers: Plivo, SIP trunk and managed
+  numbers. WhatsApp calls keep about two seconds. Outbound calls are not
+  affected, because nobody is waiting on the line before dialing.
+- A value outside 1000-10000 is refused with `400 invalid_request`, and the
+  message names the field.
+
+On incoming calls, `{{ vars.caller_number }}` and `{{ vars.called_number }}`
+are available to look the caller up. Keep incoming-call lookups as fast as you
+can: every extra second is a second of ringing. Move slower work to a
+[background pre-call tool](#run-a-slow-lookup-in-the-background), which doesn't
+count against the wait, or to an on-call tool with `execution: "async"`
+([background tools](#synchronous-and-background-tools)).
 
 ### Set the voice and language for the call
 
@@ -855,8 +886,9 @@ narrowing the result the voice agent receives.
 
 You can define up to 40 tools per agent. On-call execution is limited to
 40 runs per call and four concurrent requests per call. The pre-call phase has
-a 30-second total budget, and about two seconds on an incoming call; background
-pre-call tools are outside both. The post-call tool phase has a five-minute
+a 30-second total budget. On an incoming call it has about two seconds, or the
+agent's `inbound_pre_call_timeout_ms` (1 to 10 seconds; see
+[Incoming calls](#incoming-calls)). Background pre-call tools are outside both. The post-call tool phase has a five-minute
 budget, separate from any wait for analysis.
 
 - Endpoints must use public HTTPS on port 443. Private-network destinations and

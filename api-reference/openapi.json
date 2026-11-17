@@ -22812,6 +22812,12 @@
             "description": "Send call.processed when this agent has post-call tools, analysis or a flow (a flow agent's event carries the call's flow outcome). Set false to turn the event off.",
             "type": "boolean"
           },
+          "inbound_pre_call_timeout_ms": {
+            "type": "integer",
+            "minimum": 1000,
+            "maximum": 10000,
+            "description": "How long an incoming phone call waits for this agent's pre-call tools before it is answered, in milliseconds (1000-10000). The caller hears ringing meanwhile; the call is answered as soon as the tools finish. When the wait runs out, the tool still running is a timeout and its on_failure decides: continue answers without its values, abort leaves the call unanswered (not charged). Each tool still stops at its own timeout_ms. Unset (or null) is the default of about 2000. Applies to calls to your phone numbers (Plivo, SIP trunk, managed numbers) only; outbound calls are unaffected and WhatsApp calls keep about 2 seconds. Absent when unset."
+          },
           "emit_queued_webhook": {
             "default": false,
             "type": "boolean"
@@ -23432,6 +23438,15 @@
             "description": "Send call.processed when this agent has post-call tools, analysis or a flow (a flow agent's event carries the call's flow outcome). Set false to turn the event off.",
             "type": "boolean"
           },
+          "inbound_pre_call_timeout_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1000,
+            "maximum": 10000,
+            "description": "How long an incoming phone call waits for this agent's pre-call tools before it is answered, in milliseconds (1000-10000). The caller hears ringing meanwhile; the call is answered as soon as the tools finish. When the wait runs out, the tool still running is a timeout and its on_failure decides: continue answers without its values, abort leaves the call unanswered (not charged). Each tool still stops at its own timeout_ms. Unset (or null) is the default of about 2000. Applies to calls to your phone numbers (Plivo, SIP trunk, managed numbers) only; outbound calls are unaffected and WhatsApp calls keep about 2 seconds."
+          },
           "emit_queued_webhook": {
             "default": false,
             "type": "boolean"
@@ -24008,6 +24023,15 @@
             "default": true,
             "description": "Send call.processed when this agent has post-call tools, analysis or a flow (a flow agent's event carries the call's flow outcome). Set false to turn the event off.",
             "type": "boolean"
+          },
+          "inbound_pre_call_timeout_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1000,
+            "maximum": 10000,
+            "description": "How long an incoming phone call waits for this agent's pre-call tools before it is answered, in milliseconds (1000-10000). The caller hears ringing meanwhile; the call is answered as soon as the tools finish. When the wait runs out, the tool still running is a timeout and its on_failure decides: continue answers without its values, abort leaves the call unanswered (not charged). Each tool still stops at its own timeout_ms. Unset (or null) is the default of about 2000. Applies to calls to your phone numbers (Plivo, SIP trunk, managed numbers) only; outbound calls are unaffected and WhatsApp calls keep about 2 seconds."
           },
           "emit_queued_webhook": {
             "default": false,
