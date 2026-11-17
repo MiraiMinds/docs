@@ -840,7 +840,8 @@ An explicit `end_call` tool can use `builtin.enabled`, `builtin.message`, and
 Its tool-level `enabled` and `condition` also control whether it is available.
 
 `transfer_call` and `send_dtmf` are listed as unavailable. Saving an unavailable
-builtin returns `tool_unavailable`.
+builtin returns `tool_unavailable`. To have a person from your team take over a
+call, your backend arms a [human takeover](/v2/handoff) instead.
 
 ## Tool definition reference
 

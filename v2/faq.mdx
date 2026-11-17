@@ -70,9 +70,14 @@ BYO currently supports Plivo, and numbers are currently limited to India (+91). 
 [inbound calling cookbook](/cookbooks/inbound-calling) for setup and testing.
 
 **Can I transfer a call to a human?**
-Not yet. Transfer to a human is on the [roadmap](/general/roadmap), but no
-agent can transfer a call today. Until it ships, have the agent tell the caller
-that the team will call them back, and follow up from your own systems.
+From 23 November 2026, a person from your team can take over a live phone
+call. Your backend arms a
+[human takeover](/v2/handoff), the person dials your number from their handoff
+number, and the agent stops speaking. It works on calls on numbers you rent
+from Mirai, numbers from your own telco account and numbers on a SIP trunk. It
+doesn't work yet on the Mirai shared line, WhatsApp calls or browser calls.
+The agent can't transfer a call by itself yet, and we can't ring the person for
+you yet. Both are on the [roadmap](/general/roadmap).
 
 **Can I change the prompt or variables mid-call?**
 The prompt and `variables` are fixed for a call. On any call (phone, browser

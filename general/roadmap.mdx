@@ -1,7 +1,7 @@
 ---
 title: "Product roadmap"
 sidebarTitle: "Roadmap"
-description: "What we're shipping next and when: transfer to a person, more TTS languages, model APIs, a visual flow builder and more. Dates are targets."
+description: "What we're shipping next and when: transfer by the agent, more TTS languages, model APIs, a visual flow builder and more. Dates are targets."
 ---
 
 This page lists what is coming, in the order we expect to ship it. The dates
@@ -12,7 +12,8 @@ row on this page, [confirm it with us](mailto:help@miraiminds.co?subject=Roadmap
 | What | Target | Status |
 | :--- | :--- | :--- |
 | [Post-call analytics on every tier](#post-call-analytics-everywhere) — AI summary + QA score in the v2 API | August 2026 | ✅ **live**, with follow-up message templates |
-| [Warm transfer on every tier](#warm-transfer-everywhere) — hand a call to a person | not yet scheduled | planned |
+| [Human takeover](/v2/handoff) on every tier — a person from your team dials in and takes over a live phone call | 23 November 2026 | in final testing |
+| [Transfer by the agent](#human-takeover-and-transfer) — the agent hands a call to a person, or we ring the person for you | not yet scheduled | planned |
 | [Price ladder](/general/tiers) — T5 pay as you go, T3 and T1 with a monthly commitment, one Mira stack on every tier | September 2026 | ✅ **live** |
 | [Campaigns](/v2/campaigns) — server-side dialler with windows, retries, budgets and a report | August 2026 | ✅ **live** |
 | [Transcripts + recordings](/v2/calls#get-the-transcript) in the v2 API | August 2026 | rolling out |
@@ -35,12 +36,21 @@ is part of
 `GET /v2/calls/{id}/analysis` and in the `call.processed` webhook, and it can
 pick the follow-up message template to send after the call.
 
-## Warm transfer everywhere
+## Human takeover and transfer
 
-Transfer to a human is not available yet, and it has no date. The plan is for
-an agent on any tier to hand a call to a person at a number you set per agent.
-A call that ends this way will report
+From 23 November 2026, a person from your team can
+[take over a live phone call](/v2/handoff) on every tier. Your backend arms
+the takeover, the person dials your number from their handoff number, and the
+agent steps back. It works on numbers you rent from Mirai, numbers from your
+own telco account and numbers on a SIP trunk. The call reports
 [`ended_reason: transferred`](/v2/calls#ended-reasons).
+
+Still to come, with no date yet:
+
+- The agent hands a call to a person by itself, with the `transfer_call` tool.
+- We ring the person for you, instead of waiting for them to dial in.
+- A one-time code to confirm the person's call, on top of caller ID.
+- Takeover on the Mirai shared line, WhatsApp calls and browser calls.
 
 ## Model APIs
 

@@ -76,10 +76,12 @@ your pipeline.
 
 Besides ending the call, an agent acts only through the [tools](/v2/tools)
 you give it: HTTP requests to your own systems before, during or after the
-call, and built-ins such as scheduling a callback. Transfer to a human is not
-available yet, so a prompt must never promise "I'll transfer you". It must not
-promise "I'll send you the link" or "I'm booking it in the system" either,
-unless a tool on that agent does exactly that. Without one, the honest line is
+call, and built-ins such as scheduling a callback. The agent can't transfer a
+call by itself, so a prompt must never promise "I'll transfer you". When your
+backend arms a [human takeover](/v2/handoff), the takeover's `instruction`
+tells the agent what to say while the person joins. A prompt must not promise
+"I'll send you the link" or "I'm booking it in the system" either, unless a
+tool on that agent does exactly that. Without one, the honest line is
 "the team will call you back" or "आपको team से call आएगा". For branching
 conversations, use [node-based agents](/v2/node-agents).
 </Warning>

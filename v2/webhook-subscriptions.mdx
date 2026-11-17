@@ -105,8 +105,16 @@ Scope: one agent or the whole workspace.
 | `call.analysis.completed` / `.failed` / `.skipped` | Call analysis reached a final state. |
 | `call.processed` | Analysis and post-call actions finished for this pass. |
 | `call.processing.completed` | Recording, transcript, analysis and post-call actions have all finished, including failures. |
+| `call.handoff.requested` | A [human takeover](/v2/handoff) was armed. The person can dial in now. |
+| `call.handoff.started` | The person joined the call, and the agent stepped back. |
+| `call.handoff.failed` | The takeover did not connect. `data.handoff.reason` is `expired`, `join_failed`, `caller_left` or `worker_unsupported`. Unless the caller left, the caller is still with the agent. |
+| `call.handoff.ended` | The person's part of the call is over, and the call ends with it. `data.handoff` has `duration_secs` and `ended_by`. |
 
-`data.call` is the [call object](/v2/calls).
+`data.call` is the [call object](/v2/calls). Takeover events also carry
+`data.handoff`, the [handoff object](/v2/handoff#the-handoff-object). On a call
+that had a takeover, `call.completed` and `call.processing.completed` carry
+`data.call.handoffs`, `data.call.segments` and the split `cost`. See
+[on the call](/v2/handoff#on-the-call).
 
 ### Campaigns
 
@@ -319,6 +327,48 @@ Every event has the same envelope.
     ```
 
     `required_inr` is what the refused call needed to start. `data.call` is absent when a campaign paused before placing a call.
+  </Accordion>
+  <Accordion title="call.handoff.started">
+    ```json
+    {
+      "id": "evt_5e9b…",
+      "type": "call.handoff.started",
+      "created_at": "2026-11-16T10:08:21Z",
+      "schema_version": "2026-09-22",
+      "workspace_id": "ws_8c2e…",
+      "subject": {"type": "call", "id": "call_01JZQ9B4M8N3P6R2S5T7V9W1YA"},
+      "test": false,
+      "data": {
+        "handoff": {
+          "id": "hof_01K2M6A1B3C5D7E9F1G3H5J7K9",
+          "object": "handoff",
+          "call_id": "call_01JZQ9B4M8N3P6R2S5T7V9W1YA",
+          "mode": "talk",
+          "ai": "paused",
+          "initiator": "api",
+          "connect": {"type": "dial_in", "to": "+919812345678", "dial": "+918047360814"},
+          "state": "active",
+          "after_human": "end_call",
+          "created_at": "2026-11-16T10:08:00Z",
+          "expires_at": "2026-11-16T10:09:00Z",
+          "joined_at": "2026-11-16T10:08:21Z",
+          "metadata": {"app_session": "owner-app-7f3c"}
+        },
+        "call": {
+          "id": "call_01JZQ9B4M8N3P6R2S5T7V9W1YA",
+          "object": "call",
+          "agent_id": "agt_01M5…",
+          "direction": "inbound",
+          "from": "+919876543210",
+          "to": "+918047360814",
+          "status": "in_progress",
+          "handling": "human"
+        }
+      }
+    }
+    ```
+
+    `call.handoff.requested`, `call.handoff.failed` and `call.handoff.ended` carry the same `data.handoff` and `data.call`, with the takeover as it stands at that moment. On `call.handoff.failed`, `data.handoff.reason` says why it did not connect. On `call.handoff.ended`, `data.handoff` adds `reason`, `ended_by` (`human`, `caller`, `api` or `system`), `ended_at` and `duration_secs`. Each `reason` is described with the [handoff object](/v2/handoff#the-handoff-object).
   </Accordion>
   <Accordion title="campaign.completed">
     ```json

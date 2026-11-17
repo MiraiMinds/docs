@@ -16,8 +16,9 @@ other status, or a connection failure, triggers [retries](#retries).
 <Tip>
 To receive events for every call of an agent or of your whole workspace, campaign
 events, low-balance alerts, payment notices, rented phone number notices
-(renewal reminders, renewals, releases and business verification updates) and
-incident notices without a URL on each call, use
+(renewal reminders, renewals, releases and business verification updates),
+[human takeover](/v2/handoff) events and incident notices without a URL on each
+call, use
 [webhook subscriptions](/v2/webhook-subscriptions). Some of
 them can go [to email addresses](/v2/webhook-subscriptions#send-events-by-email)
 instead of a URL.
@@ -92,6 +93,15 @@ A call run by a [node-based agent](/v2/node-agents) always sends
 [final results](#final-results).
 
 {/* /FLOW-OUTCOME */}
+
+A call that ends while a person from your team is on it, after a
+[human takeover](/v2/handoff), ends `completed` with
+`ended_reason: "transferred"`. A call with a takeover carries
+`data.call.handoffs`, `data.call.segments` and the split `cost` on its terminal
+and processing events. The takeover's own events,
+`call.handoff.requested`, `call.handoff.started`, `call.handoff.failed` and
+`call.handoff.ended`, are in the
+[webhook subscriptions](/v2/webhook-subscriptions#calls) catalogue.
 
 [Campaigns](/v2/campaigns) add five more event types. We deliver them to the
 campaign's own `webhook_url`, signed with the same workspace secret and in the
