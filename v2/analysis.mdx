@@ -15,6 +15,10 @@ Analysis runs after the call, so it never slows the conversation down. The
 result is on the call, on its own endpoint and in the
 [`call.processed`](/v2/webhooks#final-results) webhook.
 
+The same analysis can read a recording of a conversation that did not happen
+on Mirai, such as a call from another dialler. See
+[Analyse recorded calls](/v2/recording-analysis).
+
 In the console this is **Post-call results** on the agent, and the webhook
 event `call.analysis.completed` is called **Post-call results ready**. For a
 step-by-step walkthrough with screenshots, see the

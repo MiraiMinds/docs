@@ -23,6 +23,8 @@ Limits are per **secret key**. Requests you send for a
 | Recording transcriptions | 60 per hour **per workspace** | [`POST /v2/agents/flow/transcribe`](/v2/node-agents#transcribe-a-recording) | `429 rate_limited` with `Retry-After` |
 | Offline transcriptions | 120 per hour **per workspace** | [`POST /v2/transcriptions`](/v2/transcriptions#create-a-transcription) | `429 rate_limited` with `Retry-After` |
 | Unfinished offline transcriptions | 20 **per workspace** | jobs not yet `completed` or `failed` | `429 at_capacity` with `Retry-After: 30` |
+| Recording analysis | 120 per hour **per workspace** | [`POST /v2/recordings`](/v2/recording-analysis#send-a-recording) | `429 rate_limited` with `Retry-After` |
+| Recordings in the queue | 20 **per workspace** | recordings queued or in progress | `429 at_capacity` with `Retry-After: 60` |
 
 <Warning>
 **Pilot keys are provisioned individually**
@@ -292,6 +294,19 @@ request.
 | `vocabulary` | 200 terms of up to 100 characters each, `keyterms` included |
 | Time to finish | 24 hours after the job was accepted. After that, the job fails with `timed_out`, free. |
 
+### Recording analysis
+
+[Recording analysis](/v2/recording-analysis) checks the queue and your wallet
+when you send a recording, and nothing is charged for a refused request.
+
+| Thing | Limit |
+| :--- | :--- |
+| Uploaded file | 45 MB. Over it, `413 request_too_large`. Send a larger file by link. |
+| File at `recording_url` | 200 MB. Over it, `413 request_too_large`. |
+| Length of a recording | 60 minutes. Over it, `400 audio_too_long`. |
+| Channels | One or two. More is `400 unsupported_audio`. |
+| In the queue | 20 recordings per workspace, queued or in progress. |
+
 ## Campaign ceilings
 
 [Campaigns](/v2/campaigns) carry their own bounds, all enforced at the API edge
@@ -339,6 +354,7 @@ tuned for prompts in the hundreds of tokens, not thousands.
 | Campaigns and their contact rows | For the life of the workspace |
 | Offline transcription audio | Not kept. An upload passes through a temporary file that is deleted when the request ends, a file sent by link is fetched once, and the transcription service deletes the recording once it has decoded it. |
 | Offline transcripts | No expiry, so that [`GET /v2/transcriptions/{id}`](/v2/transcriptions#get-a-transcription) can return them. There is no endpoint to delete one yet. |
+| Recording analysis audio | Not kept. The audio is deleted once the [recording](/v2/recording-analysis#privacy-and-your-data)'s transcript is stored. |
 
 You can fetch recordings and transcripts through the API with
 [`GET /v2/calls/{id}/recording`](/v2/calls#get-the-recording) and
