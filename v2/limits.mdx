@@ -463,6 +463,7 @@ recording for that call, and a workspace with recording turned off refuses
 | Maximum call duration | ✅ `status: timeout` |
 | Recording off — per call or per workspace | ✅ `recording_enabled: false`; `403 recording_disabled` on a workspace with recording off |
 | Campaign budget cap | ✅ campaign pauses, `pause_reason: budget_exhausted` |
+| [Sub-workspace spending limit](/v2/sub-workspaces#spending-limits) | ✅ `402 spend_limit_reached`; campaigns pause, `pause_reason: spend_limit_reached` |
 | Calling window — **campaigns** | ✅ `slots` + `timezone`, evaluated in local time every tick |
 | Calling window — single `POST /v2/calls` | ❌ your scheduler |
 | Your own opt-out list | ✅ [`/v2/dnc`](/v2/dnc), checked at dial time on every campaign |

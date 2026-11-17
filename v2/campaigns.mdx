@@ -133,8 +133,8 @@ because those rows would never ring.
 
 `pause_reason` tells you whether the operator paused the campaign or we paused
 it for them. A pause you asked for has no reason (`null`), or the `reason` you
-sent with it. The money gate sets `insufficient_balance` and
-`budget_exhausted`, your connected-call limit sets `connected_limit_reached`,
+sent with it. The money gate sets `insufficient_balance`,
+`budget_exhausted` and `spend_limit_reached`, your connected-call limit sets `connected_limit_reached`,
 and a number or pool that cannot call sets `calls_from_unavailable`.
 
 | `pause_reason` | Set when | What to do |
@@ -143,6 +143,7 @@ and a number or pool that cannot call sets `calls_from_unavailable`.
 | `<by>: <reason>` | You called `POST /pause` with a [`reason` or `by`](#pause-a-campaign). | Resume when you are ready. |
 | `insufficient_balance` | The wallet cannot cover another minute at this campaign's tier. | [Add credit](/v2/wallet#top-up), then `POST /start` or `/resume`. |
 | `budget_exhausted` | `spent_paise` has reached `budget_paise`. | Raise `budget_paise` with `PATCH`, then resume. |
+| `spend_limit_reached` | The campaign's [sub-workspace](/v2/sub-workspaces) is at the [spending limit](/v2/sub-workspaces#spending-limits) its account set. `budget_paise` still applies too: whichever is hit first pauses the campaign. | Raise or remove the limit from your account, or wait for the next month on a monthly limit, then `POST /start` or `/resume`. |
 | `connected_limit_reached` | `pause_after_connected` calls have connected since the count began. | Resume when you want the next batch; the count starts again from zero. See [pause after connected calls](#pause-after-connected-calls). |
 | `calls_from_unavailable: …` | The pool or number the campaign calls from can no longer place calls. The reason names it. | Add a ready number to the pool, or [choose another](/v2/phone-numbers#point-a-call-a-campaign-or-an-agent-at-a-pool), then resume. |
 
