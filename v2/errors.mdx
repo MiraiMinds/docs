@@ -8,11 +8,12 @@ import OutOfCredit from "/snippets/out-of-credit.mdx";
 
 ## Money and access
 
-These five stop calls for a reason only you can fix. Each has one fix.
+These six stop calls for a reason only you can fix. Each has one fix.
 
 | `error.code` | Status | What happened | Fix |
 | :--- | :--- | :--- | :--- |
 | `insufficient_balance` | `402` | Out of credit | [Add credit or go live](#out-of-credit) |
+| `spend_limit_reached` | `402` | A brand is at the spending limit you set | [Raise or remove its limit](/v2/sub-workspaces#spending-limits) |
 | `access_expired` | `403` | Your sandbox ended | [Go live](https://sandbox.voice.miraiminds.co/#/live) |
 | `production_workspace_required` | `403` | Sandbox key on production | [Go live first](/v2/go-live) |
 | `contract_unavailable` | `403` | Tier outside your plan | [Leave `tier` out](/general/tiers#setting-the-tier) |
@@ -23,6 +24,14 @@ These five stop calls for a reason only you can fix. Each has one fix.
   model. Nothing was dialled, run or charged. Inside a running
   [campaign](/v2/campaigns) this is not an error: the campaign pauses with
   `pause_reason: "insufficient_balance"`.
+- **`spend_limit_reached`**: a [sub-workspace](/v2/sub-workspaces)'s calls
+  have reached the [spending limit](/v2/sub-workspaces#spending-limits) you set
+  for it, so its remaining limit can't cover one minute of the call. Nothing
+  was dialled or charged. `error.spend_limit` shows what is used and left.
+  Topping up doesn't clear it: raise or remove the limit, or wait for the next
+  month on a monthly limit. A call already accepted ends with
+  `ended_reason: "spend_limit_reached"`, and the brand's campaigns pause with
+  `pause_reason: "spend_limit_reached"`.
 - **`access_expired`**: the sandbox's end date has passed, so its keys stop.
   The message gives the date. See [when a sandbox ends](/v2/go-live#when-a-sandbox-ends).
 - **`production_workspace_required`**: a key from a workspace that has not
@@ -66,7 +75,7 @@ for `flow_generation_failed`.
 | :--- | :--- | :--- |
 | `400` | The request is malformed or a field is invalid. | No. Fix the request. |
 | `401` | Missing, malformed or unknown key, or an invalid token on a browser call's media link, a call's events link or a [speech stream](/v2/speech-compatibility#browser-stream-tokens). | No. |
-| `402` | The wallet can't cover the call or request. | After you add credit. |
+| `402` | The wallet can't cover the call or request, or a sub-workspace is at its spending limit. | After you add credit, or raise the limit. |
 | `403` | The key is revoked, the sandbox has ended, the request is outside your plan, recording is off, [sub-workspaces](/v2/sub-workspaces) are off or archived, or a [human takeover](/v2/handoff) on a brand's call did not come from the parent workspace. | No. |
 | `404` | No such resource in your workspace, including one that exists in someone else's. | No. |
 | `409` | State conflict: the same `Idempotency-Key` still in flight, or an operation the current state forbids. | No. |
@@ -170,6 +179,8 @@ case nothing was armed or changed, and the caller is still with the agent.
 | `workspace_not_found` | `404` | The `Mirai-Workspace` header or path names no sub-workspace of yours. | Check the id or `external_id`. |
 | `workspace_archived` | `403` | The header names a sub-workspace you archived. | [Restore](/v2/sub-workspaces#archive-and-restore) it first. |
 | `workspace_busy` | `409` | You archived a brand while one of its campaigns plays. | Pause or stop the campaign, then archive. |
+| `spend_limit_reached` | `402` | The brand's remaining [spending limit](/v2/sub-workspaces#spending-limits) can't cover one minute of the call. | Raise or remove the limit, or wait for the next month. |
+| `production_wallet_required` | `409` | [Wallet settings](/v2/wallet#wallet-settings) on a workspace that has not gone live. | [Go live](/v2/go-live) first. |
 
 ### Flows
 

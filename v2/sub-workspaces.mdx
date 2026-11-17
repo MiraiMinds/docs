@@ -38,6 +38,7 @@ under another parent.
 | Setting | Comes from |
 | :--- | :--- |
 | Wallet and balance | The parent. Every brand's calls are charged to the parent's [wallet](/v2/wallet). |
+| Spending | The parent. You can cap each brand's call spend with a [spending limit](#spending-limits). |
 | Plan, tier and rates | The parent. A brand's calls are billed at the parent's [plan](/general/tiers). |
 | Invoices and top-ups | The parent. One invoice and one top-up cover every brand. |
 | Shared-line caller ID | The parent's, unless we have set one for that brand. It applies to calls that ring from the [Mirai shared line](/v2/phone-numbers#which-number-a-call-comes-from). |
@@ -220,6 +221,12 @@ A header that names no sub-workspace of your parent answers
   "currency": "INR",
   "profile": { "support_phone": "+919876543210" },
   "status": "active",
+  "spend_limit": {
+    "amount_inr": 5000,
+    "amount_paise": 500000,
+    "period": "monthly",
+    "updated_at": "2026-11-16T05:00:00Z"
+  },
   "created_at": "2026-11-02T09:14:02Z",
   "updated_at": "2026-11-02T09:14:02Z",
   "archived_at": null
@@ -237,6 +244,7 @@ A header that names no sub-workspace of your parent answers
 | `currency` | string | The brand's three-letter currency code, for your records. Calls are always billed in rupees from the parent's wallet. |
 | `profile` | object | Facts about the brand that you want to keep with it. Returned as you sent it. |
 | `status` | enum | `active` or `archived`. |
+| `spend_limit` | object \| null | The brand's [spending limit](#spending-limits): `amount_inr`, `amount_paise`, `period` (`monthly` or `lifetime`) and `updated_at`. `null` when the brand has no limit. |
 | `created_at`, `updated_at` | string | RFC 3339, UTC. |
 | `archived_at` | string \| null | When it was archived. `null` while active. |
 
@@ -260,6 +268,7 @@ POST /v2/workspaces
 | `timezone` | string | no | IANA timezone. Default `Asia/Kolkata`. |
 | `currency` | string | no | Three-letter currency code. Default `INR`. |
 | `profile` | object | no | A JSON object of up to 16 KB with your brand facts. |
+| `spend_limit` | object | no | Cap the brand's call spend. See [Spending limits](#spending-limits). No limit when left out. |
 
 <Tabs>
   <Tab title="cURL">
@@ -405,8 +414,8 @@ PATCH /v2/workspaces/{id}
 
 `{id}` is the sub-workspace's `ws_` id or its `external_id`.
 
-`PATCH` takes `name`, `external_id`, `kind`, `timezone`, `currency` and
-`profile`. Send only the fields you change. A `profile` you send replaces the
+`PATCH` takes `name`, `external_id`, `kind`, `timezone`, `currency`,
+`profile` and [`spend_limit`](#spending-limits). Send only the fields you change. A `profile` you send replaces the
 stored one. The uniqueness rules from create still apply, so a clash answers
 `409 workspace_exists`.
 
@@ -586,8 +595,238 @@ Every brand spends from the parent's wallet. Read each figure with the brand's
 | Balance | [`GET /v2/wallet`](/v2/wallet#get-balance). One balance, the same for every brand. |
 | Call spend by brand | [`GET /v2/insights`](/v2/calls#how-your-calls-went) with the brand's header: `money.billed_paise` for the window. It counts calls only. Speech, language model and number charges are on the wallet statement, [`GET /v2/wallet/transactions`](/v2/wallet#list-transactions). |
 | Calls by brand | [`GET /v2/calls/summary`](/v2/calls#count-calls) with the brand's header. |
-| Stopped calls | A brand's call gets `402 insufficient_balance` when the parent's wallet can't cover it. `GET /v2/insights` for that brand lists it under `attention` as `wallet`. |
+| Spending limit | [`GET /v2/workspaces/{id}/spend`](#see-how-much-of-the-limit-is-used) with your key alone: used, held and remaining this month. |
+| Stopped calls | A brand's call gets `402 insufficient_balance` when the parent's wallet can't cover it, or `402 spend_limit_reached` when the brand is at its [spending limit](#spending-limits). `GET /v2/insights` for that brand lists a wallet refusal under `attention` as `wallet`. |
 | Top-ups and invoices | The parent. One top-up covers every brand. See [Out of credit](/v2/errors#out-of-credit). |
+
+## Spending limits
+
+<Note>
+**Coming soon.** This is in final testing and not live yet. The section below is the spec, so you can build against it now; we'll confirm in the changelog when it ships.
+</Note>
+
+Every brand spends from your wallet. A **spending limit** caps how much one
+brand can spend on calls, so one busy brand can't use up the credit the others
+need. You set it from your account, per brand, as a monthly or a lifetime
+amount in rupees.
+
+- **Monthly** (the default) starts again at 00:00 on the 1st of each month in
+  the brand's `timezone`.
+- **Lifetime** counts every call the brand has made since counting began
+  (below), and never starts again.
+- A brand with no limit spends freely from your wallet, as before.
+
+Counting starts when this feature went live. Calls before that do not count
+towards any limit.
+
+### Set, change or remove a limit
+
+Send `spend_limit` when you [create](#create-a-sub-workspace) a sub-workspace,
+or [update](#get-and-update-a-sub-workspace) one with `PATCH`. Use your API key
+alone, without `Mirai-Workspace`. A brand can't change its own limit.
+
+| Field | Type | Description |
+| :--- | :--- | :--- |
+| `amount_inr` | number | The limit in rupees, up to 2 decimals. From `0` to `10000000` (₹1,00,00,000). `0` blocks every new call. |
+| `amount_paise` | integer | The same limit in paise. Send `amount_inr` or `amount_paise`, never both. |
+| `period` | string | `monthly` (default) or `lifetime`. |
+
+<Tabs>
+  <Tab title="cURL">
+    ```bash
+    curl -X PATCH https://prod.voice.miraiminds.co/v2/workspaces/acme-skincare \
+      -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+      -H "Content-Type: application/json" \
+      -d '{ "spend_limit": { "amount_inr": 5000, "period": "monthly" } }'
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    ws = httpx.patch(
+        f"{API}/v2/workspaces/acme-skincare",
+        headers=auth,
+        json={"spend_limit": {"amount_inr": 5000, "period": "monthly"}},
+        timeout=30,
+    ).raise_for_status().json()
+    print(ws["spend_limit"])  # {'amount_inr': 5000, 'amount_paise': 500000, 'period': 'monthly', ...}
+    ```
+  </Tab>
+  <Tab title="Node.js">
+    ```javascript
+    const ws = await fetch(`${API}/v2/workspaces/acme-skincare`, {
+      method: "PATCH",
+      headers: { ...auth, "Content-Type": "application/json" },
+      body: JSON.stringify({ spend_limit: { amount_inr: 5000, period: "monthly" } }),
+    }).then((r) => r.json());
+    console.log(ws.spend_limit); // { amount_inr: 5000, amount_paise: 500000, period: "monthly", ... }
+    ```
+  </Tab>
+</Tabs>
+
+The answer is the [workspace object](#the-workspace-object) with its new
+`spend_limit`.
+
+- **Change it** by sending a new `spend_limit`. A new amount or period takes
+  effect for the next call, and the [limit webhooks](#limit-webhooks) can fire
+  again for the new setting. Sending the same amount and period again changes
+  nothing.
+- **Remove it** with `"spend_limit": null` or `"spend_limit": { "period": "none" }`.
+- **Leave it as it is** by leaving `spend_limit` out of the `PATCH`.
+
+A bad value, such as both amounts, a negative amount or an unknown `period`,
+answers `400 invalid_request`.
+
+### See how much of the limit is used
+
+```http
+GET /v2/workspaces/{id}/spend
+```
+
+`{id}` is the sub-workspace's `ws_` id or its `external_id`. Call it with your
+API key alone.
+
+```bash
+curl https://prod.voice.miraiminds.co/v2/workspaces/acme-skincare/spend \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY"
+```
+
+```json title="200 OK"
+{
+  "object": "workspace_spend",
+  "workspace_id": "ws_5e0c7a1f9b3d2e6a4c8f0b17",
+  "spend_limit": {
+    "amount_inr": 5000,
+    "amount_paise": 500000,
+    "period": "monthly",
+    "updated_at": "2026-11-16T05:00:00Z"
+  },
+  "period": "monthly",
+  "timezone": "Asia/Kolkata",
+  "period_start": "2026-10-31T18:30:00Z",
+  "period_end": "2026-11-30T18:30:00Z",
+  "used_inr": 1234.5,
+  "used_paise": 123450,
+  "held_inr": 60,
+  "held_paise": 6000,
+  "remaining_inr": 3705.5,
+  "remaining_paise": 370550,
+  "percent_used": 24.69,
+  "state": "ok"
+}
+```
+
+| Field | Type | Description |
+| :--- | :--- | :--- |
+| `workspace_id` | string | The sub-workspace. |
+| `spend_limit` | object \| null | The limit as on the [workspace object](#the-workspace-object). `null` without a limit. |
+| `period` | string \| null | `monthly`, `lifetime`, or `null` without a limit. |
+| `timezone` | string | The brand's timezone. A monthly period follows it. |
+| `period_start` | string \| null | 00:00 on the 1st of this month in the brand's timezone, as a UTC time. Set on a monthly limit and when there is no limit. `null` on a lifetime limit. |
+| `period_end` | string \| null | When the next month starts, as a UTC time: a monthly limit is fresh from this moment. Set when `period_start` is. |
+| `used_inr`, `used_paise` | number, integer | Charges of calls that have ended in the period: this month on a monthly limit or with no limit, everything counted so far on a lifetime limit. |
+| `held_inr`, `held_paise` | number, integer | Held for calls running now: each one's [worst-case charge](#what-happens-at-the-limit). |
+| `remaining_inr`, `remaining_paise` | number, integer \| null | The limit, less `used` and `held`. Never below 0. `null` without a limit. |
+| `percent_used` | number \| null | `used` as a percentage of the limit, to 2 decimals. Held money is not in it. `null` without a limit. |
+| `state` | string | `unlimited` (no limit), `ok`, `warning` (charges of ended calls at 80% of the limit or more) or `reached` (charges of ended calls at or above the limit, or nothing left because calls running now hold the rest). |
+
+**A brand with no limit** answers the same object with `spend_limit`, `period`,
+`remaining_*` and `percent_used` set to `null` and `state: "unlimited"`.
+`period_start`, `period_end`, `used` and `held` still cover this month, so you
+can see what a brand spends before you choose its limit.
+
+A request with the brand's `Mirai-Workspace` header sees the same object as
+`spend` in [`GET /v2/wallet`](/v2/wallet#get-balance), so the brand's own code
+can check its limit without your account's view.
+
+### What counts
+
+| Counts towards the limit | Doesn't count |
+| :--- | :--- |
+| Charges of calls placed or answered in that brand, on every channel: phone, browser, WhatsApp, Realtime and text chat. | [Number rentals and renewals](/v2/phone-numbers#rent-a-number-from-mirai), and money [reserved for renewals](/v2/phone-numbers#reserve-renewals-ahead-of-time) |
+| The voice minute, the managed telephony charge and post-call insights on those calls. | Text to speech, speech to text and offline transcription |
+| | Language model API requests and AI flow drafts |
+
+Everything still comes out of your one wallet. The limit only decides how much
+of it each brand's calls can use.
+
+### What happens at the limit
+
+Before a call dials, we hold its **worst case**: its whole
+[`max_duration_secs`](/v2/calls#create-a-call) at the call's rate. The hold is
+taken from your wallet and from the brand's remaining limit at the same time.
+When the call ends, it is charged for the time it actually ran and the rest of
+the hold is released. A text chat is the one exception: it takes no hold.
+
+| What | At the limit |
+| :--- | :--- |
+| `POST /v2/calls` | When the remaining limit can't cover one minute at the call's rate, the request answers `402 spend_limit_reached`. Nothing is dialled or charged. |
+| A call that was accepted | When the remaining limit can't hold the call's worst case, the call ends `failed` with `ended_reason: "spend_limit_reached"`. Nothing rings and nothing is charged. |
+| Incoming calls | A call to one of the brand's numbers, by phone, SIP trunk or WhatsApp, is refused when the remaining limit can't cover one minute. It ends `failed` with `ended_reason: "spend_limit_reached"` and the caller is not answered. A SIP trunk turns it down the same way as a call your wallet can't pay for. |
+| Text chats | No hold. A text chat starts while anything is left of the limit, and its charge counts towards the limit when it ends. |
+| Calls in progress | Never cut off. Their worst case was held before they started, so they finish and can't take spend past the limit. |
+| Campaigns | The brand's playing campaigns pause with `pause_reason: "spend_limit_reached"` and keep their place. |
+| Other brands and your account | Not affected. They keep calling while your wallet can pay. |
+
+```json title="402 Payment Required"
+{
+  "error": {
+    "code": "spend_limit_reached",
+    "message": "this sub-workspace has reached its spending limit",
+    "doc_url": "https://docs.miraiminds.co/v2/sub-workspaces/#spending-limits",
+    "spend_limit": {
+      "object": "workspace_spend",
+      "workspace_id": "ws_5e0c7a1f9b3d2e6a4c8f0b17",
+      "spend_limit": { "amount_inr": 5000, "amount_paise": 500000, "period": "monthly", "updated_at": "2026-11-16T05:00:00Z" },
+      "period": "monthly",
+      "timezone": "Asia/Kolkata",
+      "period_start": "2026-10-31T18:30:00Z",
+      "period_end": "2026-11-30T18:30:00Z",
+      "used_inr": 4940,
+      "used_paise": 494000,
+      "held_inr": 60,
+      "held_paise": 6000,
+      "remaining_inr": 0,
+      "remaining_paise": 0,
+      "percent_used": 98.8,
+      "state": "reached"
+    }
+  }
+}
+```
+
+`error.spend_limit` is the same object [`GET /v2/workspaces/{id}/spend`](#see-how-much-of-the-limit-is-used)
+returns. Here the brand has used 98.8%, and calls running now hold the rest, so
+nothing is left for a new call. Retry a refused call with the same `Idempotency-Key` once there is room.
+
+**To start calling again**, raise or remove the limit, or wait for the next
+month on a monthly limit. Then start the brand's paused campaigns again with
+[`POST /start`](/v2/campaigns#start-a-campaign) or [`/resume`](/v2/campaigns#resume-a-campaign) and its header. A campaign's own
+[`budget_paise`](/v2/campaigns#budget-and-pacing) still applies as well: whichever runs out first
+pauses the campaign.
+
+<Note>
+A brand at its limit is told `spend_limit_reached`, not `insufficient_balance`,
+even when your wallet is also low. Topping up the wallet does not lift a brand's
+limit; raising the limit does.
+</Note>
+
+### Limit webhooks
+
+Two events tell you before and when a brand hits its limit. They go to the
+brand's own [webhook subscriptions](/v2/webhook-subscriptions#spending-limits)
+and to your account's, and both can go to an
+[email endpoint](/v2/webhook-subscriptions#send-events-by-email).
+
+| Event | When |
+| :--- | :--- |
+| `workspace.spend_limit.warning` | Charges of ended calls reached 80% of the limit. |
+| `workspace.spend_limit.reached` | Charges of ended calls reached 100% of the limit, or the first call was refused for the limit. |
+
+Each is sent once per period for each limit setting: once a month on a monthly
+limit, once on a lifetime limit. Changing the amount or period sets them up to
+fire again. Each copy's top-level `workspace_id` is the workspace that receives
+it (the brand, or your account), while `data.workspace_id` is always the brand.
+See the [payload](/v2/webhook-subscriptions#payloads).
 
 ## See one brand's usage
 
@@ -697,7 +936,8 @@ brand's header on each of those requests.
 | `404` | `workspace_not_found` | `Mirai-Workspace`, or the `{id}` in the path, names no sub-workspace of your parent. | Check the id or `external_id`. A sub-workspace under another parent is answered the same way. |
 | `403` | `workspace_archived` | `Mirai-Workspace` names a sub-workspace you archived. | [Restore](#archive-and-restore) it, or stop sending requests for that brand. |
 | `409` | `workspace_busy` | You archived a sub-workspace while one of its campaigns is playing. | Pause or stop the campaign with the brand's header, then archive. |
-| `400` | `invalid_request` | A field is missing or out of range, such as no `name`, a `timezone` that is not an IANA name, or a `profile` that is not an object or is over 16 KB. | `error.message` names the field. |
+| `402` | `spend_limit_reached` | `POST /v2/calls` with the brand's header when its remaining [spending limit](#spending-limits) can't cover one minute of the call. Nothing was dialled or charged. | Raise or remove the limit, or wait for the next month on a monthly limit. |
+| `400` | `invalid_request` | A field is missing or out of range, such as no `name`, a `timezone` that is not an IANA name, or a `profile` that is not an object or is over 16 KB, or a bad `spend_limit`. | `error.message` names the field. |
 
 ## Related
 

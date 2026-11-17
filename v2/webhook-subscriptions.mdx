@@ -1,7 +1,7 @@
 ---
 title: "Webhook subscriptions: call, campaign, wallet, payment, phone number and status events"
 sidebarTitle: "Webhook subscriptions"
-description: "Subscribe an HTTPS endpoint or a list of email addresses to the events you care about, for one agent or the whole workspace: calls, campaigns, low balance, refused calls, payments, incidents and maintenance."
+description: "Subscribe an HTTPS endpoint or a list of email addresses to the events you care about, for one agent or the whole workspace: calls, campaigns, low balance, refused calls, payments, spending limits, incidents and maintenance."
 ---
 
 A webhook subscription sends events to your HTTPS endpoint without a URL on every call.
@@ -152,7 +152,7 @@ Scope: the whole workspace only.
 
 | Event | When |
 | :--- | :--- |
-| `phone_number.renewal_upcoming` | A number you rent from Mirai renews in 7 days, and again 24 hours before. Says whether your wallet covers the renewal and how much is missing. |
+| `phone_number.renewal_upcoming` | A number you rent from Mirai renews in 7 days, and again 24 hours before. Says whether your wallet covers the renewal, how much is missing, and whether it is already [reserved](/v2/phone-numbers#reserve-renewals-ahead-of-time). |
 | `phone_number.renewed` | The renewal was paid from your wallet. The number keeps working for another term. |
 | `phone_number.released` | The number was released and no longer takes calls: auto-renewal was off (`reason` `cancelled`) or the wallet could not cover the renewal (`reason` `insufficient_balance`). No renewal charge was made. |
 | `phone_number.purchase_failed` | A number purchase did not complete. The amount held for it is back in your wallet. |
@@ -161,6 +161,17 @@ Scope: the whole workspace only.
 There is no grace period on a rented number: if the wallet cannot cover the renewal when it is due, the number is released. That is why the reminders come twice. The account's owners and billing members also get each of these moments by email (the two reminders, a receipt for each renewal, the release and a failed purchase), with or without a subscription. Pending verifications are checked in the background, so you do not need to poll [refresh](/v2/phone-numbers#rent-a-number-from-mirai).
 
 `data.workspace_id` is the workspace that holds the number. For a [sub-workspace](/v2/sub-workspaces#phone-numbers-in-a-sub-workspace), the event goes to that sub-workspace's subscriptions and to your account's own, because your account's wallet pays. The two copies have different event `id`s and the same `data`. These events cannot go to an email endpoint.
+
+### Spending limits
+
+Scope: the whole workspace only.
+
+| Event | When |
+| :--- | :--- |
+| `workspace.spend_limit.warning` | A sub-workspace's charges for ended calls reached 80% of its [spending limit](/v2/sub-workspaces#spending-limits). |
+| `workspace.spend_limit.reached` | A sub-workspace's charges for ended calls reached 100% of its limit, or the first call was refused for the limit. |
+
+Each is sent once per period for each limit setting: once a month on a monthly limit, once on a lifetime limit. Changing the limit's amount or period lets them fire again. The event goes to the sub-workspace's own subscriptions and to your account's, and both events can go to an [email endpoint](#send-events-by-email). The top-level `workspace_id` is the workspace receiving the copy. `data.workspace_id` always names the sub-workspace and `data.parent_id` your account.
 
 ### Status
 
@@ -225,6 +236,7 @@ Once an address confirms, it is confirmed for every email endpoint in the worksp
 | Status | `incident.opened`, `incident.updated`, `incident.resolved`, `maintenance.scheduled`, `maintenance.started`, `maintenance.completed` |
 | Wallet | `wallet.balance_low`, `wallet.depleted`, `wallet.balance_restored` |
 | Payments | `payment.succeeded`, `payment.failed` |
+| Spending limits | `workspace.spend_limit.warning`, `workspace.spend_limit.reached` |
 | Campaigns | `campaign.paused`, `campaign.completed`, `campaign.stopped` |
 
 Call, recording, analysis and processing events go to HTTPS endpoints only. A subscription or test that puts one of them on an email endpoint answers `400`, naming the event. In `GET /v2/webhooks/event-types`, each event says `"email": true` or `"email": false`.
@@ -273,7 +285,7 @@ Every event has the same envelope.
 | `created_at` | When the event happened (RFC 3339, UTC). |
 | `schema_version` | `2026-09-22`. |
 | `workspace_id` | Your workspace. |
-| `subject` | `{type, id}`: the call, campaign, wallet (your workspace id), payment, rental, verification or incident the event is about. |
+| `subject` | `{type, id}`: the call, campaign, wallet (your workspace id), payment, rental, verification, workspace (a sub-workspace's id) or incident the event is about. |
 | `source_id` | What produced the event. Repeats of the same occurrence share it. |
 | `test` | `true` for synthetic tests, test calls and test-mode payments. |
 | `data` | The event's content. |
@@ -440,12 +452,15 @@ Every event has the same envelope.
         "wallet_covers": false,
         "short_by_inr": 300,
         "short_by_paise": 30000,
+        "reserved": false,
+        "reserved_inr": 0,
+        "reserved_paise": 0,
         "wallet": {"available_inr": 1200, "available_paise": 120000, "currency": "INR"}
       }
     }
     ```
 
-    `days_left` is `7` for the first reminder and `1` for the one 24 hours before. `wallet_covers` and `short_by_*` are worked out when the event is sent. Top up by `renews_at` to keep the number. `agent_id` and `agent_name` are `null` and `""` when no agent answers the number.
+    `days_left` is `7` for the first reminder and `1` for the one 24 hours before. `wallet_covers` and `short_by_*` are worked out when the event is sent: `wallet_covers` is `true` when this renewal is already reserved, or when the spendable balance plus this renewal's hold covers it, and `short_by_*` is the amount less the spendable balance and this renewal's hold, never below 0. `reserved` says whether the renewal is held by [renewal reserve](/v2/phone-numbers#reserve-renewals-ahead-of-time), and `reserved_inr` / `reserved_paise` how much (`0` when nothing is). `wallet.available_*` is what you can spend now, after every hold. Top up by `renews_at` to keep the number. `agent_id` and `agent_name` are `null` and `""` when no agent answers the number.
 
     The other rental events carry the same `data.workspace_id` and `data.rental`, plus:
 
@@ -454,6 +469,49 @@ Every event has the same envelope.
     | `phone_number.renewed` | `charged_inr`, `charged_paise`. `rental.renews_at` is the next renewal. |
     | `phone_number.released` | `reason`: `insufficient_balance` or `cancelled`. `rental.auto_renew` is `false`. |
     | `phone_number.purchase_failed` | `refunded_inr`, `refunded_paise`. `rental.phone_number_id` and `rental.renews_at` are `null`. |
+  </Accordion>
+  <Accordion title="workspace.spend_limit.warning">
+    ```json
+    {
+      "id": "evt_5f1b…",
+      "type": "workspace.spend_limit.warning",
+      "created_at": "2026-11-24T11:42:05Z",
+      "schema_version": "2026-09-22",
+      "workspace_id": "ws_5e0c…",
+      "subject": {"type": "workspace", "id": "ws_5e0c…"},
+      "source_id": "spend_limit:2026-11:r1",
+      "test": false,
+      "data": {
+        "workspace_id": "ws_5e0c…",
+        "parent_id": "ws_a83d…",
+        "workspace_name": "Acme Skincare",
+        "spend": {
+          "workspace_id": "ws_5e0c…",
+          "spend_limit": {"amount_inr": 5000, "amount_paise": 500000, "period": "monthly", "updated_at": "2026-11-16T05:00:00Z"},
+          "period": "monthly",
+          "timezone": "Asia/Kolkata",
+          "period_start": "2026-10-31T18:30:00Z",
+          "period_end": "2026-11-30T18:30:00Z",
+          "used_inr": 4012.4,
+          "used_paise": 401240,
+          "held_inr": 30,
+          "held_paise": 3000,
+          "remaining_inr": 957.6,
+          "remaining_paise": 95760,
+          "percent_used": 80.25,
+          "state": "warning"
+        }
+      }
+    }
+    ```
+
+    This is the copy the sub-workspace's own subscriptions receive. Your account's copy has your account's id as the top-level `workspace_id`, a different event `id`, and the same `subject`, `source_id` and `data`. `data.workspace_id` is always the sub-workspace and `data.parent_id` your account. `source_id` is `spend_limit:` then the period (the month in the sub-workspace's timezone, such as `2026-11`, or `lifetime`), then `:r` and the limit setting's revision.
+
+    `data.spend` is the object [`GET /v2/workspaces/{id}/spend`](/v2/sub-workspaces#see-how-much-of-the-limit-is-used) returns, without `object`. `workspace.spend_limit.reached` has the same shape with `state` `reached`. When it fired because a call was refused for the limit, it also carries `data.call` with that call's `id`:
+
+    ```json
+    "call": {"id": "call_01M7…"}
+    ```
   </Accordion>
   <Accordion title="phone_number.verification_updated">
     ```json

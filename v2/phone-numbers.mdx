@@ -452,7 +452,7 @@ again.
 
 | When | Email to your owners and billing members | Webhook |
 | :--- | :--- | :--- |
-| 7 days before renewal | Reminder. If the wallet is short, it says by how much and how to add it. | `phone_number.renewal_upcoming` (`days_left: 7`, `wallet_covers`, `short_by_inr`) |
+| 7 days before renewal | Reminder. If the wallet is short, it says by how much and how to add it. | `phone_number.renewal_upcoming` (`days_left: 7`, `wallet_covers`, `short_by_inr`, `reserved`) |
 | 24 hours before renewal | The same reminder, once more. | `phone_number.renewal_upcoming` (`days_left: 1`) |
 | Renewal paid | Receipt: what was charged and the next renewal date. | `phone_number.renewed` |
 | Released | Why: wallet short, or auto-renewal off. | `phone_number.released` (`reason`) |
@@ -466,6 +466,50 @@ The emails go without any setup. The webhooks need a
 paid for: the number keeps working until `renews_at`, is then released, and is
 not charged again. Send `false` before then to keep it. The 7-day and 24-hour
 reminders still come, saying the number will be released.
+
+**Does the wallet cover it?** In `phone_number.renewal_upcoming` and the
+reminder email, `wallet_covers` is `true` when this renewal's ₹1,500 is already
+[reserved](#reserve-renewals-ahead-of-time), or when your spendable balance plus
+whatever is held for this renewal covers it. `short_by_inr` (and
+`short_by_paise`) is the amount still missing: ₹1,500 less your spendable
+balance and this renewal's hold, never below 0. `reserved` says whether the
+renewal is held, and `reserved_inr` (and `reserved_paise`) how much, `0` when
+nothing is. When the renewal is already held, the reminder email says it is
+already set aside.
+
+### Reserve renewals ahead of time
+
+<Note>
+**Coming soon.** This is in final testing and not live yet. The section below is the spec, so you can build against it now; we'll confirm in the changelog when it ships.
+</Note>
+
+A busy week of calls can spend the credit a number needs on its renewal day,
+and then the number is released. Turn on **renewal reserve** and the ₹1,500 is
+put aside a few days early, so calls can't spend it.
+
+It is off until you turn it on, for your whole account:
+
+```bash
+curl -X PATCH https://prod.voice.miraiminds.co/v2/wallet/settings \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "renewal_reserve": { "enabled": true, "days_before": 7 } }'
+```
+
+`days_before` is how many days before `renews_at` the amount is held, from `1`
+to `30`. The default, `7`, is the day of the first reminder. Renewals already
+inside that window when you turn it on are held on the next pass, within about
+a minute. [Wallet settings](/v2/wallet#wallet-settings) has the full request
+and answer.
+
+| | With renewal reserve on |
+| :--- | :--- |
+| What is held | ₹1,500 for each Mirai number with auto-renewal on, `days_before` days before its `renews_at`. Your account's numbers and every [sub-workspace's](/v2/sub-workspaces#phone-numbers-in-a-sub-workspace) are held in your account's wallet. |
+| What it does to your balance | Held money shows as `reserved_for_renewals_inr` in [`GET /v2/wallet`](/v2/wallet#get-balance) and is not in `balance_inr`. Calls, campaigns and API requests can't spend it. |
+| Wallet short | If the wallet can't cover a hold yet, we try again every minute until it can or the renewal is due. At renewal the usual rule applies: if the wallet is short, the number is released. |
+| At renewal | The held amount is charged as the renewal, one debit as today. Promotional credit can still pay for it. |
+| Released | When you turn auto-renewal off, the number is released, you turn the reserve off, or you lower `days_before` so the renewal is no longer inside it. The money is spendable again at once. As a safety net, a hold older than 32 days goes back to your wallet on its own. |
+| Spending limits | A hold never counts towards a sub-workspace's [spending limit](/v2/sub-workspaces#spending-limits). |
 
 ## Errors
 

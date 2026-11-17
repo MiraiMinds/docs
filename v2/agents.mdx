@@ -82,6 +82,7 @@ only `pre_call` and `post_call` tools are allowed. See
 | `tools` | array | no | Tool definitions for this agent. See [Tools](/v2/tools). PATCH replaces the full list. |
 | `analysis` | object | no | What to work out after each call: a summary, a success verdict, extracted fields and the follow-up message to send. See [Analysis](#analysis). PATCH replaces the whole object. |
 | `emit_processed_webhook` | boolean | no | Defaults to `true`. Set `false` to suppress `call.processed` while keeping analysis and post-call tools enabled. |
+| `inbound_pre_call_timeout_ms` | integer \| null | no | How long an incoming call to one of your phone numbers rings while the agent's pre-call tools run, from `1000` to `10000` (1 to 10 seconds). The call is answered as soon as they finish. Without it the wait is about 2 seconds; send `null` to go back to that. Present on the agent object only when set. See [Incoming calls](/v2/tools#incoming-calls). Coming soon, in final testing. |
 | `end_call` | object | no | See [Ending a call](#ending-a-call). |
 | `voicemail` | object | no | See [Voicemail](#voicemail). |
 | `background_sound` | string \| object | no | Room ambience under the agent's voice. See [Background sound](#background-sound). Default `off`. |
@@ -612,7 +613,7 @@ Responds with **`201 Created`** and the full [agent object](#the-agent-object).
 
 | Error | `error.code` | Cause |
 | :--- | :--- | :--- |
-| `400` | `invalid_request` | Missing required field, unknown `voice_id`, `max_duration_secs` out of range, a `behavior.pass_through` list outside [its limits](#pass-through-words), a `keyterms` list outside [its limits](/v2/keyterms#rules-and-limits) |
+| `400` | `invalid_request` | Missing required field, unknown `voice_id`, `max_duration_secs` out of range, a `behavior.pass_through` list outside [its limits](#pass-through-words), a `keyterms` list outside [its limits](/v2/keyterms#rules-and-limits), `inbound_pre_call_timeout_ms` outside 1000-10000 |
 | `400` | `invalid_flow` | A problem in `flow`, or an `on_call` tool on a node-based agent. The body lists every problem with its path; see [errors](/v2/node-agents#errors). |
 | `401` | `unauthorized` | Bad or missing key |
 
