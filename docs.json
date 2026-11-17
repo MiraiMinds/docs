@@ -66,6 +66,7 @@
               "v2/knowledge-bases",
               "v2/keyterms",
               "v2/analysis",
+              "v2/recording-analysis",
               "v2/calls",
               "v2/live-events",
               "v2/live-control",
