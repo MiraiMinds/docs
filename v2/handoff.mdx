@@ -1,17 +1,20 @@
 ---
 title: "Live human takeover: a person joins a live call"
 sidebarTitle: "Human takeover"
-description: "Arm a takeover from your backend, and a person from your team dials your number to join a live phone call while the agent steps back. The flow, the API, events, webhooks, billing and limits."
+description: "Hand a live phone call to a person from your team: we ring them, or they dial in, and the agent steps back. The flow, the API, events, webhooks, billing and limits."
 ---
 
-<Note>
-**Coming 23 November 2026.** Human takeover is in final testing and not live yet. This page is the spec, so you can build against it now; we'll confirm in the changelog when it ships.
-</Note>
-
 A person from your team can take over a phone call while your agent is on it.
-Your backend arms a takeover on the live call, the person dials your business
-number from their own phone, and they are joined to the caller. The agent stops
-speaking and the person carries on the conversation.
+Your backend arms a takeover on the live call, and the person joins in one of
+two ways:
+
+- **We ring them** (`dial_out`). We call their phone from the call's own
+  number. When they pick up, they are joined to the caller.
+- **They dial in** (`dial_in`, the default). They call your business number
+  from their own phone within the window, and are joined to the caller.
+
+Either way, the agent stops speaking and the person carries on the
+conversation. The call is still recorded and transcribed.
 
 ```http
 POST /v2/calls/{call_id}/handoffs
@@ -23,13 +26,66 @@ POST /v2/calls/{call_id}/handoffs/{handoff_id}/end
 
 Send these from your backend with your API key. They never go in a browser.
 
+## Which way to connect
+
+| | We ring them (`dial_out`) | They dial in (`dial_in`) |
+| :--- | :--- | :--- |
+| Best for | A colleague or supervisor your system picks, for example the next free sales person | An owner who taps **Take over** in your app and calls in |
+| What the person does | Answers their phone | Dials `connect.dial` from the handoff number |
+| How you ask for it | `"connect": { "type": "dial_out", "to": "+91…" }` | `"connect": { "type": "dial_in" }`, or leave `connect.type` out |
+| Numbers | Rented from Mirai, or from your own telco account | Rented from Mirai, from your own telco account, or on a SIP trunk |
+| If nobody joins | Nobody answers: `no_answer`. The agent tells the caller and carries on. | Nobody calls in time: `expired`. The caller carries on with the agent. |
+
 ## How it works
+
+### We ring them (`dial_out`)
+
+1. Your backend arms a takeover with `connect.type: "dial_out"` on a call that
+   is in progress. We start ringing `connect.to` straight away, from the
+   call's own number (`connect.from`). The person sees that number as the
+   caller ID.
+2. The agent keeps talking to the caller. If you sent an `instruction`, the
+   agent follows it, for example by asking the caller to hold for a moment.
+   While the takeover is on its way, the agent does not hang up on a caller
+   who goes quiet.
+3. The phone rings until the window closes (`ttl_secs`, 60 seconds by default).
+4. When the person picks up, they are joined to the caller. The agent stops
+   speaking and stays silent for the rest of the call.
+5. When the person hangs up, the call ends. When the caller hangs up, the
+   person's call is ended too. The call does not go back to the agent.
+
+If the person doesn't answer, declines or is busy, the takeover ends with
+`no_answer`. The agent is told the person could not join, tells the caller
+briefly and keeps helping them. A ring nobody answers costs nothing.
+
+```mermaid
+sequenceDiagram
+    participant Caller
+    participant API as Voice Infra
+    participant You as Your backend
+    participant Person as Your teammate
+
+    Caller->>API: talking with the agent
+    You->>API: POST /v2/calls/{id}/handoffs (dial_out)
+    API-->>You: 201 {state: "armed", connect.from, expires_at}
+    API->>Person: rings from the call's own number
+    Note over Caller,API: the agent keeps the caller company
+    Person->>API: answers
+    API-->>You: handoff.connecting, then handoff.joined
+    Note over Caller,Person: caller and person talk, the agent is paused
+    Person->>API: hangs up
+    API-->>You: handoff.ended, then call.ended (ended_reason "transferred")
+```
+
+### They dial in (`dial_in`)
 
 1. Your backend arms a takeover on a call that is in progress. The answer
    gives the number to dial (`connect.dial`) and when the window closes
    (`expires_at`, 60 seconds by default).
 2. The agent keeps talking to the caller. If you sent an `instruction`, the
    agent follows it, for example by asking the caller to hold for a moment.
+   While the takeover is on its way, the agent does not hang up on a caller
+   who goes quiet.
 3. The person dials `connect.dial` from the handoff number before the window
    closes. `connect.dial` is the same number the call is on.
 4. We match their call on three things: the number they dialled is the call's
@@ -66,21 +122,25 @@ sequenceDiagram
 - **A phone call on one of your own numbers.** Takeover works on calls on a
   number you [rent from Mirai](/v2/phone-numbers#rent-a-number-from-mirai), a
   number you connect from your own telco account, or a number on your
-  [SIP trunk](/v2/sip-trunk).
+  [SIP trunk](/v2/sip-trunk). On a SIP trunk number, the person dials in:
+  `dial_out` answers `400 unsupported_connect` there for now.
 - **Not yet** on the Mirai shared line, WhatsApp calls,
   [browser calls](/v2/web-calls) or [realtime sessions](/v2/realtime). Arming
   one there answers `400 unsupported_channel` and nothing changes on the call.
-- **A handoff number.** The phone number the person calls from, set on the
-  agent or sent with each request. It is an Indian number in E.164
-  (`+91` and 10 digits).
-- **Caller ID shown.** The person must call from exactly the handoff number,
-  with their caller ID shown. A withheld number or another phone does not
-  match.
-- **A free second line on your number.** The person's call is a second call to
+- **A handoff number.** The person's phone number: the number we ring, or the
+  number they call from. Set it on the agent or send it with each request. It
+  is an Indian number in E.164 (`+91` and 10 digits).
+- **Their phone picks up calls from your number.** For `dial_out`, the person
+  sees the call's own number as the caller ID. Ask them to save it as a
+  contact, so a spam filter on their phone doesn't hide the call.
+- **Caller ID shown, for `dial_in`.** The person must call from exactly the
+  handoff number, with their caller ID shown. A withheld number or another
+  phone does not match.
+- **A free second line on your number.** The person's call is a second call on
   the same number while the first is still on it. A number that carries only
-  one call at a time answers the person busy, and the takeover expires. For a
-  number from your own telco account or trunk, check with your provider that it
-  takes more than one call at once.
+  one call at a time can't make or take it, and the takeover doesn't connect.
+  For a number from your own telco account or trunk, check with your provider
+  that it takes more than one call at once.
 - **Any plan.** Takeover works on every [tier](/general/tiers).
 
 ## Set the handoff number
@@ -99,7 +159,7 @@ field.
 
 Or send `connect.to` when you arm a takeover. The number in the request wins
 over the agent's. Use it when several people can take over calls for the same
-agent.
+agent, for example to ring whichever colleague is free.
 
 ## Arm a takeover
 
@@ -107,8 +167,109 @@ agent.
 POST /v2/calls/{call_id}/handoffs
 ```
 
-Every field is optional. With an empty body, the takeover uses the agent's
-handoff number and a 60-second window.
+Every field is optional. With an empty body, the person dials in
+(`dial_in`) from the agent's handoff number within a 60-second window.
+
+### Ring a teammate (`dial_out`)
+
+Send `connect.type: "dial_out"`. We ring `connect.to` from the call's own
+number as soon as the takeover is armed.
+
+<Tabs>
+  <Tab title="cURL">
+    ```bash
+    curl -X POST https://sandbox.voice.miraiminds.co/v2/calls/call_01JZQ9B4M8N3P6R2S5T7V9W1YA/handoffs \
+      -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+      -H "Content-Type: application/json" \
+      -H "Idempotency-Key: takeover-order-8842-1" \
+      -d '{
+        "connect": { "type": "dial_out", "to": "+919812345678" },
+        "ttl_secs": 45,
+        "instruction": "A colleague is joining the call. Ask the caller to hold for a moment.",
+        "metadata": { "agent_desk": "sales-2" }
+      }'
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    import os, httpx
+
+    API = "https://sandbox.voice.miraiminds.co"
+    auth = {"Authorization": f"Bearer {os.environ['MIRAI_API_KEY']}"}
+
+    def ring_teammate(call_id: str, teammate_phone: str, key: str) -> dict:
+        r = httpx.post(
+            f"{API}/v2/calls/{call_id}/handoffs",
+            headers={**auth, "Idempotency-Key": key},
+            json={
+                "connect": {"type": "dial_out", "to": teammate_phone},
+                "ttl_secs": 45,
+                "instruction": "A colleague is joining the call. Ask the caller to hold for a moment.",
+            },
+            timeout=30,
+        )
+        if r.status_code != 201:
+            err = r.json()["error"]
+            raise RuntimeError(f"{err['code']}: {err['message']}")
+        return r.json()  # their phone is ringing now
+
+    handoff = ring_teammate(call_id, "+919812345678", key="takeover-order-8842-1")
+    ```
+  </Tab>
+  <Tab title="Node.js">
+    ```javascript
+    const API = "https://sandbox.voice.miraiminds.co";
+    const auth = { Authorization: `Bearer ${process.env.MIRAI_API_KEY}` };
+
+    async function ringTeammate(callId, teammatePhone, key) {
+      const res = await fetch(`${API}/v2/calls/${callId}/handoffs`, {
+        method: "POST",
+        headers: { ...auth, "Content-Type": "application/json", "Idempotency-Key": key },
+        body: JSON.stringify({
+          connect: { type: "dial_out", to: teammatePhone },
+          ttl_secs: 45,
+          instruction: "A colleague is joining the call. Ask the caller to hold for a moment.",
+        }),
+      });
+      const out = await res.json();
+      if (res.status !== 201) throw new Error(`${out.error.code}: ${out.error.message}`);
+      return out; // their phone is ringing now
+    }
+
+    const handoff = await ringTeammate(callId, "+919812345678", "takeover-order-8842-1");
+    ```
+  </Tab>
+</Tabs>
+
+```json title="201 Created"
+{
+  "id": "hof_01K2M6A1B3C5D7E9F1G3H5J7K9",
+  "object": "handoff",
+  "call_id": "call_01JZQ9B4M8N3P6R2S5T7V9W1YA",
+  "mode": "talk",
+  "ai": "paused",
+  "initiator": "api",
+  "connect": {
+    "type": "dial_out",
+    "to": "+919812345678",
+    "from": "+918047360814"
+  },
+  "state": "armed",
+  "after_human": "end_call",
+  "created_at": "2026-11-18T10:08:00.012Z",
+  "expires_at": "2026-11-18T10:08:45.012Z",
+  "metadata": { "agent_desk": "sales-2" }
+}
+```
+
+`state` stays `armed` while the phone rings. It moves to `connecting` and then
+`active` when the person picks up. If you no longer need them, cancel the
+takeover and the ringing stops.
+
+### Let the person dial in (`dial_in`)
+
+Leave out `connect.type`, or send `dial_in`. The answer gives the number the
+person dials (`connect.dial`).
 
 <Tabs>
   <Tab title="cURL">
@@ -198,16 +359,16 @@ handoff number and a 60-second window.
 <Tip>
   In a mobile app, open the phone's dialler with a `tel:` link to
   `connect.dial` as soon as the `201` arrives, so the person only has to press
-  call.
+  call. If you'd rather they didn't dial at all, use `dial_out`.
 </Tip>
 
 ### Request fields
 
 | Field | Description |
 | :--- | :--- |
-| `connect.type` | `dial_in`, the default and the only value today: the person dials in. |
-| `connect.to` | The handoff number for this takeover, `+91` and 10 digits. Defaults to the agent's `handoff.number`. It can't be the call's own number or the caller's number. |
-| `ttl_secs` | How long the window stays open for the person's call. Default `60`, from `15` to `180`. |
+| `connect.type` | `dial_in` (the default): the person dials in. `dial_out`: we ring the person. `dial_out` works on numbers rented from Mirai and numbers from your own telco account. On a SIP trunk number it answers `400 unsupported_connect`. |
+| `connect.to` | The handoff number for this takeover, `+91` and 10 digits: the number we ring, or the number the person calls from. Defaults to the agent's `handoff.number`. It can't be the call's own number or the caller's number. |
+| `ttl_secs` | How long the window stays open: how long we ring the person (`dial_out`), or how long we wait for their call (`dial_in`). Default `60`, from `15` to `180`. |
 | `instruction` | Up to 1,000 characters. The agent gets it as a [live instruction](/v2/live-control) when the takeover is armed, for example to ask the caller to hold. It is not read out word for word. |
 | `metadata` | Your own fields, up to 2 KB of JSON. Returned on the takeover, unchanged. |
 | `mode` | `talk`, the default and the only value today: the person talks to the caller. |
@@ -215,19 +376,21 @@ handoff number and a 60-second window.
 | `after_human` | `end_call`, the default and the only value today: the call ends when the person hangs up. Any other value is `400 invalid_request`. |
 
 The request waits up to 3 seconds for the call to confirm it is ready. A `201`
-means the takeover is armed and the person can dial now. If the call can't get
-ready in time, the answer is `409 handoff_unavailable`, nothing is armed, and
-the caller stays with the agent.
+means the takeover is armed: for `dial_out` the person's phone is ringing, for
+`dial_in` they can dial now. If the call can't get ready in time, or we can't
+place the call to the person, the answer is `409 handoff_unavailable`, nothing
+is armed or ringing, and the caller stays with the agent.
 
 **One at a time.** A call has at most one takeover armed, connecting or active.
 Another request meanwhile is `409 handoff_in_progress`. A call can have up to 5
 takeovers in all, so you can arm again after one expires or fails. A sixth is
 `409 handoff_limit_reached`.
 
-**Single use.** A takeover matches one call from the person. A call that
-doesn't match (a second call from the person, a call after the window closes,
-or a call from another number) is an ordinary incoming call to your number, and
-your agent answers it as a new call.
+**Single use.** A takeover joins one call from the person. For `dial_in`, a
+call that doesn't match (a second call from the person, a call after the window
+closes, or a call from another number) is an ordinary incoming call to your
+number, and your agent answers it as a new call. For `dial_out`, we ring once;
+a call the person makes back to your number is an ordinary incoming call too.
 
 **Idempotency.** Send an `Idempotency-Key`, up to 255 characters. A repeat with
 the same key returns the same takeover and arms nothing new. The same key with
@@ -242,33 +405,36 @@ a different body is `409 conflict`.
 | `call_id` | The call it belongs to. |
 | `mode`, `ai`, `after_human` | `talk`, `paused` and `end_call` today. |
 | `initiator` | `api`: your backend armed it. |
-| `connect.type` | `dial_in`. |
-| `connect.to` | The handoff number the person must call from. |
-| `connect.dial` | The number the person must dial: the number the call is on. |
+| `connect.type` | `dial_out` or `dial_in`. |
+| `connect.to` | The handoff number: the number we ring (`dial_out`), or the number the person must call from (`dial_in`). |
+| `connect.from` | `dial_out` only. The number we ring the person from: the number the call is on. |
+| `connect.dial` | `dial_in` only. The number the person must dial: the number the call is on. |
 | `state` | `armed`, `connecting`, `active` or `ended`. See below. |
 | `outcome` | Once `ended`: `completed`, `failed`, `cancelled` or `expired`. |
 | `reason` | Once `ended`: why, from the table below. |
-
-`outcome`, `reason`, `joined_at`, `ended_at`, `ended_by` and `duration_secs`
-are filled in once they are known.
-| `created_at`, `expires_at` | RFC 3339, UTC. The person's call must arrive before `expires_at`. |
+| `created_at`, `expires_at` | RFC 3339, UTC. The person must pick up (`dial_out`) or their call must arrive (`dial_in`) before `expires_at`. |
 | `joined_at`, `ended_at` | RFC 3339, UTC. When the person joined, and when the takeover ended. |
 | `ended_by` | Who ended it once the person had joined: `human`, `caller`, `api` or `system`. |
 | `duration_secs` | How long the person was on the call. |
 | `metadata` | Your `metadata`, unchanged. |
 
+`outcome`, `reason`, `joined_at`, `ended_at`, `ended_by` and `duration_secs`
+are filled in once they are known.
+
 | `state` | Meaning |
 | :--- | :--- |
-| `armed` | Waiting for the person's call. The agent is still talking to the caller. |
-| `connecting` | The person's call matched and is being joined to the caller. |
+| `armed` | `dial_out`: the person's phone is ringing. `dial_in`: waiting for the person's call. The agent is still talking to the caller. |
+| `connecting` | The person picked up, or their call matched, and they are being joined to the caller. |
 | `active` | The person and the caller are talking. The agent is paused. |
 | `ended` | Over. `outcome` and `reason` say how. |
 
 | `reason` | Meaning |
 | :--- | :--- |
-| `expired` | No matching call came before `expires_at`. The caller stayed with the agent. |
+| `expired` | Nobody picked up (`dial_out`) or no matching call came (`dial_in`) before `expires_at`. The caller stayed with the agent. |
+| `no_answer` | `dial_out`: the person's phone rang out, they declined, or it was busy or unreachable. The caller stayed with the agent. |
+| `dial_failed` | `dial_out`: we couldn't place the call to the person. The request answered `409 handoff_unavailable`, and nothing rang. |
 | `caller_left` | The caller hung up before the person joined. |
-| `join_failed` | The person's call matched but could not be joined in about 20 seconds. The caller stayed with the agent. |
+| `join_failed` | The person picked up, or their call matched, but they could not be joined in about 20 seconds. The caller stayed with the agent. |
 | `cancelled` | You cancelled it before the person joined. |
 | `human_hung_up` | The person hung up. The call ended. |
 | `caller_hung_up` | The caller hung up while talking to the person. The person's call was ended. |
@@ -323,8 +489,9 @@ curl https://sandbox.voice.miraiminds.co/v2/calls/call_01JZQ9B4M8N3P6R2S5T7V9W1Y
 POST /v2/calls/{call_id}/handoffs/{handoff_id}/cancel
 ```
 
-Closes the window before the person joins. The caller stays with the agent,
-and a later call from the person is an ordinary incoming call. It answers `200`
+Closes the window before the person joins. For `dial_out`, the ringing stops.
+The caller stays with the agent, and a later call from the person is an
+ordinary incoming call. It answers `200`
 with the takeover, now `ended` with `outcome: "cancelled"`. Cancelling again
 returns it unchanged. Once the person has joined, cancel answers
 `409 handoff_active`: use `end` instead.
@@ -361,6 +528,7 @@ takeover instead.
 | `403` | `parent_account_required` | The call is in a [sub-workspace](#sub-workspaces) and the request did not come from your parent workspace's key |
 | `400` | `unsupported_channel` | The call is not a phone call on one of your own numbers: a browser call, a realtime session, a text chat, a WhatsApp call, or a call on the Mirai shared line |
 | `400` | `invalid_request` | A field is wrong: `connect.to` not `+91` and 10 digits, or the same as the call's number or the caller's number; `ttl_secs` outside 15 to 180; `instruction` over 1,000 characters; `metadata` over 2 KB; or a `connect.type`, `mode`, `ai` or `after_human` value other than the ones above |
+| `400` | `unsupported_connect` | `dial_out` on a call on a SIP trunk number. Send `dial_in` there. Nothing was armed |
 | `403` | `handoff_disabled` | Takeover is switched off for the moment. Nothing was armed, and the caller is still with the agent |
 | `400` | `no_handoff_number` | No `connect.to` in the request, and the agent has no `handoff.number` |
 | `409` | `conflict` | `Idempotency-Key` reused with a different body |
@@ -368,7 +536,7 @@ takeover instead.
 | `409` | `handoff_in_progress` | Another takeover on this call is armed, connecting or active |
 | `409` | `handoff_limit_reached` | The call already had 5 takeovers |
 | `503` | `upstream_unavailable` | A service we depend on is briefly down. Nothing was armed. Retry |
-| `409` | `handoff_unavailable` | The call could not get ready for a takeover. Nothing was armed, and the caller is still with the agent. `message` says why |
+| `409` | `handoff_unavailable` | The call could not get ready for a takeover, or we couldn't place the call to the person (`dial_out`). Nothing was armed or rang, and the caller is still with the agent. `message` says why |
 | `409` | `handoff_active` | `cancel` after the person joined. Use `end` |
 | `409` | `handoff_not_active` | `end` before the person joined. Use `cancel` |
 
@@ -379,8 +547,8 @@ takeover as it happens:
 
 | Event | When |
 | :--- | :--- |
-| `handoff.armed` | The takeover is armed. Carries `connect.dial` and `expires_at`. |
-| `handoff.connecting` | The person's call matched and is being joined. |
+| `handoff.armed` | The takeover is armed. Carries `connect` (`connect.from` for `dial_out`, `connect.dial` for `dial_in`) and `expires_at`. For `dial_out`, the person's phone is ringing. |
+| `handoff.connecting` | The person picked up, or their call matched, and they are being joined. |
 | `handoff.joined` | The person is on the call. |
 | `call.handling` | The call moved from the agent to the person: `from: "ai"`, `to: "human"`. |
 | `agent.state` | `paused` while the person has the call. |
@@ -394,9 +562,9 @@ Subscribe an endpoint to these [call events](/v2/webhook-subscriptions#calls):
 
 | Event | When |
 | :--- | :--- |
-| `call.handoff.requested` | A takeover was armed. |
+| `call.handoff.requested` | A takeover was armed. For `dial_out`, the person's phone is ringing. |
 | `call.handoff.started` | The person joined. `data.handoff` and `data.call`. |
-| `call.handoff.failed` | It did not connect. `data.handoff.reason` is `expired`, `join_failed`, `caller_left` or `worker_unsupported`. Unless the caller left, the caller is still with the agent. |
+| `call.handoff.failed` | It did not connect. `data.handoff.reason` is `no_answer`, `expired`, `join_failed`, `caller_left`, `dial_failed` or `worker_unsupported`, and `message` says it in plain words. Unless the caller left, the caller is still with the agent. |
 | `call.handoff.ended` | The person's part is over. `data.handoff.duration_secs` and `data.handoff.ended_by`. |
 
 The call's terminal event and its processing events carry the takeover on
@@ -485,13 +653,15 @@ trunk, the leg's rate and amount are `0`. The other fields of the call and of
 - **The call.** The whole call, the person's part included, is billed at your
   [plan's](/general/tiers) normal per-minute rate. Nothing changes when a
   person takes over, and there is no takeover fee.
-- **The person's phone call.** On a number from Mirai, their call into your
-  number is billed at ₹0.30 a minute on every plan, on top of the plan's
-  included calling, with the same [rounding](/general/tiers#metering) as the
-  caller's line. On a number from your own telco account or SIP trunk it
-  carries no Mirai charge.
-- **A takeover that never connects**, because it expired, failed or was
-  cancelled, costs nothing extra.
+- **The person's phone call.** On a number from Mirai, the person's call is
+  billed at ₹0.30 a minute on every plan, whether we rang them or they dialled
+  in. It is on top of the plan's included calling, with the same
+  [rounding](/general/tiers#metering) as the caller's line, and counts only
+  the time the person was on the call. On a number from your own telco account
+  or SIP trunk it carries no Mirai charge.
+- **A takeover that never connects**, because nobody answered, it expired,
+  failed or was cancelled, costs nothing extra. A ring nobody picks up is
+  free.
 
 `cost.ai_secs` and `cost.human_secs` show how the call's time was split. They
 don't change the rate. `cost.amount_inr` is the total charged for the call,
@@ -510,10 +680,13 @@ the brand's other call events.
 
 ## Security and privacy
 
-- **Caller ID is the check.** In this release, the person's call is recognised
-  by the number they dial, their caller ID and the open window. Keep
-  `ttl_secs` short, and arm a takeover only when the person is about to call.
-  Each takeover matches one call only.
+- **`dial_out`: whoever answers joins.** We ring only `connect.to`, and the
+  person who picks up that phone joins the call. Ring numbers your team
+  controls, and cancel the takeover if you no longer need them.
+- **`dial_in`: caller ID is the check.** The person's call is recognised by
+  the number they dial, their caller ID and the open window. Keep `ttl_secs`
+  short, and arm a takeover only when the person is about to call. Each
+  takeover matches one call only.
 - **Keep the handoff number private.** It identifies who may take over your
   calls. Do not put it in prompts or show it to callers.
 - **Tell callers.** If your rules require it, tell callers that a person from
@@ -522,9 +695,10 @@ the brand's other call events.
 
 ## Coming later
 
+- We ring the person on SIP trunk numbers too. Today a takeover on a SIP trunk
+  number is `dial_in` only.
 - A one-time code the person's phone sends after connecting, as a second check
   on top of caller ID.
-- We ring the person for you, instead of waiting for them to dial in.
 - The agent hands a call to a person by itself, with the `transfer_call` tool.
   Until then, `transfer_call` is listed as unavailable in
   [Tools](/v2/tools).
