@@ -43,13 +43,12 @@ Live since 18 November 2026: a person from your team can
 the takeover, and either we ring the person (`dial_out`) or they dial your
 number from their handoff number (`dial_in`). When they join, the agent steps
 back. It works on numbers you rent from Mirai, numbers from your own telco
-account and numbers on a SIP trunk (dial-in only there for now). The call
+account and numbers on a SIP trunk, both ways. The call
 reports [`ended_reason: transferred`](/v2/calls#ended-reasons).
 
 Still to come, with no date yet:
 
 - The agent hands a call to a person by itself, with the `transfer_call` tool.
-- We ring the person on SIP trunk numbers too.
 - A one-time code to confirm the person's call, on top of caller ID.
 - Takeover on the Mirai shared line, WhatsApp calls and browser calls.
 
