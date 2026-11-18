@@ -33,7 +33,7 @@ Send these from your backend with your API key. They never go in a browser.
 | Best for | A colleague or supervisor your system picks, for example the next free sales person | An owner who taps **Take over** in your app and calls in |
 | What the person does | Answers their phone | Dials `connect.dial` from the handoff number |
 | How you ask for it | `"connect": { "type": "dial_out", "to": "+91…" }` | `"connect": { "type": "dial_in" }`, or leave `connect.type` out |
-| Numbers | Rented from Mirai, or from your own telco account | Rented from Mirai, from your own telco account, or on a SIP trunk |
+| Numbers | Rented from Mirai, from your own telco account, or on a SIP trunk | Rented from Mirai, from your own telco account, or on a SIP trunk |
 | If nobody joins | Nobody answers: `no_answer`. The agent tells the caller and carries on. | Nobody calls in time: `expired`. The caller carries on with the agent. |
 
 ## How it works
@@ -122,8 +122,10 @@ sequenceDiagram
 - **A phone call on one of your own numbers.** Takeover works on calls on a
   number you [rent from Mirai](/v2/phone-numbers#rent-a-number-from-mirai), a
   number you connect from your own telco account, or a number on your
-  [SIP trunk](/v2/sip-trunk). On a SIP trunk number, the person dials in:
-  `dial_out` answers `400 unsupported_connect` there for now.
+  [SIP trunk](/v2/sip-trunk). Both ways work on all of them. On a SIP trunk,
+  the ring for `dial_out` is a second call on your trunk from the call's own
+  number: your trunk needs a free channel and must accept that number as the
+  caller ID.
 - **Not yet** on the Mirai shared line, WhatsApp calls,
   [browser calls](/v2/web-calls) or [realtime sessions](/v2/realtime). Arming
   one there answers `400 unsupported_channel` and nothing changes on the call.
@@ -366,7 +368,7 @@ person dials (`connect.dial`).
 
 | Field | Description |
 | :--- | :--- |
-| `connect.type` | `dial_in` (the default): the person dials in. `dial_out`: we ring the person. `dial_out` works on numbers rented from Mirai and numbers from your own telco account. On a SIP trunk number it answers `400 unsupported_connect`. |
+| `connect.type` | `dial_in` (the default): the person dials in. `dial_out`: we ring the person. Both work on numbers rented from Mirai, numbers from your own telco account and SIP trunk numbers. |
 | `connect.to` | The handoff number for this takeover, `+91` and 10 digits: the number we ring, or the number the person calls from. Defaults to the agent's `handoff.number`. It can't be the call's own number or the caller's number. |
 | `ttl_secs` | How long the window stays open: how long we ring the person (`dial_out`), or how long we wait for their call (`dial_in`). Default `60`, from `15` to `180`. |
 | `instruction` | Up to 1,000 characters. The agent gets it as a [live instruction](/v2/live-control) when the takeover is armed, for example to ask the caller to hold. It is not read out word for word. |
@@ -431,7 +433,7 @@ are filled in once they are known.
 | `reason` | Meaning |
 | :--- | :--- |
 | `expired` | Nobody picked up (`dial_out`) or no matching call came (`dial_in`) before `expires_at`. The caller stayed with the agent. |
-| `no_answer` | `dial_out`: the person's phone rang out, they declined, or it was busy or unreachable. The caller stayed with the agent. |
+| `no_answer` | `dial_out`: the person's phone rang out, they declined, or it was busy or unreachable. On a SIP trunk, also when the trunk had no free line for the ring. The caller stayed with the agent. |
 | `dial_failed` | `dial_out`: we couldn't place the call to the person. The request answered `409 handoff_unavailable`, and nothing rang. |
 | `caller_left` | The caller hung up before the person joined. |
 | `join_failed` | The person picked up, or their call matched, but they could not be joined in about 20 seconds. The caller stayed with the agent. |
@@ -528,7 +530,7 @@ takeover instead.
 | `403` | `parent_account_required` | The call is in a [sub-workspace](#sub-workspaces) and the request did not come from your parent workspace's key |
 | `400` | `unsupported_channel` | The call is not a phone call on one of your own numbers: a browser call, a realtime session, a text chat, a WhatsApp call, or a call on the Mirai shared line |
 | `400` | `invalid_request` | A field is wrong: `connect.to` not `+91` and 10 digits, or the same as the call's number or the caller's number; `ttl_secs` outside 15 to 180; `instruction` over 1,000 characters; `metadata` over 2 KB; or a `connect.type`, `mode`, `ai` or `after_human` value other than the ones above |
-| `400` | `unsupported_connect` | `dial_out` on a call on a SIP trunk number. Send `dial_in` there. Nothing was armed |
+| `400` | `unsupported_connect` | Ringing the person isn't available on this call's line right now. Send `dial_in` instead. Nothing was armed |
 | `403` | `handoff_disabled` | Takeover is switched off for the moment. Nothing was armed, and the caller is still with the agent |
 | `400` | `no_handoff_number` | No `connect.to` in the request, and the agent has no `handoff.number` |
 | `409` | `conflict` | `Idempotency-Key` reused with a different body |
@@ -695,8 +697,6 @@ the brand's other call events.
 
 ## Coming later
 
-- We ring the person on SIP trunk numbers too. Today a takeover on a SIP trunk
-  number is `dial_in` only.
 - A one-time code the person's phone sends after connecting, as a second check
   on top of caller ID.
 - The agent hands a call to a person by itself, with the `transfer_call` tool.
