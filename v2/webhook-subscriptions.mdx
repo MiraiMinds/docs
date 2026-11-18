@@ -105,9 +105,9 @@ Scope: one agent or the whole workspace.
 | `call.analysis.completed` / `.failed` / `.skipped` | Call analysis reached a final state. |
 | `call.processed` | Analysis and post-call actions finished for this pass. |
 | `call.processing.completed` | Recording, transcript, analysis and post-call actions have all finished, including failures. |
-| `call.handoff.requested` | A [human takeover](/v2/handoff) was armed. The person can dial in now. |
+| `call.handoff.requested` | A [human takeover](/v2/handoff) was armed. We are ringing the person (`dial_out`), or they can dial in now (`dial_in`). |
 | `call.handoff.started` | The person joined the call, and the agent stepped back. |
-| `call.handoff.failed` | The takeover did not connect. `data.handoff.reason` is `expired`, `join_failed`, `caller_left` or `worker_unsupported`. Unless the caller left, the caller is still with the agent. |
+| `call.handoff.failed` | The takeover did not connect. `data.handoff.reason` is `no_answer`, `expired`, `join_failed`, `caller_left`, `dial_failed` or `worker_unsupported`. Unless the caller left, the caller is still with the agent. |
 | `call.handoff.ended` | The person's part of the call is over, and the call ends with it. `data.handoff` has `duration_secs` and `ended_by`. |
 
 `data.call` is the [call object](/v2/calls). Takeover events also carry

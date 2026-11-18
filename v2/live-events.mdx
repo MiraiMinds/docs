@@ -589,13 +589,13 @@ After that come the conversation's turns, with the person's as
 
 | Event | `data` |
 | :--- | :--- |
-| `handoff.armed` | `handoff_id`, `mode`, `connect` (`type`, `dial`: the number to dial, `to`: the handoff number), `expires_at`. |
-| `handoff.connecting` | `handoff_id`. The person's call matched and is being joined. |
+| `handoff.armed` | `handoff_id`, `mode`, `connect` (`type`; `to`: the handoff number; `from`: the number we ring from, for `dial_out`; `dial`: the number to dial, for `dial_in`), `expires_at`. For `dial_out`, the person's phone is ringing. |
+| `handoff.connecting` | `handoff_id`. The person picked up, or their call matched, and they are being joined. |
 | `handoff.joined` | `handoff_id`, `mode`, `ai` (`paused`), `at_ms`: when the person joined, in milliseconds from the start of the call's audio. |
 | `call.handling` | `from` (`ai`), `to` (`human`), `handoff_id`. The person has the call now. |
-| `handoff.failed` | `handoff_id`, `reason`, such as `join_failed`. The caller is still with the agent. |
+| `handoff.failed` | `handoff_id`, `reason`, such as `no_answer` or `join_failed`. The caller is still with the agent. |
 | `handoff.cancelled` | `handoff_id`. You cancelled it before the person joined. |
-| `handoff.expired` | `handoff_id`. No matching call came in time. The caller is still with the agent. |
+| `handoff.expired` | `handoff_id`. Nobody picked up, or no matching call came, in time. The caller is still with the agent. |
 | `handoff.ended` | `handoff_id`, `reason`, `ended_by` (`human`, `caller`, `api` or `system`), `duration_secs`. The call ends next. |
 
 Each `reason` is described with the [handoff object](/v2/handoff#the-handoff-object).

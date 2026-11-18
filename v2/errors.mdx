@@ -142,10 +142,11 @@ case nothing was armed or changed, and the caller is still with the agent.
 | :--- | :--- | :--- | :--- |
 | `parent_account_required` | `403` | The call is in a [sub-workspace](/v2/sub-workspaces), and the request did not come from the parent workspace. | Send your API key with the brand's `Mirai-Workspace` header. |
 | `handoff_disabled` | `403` | Takeover is switched off for the moment. | Try again later, or [write to us](mailto:help@miraiminds.co?subject=Human%20takeover). |
+| `unsupported_connect` | `400` | `connect.type` is `dial_out` on a call on a SIP trunk number. | Send `dial_in` there: the person dials the call's number. |
 | `no_handoff_number` | `400` | The request has no `connect.to`, and the agent has no `handoff.number`. | Send `connect.to`, or set `handoff.number` on the agent. |
 | `handoff_in_progress` | `409` | Another takeover on this call is armed, connecting or active. | Wait for it to end, or cancel it. |
 | `handoff_limit_reached` | `409` | The call already had 5 takeovers. | Let the caller finish with the agent, and follow up after the call. |
-| `handoff_unavailable` | `409` | The call could not get ready for a takeover. `message` says why. | Arm again. If it keeps failing, send us the `call_id`. |
+| `handoff_unavailable` | `409` | The call could not get ready for a takeover, or we couldn't place the call to the person (`dial_out`). `message` says why. | Arm again. If it keeps failing, send us the `call_id`. |
 | `handoff_active` | `409` | `cancel` after the person joined. | Use `end`, which ends the call. |
 | `handoff_not_active` | `409` | `end` before the person joined. | Use `cancel`. |
 
