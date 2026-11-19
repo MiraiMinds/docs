@@ -228,6 +228,7 @@ A header that names no sub-workspace of your parent answers
     "period": "monthly",
     "updated_at": "2026-11-16T05:00:00Z"
   },
+  "max_concurrent": 20,
   "created_at": "2026-11-02T09:14:02Z",
   "updated_at": "2026-11-02T09:14:02Z",
   "archived_at": null
@@ -246,6 +247,7 @@ A header that names no sub-workspace of your parent answers
 | `profile` | object | Facts about the brand that you want to keep with it. Returned as you sent it. |
 | `status` | enum | `active` or `archived`. |
 | `spend_limit` | object \| null | The brand's [spending limit](#spending-limits): `amount_inr`, `amount_paise`, `period` (`monthly` or `lifetime`) and `updated_at`. `null` when the brand has no limit. |
+| `max_concurrent` | integer \| null | The brand's [limit on calls at once](#calls-at-once), shared by all its campaigns and calls. `null` when it has none of its own. |
 | `created_at`, `updated_at` | string | RFC 3339, UTC. |
 | `archived_at` | string \| null | When it was archived. `null` while active. |
 
@@ -270,6 +272,7 @@ POST /v2/workspaces
 | `currency` | string | no | Three-letter currency code. Default `INR`. |
 | `profile` | object | no | A JSON object of up to 16 KB with your brand facts. |
 | `spend_limit` | object | no | Cap the brand's call spend. See [Spending limits](#spending-limits). No limit when left out. |
+| `max_concurrent` | integer | no | 1 to 1000. The most calls the brand runs at once, across all its campaigns and calls. See [Calls at once](#calls-at-once). No limit of its own when left out. |
 
 <Tabs>
   <Tab title="cURL">
@@ -416,7 +419,7 @@ PATCH /v2/workspaces/{id}
 `{id}` is the sub-workspace's `ws_` id or its `external_id`.
 
 `PATCH` takes `name`, `external_id`, `kind`, `timezone`, `currency`,
-`profile` and [`spend_limit`](#spending-limits). Send only the fields you change. A `profile` you send replaces the
+`profile`, [`spend_limit`](#spending-limits) and [`max_concurrent`](#calls-at-once). Send only the fields you change. A `profile` you send replaces the
 stored one. The uniqueness rules from create still apply, so a clash answers
 `409 workspace_exists`.
 
@@ -599,6 +602,34 @@ Every brand spends from the parent's wallet. Read each figure with the brand's
 | Spending limit | [`GET /v2/workspaces/{id}/spend`](#see-how-much-of-the-limit-is-used) with your key alone: used, held and remaining this month. |
 | Stopped calls | A brand's call gets `402 insufficient_balance` when the parent's wallet can't cover it, or `402 spend_limit_reached` when the brand is at its [spending limit](#spending-limits). `GET /v2/insights` for that brand lists a wallet refusal under `attention` as `wallet`. |
 | Top-ups and invoices | The parent. One top-up covers every brand. See [Out of credit](/v2/errors#out-of-credit). |
+
+## Calls at once
+
+Give a brand its own limit on calls at once with `max_concurrent`. All of the
+brand's campaigns and API calls share it, so one busy store can't take every
+line your account has.
+
+```bash
+curl -X PATCH https://prod.voice.miraiminds.co/v2/workspaces/acme-skincare \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "max_concurrent": 20 }'
+```
+
+- **Over the limit, calls wait.** A call over it isn't refused. It stays
+  `queued` and dials as soon as one of the brand's calls ends. A
+  [Realtime session](/v2/realtime#limits) can't wait, so it gets
+  `429 concurrency_limit`.
+- **Campaigns keep their own `max_concurrent`.** A campaign never runs more
+  than its own number, and all the brand's campaigns together never run more
+  than the brand's.
+- **Inbound calls are always answered.** Calls to the brand's numbers count
+  towards the limit, but never wait for it.
+- **Change it any time** with `PATCH`. The new number applies to the next call
+  that's about to dial. Calls already running are never cut. `"max_concurrent": null`
+  removes it.
+- It's a limit, not a reservation: the brand still shares your account's
+  [concurrency](/v2/limits#concurrency) with your other brands.
 
 ## Spending limits
 

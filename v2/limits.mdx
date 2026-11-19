@@ -316,7 +316,7 @@ with `400 invalid_request`.
 | :--- | :--- | :--- |
 | `contacts` per request | **1000 rows** | Applies to both create and `POST /contacts`. For a longer list, call it repeatedly; a running campaign accepts new rows. |
 | `slots` | 1–4 per campaign | `HH:MM` local. A zero-length slot is rejected, not read as "all day". |
-| `max_concurrent` | 1–50 | Also bounded by your workspace concurrency. Two campaigns share one ceiling. |
+| `max_concurrent` | 1–50 | Also bounded by your workspace concurrency, and by a sub-workspace's own [`max_concurrent`](/v2/sub-workspaces#calls-at-once). Two campaigns share one ceiling. |
 | `retry_count` | 0–5 | Retries after the first attempt. |
 | `re_attempt_period_secs` | 60–86,400 | 1 minute to 24 hours. |
 | `max_duration_secs` | 30–1800 | Defaults to the agent's. |
