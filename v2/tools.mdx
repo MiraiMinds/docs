@@ -831,14 +831,14 @@ tool arguments. Builtins currently include:
 | `end_call` | `on_call` | End the conversation. |
 | `schedule_callback` | `on_call`, `post_call` | Arrange a later call. |
 | `webhook` | `post_call` | Send the finished call and analysis to an additional HTTPS URL supplied in `builtin.url`. |
+| `transfer_call` | `on_call` | Pass the caller to a person on your team: we ring `builtin.to` (or the agent's handoff number) for `builtin.ring_secs` and join them to the call. See [Human takeover](/v2/handoff#let-the-agent-hand-over-transfer_call). |
 
 An explicit `end_call` tool can use `builtin.enabled`, `builtin.message`, and
 `builtin.confirm` to override the agent's [ending settings](/v2/agents#ending-a-call).
 Its tool-level `enabled` and `condition` also control whether it is available.
 
-`transfer_call` and `send_dtmf` are listed as unavailable. Saving an unavailable
-builtin returns `tool_unavailable`. To have a person from your team take over a
-call, your backend arms a [human takeover](/v2/handoff) instead.
+`send_dtmf` is listed as unavailable. Saving an unavailable builtin returns
+`tool_unavailable`.
 
 ## Tool definition reference
 

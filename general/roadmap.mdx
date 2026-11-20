@@ -13,7 +13,7 @@ row on this page, [confirm it with us](mailto:help@miraiminds.co?subject=Roadmap
 | :--- | :--- | :--- |
 | [Post-call analytics on every tier](#post-call-analytics-everywhere) — AI summary + QA score in the v2 API | August 2026 | ✅ **live**, with follow-up message templates |
 | [Human takeover](/v2/handoff) on every tier — a person from your team takes over a live phone call: we ring them, or they dial in | 23 November 2026 | ✅ **live** since 18 November 2026 |
-| [Transfer by the agent](#human-takeover-and-transfer) — the agent hands a call to a person by itself | not yet scheduled | planned |
+| [Transfer by the agent](/v2/handoff#let-the-agent-hand-over-transfer_call) — the agent hands a call to a person by itself, on phone and browser calls | 20 November 2026 | ✅ **live** since 20 November 2026 |
 | [Price ladder](/general/tiers) — T5 pay as you go, T3 and T1 with a monthly commitment, one Mira stack on every tier | September 2026 | ✅ **live** |
 | [Campaigns](/v2/campaigns) — server-side dialler with windows, retries, budgets and a report | August 2026 | ✅ **live** |
 | [Transcripts + recordings](/v2/calls#get-the-transcript) in the v2 API | August 2026 | rolling out |
@@ -46,11 +46,15 @@ back. It works on numbers you rent from Mirai, numbers from your own telco
 account and numbers on a SIP trunk, both ways. The call
 reports [`ended_reason: transferred`](/v2/calls#ended-reasons).
 
+Live since 20 November 2026: the agent can hand a call to a person by itself
+with the [`transfer_call` tool](/v2/handoff#let-the-agent-hand-over-transfer_call),
+and a person can take over a [browser call](/v2/handoff#web-calls) too (we
+ring them).
+
 Still to come, with no date yet:
 
-- The agent hands a call to a person by itself, with the `transfer_call` tool.
 - A one-time code to confirm the person's call, on top of caller ID.
-- Takeover on the Mirai shared line, WhatsApp calls and browser calls.
+- Takeover on the Mirai shared line and WhatsApp calls.
 
 ## Model APIs
 

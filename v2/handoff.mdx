@@ -1,12 +1,14 @@
 ---
 title: "Live human takeover: a person joins a live call"
 sidebarTitle: "Human takeover"
-description: "Hand a live phone call to a person from your team: we ring them, or they dial in, and the agent steps back. The flow, the API, events, webhooks, billing and limits."
+description: "Hand a live phone or web call to a person from your team: we ring them, or they dial in, and the agent steps back. Your backend or the agent itself can start it. The flow, the API, events, webhooks, billing and limits."
 ---
 
-A person from your team can take over a phone call while your agent is on it.
-Your backend arms a takeover on the live call, and the person joins in one of
-two ways:
+A person from your team can take over a call while your agent is on it: a
+phone call, or a [web call](#web-calls) from a browser or a test link. Your
+backend arms a takeover on the live call, or the agent starts one itself with
+the [`transfer_call` tool](#let-the-agent-hand-over-transfer_call). The person
+joins in one of two ways:
 
 - **We ring them** (`dial_out`). We call their phone from the call's own
   number. When they pick up, they are joined to the caller.
@@ -126,9 +128,12 @@ sequenceDiagram
   the ring for `dial_out` is a second call on your trunk from the call's own
   number: your trunk needs a free channel and must accept that number as the
   caller ID.
-- **Not yet** on the Mirai shared line, WhatsApp calls,
-  [browser calls](/v2/web-calls) or [realtime sessions](/v2/realtime). Arming
-  one there answers `400 unsupported_channel` and nothing changes on the call.
+- **Web calls: we ring the person.** A [browser call](/v2/web-calls) has no
+  number to dial in to, so the person is always rung (`dial_out`). See
+  [Web calls](#web-calls).
+- **Not** on the Mirai shared line, WhatsApp calls or
+  [realtime sessions](/v2/realtime). Arming one there answers
+  `400 unsupported_channel` and nothing changes on the call.
 - **A handoff number.** The person's phone number: the number we ring, or the
   number they call from. Set it on the agent or send it with each request. It
   is an Indian number in E.164 (`+91` and 10 digits).
@@ -144,6 +149,75 @@ sequenceDiagram
   For a number from your own telco account or trunk, check with your provider
   that it takes more than one call at once.
 - **Any plan.** Takeover works on every [tier](/general/tiers).
+
+## Web calls
+
+A web call (from the browser, a test link or the console's
+phone) can be taken over the same way, with one difference: the person is
+always rung (`dial_out`). Leave `connect.type` out, or send `dial_out`.
+Sending `dial_in` answers `400 unsupported_connect`.
+
+- **Caller ID.** We ring the person from the agent's
+  [calls-from number](/v2/agents#calls-from) when it has one that can place calls, and
+  otherwise from a Mirai number. `connect.from` in the answer says which. Ask
+  the person to save it as a contact.
+- **Audio.** The person hears the caller from the browser and the caller hears
+  the person in the browser. The call is recorded and transcribed as usual,
+  the person's turns with role `human`.
+- **Endings.** When the person hangs up, the web call ends. When the caller
+  closes the tab, the person's phone call is ended too.
+- **Billing.** As for a phone call: the whole call at your plan's per-minute
+  rate, plus the person's phone call at ₹0.30 a minute when it rings from a
+  Mirai number. A ring nobody answers costs nothing.
+
+## Let the agent hand over (`transfer_call`)
+
+Add the builtin `transfer_call` tool to the agent and the agent can start a
+`dial_out` takeover by itself: when the caller asks for something your team
+should answer and agrees to be passed on, the agent calls the tool, we ring the
+person and join them to the call. It works on phone calls and web calls, with
+the same rules, limits, events, webhooks and billing as a takeover your backend
+arms. The handoff's `initiator` is `agent`.
+
+```json
+{
+  "tools": [
+    {
+      "name": "transfer_call",
+      "phase": "on_call",
+      "builtin": { "to": "+919812345678", "ring_secs": 45 }
+    }
+  ]
+}
+```
+
+| Setting | Meaning |
+| :--- | :--- |
+| `builtin.to` | Optional. The number to ring, `+91` and 10 digits. Leave it out to ring the agent's [handoff number](#set-the-handoff-number). |
+| `builtin.ring_secs` | Optional. How long we ring, 15 to 60 seconds. Default 45. |
+
+In Agent Studio, open **Tools**, choose **Transfer to a person** from the
+ready-made tools, fill in the number and save.
+
+Tell the agent in its prompt when to offer a transfer and to ask first, for
+example: "If the caller asks something only the team can answer, ask: 'Can I
+pass you to my supervisor? He is on the line.' Call `transfer_call` only after
+they agree." The agent may pass a one-line `reason`; it is kept in the
+handoff's `metadata.reason`.
+
+What the agent is told back:
+
+- **Ringing.** It asks the caller to stay on the line. When the person answers
+  they join and the agent goes quiet.
+- **Nobody answers** within `ring_secs`. The agent is told the person could not
+  join, tells the caller briefly and keeps helping them.
+- **Not possible right now**: no number set, a transfer already ringing, five
+  takeovers already on this call, or a call that cannot be taken over. The
+  agent is told plainly and carries on with the caller.
+
+On a test link, `transfer_call` runs only when you tick it
+under **Tools this link can use**. It rings your number, never one a tester
+names.
 
 ## Set the handoff number
 
@@ -406,10 +480,10 @@ a different body is `409 conflict`.
 | `object` | `handoff`. |
 | `call_id` | The call it belongs to. |
 | `mode`, `ai`, `after_human` | `talk`, `paused` and `end_call` today. |
-| `initiator` | `api`: your backend armed it. |
+| `initiator` | `api`: your backend armed it. `agent`: the agent's `transfer_call` tool did. |
 | `connect.type` | `dial_out` or `dial_in`. |
 | `connect.to` | The handoff number: the number we ring (`dial_out`), or the number the person must call from (`dial_in`). |
-| `connect.from` | `dial_out` only. The number we ring the person from: the number the call is on. |
+| `connect.from` | `dial_out` only. The number we ring the person from: the number the call is on. On a web call, the agent's calls-from number, or a Mirai number. |
 | `connect.dial` | `dial_in` only. The number the person must dial: the number the call is on. |
 | `state` | `armed`, `connecting`, `active` or `ended`. See below. |
 | `outcome` | Once `ended`: `completed`, `failed`, `cancelled` or `expired`. |
@@ -528,9 +602,9 @@ takeover instead.
 | :--- | :--- | :--- |
 | `404` | `not_found` | Unknown call or takeover ID, or one in another workspace |
 | `403` | `parent_account_required` | The call is in a [sub-workspace](#sub-workspaces) and the request did not come from your parent workspace's key |
-| `400` | `unsupported_channel` | The call is not a phone call on one of your own numbers: a browser call, a realtime session, a text chat, a WhatsApp call, or a call on the Mirai shared line |
+| `400` | `unsupported_channel` | The call can't be taken over: a realtime session, a text chat, a WhatsApp call, a call on the Mirai shared line, or a web call with no number to ring the person from |
 | `400` | `invalid_request` | A field is wrong: `connect.to` not `+91` and 10 digits, or the same as the call's number or the caller's number; `ttl_secs` outside 15 to 180; `instruction` over 1,000 characters; `metadata` over 2 KB; or a `connect.type`, `mode`, `ai` or `after_human` value other than the ones above |
-| `400` | `unsupported_connect` | Ringing the person isn't available on this call's line right now. Send `dial_in` instead. Nothing was armed |
+| `400` | `unsupported_connect` | Ringing the person isn't available on this call's line right now (send `dial_in` instead), or `dial_in` on a web call (send `dial_out`). Nothing was armed |
 | `403` | `handoff_disabled` | Takeover is switched off for the moment. Nothing was armed, and the caller is still with the agent |
 | `400` | `no_handoff_number` | No `connect.to` in the request, and the agent has no `handoff.number` |
 | `409` | `conflict` | `Idempotency-Key` reused with a different body |
@@ -699,9 +773,6 @@ the brand's other call events.
 
 - A one-time code the person's phone sends after connecting, as a second check
   on top of caller ID.
-- The agent hands a call to a person by itself, with the `transfer_call` tool.
-  Until then, `transfer_call` is listed as unavailable in
-  [Tools](/v2/tools).
 
 ## Related
 
