@@ -113,7 +113,7 @@ Grouped by area. Each links to the page with the detail.
 | `duplicate_call` | `409` | A request with this `Idempotency-Key` is still being processed. | Not an error on a retry. No second call was placed. |
 | `conflict` | `409` | Not allowed in the current state, such as aborting a call that has ended. | Read the resource's `status` first. |
 | `call_not_active` | `409` | A [live control](/v2/live-control) or a [human takeover](/v2/handoff) reached a call that is not in progress: still ringing or queued, or already ended. | Wait for `call.started`. |
-| `unsupported_channel` | `400` | A live control reached a console text chat, or a human takeover reached a call it doesn't work on yet: anything but a phone call on one of your own numbers. | Live control works on phone, browser and realtime calls. Takeover works on [these calls](/v2/handoff#before-you-start). |
+| `unsupported_channel` | `400` | A live control reached a console text chat, or a human takeover reached a call it doesn't work on: a realtime session, a text chat, a WhatsApp call, a call on the Mirai shared line, or a browser call with no number to ring the person from. | Live control works on phone, browser and realtime calls. Takeover works on [these calls](/v2/handoff#before-you-start). |
 | `audio_unavailable` | `400` | A live `play` control's `audio_url` could not be fetched: not found, too slow, redirected, too big, or on a private address. Nothing was played. | Read `message` for the reason. Use a public `https` link, or upload the file. |
 | `flow_agent_voice_only` | `409` | A text chat named a [node-based agent](/v2/node-agents). | Use `phone` or `web`. |
 | `flow_first_message_unsupported` | `409` | A call sent `first_message` for a node-based agent. | Leave it out; personalise with `variables`. |
@@ -142,7 +142,7 @@ case nothing was armed or changed, and the caller is still with the agent.
 | :--- | :--- | :--- | :--- |
 | `parent_account_required` | `403` | The call is in a [sub-workspace](/v2/sub-workspaces), and the request did not come from the parent workspace. | Send your API key with the brand's `Mirai-Workspace` header. |
 | `handoff_disabled` | `403` | Takeover is switched off for the moment. | Try again later, or [write to us](mailto:help@miraiminds.co?subject=Human%20takeover). |
-| `unsupported_connect` | `400` | `connect.type` is `dial_out`, and ringing the person isn't available on this call's line right now. | Send `dial_in`: the person dials the call's number. |
+| `unsupported_connect` | `400` | `connect.type` is `dial_out` and ringing the person isn't available on this call's line right now, or `dial_in` on a browser call. | Send `dial_in` on a phone call; send `dial_out` (or leave it out) on a browser call. |
 | `no_handoff_number` | `400` | The request has no `connect.to`, and the agent has no `handoff.number`. | Send `connect.to`, or set `handoff.number` on the agent. |
 | `handoff_in_progress` | `409` | Another takeover on this call is armed, connecting or active. | Wait for it to end, or cancel it. |
 | `handoff_limit_reached` | `409` | The call already had 5 takeovers. | Let the caller finish with the agent, and follow up after the call. |
