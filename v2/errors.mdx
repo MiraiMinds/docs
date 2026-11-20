@@ -99,6 +99,7 @@ Grouped by area. Each links to the page with the detail.
 | `error.code` | Status | When | Fix |
 | :--- | :--- | :--- | :--- |
 | `invalid_request` | `400` | A field is missing, the wrong type or out of range, or the JSON is malformed. | Read `message`; it names the field. |
+| `context_length_exceeded` | `400` | A [language model](/v2/llm#limits) request is longer than the model's context: 32,768 tokens for the messages, the tools and the reply together. Nothing was charged. | Drop or summarise the oldest turns, keep the system message, and send it again. |
 | `unauthorized` | `401` | No `Authorization` header, no `Bearer ` prefix, or an unknown key. | Check the header. A trailing newline from `cat`-ing a key file is the usual culprit. |
 | `invalid_token` | `401` | A [browser call](/v2/web-calls)'s media link, a call's [events link](/v2/live-events) or a [TTS stream](/v2/tts-websocket#from-a-browser) token is unknown, expired or already used. | Use links exactly as returned, and mint a new stream token for each connection. |
 | `not_found` | `404` | Unknown or deleted ID, or one from another workspace. | Check the ID. For a transcript or recording, check `transcript_available` / `recording_available`. |
