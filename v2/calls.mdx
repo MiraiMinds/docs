@@ -65,7 +65,7 @@ a key from a workspace that has not gone live is refused with
 | `agent_id` | string | The agent this call ran. |
 | `to` | string | E.164 destination. On an incoming call, your number. |
 | `from` | string | Phone calls only. The number the call rang from: your number or the shared line on a call you place, the caller's number on an incoming call. |
-| `forwarded_from` | string | Incoming phone calls only. When a phone forwarded the call to your number (carrier call forwarding on busy, no answer, unreachable or always), the number of that phone in E.164, as the carrier reported it. This is not the caller (`from`) and not your number (`to`). Absent when the call was not forwarded or the carrier did not send it. |
+| `forwarded_from` | string | Incoming phone calls only. When a phone forwarded the call to your number (carrier call forwarding on busy, no answer, unreachable or always), the number of that phone in E.164, as the carrier reported it. Read on every kind of number: rented from Mirai, your own Plivo account and your own [SIP trunk](/v2/sip-trunk) (its `Diversion` or `History-Info` header). This is not the caller (`from`) and not your number (`to`). Absent when the call was not forwarded or the carrier did not send it. |
 | `direction` | string | `outbound` for a call you or a campaign placed, `inbound` for a call to one of your numbers. |
 | `channel` | string | `phone`, `web` (a [browser call](/v2/web-calls)), `text` (a typed test chat from the console) or `realtime`. Calls placed before this field existed read as `phone`. |
 | `status` | enum | See [statuses](#statuses). |
