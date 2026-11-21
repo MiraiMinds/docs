@@ -170,7 +170,6 @@
               "POST /v2/agents/{agent_id}/publish",
               "GET /v2/agents/{agent_id}/logs",
               "GET /v2/agents/{agent_id}/logs/summary",
-              "GET /v2/agents/{agent_id}/stt-accuracy",
               "GET /v2/agents/{agent_id}/home",
               "GET /v2/agents/{agent_id}/home/live",
               "GET /v2/agents/{agent_id}/home/calls",
@@ -255,8 +254,6 @@
               "POST /v2/campaigns/{campaign_id}/share",
               "GET /v2/campaigns/{campaign_id}/share",
               "DELETE /v2/campaigns/{campaign_id}/share",
-              "GET /v2/campaigns/{campaign_id}/stt-accuracy",
-              "POST /v2/campaigns/{campaign_id}/stt-accuracy/suggestions/accept",
               "POST /v2/campaigns/{campaign_id}/stop",
               "POST /v2/campaigns/{campaign_id}/duplicate"
             ]

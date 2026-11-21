@@ -143,11 +143,20 @@ SKIP_CONTRACT = {
     ("GET", "/v2/tts/stream"): PENDING + " (the speech pages document the streams)",
 }
 
-#: Postman requests left out of the reference, with the reason. Each was
-#: checked live: these answer 503 shared_test_unavailable on every public host.
+#: The hearing check's guide (docs PR #128, v2/stt-accuracy) waits for its
+#: owner flag (STT_ACCURACY_REPORT) to be lifted. Its routes stay out of the
+#: reference until then; drop these lines when #128 merges.
+STT_ACCURACY_HELD = "held until the hearing check is released (docs PR #128)"
+
+#: Postman requests left out of the reference, with the reason. The two
+#: phone verifications were checked live: they answer 503
+#: shared_test_unavailable on every public host.
 SKIP_POSTMAN = {
     ("POST", "/v2/telephony/phone-verifications"): "no shared test number on this deployment",
     ("POST", "/v2/telephony/phone-verifications/{}/verify"): "no shared test number on this deployment",
+    ("GET", "/v2/agents/{}/stt-accuracy"): STT_ACCURACY_HELD,
+    ("GET", "/v2/campaigns/{}/stt-accuracy"): STT_ACCURACY_HELD,
+    ("POST", "/v2/campaigns/{}/stt-accuracy/suggestions/accept"): STT_ACCURACY_HELD,
 }
 
 #: Contract operations with no Postman request: their page title, tag and
