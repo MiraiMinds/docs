@@ -796,6 +796,32 @@
                                 "description": "Run the analysis after every call that connected; a call that never connected is skipped (not_connected), and so is a call that connected but where nobody spoke (no_conversation). Default false. On the T1 plan, your workspace's insights setting decides this for each call instead.",
                                 "type": "boolean"
                               },
+                              "outcomes": {
+                                "description": "The fixed list of outcomes a call of this agent can end with, for reports and follow-up actions. After every call the analysis runs on, the same model request that writes summary, success and data also picks exactly one of these names, or none (null) when none fits or the transcript does not show it; a name that is not on the list is never published. The result is the call's top-level outcome (and analysis.outcome) on GET /v2/calls/{id}, list_calls, call.processed and call.analysis.*, and an outcome column in the call exports. At most 20 entries. Independent of output_schema: a result field of your own named outcome stays in analysis.data as before. Only calls whose analysis runs are classified (analysis.enabled, or your T1 insights setting). Revisioned with the agent like every analysis field; PATCH replaces the whole analysis block, so send outcomes again with it.",
+                                "items": {
+                                  "additionalProperties": false,
+                                  "properties": {
+                                    "description": {
+                                      "description": "When this outcome applies, in your words, for the model choosing it. Optional, at most 300 characters.",
+                                      "maxLength": 300,
+                                      "type": "string"
+                                    },
+                                    "name": {
+                                      "description": "The outcome as your systems read it: lower-case letters, digits and underscores, starting with a letter, at most 40 characters, unique in the list (for example interested, callback_requested, wrong_number). null is reserved.",
+                                      "maxLength": 40,
+                                      "minLength": 1,
+                                      "pattern": "^[a-z][a-z0-9_]*$",
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "name"
+                                  ],
+                                  "type": "object"
+                                },
+                                "maxItems": 20,
+                                "type": "array"
+                              },
                               "output_schema": {
                                 "additionalProperties": false,
                                 "description": "The shape of analysis.data: a root object schema from the documented bounded subset. Nested nodes use the same keywords; the server validates depth, node count and keyword/type compatibility. The model's data must satisfy it before the result is published. Not a template: placeholders are not rendered here.",
@@ -1468,6 +1494,260 @@
                       "error": {
                         "code": "not_found",
                         "message": "agent not found"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/agents/{agent_id}/test_script": {
+      "post": {
+        "operationId": "test_agent_script",
+        "summary": "Test an agent with a script",
+        "description": "Tests the agent without a phone: your customer's `lines` are typed to it one at a time in its text test chat, and you get back, per line, what the agent replied, the tools that ran and how long the reply took, then the post-call analysis of the whole conversation on `call`.\n\n`lines` is required: 1–30 customer lines, each at most 2000 characters. Optional: `variables`, `call_settings`, `allowed_tools` and `metadata` as on [Place a call](/api-reference/calls/place-a-call), and `analysis` (default `true`; `false` skips the analysis and its wait).\n\nIt is a real test call on the text channel, billed by LLM tokens like the console's chat, and tools run against your real endpoints. One run per agent at a time, at most 3 per workspace.",
+        "tags": [
+          "Agents"
+        ],
+        "parameters": [
+          {
+            "name": "agent_id",
+            "in": "path",
+            "required": true,
+            "description": "The agent's id (`agt_…`).",
+            "schema": {
+              "type": "string"
+            },
+            "example": "agt_01K2M4P7QRSTVWXYZ0A1B2C3"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "allowed_tools": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "analysis": {
+                    "type": "boolean"
+                  },
+                  "call_settings": {
+                    "additionalProperties": false,
+                    "description": "The voice and languages for this call only, over the agent's. Every key is optional; a key left out keeps the agent's value (or, on a campaign contact, the request's). The same object is accepted on POST /v2/calls, on a campaign contact and in a pre_call tool's result. An unknown key or a value that fails these rules is 400 invalid_request naming it.",
+                    "properties": {
+                      "language": {
+                        "description": "The main language speech recognition listens for on this call, as an agent's language (for example hi, gu or en-IN).",
+                        "maxLength": 35,
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      "secondary_languages": {
+                        "description": "Other languages callers may speak on this call. Base codes (gu-IN is read as gu; or as od); duplicates and the main language are dropped; at most 4. [] listens for the main language only.",
+                        "items": {
+                          "enum": [
+                            "hi",
+                            "en",
+                            "gu",
+                            "mr",
+                            "bn",
+                            "ta",
+                            "te",
+                            "kn",
+                            "ml",
+                            "pa",
+                            "od"
+                          ],
+                          "type": "string"
+                        },
+                        "maxItems": 4,
+                        "type": "array"
+                      },
+                      "voice_id": {
+                        "description": "The voice the agent speaks in on this call: one of the voices an agent's voice.voice_id accepts, including your own custom voices (cv_...) except on channel realtime (422 voice_not_supported). Same as the older voice.voice_id; both with different values is 400.",
+                        "minLength": 1,
+                        "type": "string"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  "lines": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "metadata": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
+                  },
+                  "variables": {
+                    "additionalProperties": {},
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "lines"
+                ],
+                "type": "object"
+              },
+              "examples": {
+                "Test an agent with a script": {
+                  "summary": "Test an agent with a script",
+                  "value": {
+                    "lines": [
+                      "हाँ, बोलिए",
+                      "18 तारीख को सुबह 10 बजे ठीक है",
+                      "धन्यवाद"
+                    ],
+                    "variables": {
+                      "name": "राहुल",
+                      "vehicle": "स्विफ्ट",
+                      "due_date": "18 अक्टूबर"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The conversation and its analysis",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TestScript"
+                },
+                "examples": {
+                  "The conversation and its analysis": {
+                    "summary": "200 — the conversation and its analysis",
+                    "value": {
+                      "object": "test_script",
+                      "call_id": "call_01K7S2T4V6X8Z0B2D4F6H8J0L2",
+                      "agent_id": "agt_01K2M4P7QRSTVWXYZ0A1B2C3",
+                      "status": "completed",
+                      "greeting": [
+                        "नमस्ते, आशु बोल रहा हूं. सर्विस की बात करनी थी."
+                      ],
+                      "turns": [
+                        {
+                          "line": "हाँ, बोलिए",
+                          "status": "answered",
+                          "replies": [
+                            "राहुल जी, आपकी स्विफ्ट की सर्विस 18 अक्टूबर को ड्यू है. कौन सा समय ठीक रहेगा?"
+                          ],
+                          "reply_ms": 1840
+                        },
+                        {
+                          "line": "18 तारीख को सुबह 10 बजे ठीक है",
+                          "status": "answered",
+                          "replies": [
+                            "बढ़िया, 18 अक्टूबर सुबह 10 बजे बुक कर दिया है."
+                          ],
+                          "tool_runs": [
+                            {
+                              "name": "create_booking",
+                              "status": "success",
+                              "duration_ms": 412,
+                              "tool_run_id": "tr_01K7S2V1C3E5G7J9L1N3Q5S7U9"
+                            }
+                          ],
+                          "reply_ms": 2310
+                        },
+                        {
+                          "line": "धन्यवाद",
+                          "status": "answered",
+                          "replies": [
+                            "धन्यवाद राहुल जी, आपका दिन शुभ हो."
+                          ],
+                          "reply_ms": 1290
+                        }
+                      ],
+                      "ended_reason": "assistant-ended-call",
+                      "call": {
+                        "id": "call_01K7S2T4V6X8Z0B2D4F6H8J0L2",
+                        "object": "call",
+                        "agent_id": "agt_01K2M4P7QRSTVWXYZ0A1B2C3",
+                        "channel": "text",
+                        "test": true,
+                        "status": "completed",
+                        "cost": {
+                          "amount_inr": 0.04,
+                          "amount_paise": 4,
+                          "per_min_inr": 0,
+                          "per_min_paise": 0
+                        },
+                        "analysis": {
+                          "status": "done",
+                          "state": "completed",
+                          "summary": "ग्राहक ने 18 अक्टूबर सुबह 10 बजे की सर्विस बुक की.",
+                          "success": true
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A run is already going for this agent",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "A run is already going for this agent": {
+                    "summary": "409 — a run is already going for this agent",
+                    "value": {
+                      "error": {
+                        "code": "test_script_running",
+                        "message": "a scripted test of agent agt_01K2M4P7QRSTVWXYZ0A1B2C3 is already running; wait for it to finish"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "The wallet is empty",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "The wallet is empty": {
+                    "summary": "402 — the wallet is empty",
+                    "value": {
+                      "error": {
+                        "code": "insufficient_balance",
+                        "message": "wallet balance is 0.00 INR"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not yours, deleted, or never existed",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "Not yours, deleted, or never existed": {
+                    "summary": "404 — not yours, deleted, or never existed",
+                    "value": {
+                      "error": {
+                        "code": "not_found",
+                        "message": "no agent agt_01K2M4P7QRSTVWXYZ0A1B2C3"
                       }
                     }
                   }
@@ -3855,6 +4135,14 @@
             "in": "query",
             "required": false,
             "description": "RFC 3339, not included.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "outcome",
+            "required": false,
             "schema": {
               "type": "string"
             }
@@ -13801,9 +14089,22 @@
       "post": {
         "operationId": "create_campaign",
         "summary": "Create a campaign",
-        "description": "Makes a **draft** campaign. Nothing rings until you start it.\n\nRequired: `name`, `agent_id`, `timezone`, `start_date`, `end_date` and `slots`. Dates are `YYYY-MM-DD` and slots are `HH:MM`, both in the campaign's own timezone; up to 4 slots, and a slot may cross midnight. Set the dates to the days you actually want to call. A campaign whose dates have passed finishes as soon as it starts.\n\nOptional: `max_concurrent` (1–50, default 1), `retry_count` (0–5 retries after the first attempt, default 0), `re_attempt_period_secs` (60–86400, default 900), `max_duration_secs` (defaults to the agent's), `budget_paise` (leave it out for no cap), `webhook_url`, `skip_called_before` (skip numbers another campaign has already reached), `final_results` (default `true`: each call ends with one `call.processed` carrying the transcript, the results and the contact's metadata), `pause_after_connected` (1–100000: the campaign pauses itself once that many calls have connected; leave it out or send null for no limit), `keyterms` (up to 100 names and words your contacts may say that are easy to mishear; calls listen for them along with the agent's own, and a change reaches the next call, even while the campaign dials) and `tier` (defaults to your plan).\n\n`contacts` is optional here: up to 1000 rows per request, each `{id?, phone, variables?, metadata?}`. `variables` fill the placeholders in the agent's prompt for that person, the same way they do on a single call. `metadata` is your own fields the agent doesn't need (a CRM id, a branch): kept with the contact and sent on each of its calls' webhooks, never given to the agent. Every campaign call's webhooks also name its `campaign_id` and `contact_id`. A bad row doesn't sink the upload. It comes back in `contacts_rejected` with its index, and the good rows are stored.\n\nThere is no idempotency key on this route. If a create times out, list your campaigns before you retry, or you may end up with two.",
+        "description": "Makes a **draft** campaign. Nothing rings until you start it.\n\nRequired: `name`, `agent_id`, `timezone`, `start_date`, `end_date` and `slots`. Dates are `YYYY-MM-DD` and slots are `HH:MM`, both in the campaign's own timezone; up to 4 slots, and a slot may cross midnight. Set the dates to the days you actually want to call. A campaign whose dates have passed finishes as soon as it starts.\n\nOptional: `max_concurrent` (1–50, default 1), `retry_count` (0–5 retries after the first attempt, default 0), `re_attempt_period_secs` (60–86400, default 900), `max_duration_secs` (defaults to the agent's), `budget_paise` (leave it out for no cap), `webhook_url`, `skip_called_before` (skip numbers another campaign has already reached), `final_results` (default `true`: each call ends with one `call.processed` carrying the transcript, the results and the contact's metadata), `pause_after_connected` (1–100000: the campaign pauses itself once that many calls have connected; leave it out or send null for no limit), `keyterms` (up to 100 names and words your contacts may say that are easy to mishear; calls listen for them along with the agent's own, and a change reaches the next call, even while the campaign dials) and `tier` (defaults to your plan).\n\n`contacts` is optional here: up to 1000 rows per request, each `{id?, phone, variables?, metadata?}`. `variables` fill the placeholders in the agent's prompt for that person, the same way they do on a single call. `metadata` is your own fields the agent doesn't need (a CRM id, a branch): kept with the contact and sent on each of its calls' webhooks, never given to the agent. Every campaign call's webhooks also name its `campaign_id` and `contact_id`. A bad row doesn't sink the upload. It comes back in `contacts_rejected` with its index, and the good rows are stored.\n\nSend an `Idempotency-Key` header to make a retry safe: the first request with a key creates the campaign, and a retry with the same key (within 24 hours) gets that first answer back with `Idempotent-Replay: true` and creates nothing. While the first is still being answered, the same key is `409 request_in_progress`.",
         "tags": [
           "Campaigns"
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "description": "Up to 255 characters. The same key within 24 hours replays the first answer and creates nothing new. Build it from your own record, such as `order-8842-reminder-1`.",
+            "schema": {
+              "maxLength": 255,
+              "type": "string"
+            },
+            "example": "order-8842-reminder-1"
+          }
         ],
         "requestBody": {
           "required": true,
@@ -14149,6 +14450,72 @@
                       "contacts_duplicate": 0,
                       "contacts_rejected": []
                     }
+                  },
+                  "A retry with the same Idempotency-Key": {
+                    "summary": "201 — a retry with the same Idempotency-Key",
+                    "value": {
+                      "agent_revision": 1,
+                      "id": "cmp_01K79Q4T6W8XZ2B5D7F9H3JKMN",
+                      "object": "campaign",
+                      "name": "सर्विस रिमाइंडर — अक्टूबर",
+                      "agent_id": "agt_01K2M4P7QRSTVWXYZ0A1B2C3",
+                      "tier": "t5",
+                      "status": "draft",
+                      "pause_reason": null,
+                      "timezone": "Asia/Kolkata",
+                      "start_date": "2026-10-12",
+                      "end_date": "2026-10-16",
+                      "slots": [
+                        {
+                          "start": "10:00",
+                          "end": "13:00"
+                        },
+                        {
+                          "start": "16:00",
+                          "end": "19:00"
+                        }
+                      ],
+                      "max_concurrent": 2,
+                      "retry_count": 1,
+                      "re_attempt_period_secs": 3600,
+                      "max_duration_secs": 300,
+                      "budget_paise": 50000,
+                      "spent_paise": 0,
+                      "pause_after_connected": 50,
+                      "pause_after_connected_count": 0,
+                      "pause_after_connected_since": "2026-10-09T06:12:40Z",
+                      "skip_called_before": false,
+                      "keyterms": [
+                        "सर्विस",
+                        "नेक्सॉन"
+                      ],
+                      "final_results": true,
+                      "created_at": "2026-10-09T06:12:40Z",
+                      "updated_at": "2026-10-09T06:12:40Z",
+                      "archived": false,
+                      "archived_at": null,
+                      "contacts_accepted": 2,
+                      "contacts_duplicate": 0,
+                      "contacts_rejected": []
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The first request with this key is still running",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "The first request with this key is still running": {
+                    "summary": "409 — the first request with this key is still running",
+                    "value": {
+                      "error": {
+                        "code": "request_in_progress",
+                        "message": "a request with this Idempotency-Key is still being answered; retry it in a moment for its answer"
+                      }
+                    }
                   }
                 }
               }
@@ -14299,7 +14666,7 @@
       "post": {
         "operationId": "add_campaign_contacts",
         "summary": "Add contacts",
-        "description": "Appends up to 1000 contacts per request. Send more requests for a bigger list. A running campaign picks new contacts up straight away.\n\nRows are checked one by one. A phone already in the campaign (or repeated in this batch) counts in `contacts_duplicate`, and a row that can't be stored is listed in `contacts_rejected` with its index in your array. The answer is the campaign object with those three counts on top, the same shape a create returns.\n\nA stopped or completed campaign refuses new contacts (409), since nothing would ever call them.",
+        "description": "Appends up to 1000 contacts per request. Send more requests for a bigger list. A running campaign picks new contacts up straight away.\n\nRows are checked one by one. A phone already in the campaign (or repeated in this batch) counts in `contacts_duplicate`, and a row that can't be stored is listed in `contacts_rejected` with its index in your array. The answer is the campaign object with those three counts on top, the same shape a create returns.\n\nA stopped or completed campaign refuses new contacts (409), since nothing would ever call them.\n\nEach contact may also carry `not_before` (RFC 3339 with its offset: not called before then), `expires_at` (never called at or after then, retries included; a contact still waiting then ends `expired`) and `priority` (−1000000 to 1000000, default 0: among contacts due at the same moment, higher goes first). The calling hours, retries and the do-not-call list still apply.\n\nSend an `Idempotency-Key` header to make a retry safe: a retry with the same key (within 24 hours, for this campaign) gets the first answer back with `Idempotent-Replay: true` and adds nothing again.",
         "tags": [
           "Campaigns"
         ],
@@ -14313,6 +14680,17 @@
               "type": "string"
             },
             "example": "cmp_01K79Q4T6W8XZ2B5D7F9H3JKMN"
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "description": "Up to 255 characters. The same key within 24 hours replays the first answer and creates nothing new. Build it from your own record, such as `order-8842-reminder-1`.",
+            "schema": {
+              "maxLength": 255,
+              "type": "string"
+            },
+            "example": "order-8842-reminder-1"
           }
         ],
         "requestBody": {
@@ -14431,7 +14809,10 @@
                           "name": "अमित",
                           "vehicle": "नेक्सॉन",
                           "due_date": "22 अक्टूबर"
-                        }
+                        },
+                        "not_before": "2026-10-12T10:00:00+05:30",
+                        "expires_at": "2026-10-13T19:00:00+05:30",
+                        "priority": 10
                       }
                     ]
                   }
@@ -14448,6 +14829,54 @@
                 "examples": {
                   "Added": {
                     "summary": "200 — added",
+                    "value": {
+                      "agent_revision": 1,
+                      "id": "cmp_01K79Q4T6W8XZ2B5D7F9H3JKMN",
+                      "object": "campaign",
+                      "name": "सर्विस रिमाइंडर — अक्टूबर",
+                      "agent_id": "agt_01K2M4P7QRSTVWXYZ0A1B2C3",
+                      "tier": "t5",
+                      "status": "draft",
+                      "pause_reason": null,
+                      "timezone": "Asia/Kolkata",
+                      "start_date": "2026-10-12",
+                      "end_date": "2026-10-16",
+                      "slots": [
+                        {
+                          "start": "10:00",
+                          "end": "13:00"
+                        },
+                        {
+                          "start": "16:00",
+                          "end": "19:00"
+                        }
+                      ],
+                      "max_concurrent": 2,
+                      "retry_count": 1,
+                      "re_attempt_period_secs": 3600,
+                      "max_duration_secs": 300,
+                      "budget_paise": 50000,
+                      "spent_paise": 0,
+                      "pause_after_connected": 50,
+                      "pause_after_connected_count": 0,
+                      "pause_after_connected_since": "2026-10-09T06:12:40Z",
+                      "skip_called_before": false,
+                      "keyterms": [
+                        "सर्विस",
+                        "नेक्सॉन"
+                      ],
+                      "final_results": true,
+                      "created_at": "2026-10-09T06:12:40Z",
+                      "updated_at": "2026-10-09T06:12:40Z",
+                      "archived": false,
+                      "archived_at": null,
+                      "contacts_accepted": 1,
+                      "contacts_duplicate": 0,
+                      "contacts_rejected": []
+                    }
+                  },
+                  "A retry with the same Idempotency-Key": {
+                    "summary": "200 — a retry with the same Idempotency-Key",
                     "value": {
                       "agent_revision": 1,
                       "id": "cmp_01K79Q4T6W8XZ2B5D7F9H3JKMN",
@@ -15887,6 +16316,108 @@
                       "error": {
                         "code": "contact_suppressed",
                         "message": "contact lead-1042 cannot be called again: its number is on the do-not-call list"
+                      }
+                    }
+                  },
+                  "Past its expires_at": {
+                    "summary": "409 — past its expires_at",
+                    "value": {
+                      "error": {
+                        "code": "contact_expired",
+                        "message": "contact lead-1042 expired at 2026-10-13T13:30:00Z (its expires_at) and is never called after that; add it again as a new contact with a later expires_at to call it"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/campaigns/{campaign_id}/contacts/{contact_id}/attempts": {
+      "get": {
+        "operationId": "list_campaign_contact_attempts",
+        "summary": "List a contact's calls",
+        "description": "Every call placed for one contact, oldest first: retries, calls again after [Call a contact again](/api-reference/campaigns/call-a-contact-again), and calls that broke on our side. `attempt` counts the contact's calls from 1; `status`, `ended_reason` and the times are the call's own, as [Get call](/api-reference/calls/get-call) shows them. Use `call_id` with [Get call](/api-reference/calls/get-call) for the rest.\n\nCalls are recorded as they are placed from November 2026. A contact called only before then lists its last call until Mirai fills in the earlier ones. Percent-encode `contact_id` if it has characters a path cannot carry.",
+        "tags": [
+          "Campaigns"
+        ],
+        "parameters": [
+          {
+            "name": "campaign_id",
+            "in": "path",
+            "required": true,
+            "description": "The campaign's id (`cmp_…`).",
+            "schema": {
+              "type": "string"
+            },
+            "example": "cmp_01K79Q4T6W8XZ2B5D7F9H3JKMN"
+          },
+          {
+            "name": "contact_id",
+            "in": "path",
+            "required": true,
+            "description": "The contact's `id`: yours if you sent one, otherwise the one the campaign assigned.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "lead-1042"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Two calls, one retry",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "Two calls, one retry": {
+                    "summary": "200 — two calls, one retry",
+                    "value": {
+                      "object": "list",
+                      "data": [
+                        {
+                          "object": "campaign_contact_attempt",
+                          "attempt": 1,
+                          "call_id": "call_01K7D2F4H6K8M0P2R4T6V8X0Z2",
+                          "status": "no_answer",
+                          "ended_reason": "customer-did-not-answer",
+                          "created_at": "2026-10-12T04:30:00Z",
+                          "started_at": null,
+                          "ended_at": "2026-10-12T04:30:41Z",
+                          "duration_secs": 0
+                        },
+                        {
+                          "object": "campaign_contact_attempt",
+                          "attempt": 2,
+                          "call_id": "call_01K7D5J7M9P1R3T5V7X9Z1B3D5",
+                          "status": "no_answer",
+                          "ended_reason": "customer-did-not-answer",
+                          "created_at": "2026-10-12T05:31:31Z",
+                          "started_at": null,
+                          "ended_at": "2026-10-12T05:32:12Z",
+                          "duration_secs": 0
+                        }
+                      ],
+                      "has_more": false,
+                      "next_cursor": null
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such contact",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "No such contact": {
+                    "summary": "404 — no such contact",
+                    "value": {
+                      "error": {
+                        "code": "not_found",
+                        "message": "no contact lead-1042 in campaign cmp_01K79Q4T6W8XZ2B5D7F9H3JKMN"
                       }
                     }
                   }
@@ -27665,6 +28196,32 @@
                     "description": "Run the analysis after every call that connected; a call that never connected is skipped (not_connected), and so is a call that connected but where nobody spoke (no_conversation). Default false. On the T1 plan, your workspace's insights setting decides this for each call instead.",
                     "type": "boolean"
                   },
+                  "outcomes": {
+                    "description": "The fixed list of outcomes a call of this agent can end with, for reports and follow-up actions. After every call the analysis runs on, the same model request that writes summary, success and data also picks exactly one of these names, or none (null) when none fits or the transcript does not show it; a name that is not on the list is never published. The result is the call's top-level outcome (and analysis.outcome) on GET /v2/calls/{id}, list_calls, call.processed and call.analysis.*, and an outcome column in the call exports. At most 20 entries. Independent of output_schema: a result field of your own named outcome stays in analysis.data as before. Only calls whose analysis runs are classified (analysis.enabled, or your T1 insights setting). Revisioned with the agent like every analysis field; PATCH replaces the whole analysis block, so send outcomes again with it.",
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "description": {
+                          "description": "When this outcome applies, in your words, for the model choosing it. Optional, at most 300 characters.",
+                          "maxLength": 300,
+                          "type": "string"
+                        },
+                        "name": {
+                          "description": "The outcome as your systems read it: lower-case letters, digits and underscores, starting with a letter, at most 40 characters, unique in the list (for example interested, callback_requested, wrong_number). null is reserved.",
+                          "maxLength": 40,
+                          "minLength": 1,
+                          "pattern": "^[a-z][a-z0-9_]*$",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "name"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 20,
+                    "type": "array"
+                  },
                   "output_schema": {
                     "additionalProperties": false,
                     "description": "The shape of analysis.data: a root object schema from the documented bounded subset. Nested nodes use the same keywords; the server validates depth, node count and keyword/type compatibility. The model's data must satisfy it before the result is published. Not a template: placeholders are not rendered here.",
@@ -28338,6 +28895,32 @@
                     "description": "Run the analysis after every call that connected; a call that never connected is skipped (not_connected), and so is a call that connected but where nobody spoke (no_conversation). Default false. On the T1 plan, your workspace's insights setting decides this for each call instead.",
                     "type": "boolean"
                   },
+                  "outcomes": {
+                    "description": "The fixed list of outcomes a call of this agent can end with, for reports and follow-up actions. After every call the analysis runs on, the same model request that writes summary, success and data also picks exactly one of these names, or none (null) when none fits or the transcript does not show it; a name that is not on the list is never published. The result is the call's top-level outcome (and analysis.outcome) on GET /v2/calls/{id}, list_calls, call.processed and call.analysis.*, and an outcome column in the call exports. At most 20 entries. Independent of output_schema: a result field of your own named outcome stays in analysis.data as before. Only calls whose analysis runs are classified (analysis.enabled, or your T1 insights setting). Revisioned with the agent like every analysis field; PATCH replaces the whole analysis block, so send outcomes again with it.",
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "description": {
+                          "description": "When this outcome applies, in your words, for the model choosing it. Optional, at most 300 characters.",
+                          "maxLength": 300,
+                          "type": "string"
+                        },
+                        "name": {
+                          "description": "The outcome as your systems read it: lower-case letters, digits and underscores, starting with a letter, at most 40 characters, unique in the list (for example interested, callback_requested, wrong_number). null is reserved.",
+                          "maxLength": 40,
+                          "minLength": 1,
+                          "pattern": "^[a-z][a-z0-9_]*$",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "name"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 20,
+                    "type": "array"
+                  },
                   "output_schema": {
                     "additionalProperties": false,
                     "description": "The shape of analysis.data: a root object schema from the documented bounded subset. Nested nodes use the same keywords; the server validates depth, node count and keyword/type compatibility. The model's data must satisfy it before the result is published. Not a template: placeholders are not rendered here.",
@@ -28958,6 +29541,32 @@
                     "default": false,
                     "description": "Run the analysis after every call that connected; a call that never connected is skipped (not_connected), and so is a call that connected but where nobody spoke (no_conversation). Default false. On the T1 plan, your workspace's insights setting decides this for each call instead.",
                     "type": "boolean"
+                  },
+                  "outcomes": {
+                    "description": "The fixed list of outcomes a call of this agent can end with, for reports and follow-up actions. After every call the analysis runs on, the same model request that writes summary, success and data also picks exactly one of these names, or none (null) when none fits or the transcript does not show it; a name that is not on the list is never published. The result is the call's top-level outcome (and analysis.outcome) on GET /v2/calls/{id}, list_calls, call.processed and call.analysis.*, and an outcome column in the call exports. At most 20 entries. Independent of output_schema: a result field of your own named outcome stays in analysis.data as before. Only calls whose analysis runs are classified (analysis.enabled, or your T1 insights setting). Revisioned with the agent like every analysis field; PATCH replaces the whole analysis block, so send outcomes again with it.",
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "description": {
+                          "description": "When this outcome applies, in your words, for the model choosing it. Optional, at most 300 characters.",
+                          "maxLength": 300,
+                          "type": "string"
+                        },
+                        "name": {
+                          "description": "The outcome as your systems read it: lower-case letters, digits and underscores, starting with a letter, at most 40 characters, unique in the list (for example interested, callback_requested, wrong_number). null is reserved.",
+                          "maxLength": 40,
+                          "minLength": 1,
+                          "pattern": "^[a-z][a-z0-9_]*$",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "name"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 20,
+                    "type": "array"
                   },
                   "output_schema": {
                     "additionalProperties": false,
@@ -29609,6 +30218,10 @@
             "minimum": 1,
             "type": "integer"
           },
+          "outcome": {
+            "description": "The name the analysis chose from the agent revision's analysis.outcomes. Present only on a completed analysis that chose one; the call object's top-level outcome carries the same name (null when there is none).",
+            "type": "string"
+          },
           "state": {
             "enum": [
               "waiting_for_call",
@@ -30177,6 +30790,13 @@
             },
             "type": "object"
           },
+          "outcome": {
+            "description": "The call's outcome: the name the post-call analysis chose from its agent's analysis.outcomes, the same as analysis.outcome. null when the agent has no outcomes, when the analysis has not completed (yet) or did not run, and when none of the outcomes fits. On every call object: GET /v2/calls/{id}, list_calls (filter with outcome=) and every webhook's data.call. Events sent before the analysis (call.queued, call.started, call.completed and the other endings) say null; read it from call.analysis.completed, call.processed or GET. Not the agent home's own outcome (success, callback, talked, not_reached, ...), which classifies how any call ended.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "phone_number_id": {
             "description": "The id of your phone number the call rang from or was answered on. Absent when it rang from the shared line.",
             "type": "string"
@@ -30297,6 +30917,10 @@
           "generation": {
             "minimum": 1,
             "type": "integer"
+          },
+          "outcome": {
+            "description": "The name the analysis chose from the agent revision's analysis.outcomes. Present only on a completed analysis that chose one; the call object's top-level outcome carries the same name (null when there is none).",
+            "type": "string"
           },
           "state": {
             "enum": [
@@ -32611,6 +33235,133 @@
         "required": [
           "state",
           "attempts"
+        ],
+        "type": "object"
+      },
+      "TestScript": {
+        "description": "A scripted test's answer (POST /v2/agents/{id}/test_script): the conversation line by line, then the test call as GET /v2/calls/{id} shows it once settled.",
+        "properties": {
+          "agent_id": {
+            "description": "The agent tested.",
+            "type": "string"
+          },
+          "call": {
+            "description": "The test call once settled: status, cost (billed by LLM tokens), analysis and outcome. analysis is still pending when it did not finish in time; read GET /v2/calls/{id} later.",
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Call"
+              }
+            ]
+          },
+          "call_id": {
+            "description": "The test call (channel text, test true): readable with GET /v2/calls/{id}, its transcript and analysis.",
+            "type": "string"
+          },
+          "ended_reason": {
+            "description": "How the conversation ended on the agent's side: customer-ended-call when the script hung up, assistant-ended-call when the agent did.",
+            "type": "string"
+          },
+          "greeting": {
+            "description": "The agent's opening line(s), before the first customer line; empty when it waits for the customer.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "object": {
+            "const": "test_script",
+            "description": "Always test_script."
+          },
+          "status": {
+            "description": "completed: every line was sent; ended_early: the agent ended the conversation before the last line (see ended_reason); timed_out: the time budget ran out and the rest were not sent; failed: the conversation could not be continued.",
+            "enum": [
+              "completed",
+              "ended_early",
+              "timed_out",
+              "failed"
+            ],
+            "type": "string"
+          },
+          "turns": {
+            "description": "One per customer line, in order.",
+            "items": {
+              "properties": {
+                "error": {
+                  "description": "Why the turn failed (status error).",
+                  "type": "string"
+                },
+                "line": {
+                  "description": "The customer line, as sent (trimmed).",
+                  "type": "string"
+                },
+                "replies": {
+                  "description": "Every agent line said before the next customer line.",
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "reply_ms": {
+                  "description": "From sending the line to the agent's first line back.",
+                  "type": "integer"
+                },
+                "status": {
+                  "description": "answered: the agent replied; no_reply: nothing came back in time; error: the turn failed (error says why, e.g. llm_unavailable); not_sent: the conversation had ended or time ran out.",
+                  "enum": [
+                    "answered",
+                    "no_reply",
+                    "error",
+                    "not_sent"
+                  ],
+                  "type": "string"
+                },
+                "tool_runs": {
+                  "description": "The on-call tools that ran for this line: names and timings only.",
+                  "items": {
+                    "properties": {
+                      "duration_ms": {
+                        "description": "How long the endpoint took.",
+                        "type": "integer"
+                      },
+                      "name": {
+                        "description": "The tool.",
+                        "type": "string"
+                      },
+                      "status": {
+                        "description": "Its outcome as the call's tool receipts name it (ok, error, timeout, ...), or running if it had not finished.",
+                        "type": "string"
+                      },
+                      "tool_run_id": {
+                        "description": "The receipt, in GET /v2/calls/{id}/tool_runs.",
+                        "type": "string"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "line",
+                "status",
+                "replies"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "object",
+          "call_id",
+          "agent_id",
+          "status",
+          "greeting",
+          "turns",
+          "call"
         ],
         "type": "object"
       },

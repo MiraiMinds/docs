@@ -802,8 +802,16 @@ get back the agent's reply to each, the tools it ran, and the analysis of the
 whole conversation. Use it to check a prompt change, or to run the same script
 against every new revision.
 
+<Note>
+Scripted tests need a production workspace, one that has
+[gone live](/v2/go-live). Send them to `https://prod.voice.miraiminds.co`. A
+sandbox workspace is refused with `403 production_workspace_required`. Until you
+go live, test with the web phone in Agent Studio, or with a
+[browser call](/v2/web-calls).
+</Note>
+
 ```bash
-curl -X POST https://sandbox.voice.miraiminds.co/v2/agents/agt_01K7Q9F3K7M2N5P9R4T6V8W0XZ/test_script \
+curl -X POST https://prod.voice.miraiminds.co/v2/agents/agt_01K7Q9F3K7M2N5P9R4T6V8W0XZ/test_script \
   -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   --max-time 420 \
@@ -868,6 +876,7 @@ analysis has not finished by then, `call.analysis` is pending; read
 | Status | Code | When |
 | :--- | :--- | :--- |
 | `402` | `insufficient_balance` | Your wallet is empty. |
+| `403` | `production_workspace_required` | The workspace is a sandbox. Complete [Go live](/v2/go-live) first. |
 | `409` | `test_script_running` | A test is already running for this agent. One at a time per agent. |
 | `409` | `flow_agent_voice_only` | The agent is a [node-based agent](/v2/node-agents). Test those by voice, on a phone or browser call. |
 | `429` | `rate_limited` | Three tests are already running in your workspace. Wait for `Retry-After`. |

@@ -370,10 +370,11 @@ the customer you are afraid of: say no, correct a digit half-way through, ask
 something that is not in FACTS, then go quiet and see what happens. You can
 catch most prompt bugs here, and it costs nothing.
 
-To run the same customer lines against every change, send them as a script
-with [`POST /v2/agents/{id}/test_script`](/v2/agents#test-with-a-script). You
-get the agent's reply to each line, the tools it ran and the analysis, billed
-by tokens rather than by the minute.
+Once your workspace has gone live, you can run the same customer lines against
+every change: send them as a script with
+[`POST /v2/agents/{id}/test_script`](/v2/agents#test-with-a-script). You get
+the agent's reply to each line, the tools it ran and the analysis, billed by
+tokens rather than by the minute.
 </Step>
 
 <Step title="Read the transcript, change one thing">

@@ -121,11 +121,6 @@ SKIP_CONTRACT = {
     ("GET", "/v2/status/incidents/{id}"): "not served on the public hosts yet (gateway route pending)",
     ("GET", "/v2/status/platform"): "not served on the public hosts yet (gateway route pending)",
     ("GET", "/v2/status/public"): "not served on the public hosts yet (gateway route pending)",
-    #: In the contract since conductor #406 (Helpdesk #86), not yet in the
-    #: console's Postman collection. v2/campaigns documents it meanwhile (List
-    #: contact attempts). Add a Postman request in mirai-voice
-    #: scripts/postman/spec and drop this line; the page then generates.
-    ("GET", "/v2/campaigns/{id}/contacts/{contact_id}/attempts"): PENDING,
     #: In the contract, with no request in the console's Postman collection
     #: (checked 21 Nov 2026), so not a public route yet.
     ("GET", "/v2/agents/{id}/rules"): PENDING,
