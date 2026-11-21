@@ -81,7 +81,7 @@ for `flow_generation_failed`.
 | `409` | State conflict: the same `Idempotency-Key` still in flight, or an operation the current state forbids. | No. |
 | `413` | The request body, or a file you sent by link, is over the endpoint's limit. | No. Send a smaller request. |
 | `415` | [Speech to text](/v2/stt-quickstart#when-something-fails) could not decode the audio file. | No. Send WAV or a common format. |
-| `422` | Valid request, but no usable result: a flow that stayed invalid, a recording with no conversation, or a [Realtime session](/v2/realtime#errors) for an agent with a custom voice. | Not as is. |
+| `422` | Valid request, but no usable result: a call to a number on your [do-not-call list](/v2/dnc), a flow that stayed invalid, a recording with no conversation, or a [Realtime session](/v2/realtime#errors) for an agent with a custom voice. | Not as is. |
 | `426` | A plain HTTP request reached a WebSocket endpoint. | No. Connect with a WebSocket client. |
 | `429` | Request-rate limit, or no capacity (`at_capacity`). Reaching your *call* concurrency limit does not return `429`: those calls queue. A [Realtime session](/v2/realtime#errors) cannot queue, so it gets `429 concurrency_limit`. | Yes, with backoff. |
 | `500` | Our fault. | Yes, with backoff. |
@@ -112,6 +112,8 @@ Grouped by area. Each links to the page with the detail.
 | `error.code` | Status | When | Fix |
 | :--- | :--- | :--- | :--- |
 | `duplicate_call` | `409` | A request with this `Idempotency-Key` is still being processed. | Not an error on a retry. No second call was placed. |
+| `do_not_call` | `422` | The number is on your [do-not-call list](/v2/dnc): you added it, the person asked on a call not to be called again, or they filed a TRAI complaint. Nothing was reserved, dialled or charged. | Don't call it. If the person has since asked you to call, [remove the number](/v2/dnc#remove-a-number) first. |
+| `do_not_call_complaint` | `409` | `DELETE /v2/dnc/{phone}` for a person who filed a TRAI complaint. | The number stays on the list. |
 | `conflict` | `409` | Not allowed in the current state, such as aborting a call that has ended. | Read the resource's `status` first. |
 | `call_not_active` | `409` | A [live control](/v2/live-control) or a [human takeover](/v2/handoff) reached a call that is not in progress: still ringing or queued, or already ended. | Wait for `call.started`. |
 | `unsupported_channel` | `400` | A live control reached a console text chat, or a human takeover reached a call it doesn't work on: a realtime session, a text chat, a WhatsApp call, a call on the Mirai shared line, or a browser call with no number to ring the person from. | Live control works on phone, browser and realtime calls. Takeover works on [these calls](/v2/handoff#before-you-start). |
@@ -158,6 +160,8 @@ case nothing was armed or changed, and the caller is still with the agent.
 | :--- | :--- | :--- | :--- |
 | `conflict` | `409` | Editing or starting a campaign that is `play`, adding contacts to one that ended, or resuming one with no dialler. | To resume without a dialler, use [`POST /start`](/v2/campaigns#start-a-campaign). |
 | `window_closed` | `409` | The [calling window](/v2/campaigns#calling-window) can never open again before `end_date`. | Extend `end_date` or widen `slots`, then start again. |
+| `request_in_progress` | `409` | A create or add-contacts request with this `Idempotency-Key` is still being answered. | [Retry after a moment](/v2/campaigns#safe-retries-with-idempotency-key) to get the first answer. Nothing was created twice. |
+| `contact_expired` | `409` | [Call a contact again](/v2/campaigns#call-a-contact-again) after its `expires_at` has passed. | The contact is final. If the call is still needed, add a new contact. |
 | `fleet_offline` | `503` | Speech capacity is offline, so a [campaign start](/v2/campaigns#start-a-campaign) was refused. Nothing was charged. | Honour `Retry-After` (300 s) and start again. |
 | `campaigns_unavailable` | `503` | Campaigns are not enabled for your workspace. | [Ask us to enable them](mailto:help@miraiminds.co?subject=Enable%20campaigns). Retrying won't clear it. |
 

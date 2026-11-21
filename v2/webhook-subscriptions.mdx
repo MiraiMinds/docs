@@ -1,7 +1,7 @@
 ---
 title: "Webhook subscriptions: call, campaign, wallet, payment, phone number and status events"
 sidebarTitle: "Webhook subscriptions"
-description: "Subscribe an HTTPS endpoint or a list of email addresses to the events you care about, for one agent or the whole workspace: calls, campaigns, low balance, refused calls, payments, spending limits, incidents and maintenance."
+description: "Subscribe an HTTPS endpoint or a list of email addresses to the events you care about, for one agent or the whole workspace: calls, campaigns, low balance, refused calls, payments, spending limits, do-not-call changes, incidents and maintenance."
 ---
 
 A webhook subscription sends events to your HTTPS endpoint without a URL on every call.
@@ -12,6 +12,7 @@ You register an endpoint once, then pick the events it should receive:
 - wallet alerts: balance low, calls refused for balance, balance back up
 - payments: payment received, payment failed
 - rented phone numbers: renewal coming up, renewed, released, purchase failed, and business verification updates
+- do-not-call list: a number added or taken off
 - status: incidents and planned maintenance that may affect your calls
 
 An endpoint can also be a list of email addresses instead of a URL, for the events a person acts on. See [Send events by email](#send-events-by-email).
@@ -71,7 +72,7 @@ All routes use your API key and act on the key's workspace.
       }'
     ```
 
-    For one agent only, use `"scope": {"type": "agent", "agent_id": "agt_…"}`. Wallet, payment and status events belong to the whole workspace, so an agent subscription cannot list them (the API answers `400`).
+    For one agent only, use `"scope": {"type": "agent", "agent_id": "agt_…"}`. Wallet, payment, phone number, do-not-call and status events belong to the whole workspace, so an agent subscription cannot list them (the API answers `400`).
   </Step>
   <Step title="Send a test">
     ```bash
@@ -110,7 +111,7 @@ Scope: one agent or the whole workspace.
 | `call.handoff.failed` | The takeover did not connect. `data.handoff.reason` is `no_answer`, `expired`, `join_failed`, `caller_left`, `dial_failed` or `worker_unsupported`. Unless the caller left, the caller is still with the agent. |
 | `call.handoff.ended` | The person's part of the call is over, and the call ends with it. `data.handoff` has `duration_secs` and `ended_by`. |
 
-`data.call` is the [call object](/v2/calls). Takeover events also carry
+`data.call` is the [call object](/v2/calls#the-call-object), the same object `GET /v2/calls/{id}` returns, on every call event. See [the call object in an event](/v2/webhooks#the-call-object-in-an-event). Takeover events also carry
 `data.handoff`, the [handoff object](/v2/handoff#the-handoff-object). On a call
 that had a takeover, `call.completed` and `call.processing.completed` carry
 `data.call.handoffs`, `data.call.segments` and the split `cost`. See
@@ -172,6 +173,17 @@ Scope: the whole workspace only.
 | `workspace.spend_limit.reached` | A sub-workspace's charges for ended calls reached 100% of its limit, or the first call was refused for the limit. |
 
 Each is sent once per period for each limit setting: once a month on a monthly limit, once on a lifetime limit. Changing the limit's amount or period lets them fire again. The event goes to the sub-workspace's own subscriptions and to your account's, and both events can go to an [email endpoint](#send-events-by-email). The top-level `workspace_id` is the workspace receiving the copy. `data.workspace_id` always names the sub-workspace and `data.parent_id` your account.
+
+### Do-not-call list
+
+Scope: the whole workspace only.
+
+| Event | When |
+| :--- | :--- |
+| `dnc.added` | A number was added to your [do-not-call list](/v2/dnc): by you (`POST /v2/dnc` or the console), because the person asked on a call not to be called again, or because they filed a complaint about one of your calls. |
+| `dnc.removed` | A number was taken off it (`DELETE /v2/dnc/{phone}` or the console). Your calls can ring it again. |
+
+Use them to put the person on your WhatsApp, SMS and email stop lists at the same moment. You get one `dnc.added` each time a number is added. Adding a number that is already on the list sends nothing, and a number added again after it was removed sends a new event. `data.source` says how the number got there. See the [payload](#payloads). These events go to HTTPS endpoints only.
 
 ### Status
 
@@ -239,7 +251,7 @@ Once an address confirms, it is confirmed for every email endpoint in the worksp
 | Spending limits | `workspace.spend_limit.warning`, `workspace.spend_limit.reached` |
 | Campaigns | `campaign.paused`, `campaign.completed`, `campaign.stopped` |
 
-Call, recording, analysis and processing events go to HTTPS endpoints only. A subscription or test that puts one of them on an email endpoint answers `400`, naming the event. In `GET /v2/webhooks/event-types`, each event says `"email": true` or `"email": false`.
+Call, recording, analysis, processing and do-not-call events go to HTTPS endpoints only. A subscription or test that puts one of them on an email endpoint answers `400`, naming the event. In `GET /v2/webhooks/event-types`, each event says `"email": true` or `"email": false`.
 
 ### Sending and receipts
 
@@ -285,7 +297,7 @@ Every event has the same envelope.
 | `created_at` | When the event happened (RFC 3339, UTC). |
 | `schema_version` | `2026-09-22`. |
 | `workspace_id` | Your workspace. |
-| `subject` | `{type, id}`: the call, campaign, wallet (your workspace id), payment, rental, verification, workspace (a sub-workspace's id) or incident the event is about. |
+| `subject` | `{type, id}`: the call, campaign, wallet (your workspace id), payment, rental, verification, workspace (a sub-workspace's id), do-not-call entry (`dnc_entry`, the phone number) or incident the event is about. |
 | `source_id` | What produced the event. Repeats of the same occurrence share it. |
 | `test` | `true` for synthetic tests, test calls and test-mode payments. |
 | `data` | The event's content. |
@@ -583,6 +595,39 @@ Every event has the same envelope.
     ```
 
     `data.impact` is `null` when we have no numbers for your workspace. Every field is described in [Status and incidents](/v2/status#payload).
+  </Accordion>
+  <Accordion title="dnc.added">
+    ```json
+    {
+      "id": "evt_5c2e…",
+      "type": "dnc.added",
+      "created_at": "2026-11-21T09:31:12Z",
+      "schema_version": "2026-09-22",
+      "workspace_id": "ws_…",
+      "subject": {"type": "dnc_entry", "id": "+919876543210"},
+      "source_id": "dnc:+919876543210:2026-11-21T09:31:12.481Z",
+      "test": false,
+      "data": {
+        "workspace_id": "ws_…",
+        "phone": "+919876543210",
+        "source": "caller_request",
+        "call_id": "call_01K…",
+        "note": "दोबारा फोन मत करना",
+        "added_at": "2026-11-21T09:31:12Z"
+      }
+    }
+    ```
+
+    | Field | Description |
+    | :--- | :--- |
+    | `data.phone` | The number, E.164. |
+    | `data.source` | `manual`: you added it. `caller_request`: the person asked on a call not to be called again. `complaint`: the person filed a TRAI UCC complaint about one of your calls. |
+    | `data.call_id` | The call the person asked on (`caller_request`). |
+    | `data.note` | The person's own words (`caller_request`), or the complaint's reference (`complaint`). Absent when there is none. |
+    | `data.added_at` | When the number was added. |
+    | `data.removed_at` | On `dnc.removed` only: when it was taken off. |
+
+    `dnc.removed` has the same fields as the `dnc.added` it ends, plus `removed_at`.
   </Accordion>
 </AccordionGroup>
 

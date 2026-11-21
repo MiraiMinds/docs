@@ -170,6 +170,11 @@
               "POST /v2/agents/{agent_id}/publish",
               "GET /v2/agents/{agent_id}/logs",
               "GET /v2/agents/{agent_id}/logs/summary",
+              "GET /v2/agents/{agent_id}/stt-accuracy",
+              "GET /v2/agents/{agent_id}/home",
+              "GET /v2/agents/{agent_id}/home/live",
+              "GET /v2/agents/{agent_id}/home/calls",
+              "GET /v2/agents/{agent_id}/export",
               "GET /v2/agents/schema",
               "DELETE /v2/agents/{agent_id}"
             ]
@@ -182,6 +187,7 @@
               "GET /v2/calls/{call_id}",
               "GET /v2/calls",
               "GET /v2/calls/summary",
+              "GET /v2/calls/export",
               "GET /v2/insights",
               "GET /v2/calls/{call_id}/events",
               "POST /v2/calls/{call_id}/control",
@@ -249,6 +255,8 @@
               "POST /v2/campaigns/{campaign_id}/share",
               "GET /v2/campaigns/{campaign_id}/share",
               "DELETE /v2/campaigns/{campaign_id}/share",
+              "GET /v2/campaigns/{campaign_id}/stt-accuracy",
+              "POST /v2/campaigns/{campaign_id}/stt-accuracy/suggestions/accept",
               "POST /v2/campaigns/{campaign_id}/stop",
               "POST /v2/campaigns/{campaign_id}/duplicate"
             ]
@@ -258,6 +266,7 @@
             "pages": [
               "POST /v2/dnc",
               "GET /v2/dnc",
+              "GET /v2/dnc/{phone}/calls",
               "DELETE /v2/dnc/{phone}"
             ]
           },
@@ -290,6 +299,8 @@
             "pages": [
               "GET /v2/telephony/options",
               "GET /v2/telephony/requirements",
+              "GET /v2/business-verification",
+              "PUT /v2/business-verification",
               "GET /v2/telephony/onboarding",
               "POST /v2/telephony/onboarding",
               "POST /v2/telephony/onboarding/{onboarding_id}/refresh",
@@ -306,7 +317,9 @@
               "GET /v2/telephony/connections/{connection_id}",
               "GET /v2/telephony/connections/{connection_id}/numbers",
               "PATCH /v2/telephony/connections/{connection_id}",
-              "POST /v2/telephony/connections/{connection_id}/verify"
+              "POST /v2/telephony/connections/{connection_id}/verify",
+              "POST /v2/telephony/test-calls",
+              "GET /v2/telephony/inbound-misses"
             ]
           },
           {
@@ -339,6 +352,8 @@
             "group": "Wallet",
             "pages": [
               "GET /v2/wallet",
+              "GET /v2/wallet/settings",
+              "PATCH /v2/wallet/settings",
               "GET /v2/wallet/transactions"
             ]
           },
@@ -370,16 +385,53 @@
             ]
           },
           {
+            "group": "Human takeover",
+            "pages": [
+              "POST /v2/calls/{call_id}/handoffs",
+              "GET /v2/calls/{call_id}/handoffs",
+              "GET /v2/calls/{call_id}/handoffs/{handoff_id}",
+              "POST /v2/calls/{call_id}/handoffs/{handoff_id}/cancel",
+              "POST /v2/calls/{call_id}/handoffs/{handoff_id}/end"
+            ]
+          },
+          {
+            "group": "WhatsApp numbers",
+            "pages": [
+              "GET /v2/whatsapp/numbers",
+              "POST /v2/whatsapp/numbers",
+              "GET /v2/whatsapp/numbers/{whatsapp_number_id}",
+              "PATCH /v2/whatsapp/numbers/{whatsapp_number_id}",
+              "DELETE /v2/whatsapp/numbers/{whatsapp_number_id}"
+            ]
+          },
+          {
+            "group": "Recordings",
+            "pages": [
+              "POST /v2/recordings",
+              "GET /v2/recordings/{recording_id}",
+              "GET /v2/recordings",
+              "POST /v2/recordings/{recording_id}/analysis/retry"
+            ]
+          },
+          {
             "group": "Sub-workspaces",
             "pages": [
               "POST /v2/workspaces",
               "GET /v2/workspaces",
               "GET /v2/workspaces/{sub_workspace_id}",
               "PATCH /v2/workspaces/{sub_workspace_id}",
+              "GET /v2/workspaces/{sub_workspace_id}/spend",
               "POST /v2/workspaces/{sub_workspace_id}/archive",
               "POST /v2/workspaces/{sub_workspace_id}/restore",
               "POST /v2/workspace/onboard/custom",
               "POST /v2/workspace/onboard/shopify"
+            ]
+          },
+          {
+            "group": "Status",
+            "pages": [
+              "GET /v2/status/incidents",
+              "GET /v2/status/incidents/{incident_id}"
             ]
           },
           {

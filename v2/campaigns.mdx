@@ -58,7 +58,8 @@ rate.
   "keyterms": ["Diwali Bonanza", "Gold Plus"],
   "created_at": "2026-08-10T09:21:44Z",
   "updated_at": "2026-08-10T11:04:02Z",
-  "counters": { "pending": 812, "dialing": 2, "completed": 174, "no_answer": 9, "suppressed": 3 }
+  "counters": { "pending": 812, "dialing": 2, "completed": 174, "no_answer": 9, "suppressed": 3 },
+  "contacts_total": 1000
 }
 ```
 
@@ -86,7 +87,8 @@ rate.
 | `pause_after_connected_since` | string | Read-only. RFC 3339 time the current count began. Present with `pause_after_connected_count`. |
 | `keyterms` | array of strings | Words speech recognition listens for on this campaign's calls, before its agent's own: brand, product, place and people names. Up to 100. Always present, `[]` when there are none. See [words to catch](#words-to-catch). |
 | `keyterm_spellings` | object | Read-only. The keyterms written in the scripts of the calls' languages, which the calls also listen for, by term and then language. Only when you read one campaign, and absent while there are none. See [spellings](/v2/keyterms#spellings-and-scripts). |
-| `counters` | object | Contacts by [status](#contact-statuses). Present on `GET /v2/campaigns/{id}`, omitted from list pages. |
+| `counters` | object | How many contacts are in each [status](#contact-statuses), for the statuses that have any. On `GET /v2/campaigns/{id}` and on list pages. Absent on a campaign with no contacts. |
+| `contacts_total` | integer | All the campaign's contacts. `0` on a campaign with no contacts. On `GET /v2/campaigns/{id}` and on list pages. |
 
 <Warning>
 **Campaign money is in paise, call money is in rupees.**
@@ -181,6 +183,7 @@ way the call list does. The rest exist only inside campaigns.
 | `aborted` | ✅ | The campaign was stopped while this contact was pending or in flight. |
 | `skipped` | ✅ | A pre-call [`skip_call`](/v2/tools#skip-when-a-condition-holds) condition held, so we did not dial. Free. Never retried. |
 | `cancelled` | ✅ | You [cancelled](#cancel-a-contact) the contact while it was waiting. Never dialled again unless you [call it again](#call-a-contact-again). |
+| `expired` | ✅ | The contact's [`expires_at`](#contact-schedule) passed before it could be called, or before its next retry. Never dialled again. |
 
 Watch `exhausted`. It counts the people we tried with every attempt you paid
 for and never reached. A contact that ends `no_answer` still had attempts left;
@@ -419,7 +422,9 @@ up to `retry_count` times.
 Use it to run a queue. Keep one open campaign for an agent and add each number
 as your system produces it, such as a new order or a new lead, instead of
 placing single calls. Every number then gets calling hours, pacing and retries,
-which [`POST /v2/calls`](/v2/calls#create-a-call) does not do.
+which [`POST /v2/calls`](/v2/calls#create-a-call) does not do, and can carry
+its own not-before time, expiry and priority (see
+[contact schedule](#contact-schedule)).
 
 You can set `always_on`:
 
@@ -582,6 +587,56 @@ shows where every number is, attempts included.
 
 ---
 
+## Contact schedule
+
+Every contact you add, on [create](#create-a-campaign) or with
+[Add contacts](#add-contacts), can carry three optional fields that say when it
+may be called and in what order:
+
+| Field | Type | Meaning |
+| :--- | :--- | :--- |
+| `not_before` | RFC 3339 time with offset | The contact is not called before this time. |
+| `expires_at` | RFC 3339 time with offset | The contact is never called at or after this time, retries included. It must be in the future and after `not_before`. |
+| `priority` | integer, -1000000 to 1000000, default `0` | Among contacts due at the same moment, higher priority is called first. Equal priorities keep the usual order. |
+
+The campaign's [calling window](#calling-window), [retries](#retries) and the
+[do-not-call list](/v2/dnc) still apply to every contact.
+
+When a waiting contact passes its `expires_at`, it ends with status
+[`expired`](#contact-statuses) and is not called again. If its next retry would
+fall at or after `expires_at`, it ends `expired` straight away. We check
+`expires_at` when the contact's turn comes, so a call that started just before
+is not cut off. A row with a bad value is listed in `contacts_rejected` with the
+reason, and the other rows are still added.
+
+[List contacts](#list-contacts) shows `not_before`, `expires_at` (both `null`
+when not set) and `priority` on each contact. A
+[duplicated](/api-reference/campaigns/duplicate-a-campaign) campaign copies
+them with each contact.
+
+**Use it for NDR and cash-on-delivery confirmations.** Run one
+[always-on](#always-on-campaigns) campaign and add each order as a contact with
+its own `id`, an `expires_at` at your deadline, and a higher `priority` for
+urgent orders:
+
+```bash
+curl -X POST https://sandbox.voice.miraiminds.co/v2/campaigns/cmp_01K8QAC5N9P4R7S3T6V8W2X4YB/contacts \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: order-8812-ndr" \
+  -d '{
+    "contacts": [
+      { "id": "order-8812", "phone": "+919876501234",
+        "variables": { "name": "Amit" },
+        "not_before": "2026-11-22T10:00:00+05:30",
+        "expires_at": "2026-11-22T18:00:00+05:30",
+        "priority": 10 }
+    ]
+  }'
+```
+
+---
+
 ## Create a campaign
 
 ```http
@@ -611,7 +666,7 @@ POST /v2/campaigns
 | `pause_after_connected` | integer \| null | no | 1–100000. The campaign pauses itself once this many calls have connected. Omit it, or send `null`, for no limit. See [pause after connected calls](#pause-after-connected-calls). |
 | `keyterms` | array of strings | no | Up to 100 words for speech recognition to listen for on this campaign's calls, before the agent's own. See [words to catch](#words-to-catch). |
 | `final_results` | boolean | no | Default `true`. Each call ends with one [`call.processed`](/v2/webhooks#final-results) carrying the transcript, the after-call results and the contact's `metadata`. `false` sends the shorter events only. Change it while the campaign is a draft or paused. |
-| `contacts` | array | no | Up to **1000** rows per request. `{phone, variables?, metadata?, call_settings?, id?}`. Add more later. |
+| `contacts` | array | no | Up to **1000** rows per request. `{phone, variables?, metadata?, call_settings?, id?, not_before?, expires_at?, priority?}`. Add more later. See [contact schedule](#contact-schedule). |
 
 ```bash
 curl -X POST https://sandbox.voice.miraiminds.co/v2/campaigns \
@@ -769,6 +824,24 @@ and `call_settings.secondary_languages` set the same keys. Separate secondary
 languages with commas, for example `hi,en`. An existing `language` column stays a
 variable.
 
+### Safe retries with Idempotency-Key
+
+`POST /v2/campaigns` and [`POST /v2/campaigns/{id}/contacts`](#add-contacts)
+accept an `Idempotency-Key` header: up to 255 characters, kept 24 hours,
+scoped to your workspace and, for add contacts, to the campaign. Build it from
+your own record, such as `order-8812-ndr`.
+
+- The first request with a key does the work. Every later request with the same
+  key gets the first answer back byte for byte, with the same status code and
+  the header `Idempotent-Replay: true`, whatever its body. No second campaign is
+  created and no contacts are added twice.
+- While the first request is still being answered, the same key returns
+  `409 request_in_progress`. Retry after a moment to get the answer.
+- A request that fails (any answer other than `2xx`) frees its key, so a
+  corrected retry with the same key is treated as new.
+- These keys are separate from the ones you send on
+  [`POST /v2/calls`](/v2/calls#idempotency).
+
 ### Errors
 
 | Status | `error.code` | Cause |
@@ -778,6 +851,7 @@ variable.
 | `404` | `not_found` | `agent_id` does not exist in your workspace. We check this at create time, so a typo fails now instead of failing every contact tomorrow morning. The same code answers a `pool_id` or `phone_number_id` that is not yours. |
 | `409` | `pool_unavailable`, `number_retired` | The pool has no number that can call, or the number is retired. See [phone numbers and pools](/v2/phone-numbers#errors). |
 | `501` | `tier_unavailable` | `tier` names a tier that is not enabled on this deployment. |
+| `409` | `request_in_progress` | A request with the same `Idempotency-Key` is still being answered. See [safe retries](#safe-retries-with-idempotency-key). |
 | `503` | `campaigns_unavailable` | Campaigns are not enabled for your workspace. Your request is fine; [ask us to enable them](mailto:help@miraiminds.co?subject=Enable%20campaigns). |
 
 ---
@@ -795,8 +869,10 @@ curl -G https://sandbox.voice.miraiminds.co/v2/campaigns \
 ```
 
 Returns the standard [paginated envelope](/v2/overview#pagination) of campaign
-objects, newest first. `counters` is omitted on list pages; fetch one campaign
-to get them.
+objects, newest first. Each campaign includes `counters`, the number of contacts
+in each status (only statuses that have contacts), and `contacts_total`, all
+its contacts. A campaign with no contacts shows `contacts_total: 0` and no
+`counters`. You don't need to fetch each campaign to show its progress.
 
 ---
 
@@ -828,6 +904,7 @@ curl https://sandbox.voice.miraiminds.co/v2/campaigns/cmp_01K7QAC5N9P4R7S3T6V8W2
     "exhausted": 2,
     "suppressed": 3
   },
+  "contacts_total": 800,
   "created_at": "2026-08-10T09:21:44Z",
   "updated_at": "2026-08-10T11:04:02Z"
 }
@@ -942,8 +1019,11 @@ POST /v2/campaigns/{id}/contacts
 ```
 
 Up to **1000 rows per request**. For a larger list, call it repeatedly. Each
-row takes the same fields as on create, `metadata` and
-[`call_settings`](#voice-and-language-per-contact) included. A
+row takes the same fields as on create, `metadata`,
+[`call_settings`](#voice-and-language-per-contact) and the
+[contact schedule](#contact-schedule) included. Send an `Idempotency-Key` so a
+retried request never adds the rows twice; see
+[safe retries](#safe-retries-with-idempotency-key). A
 `draft`, `play` or `paused` campaign accepts new contacts. When a running
 campaign had nothing left to dial, the add wakes it, so the new contacts are
 called straight away if the calling window is open.
@@ -1021,6 +1101,9 @@ curl -G https://sandbox.voice.miraiminds.co/v2/campaigns/cmp_01K7QAC5N9P4R7S3T6V
       "last_call_id": "call_01K7QB4M8N3P6R2S5T7V9W1YA",
       "last_status": "no_answer",
       "eligible_at": "2026-08-11T11:19:02Z",
+      "not_before": null,
+      "expires_at": null,
+      "priority": 0,
       "updated_at": "2026-08-11T11:34:10Z"
     }
   ],
@@ -1030,10 +1113,59 @@ curl -G https://sandbox.voice.miraiminds.co/v2/campaigns/cmp_01K7QAC5N9P4R7S3T6V
 ```
 
 `last_call_id` is an ordinary `call_` id: fetch it from
-[`GET /v2/calls/{id}`](/v2/calls#get-a-call) for the full outcome. A contact
+[`GET /v2/calls/{id}`](/v2/calls#get-a-call) for the full outcome. Every call
+the contact had is in [its attempts](#list-contact-attempts).
+`not_before` and `expires_at` are `null` when not set; see
+[contact schedule](#contact-schedule). A contact
 without [`metadata`](#your-own-fields-metadata) has no `metadata` field, and
 one without [`call_settings`](#voice-and-language-per-contact) has no
 `call_settings` field.
+
+---
+
+## List contact attempts
+
+```http
+GET /v2/campaigns/{id}/contacts/{contact_id}/attempts
+```
+
+Every call placed for one contact, oldest first: retries, calls after you
+[called it again](#call-a-contact-again), and calls that failed on our side.
+
+```bash
+curl https://sandbox.voice.miraiminds.co/v2/campaigns/cmp_01K7QAC5N9P4R7S3T6V8W2X4YB/contacts/cust-1001/attempts \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY"
+```
+
+```json title="200 OK"
+{
+  "object": "list",
+  "data": [
+    { "object": "campaign_contact_attempt", "attempt": 1,
+      "call_id": "call_01K7QAZ2M4P6R8T0V2X4Z6B8D0",
+      "status": "no_answer", "ended_reason": "customer-did-not-answer",
+      "created_at": "2026-11-21T10:02:11Z", "started_at": null,
+      "ended_at": "2026-11-21T10:02:41Z", "duration_secs": 0 },
+    { "object": "campaign_contact_attempt", "attempt": 2,
+      "call_id": "call_01K7QB4M8N3P6R2S5T7V9W1YA",
+      "status": "completed", "ended_reason": "customer-ended-call",
+      "created_at": "2026-11-21T11:02:15Z", "started_at": "2026-11-21T11:02:20Z",
+      "ended_at": "2026-11-21T11:03:20Z", "duration_secs": 60 }
+  ],
+  "has_more": false,
+  "next_cursor": null
+}
+```
+
+`status`, `ended_reason` and the times are the
+[call object's](/v2/calls#the-call-object): fetch a `call_id` for the rest.
+Attempts are recorded as calls are placed, from November 2026. A campaign's
+earlier calls appear once we fill them in from the call records, on request,
+for calls up to 12 months old. Until then, a contact called only before
+November 2026 lists its last call.
+
+`404 not_found` for an unknown campaign or contact. Percent-encode
+`contact_id` in the path.
 
 ---
 
@@ -1045,19 +1177,22 @@ POST /v2/campaigns/{id}/contacts/{contact_id}/retry
 
 Puts one contact back in line, even one that has used all its retries:
 `completed`, `voicemail`, `no_answer`, `busy`, `timeout`, `failed`,
-`exhausted` or `cancelled`. It becomes `pending`, eligible now, and keeps
+`exhausted`, `cancelled`, or `expired` while its `expires_at` is still ahead
+(it expired because its next retry would have fallen after it). It becomes `pending`, eligible now, and keeps
 `attempts`, `last_call_id` and `last_status`. `attempts` goes up by one when
 the new call is placed. On a running campaign it rings as soon as the calling
 window and pacing allow, and the call spends credit.
 
 Answers `200` with the contact, in the same shape as
 [List contacts](#list-contacts). Allowed while the campaign is `draft`,
-`paused` or `play`.
+`paused` or `play`. A contact with a [`not_before`](#contact-schedule) still
+waits for it.
 
 | Status | `error.code` | Cause |
 | :--- | :--- | :--- |
 | `409` | `contact_in_progress` | The contact is already waiting or being called. A second retry is refused, so a double click never calls anyone twice. |
 | `409` | `contact_suppressed` | The contact is `suppressed` or `skipped`, its number is on the [do-not-call list](/v2/dnc), or `skip_called_before` applies. |
+| `409` | `contact_expired` | The contact's `expires_at` has passed. |
 | `409` | `campaign_finished` | The campaign is `stopped` or `completed`. Start a new campaign for these contacts. |
 | `409` | `campaign_archived` | Restore the campaign first. |
 | `404` | `not_found` | No such campaign in your workspace, or no such contact in it. |
@@ -1205,7 +1340,7 @@ call a cancelled contact after all, [call it again](#call-a-contact-again).
 | Status | `error.code` | Cause |
 | :--- | :--- | :--- |
 | `409` | `contact_in_call` | The contact is being called right now. The call is not cut off; try again after it ends. |
-| `409` | `contact_finished` | The contact already has an outcome (`completed`, `voicemail`, `timeout`, `exhausted`, `skipped`, `suppressed`, `aborted` and the like) and is not waiting for any call. The message names its status. |
+| `409` | `contact_finished` | The contact already has an outcome (`completed`, `voicemail`, `timeout`, `exhausted`, `expired`, `skipped`, `suppressed`, `aborted` and the like) and is not waiting for any call. The message names its status. |
 | `409` | `campaign_finished` | The campaign is `stopped` or `completed`. A stop already marked every waiting contact `aborted`. |
 | `404` | `not_found` | No such campaign in your workspace, or no such contact in it. |
 
@@ -1557,6 +1692,12 @@ signed with the same workspace secret and verified by the same code path.
 Campaign events use the same envelope as call events
 (`{id, type, created_at, data}`), with `data.campaign` where `data.call` would
 be. `data.campaign.always_on` is on every campaign event.
+
+A campaign's `webhook_url` can't send custom headers. Its events are signed
+with `X-Mirai-Signature` using your workspace's Call webhook secret, the same
+as call webhooks. Verify the
+[signature](/v2/webhooks#signature-verification) on your receiver instead of
+putting a token in the URL.
 
 Every `call.*` event of a campaign call names the campaign and the contact in
 `data.call.campaign_id` and `data.call.contact_id`, and carries the contact's

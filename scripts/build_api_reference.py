@@ -119,6 +119,28 @@ SKIP_CONTRACT = {
     #: CONTRACT_ONLY (or add Postman requests) so their pages generate.
     ("GET", "/v2/status/incidents"): "not served on the public hosts yet (gateway route pending)",
     ("GET", "/v2/status/incidents/{id}"): "not served on the public hosts yet (gateway route pending)",
+    ("GET", "/v2/status/platform"): "not served on the public hosts yet (gateway route pending)",
+    ("GET", "/v2/status/public"): "not served on the public hosts yet (gateway route pending)",
+    #: In the contract since conductor #406 (Helpdesk #86), not yet in the
+    #: console's Postman collection. v2/campaigns documents it meanwhile (List
+    #: contact attempts). Add a Postman request in mirai-voice
+    #: scripts/postman/spec and drop this line; the page then generates.
+    ("GET", "/v2/campaigns/{id}/contacts/{contact_id}/attempts"): PENDING,
+    #: In the contract, with no request in the console's Postman collection
+    #: (checked 21 Nov 2026), so not a public route yet.
+    ("GET", "/v2/agents/{id}/rules"): PENDING,
+    ("PUT", "/v2/agents/{id}/rules"): PENDING,
+    ("POST", "/v2/agents/{id}/home/notes/{key}/dismiss"): PENDING,
+    ("POST", "/v2/agents/{id}/outbound/clear"): PENDING,
+    ("POST", "/v2/agents/{id}/outbound/hold"): PENDING,
+    ("POST", "/v2/agents/{id}/outbound/resume"): PENDING,
+    ("GET", "/v2/company"): PENDING,
+    ("PUT", "/v2/company"): PENDING,
+    ("GET", "/v2/openrouter/models"): PENDING,
+    ("GET", "/v2/realtime"): PENDING,
+    ("POST", "/v2/chat/completions"): PENDING,
+    ("GET", "/v2/stt/stream"): PENDING + " (the speech pages document the streams)",
+    ("GET", "/v2/tts/stream"): PENDING + " (the speech pages document the streams)",
 }
 
 #: Postman requests left out of the reference, with the reason. Each was

@@ -360,10 +360,12 @@ See [signature verification](/v2/webhooks#signature-verification).
 </Accordion>
 
 <Accordion title="Wire the do-not-call list to your opt-outs">
-Every "stop calling me", whether it comes on a call, over WhatsApp or by email,
-should become a `POST /v2/dnc` in the same minute. The request is idempotent, so
-you don't need a read-modify-write. We check suppression at dial time, so it
-also takes effect on campaigns that are already running. See the
+A person who says "stop calling me" on a phone call is added to the list for
+you, and `dnc.added` tells your other channels. Every other "stop calling me",
+over WhatsApp or by email, should become a `POST /v2/dnc` in the same minute.
+The request is idempotent, so you don't need a read-modify-write. Every call is
+checked against the list, and campaigns check it at dial time, so it also takes
+effect on campaigns that are already running. See the
 [do-not-call list](/v2/dnc).
 </Accordion>
 

@@ -133,9 +133,11 @@ still shows in the agent's **Logs** tab.
 slows the conversation. Turn it on with `"enabled": true` and describe what you
 want in `prompt`, `success_criteria` and `output_schema`. Add `templates` and
 the agent also picks the message template to send next, such as a WhatsApp or
-SMS template, and fills in its variables from the conversation. See
-[Call analysis](/v2/analysis) for every field, the result and two worked
-examples.
+SMS template, and fills in its variables from the conversation. Add
+[`outcomes`](/v2/analysis#outcomes), a fixed list of up to 20 names, and each
+call also gets exactly one of them, or none, as its
+[`outcome`](/v2/calls#outcome). See [Call analysis](/v2/analysis) for every
+field, the result and two worked examples.
 
 ```json
 {
@@ -786,6 +788,90 @@ curl -X DELETE https://sandbox.voice.miraiminds.co/v2/agents/agt_01JZQ8F3K7M2N5P
 The delete is soft: the agent stops appearing in `GET /v2/agents` and can no
 longer be used for new calls, but historical calls keep resolving their
 `agent_id`. Calls already in flight are not affected.
+
+---
+
+## Test with a script
+
+```http
+POST /v2/agents/{id}/test_script
+```
+
+Test an agent with a script instead of a call. Send the customer's lines, and
+get back the agent's reply to each, the tools it ran, and the analysis of the
+whole conversation. Use it to check a prompt change, or to run the same script
+against every new revision.
+
+```bash
+curl -X POST https://sandbox.voice.miraiminds.co/v2/agents/agt_01K7Q9F3K7M2N5P9R4T6V8W0XZ/test_script \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  --max-time 420 \
+  -d '{
+    "lines": ["Hi, I ordered a kurta", "Can you deliver tomorrow?", "OK, thanks"],
+    "variables": { "customer_name": "Asha", "order_id": "A-7" },
+    "allowed_tools": [],
+    "analysis": true
+  }'
+```
+
+| Field | Required | Description |
+| :--- | :--- | :--- |
+| `lines` | yes | 1 to 30 customer lines, each at most 2,000 characters. They are sent one at a time, and each waits for the agent's full reply. |
+| `variables`, `call_settings`, `allowed_tools`, `metadata` | no | As on [`POST /v2/calls`](/v2/calls#request). |
+| `analysis` | no | Default `true`. `false` skips the analysis and its wait. |
+
+It runs the same agent, prompt, model and tools as a call, like the console's
+text test chat. It is billed by language-model tokens like that chat, not by
+the minute, and your wallet must be above zero (`402` otherwise). It counts as
+a test, not in the agent's figures.
+
+<Warning>
+Tools call your real endpoints. Send `"allowed_tools": []` to run none.
+</Warning>
+
+```json title="200 OK"
+{
+  "object": "test_script",
+  "call_id": "call_01KAF4B2D4F6H8K0M2P4R6T8V0",
+  "status": "completed",
+  "greeting": ["Namaste Asha, this is Priya from Acme."],
+  "turns": [
+    {
+      "line": "Hi, I ordered a kurta",
+      "status": "answered",
+      "replies": ["Thanks Asha. Is this about order A-7?"],
+      "reply_ms": 840,
+      "tool_runs": []
+    },
+    { "line": "Can you deliver tomorrow?", "status": "answered", "replies": ["…"], "reply_ms": 910, "tool_runs": [] },
+    { "line": "OK, thanks", "status": "answered", "replies": ["…"], "reply_ms": 620, "tool_runs": [] }
+  ],
+  "ended_reason": "customer-ended-call",
+  "call": { "id": "call_01KAF4B2D4F6H8K0M2P4R6T8V0", "…": "the call as GET /v2/calls/{id} shows it: cost, analysis, outcome" }
+}
+```
+
+| Field | Description |
+| :--- | :--- |
+| `status` | `completed`; `ended_early` when the agent ended the conversation, so the later lines are `not_sent`; `timed_out`; or `failed`. |
+| `greeting` | The agent's opening lines. |
+| `turns[].status` | `answered`, `no_reply`, `error` (see the turn's `error`) or `not_sent`. |
+| `turns[].tool_runs` | Each tool that ran for this line: `name`, `status`, `duration_ms` and `tool_run_id`. |
+| `call` | The test call as [`GET /v2/calls/{id}`](/v2/calls#get-a-call) shows it: cost, analysis and [`outcome`](/v2/calls#outcome). |
+
+A test takes as long as the conversation, typically 2 to 5 seconds a line, plus
+the analysis: up to about 6 minutes, so set a long client timeout. If the
+analysis has not finished by then, `call.analysis` is pending; read
+`GET /v2/calls/{call_id}` later.
+
+| Status | Code | When |
+| :--- | :--- | :--- |
+| `402` | `insufficient_balance` | Your wallet is empty. |
+| `409` | `test_script_running` | A test is already running for this agent. One at a time per agent. |
+| `409` | `flow_agent_voice_only` | The agent is a [node-based agent](/v2/node-agents). Test those by voice, on a phone or browser call. |
+| `429` | `rate_limited` | Three tests are already running in your workspace. Wait for `Retry-After`. |
+| `503` | `fleet_unavailable`, `upstream_unavailable` | The test could not start just now. Nothing ran or was charged. Wait for `Retry-After` and try again. |
 
 ---
 
