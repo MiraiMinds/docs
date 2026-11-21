@@ -97,6 +97,17 @@ Each value you want in the prompt is at most 512 characters, so keep
 `instructions` short. Save the call `id` against the user: the webhook in
 step 4 uses it to find whose call it was.
 
+<Note>
+  **Users who forward their own phone to your number.** If your users set
+  carrier call forwarding (on busy, no answer or always) from their own phone
+  to your Mirai number, the caller is a stranger and `called_number` is the
+  same for everyone. Send `forwarded_from` as well: `"forwarded_from": "{{ vars.forwarded_from }}"`.
+  It is the user's own phone number in E.164, as their carrier reported it, so
+  look the user up by it first and fall back to `caller_number` and
+  `called_number` when it is empty. The same value is `forwarded_from` on the
+  call object and its webhooks.
+</Note>
+
 The second route serves the background lookup. It starts at the same moment
 as the first, so it works the user out again instead of waiting for the first
 request to finish.

@@ -252,7 +252,8 @@ Creation returns `201` with the agent object. Confirm `draft: false` and
 `archived: false`. You can also use an existing published agent from
 `GET /v2/agents` in the same workspace.
 
-**Caller inputs:** incoming calls supply `caller_number` and `called_number`.
+**Caller inputs:** incoming calls supply `caller_number`, `called_number` and
+`forwarded_from` (the phone that forwarded the call to your number, or empty).
 Any other required input must have a usable default in your agent's
 `input_schema`; otherwise admission fails. Ask unknown callers for their name
 or order number during the conversation. Do not treat caller ID as proof of
