@@ -110,6 +110,13 @@ one Mirai workspace.
 On incoming calls, your carrier can write the number you were called on in any
 of the four formats above. We read them all.
 
+When a phone forwarded the call to your number (call forwarding on busy, no
+answer or always), we read the forwarding phone from the INVITE's `Diversion`
+header, or from `History-Info` when there is no `Diversion`. It reaches your
+agent as `forwarded_from`, the same as on every other number: see
+[the call object](/v2/calls) and [tools](/v2/tools). Ask your carrier to send
+`Diversion` on forwarded calls if `forwarded_from` stays empty.
+
 ## Step 4: Test both directions
 
 1. Call one of the numbers from another phone. You should hear your agent's
