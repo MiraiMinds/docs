@@ -24651,6 +24651,10 @@
             "description": "Phone calls only. The number the call rang from: your phone number (phone_number_id), the campaign's caller ID, or the shared line the call was dialled through. Present once the call has been dialled, and on every event from call.started on; absent on web and realtime calls.",
             "type": "string"
           },
+          "forwarded_from": {
+            "description": "Incoming phone calls only: the number of the phone that forwarded this call to your number (carrier call forwarding on busy, no answer, unreachable or always), as the carrier reported it (SIP Diversion / History-Info). Not the caller (from) and not your number (to). E.164. Absent when the call was not forwarded or the carrier did not send it. In a tool or prompt template it is {{ call.forwarded_from }} or {{ vars.forwarded_from }}, which are \"\" (empty) in that case.",
+            "type": "string"
+          },
           "id": {
             "type": "string"
           },

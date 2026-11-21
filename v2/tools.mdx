@@ -426,7 +426,10 @@ raise that too if one tool needs the time.
   message names the field.
 
 On incoming calls, `{{ vars.caller_number }}` and `{{ vars.called_number }}`
-are available to look the caller up. Keep incoming-call lookups as fast as you
+are available to look the caller up. When a phone forwarded the call to your
+number (carrier call forwarding), `{{ vars.forwarded_from }}` and
+`{{ call.forwarded_from }}` hold that phone's number in E.164. They are empty
+when the call was not forwarded or the carrier did not send it. Keep incoming-call lookups as fast as you
 can: every extra second is a second of ringing. Move slower work to a
 [background pre-call tool](#run-a-slow-lookup-in-the-background), which doesn't
 count against the wait, or to an on-call tool with `execution: "async"`
@@ -635,7 +638,7 @@ model arguments are not available when the initial tool list is chosen.
 | Namespace | Available values |
 | --- | --- |
 | `vars.*` | Call input values and promoted pre-call outputs. |
-| `call.*` | Call identifiers, `to`, `from`, `direction`, tier, and status; final duration and outcome after the call. On an incoming call, `call.from` is the caller's number. |
+| `call.*` | Call identifiers, `to`, `from`, `direction`, tier, and status; final duration and outcome after the call. On an incoming call, `call.from` is the caller's number and `call.forwarded_from` is the number of the phone that forwarded it to you (empty when it was not forwarded). |
 | `now.*` | Date, time, weekday, greeting, and timezone. Uses the call's timezone, defaulting to `Asia/Kolkata`. |
 | `tools.<name>.*` | Results from earlier tools in the same pre-call or post-call phase. |
 | `args.*` | Model-supplied arguments for an on-call request. |
