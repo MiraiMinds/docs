@@ -17,8 +17,8 @@ other status, or a connection failure, triggers [retries](#retries).
 To receive events for every call of an agent or of your whole workspace, campaign
 events, low-balance alerts, payment notices, rented phone number notices
 (renewal reminders, renewals, releases and business verification updates),
-[human takeover](/v2/handoff) events and incident notices without a URL on each
-call, use
+[human takeover](/v2/handoff) events, [do-not-call list](/v2/dnc) changes and
+incident notices without a URL on each call, use
 [webhook subscriptions](/v2/webhook-subscriptions). Some of
 them can go [to email addresses](/v2/webhook-subscriptions#send-events-by-email)
 instead of a URL.
@@ -55,13 +55,66 @@ Every event has the same shape.
 | `id` | `evt_<ulid>`. Unique per delivery attempt group: retries of the same event reuse it. [Dedupe on this](#idempotency). |
 | `type` | See [event types](#event-types). |
 | `created_at` | When the event was generated, not when it was delivered. |
-| `data.call` | The [call object](/v2/calls#the-call-object) as it stands at that moment, with its money in `cost`. A few fields come only when you read the call: `tier`, `cost_inr`, `recording_available` and `transcript_available`. On a `campaign.*` event this is `data.campaign` instead. |
+| `data.call` | The [call object](/v2/calls#the-call-object): the same object [`GET /v2/calls/{id}`](/v2/calls#get-a-call) returns, with the same keys, on every call event and every delivery path (a call's, a campaign's or a phone number's `webhook_url`, [webhook subscriptions](/v2/webhook-subscriptions), the `webhook` post-call tool and redeliveries). It says what was true when the event was built. See [the call object in an event](#the-call-object-in-an-event). On a `campaign.*` event this is `data.campaign` instead. |
 | `data.call.metadata` | The [`metadata`](/v2/calls#metadata) you set when creating the call, unchanged, on every event for that call. On a campaign call, the contact's [`metadata`](/v2/campaigns#your-own-fields-metadata): the columns kept as extra info in the console. Absent when the call has none. |
 | `data.call.call_settings` | The voice and languages of the call, with who chose each. `call.queued` has them before pre-call tools run; every later event has the ones the call used. See [call settings](/v2/calls#on-the-call-object). |
 | `data.wallet` | Your wallet balance right after the call was billed. Only on the four terminal events. See [wallet balance](#wallet-balance-on-call-ending-events). |
 
 Treat the envelope as **additive**: new fields appear without a version bump.
 Ignore what you do not recognise.
+
+### The call object in an event
+
+Every call event carries the whole call object. Its status, timing, money and
+results are those of the moment the event was built. `call.queued` and
+`call.started` are sent before the call ends, so they have `ended_at: null`, no
+charge yet and `transcript_status: "pending"`, and `call.queued` also has
+`started_at: null`. Every other field (`created_at`, `channel`, `direction`,
+`metadata`, `campaign_id`, `contact_id`, `call_settings` and the rest) is
+filled in on every event.
+
+`recording_available`, `transcript_available` and `transcript_status` say what
+was stored when the event was built. `call.processing.completed` is built when
+every part is in, so it has their final values.
+
+A retried or redelivered event carries the same bytes as its first attempt.
+
+```json title="call.started"
+{
+  "id": "evt_01KAF3M9Q2R4T6V8X0Z2B4D6F8",
+  "type": "call.started",
+  "created_at": "2026-11-21T09:00:04Z",
+  "data": {
+    "call": {
+      "id": "call_01KAF3K7N9P1R3T5V7X9Z1B3D5",
+      "object": "call",
+      "agent_id": "agt_01K7Q9F3K7M2N5P9R4T6V8W0XZ",
+      "agent_revision": 3,
+      "channel": "phone",
+      "direction": "outbound",
+      "route": "trunk",
+      "to": "+919876543210",
+      "from": "+918065400001",
+      "status": "in_progress",
+      "tier": "t3",
+      "created_at": "2026-11-21T09:00:00Z",
+      "started_at": "2026-11-21T09:00:04Z",
+      "ended_at": null,
+      "ended_reason": null,
+      "duration_secs": 0,
+      "cost": { "amount_inr": 0, "amount_paise": 0, "per_min_inr": 3, "per_min_paise": 300 },
+      "recording_available": false,
+      "transcript_available": false,
+      "transcript_status": "pending",
+      "metadata": { "checkout_id": "chk_88", "order_id": "ORD-1042" },
+      "campaign_id": "cmp_01K8QAC5N9P4R7S3T6V8W2X4YB",
+      "contact_id": "order-1042",
+      "analysis": null,
+      "outcome": null
+    }
+  }
+}
+```
 
 ## Event types
 

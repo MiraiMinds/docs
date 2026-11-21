@@ -52,6 +52,7 @@ Base URL `https://sandbox.voice.miraiminds.co`. All endpoints require
 | `prompt` | string | What to look for and how to summarise it. Up to 2,000 characters. Fills in [`{{variables}}`](#variables-in-the-prompt). |
 | `success_criteria` | string | What makes a call a success. Up to 2,000 characters. Fills in [`{{variables}}`](#variables-in-the-prompt). The verdict is `success`: `true`, `false` or `null` when it cannot be told. |
 | `output_schema` | object | A JSON Schema for the fields to extract, up to 32 properties. The values arrive in `data`. |
+| `outcomes` | array | A fixed list of up to 20 outcomes, one of which each call gets. See [Outcomes](#outcomes). |
 | `templates` | object | The follow-up messages to choose from. See [Pick a follow-up message](#pick-a-follow-up-message). |
 
 Send `analysis` on [`POST /v2/agents`](/v2/agents#create-an-agent) or
@@ -147,6 +148,60 @@ with `POST /v2/calls/{id}/analysis/retry` and the body
 A [post-call tool](/v2/tools#after-a-call-send-the-outcome-to-your-crm) can
 read the result as `{{ analysis.summary }}`, `{{ analysis.success }}` and
 `{{ analysis.data.<field> }}`.
+
+---
+
+## Outcomes
+
+Give an agent a fixed list of outcomes, and every analysed call gets exactly
+one of them, or none. Use them for reports, list filters and follow-up actions.
+
+```json
+{
+  "analysis": {
+    "enabled": true,
+    "outcomes": [
+      { "name": "confirmed", "description": "The customer confirmed the order." },
+      { "name": "cancelled" },
+      { "name": "callback_requested", "description": "Asked to be called later." }
+    ]
+  }
+}
+```
+
+- Up to 20 outcomes. `name` is lower-case letters, digits and underscores,
+  starting with a letter, at most 40 characters and unique in the list. `null`
+  is reserved. `description` is optional, at most 300 characters, and tells the
+  analysis when the outcome applies.
+- The analysis picks one name from the list, or none, in the same request that
+  writes the summary, so it costs nothing extra. A name that is not on the list
+  is never published.
+- Only calls whose analysis runs are classified.
+- Outcomes are saved with each agent revision. A `PATCH` replaces the whole
+  `analysis` block, so send `outcomes` again with it.
+- They are separate from your own result fields. A field you defined in
+  `output_schema` called `outcome` stays in `analysis.data.outcome`, unchanged.
+
+The choice is the call's top-level [`outcome`](/v2/calls#outcome), and the
+same value is in `analysis.outcome`:
+
+```json
+{
+  "outcome": "callback_requested",
+  "analysis": {
+    "status": "done",
+    "summary": "The customer asked to be called back after 6 pm.",
+    "success": false,
+    "outcome": "callback_requested",
+    "data": {}
+  }
+}
+```
+
+It is `null` when none fits, and until the analysis has finished. Read it from
+`call.analysis.completed`, `call.processed` or
+[`GET /v2/calls/{id}`](/v2/calls#get-a-call), and list calls by it with
+[`GET /v2/calls?outcome=`](/v2/calls#list-calls).
 
 ---
 
@@ -251,7 +306,8 @@ follows the same rules:
   refused when you save the agent, and a secret the fetch uses cannot be
   deleted until you remove it from the agent (`409 secret_in_use`).
 - The same outbound network policy applies: public addresses only, no
-  redirects. The request carries the `X-Mirai-Call-Id` header.
+  redirects. The request carries the `X-Mirai-Call-Id` header, and is
+  [signed](/v2/tools#verify-a-tool-request) like a tool request.
 - Each attempt has 5 seconds. A timeout, a network error or a `5xx` is retried
   once. Your answer must be JSON and at most 256 KB.
 

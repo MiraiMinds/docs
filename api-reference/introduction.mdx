@@ -107,11 +107,15 @@ List endpoints take `limit` and `cursor` and answer with the same envelope:
 ```
 
 Send `next_cursor` back as `cursor` for the next page, and stop when `has_more`
-is `false`. Lists are newest first.
+is `false`. A filtered page can be short, even empty, while `has_more` is still
+`true`, so never stop on an empty page. Lists are newest first, except
+[`GET /v2/calls`](/v2/calls#sync-what-changed) with `updated_from`, which lists
+the oldest change first.
 
 ## Idempotency
 
-`POST /v2/calls`, `POST /v2/agents`, `POST /v2/transcriptions` and live call
+`POST /v2/calls`, `POST /v2/agents`, `POST /v2/campaigns`,
+`POST /v2/campaigns/{id}/contacts`, `POST /v2/transcriptions` and live call
 controls take an `Idempotency-Key` header. The same key within 24 hours returns
 the first answer and creates nothing new, so a retry never places a second
 call. Build the key from your own record, such as `order-8842-reminder-1`,
@@ -131,8 +135,10 @@ workspace. See [Live events](/v2/live-events).
 ## Limits
 
 Each key is rate limited, and each workspace has a concurrent-call limit.
-Calls over the concurrency limit queue rather than fail. The numbers are in
-[Limits](/v2/limits).
+Every authenticated answer carries `RateLimit-Limit`, `RateLimit-Remaining` and
+`RateLimit-Reset`, and a `429` carries `Retry-After`. Calls over the
+concurrency limit queue rather than fail. The numbers are in
+[Limits](/v2/limits#request-rate).
 
 ## Postman
 

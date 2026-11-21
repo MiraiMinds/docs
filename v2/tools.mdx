@@ -638,14 +638,17 @@ model arguments are not available when the initial tool list is chosen.
 | Namespace | Available values |
 | --- | --- |
 | `vars.*` | Call input values and promoted pre-call outputs. |
-| `call.*` | Call identifiers, `to`, `from`, `direction`, tier, and status; final duration and outcome after the call. On an incoming call, `call.from` is the caller's number and `call.forwarded_from` is the number of the phone that forwarded it to you (empty when it was not forwarded). |
+| `call.*` | Call identifiers, `to`, `from`, `direction`, tier, and status; final duration and outcome after the call. `call.metadata.<key>` reads the call's [`metadata`](/v2/calls#metadata). On an incoming call, `call.from` is the caller's number and `call.forwarded_from` is the number of the phone that forwarded it to you (empty when it was not forwarded). |
 | `now.*` | Date, time, weekday, greeting, and timezone. Uses the call's timezone, defaulting to `Asia/Kolkata`. |
 | `tools.<name>.*` | Results from earlier tools in the same pre-call or post-call phase. |
 | `args.*` | Model-supplied arguments for an on-call request. |
 | `analysis.*` | Post-call `status`, `summary`, `success`, and `data.*` when analysis is enabled, and `template.*` when the agent has [analysis templates](/v2/analysis#send-the-message-from-a-post-call-tool). |
 | `secrets.*` | Stored workspace secrets, in request templates only. Never in conditions. |
 
-Write `{{ vars.customer_id }}` to insert text. Inside `request.body`, an entire
+Write `{{ vars.customer_id }}` to insert text. In a tool's URL, headers, query
+and body you can use `{{ call.id }}` and `{{ call.metadata.<key> }}`, for
+example `"order_id": "{{ call.metadata.order_id }}"`. Metadata is never shown
+to the agent's model. Inside `request.body`, an entire
 value such as `"{{= args.quantity }}"` preserves its JSON type instead of
 converting it to a string. A missing text value renders empty and is listed
 in the receipt; a missing typed value becomes `null`.
@@ -691,9 +694,62 @@ Secrets are scoped to your workspace, encrypted at rest, and write-only.
 results shown in receipts mask resolved secret values. Keep credentials out of
 prompts, call variables, and literal tool definitions.
 
+**Keep tokens out of the URL.** Put a token in a header from a secret, never in
+the URL, where it would show in receipts, proxies and access logs:
+
+```bash
+curl --fail-with-body -X PUT "$MIRAI_API_BASE/v2/secrets/bridge_token" \
+  -H "Authorization: Bearer $MIRAI_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"value":"vbt_YOUR_TOKEN"}'
+```
+
+```json
+"request": {
+  "method": "POST",
+  "url": "https://bridge.example.com/v1/tools/order-status",
+  "headers": { "Authorization": "Bearer {{ secrets.bridge_token }}" },
+  "body": { "call_id": "{{ call.id }}", "order_id": "{{ call.metadata.order_id }}" }
+}
+```
+
+The token goes only to your endpoint. Tool receipts show
+`Bearer «secret:bridge_token»`, and the token never appears in a URL, a log or
+the call's `tool_runs`. `Content-Type` and `X-Mirai-*` headers are set by us
+and cannot be set on a tool.
+
 To rotate a credential, `PUT` the new value to the same secret name. To delete
 it, remove references from your agents first, then call
-`DELETE /v2/secrets/crm_key`; a referenced secret returns `409`.
+`DELETE /v2/secrets/crm_key`; a secret that a tool's request or header still
+uses returns `409`.
+
+## Verify a tool request
+
+Every request your agent's tools send to your backend (before, during and after
+a call, background runs, the `webhook` post-call tool and tests) is signed the
+same way as our [webhooks](/v2/webhooks#signature-verification), with the same
+Call webhook secret (`whsec_…`). Verify it with the same code.
+
+| Header | Value |
+| :--- | :--- |
+| `X-Mirai-Signature` | `t=<unix seconds>,v1=<hex HMAC-SHA256>`, computed over `<t>.` followed by the exact request body bytes. A `GET` has an empty body, so it is signed over `<t>.` only. |
+| `X-Mirai-Signed-With` | `api_key`: your workspace's Call webhook secret signed it. See [webhook secrets](/v2/webhook-secrets). |
+| `X-Mirai-Call-Id` | The call the request is for. |
+| `X-Mirai-Call-Metadata` | The call's [`metadata`](/v2/calls#metadata) as compact JSON, for example `{"checkout_id":"chk_88","order_id":"ORD-1042"}`. Characters outside ASCII are written as `\uXXXX`. Absent when the call has no metadata or the JSON is longer than 4096 bytes. |
+| `X-Mirai-Tool-Run-Id` | The run's id. Retries of one run reuse it, so you can dedupe on it. |
+| `X-Mirai-Attempt` | `1`, then `2`, `3` and so on for retries. |
+
+Reject a request whose `t` is more than 5 minutes old. Each retry is signed
+again with a fresh `t`. Verify against the raw body before you parse it. These
+headers never change the body you wrote in the tool. A `GET`'s signature proves
+who sent it and when, not its query string, so send credentials in a header.
+
+A workspace that has no Call webhook secret yet sends tool requests unsigned.
+Once you have an API key, every tool request is signed.
+
+Together, the signature tells your backend that the request came from us, and a
+[secret in a header](#store-credentials-as-workspace-secrets) tells it which
+integration the request is for.
 
 ## After a call: send the outcome to your CRM
 
@@ -721,6 +777,25 @@ or billing. If your agent has [analysis](/v2/analysis) enabled, a post-call tool
 `analysis.template.*`. Use a condition on
 `analysis.status` or `analysis.success` when the request requires a successful
 analysis result.
+
+The `webhook` builtin sends the whole finished call to one URL. It takes
+`headers` like an HTTP tool, so a receiver's token stays out of its URL:
+
+```json
+{
+  "name": "webhook",
+  "kind": "builtin",
+  "phase": "post_call",
+  "builtin": {
+    "url": "https://bridge.example.com/v1/mirai/call-finished",
+    "headers": { "Authorization": "Bearer {{ secrets.bridge_token }}" }
+  }
+}
+```
+
+Header values are templates of the post-call phase, secrets included, and are
+saved with the agent's revision. `Content-Type` and `X-Mirai-*` cannot be set.
+The request is [signed](#verify-a-tool-request) like every tool request.
 
 ### Receive `call.processed`
 
@@ -833,7 +908,7 @@ tool arguments. Builtins currently include:
 | `skip_call` | `pre_call` | Prevent dialing when a condition holds. |
 | `end_call` | `on_call` | End the conversation. |
 | `schedule_callback` | `on_call`, `post_call` | Arrange a later call. |
-| `webhook` | `post_call` | Send the finished call and analysis to an additional HTTPS URL supplied in `builtin.url`. |
+| `webhook` | `post_call` | Send the finished call and analysis to an additional HTTPS URL supplied in `builtin.url`, with optional `builtin.headers`. |
 | `transfer_call` | `on_call` | Pass the caller to a person on your team: we ring `builtin.to` (or the agent's handoff number) for `builtin.ring_secs` and join them to the call. See [Human takeover](/v2/handoff#let-the-agent-hand-over-transfer_call). |
 
 An explicit `end_call` tool can use `builtin.enabled`, `builtin.message`, and

@@ -50,6 +50,26 @@ API, not how many phones are ringing.
 }
 ```
 
+Each API key has a token bucket: by default 20 requests at once, refilled at
+10 per second. Every authenticated response says where your bucket stands, so
+you can slow down before you hit the limit:
+
+| Header | Meaning |
+| :--- | :--- |
+| `RateLimit-Limit` | The bucket's size: requests you can send at once. |
+| `RateLimit-Remaining` | Requests left after this one. |
+| `RateLimit-Reset` | Seconds until the bucket is full again. |
+
+```http
+RateLimit-Limit: 20
+RateLimit-Remaining: 17
+RateLimit-Reset: 1
+```
+
+Over the limit you get `429 rate_limited` with `Retry-After`, the seconds until
+the next request fits. Some routes have limits of their own, listed in the
+table above, also answered `429` with `Retry-After`.
+
 ### Concurrency
 
 **Call** concurrency does **not** produce a `429`. A `POST /v2/calls` beyond
@@ -404,8 +424,9 @@ and you do not need your own scheduler in front of it.
 
 **On a single [`POST /v2/calls`](/v2/calls#create-a-call) there is no window.**
 A direct call is an explicit instruction to ring one number now, and it will
-dial at 02:00 IST if you ask it to. Enforce the window for those calls in your
-own scheduler:
+dial at 02:00 IST if you ask it to. To get calling hours for one person, add
+them as a contact to an [always-on campaign](/v2/campaigns#contact-schedule).
+Otherwise, enforce the window for those calls in your own scheduler:
 
 ```python
 from datetime import datetime
@@ -423,18 +444,19 @@ def within_calling_window(now=None) -> bool:
 - **Get consent before you call.** Consent should be explicit, recorded and
   revocable. Keep the record, because you will need to produce it when a
   complaint arrives.
-- **Push your opt-outs to [`POST /v2/dnc`](/v2/dnc).** We enforce that list:
-  every campaign checks it at dial time, so a number added mid-campaign is
-  suppressed from that moment, marked `suppressed` in the report, and never
-  billed. It does not apply to single `POST /v2/calls`, because a single call
-  is an explicit instruction.
+- **Push your opt-outs to [`POST /v2/dnc`](/v2/dnc).** We enforce that list on
+  every call: `POST /v2/calls` refuses a listed number with `422 do_not_call`,
+  a scheduled callback to it is not placed, and every campaign checks it at
+  dial time, so a number added mid-campaign is suppressed from that moment,
+  marked `suppressed` in the report, and never billed.
 - **Scrub against the DND registry** (TRAI's Do Not Disturb / NCPR list) as
   well. We do **not** scrub against the national register for you, and our
   suppression list is not a substitute for it. A number can register between two
   campaigns.
 - **Honour opt-outs immediately.** If a customer says "stop calling me" during
-  a call, that is an opt-out. Capture it and suppress the number on every
-  channel it applies to.
+  a phone call, that is an opt-out. We add the number to your do-not-call list
+  after the call and send [`dnc.added`](/v2/dnc#webhook-events). Suppress the
+  number on every other channel it applies to as well.
 - **Classify each campaign as transactional or promotional.** A delivery
   confirmation to an existing customer is treated differently from a marketing
   pitch to a cold list. Do not put promotional content in a call you present as
@@ -482,7 +504,8 @@ recording for that call, and a workspace with recording turned off refuses
 | [Sub-workspace spending limit](/v2/sub-workspaces#spending-limits) | ✅ `402 spend_limit_reached`; campaigns pause, `pause_reason: spend_limit_reached` |
 | Calling window — **campaigns** | ✅ `slots` + `timezone`, evaluated in local time every tick |
 | Calling window — single `POST /v2/calls` | ❌ your scheduler |
-| Your own opt-out list | ✅ [`/v2/dnc`](/v2/dnc), checked at dial time on every campaign |
+| Your own opt-out list | ✅ [`/v2/dnc`](/v2/dnc), checked on every call (`422 do_not_call`) and at dial time on every campaign |
+| "Stop calling me" on a call, and TRAI complaints | ✅ added to your do-not-call list for you |
 | National DND / NCPR scrubbing | ❌ your list |
 | Consent records | ❌ your records |
 | AI disclosure | ❌ your prompt |

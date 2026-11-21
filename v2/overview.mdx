@@ -137,13 +137,18 @@ Pass `next_cursor` back as `cursor` to get the following page. Stop when
 The cursor is an opaque string. Send it back exactly as you received it, and
 don't build or decode one yourself; its shape can change between releases.
 Lists are newest first by `created_at`. A call list shows inbound and
-outbound calls together in that order.
+outbound calls together in that order, or oldest change first when you
+[sync by `updated_from`](/v2/calls#sync-what-changed).
+
+A filtered page can hold fewer items than `limit`, even none, while `has_more`
+is `true`. Keep following `next_cursor` and stop only on `has_more: false`.
 
 ## Idempotency
 
 `POST /v2/calls` accepts an `Idempotency-Key` header. If you reuse a key, you get
 the original response back instead of a second phone call. We hold keys for 24
-hours.
+hours. [Creating a campaign and adding contacts](/v2/campaigns#safe-retries-with-idempotency-key)
+take one too.
 
 ```bash
 -H "Idempotency-Key: order-8842-reminder-1"
