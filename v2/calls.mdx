@@ -460,6 +460,27 @@ you send them.
   fill the node prompts, the start node's greeting and extraction prompts.
   Transition conditions are not filled in.
 
+#### Time and weekday
+
+Two placeholders are filled by us when the call starts, in the prompt, the
+first message, the end-call and voicemail messages and the call-timing
+messages. They need no `variables` and no `input_schema` entry.
+
+| Placeholder | Becomes |
+| :--- | :--- |
+| `{{current_time_Asia/Kolkata}}` | The time in that IANA zone, such as `2026-11-22 14:30:05 IST`. |
+| `{{current_weekday_Asia/Kolkata}}` | The weekday in that zone, such as `Sunday`. |
+
+- Without a zone (`{{current_time}}`) the call's own timezone is used: India's,
+  unless a [campaign](/v2/campaigns) sets another.
+- The value is the clock when the call starts, so an agent can turn "call me
+  in two hours" into a time. It already knows today's date without them.
+- Put them near the end of the prompt. A prompt whose opening is the same on
+  every call starts answering faster.
+- A variable you send with the same name wins over the clock.
+- [Post-call analysis](/v2/analysis) is told the call's date and time on its
+  own, so a field such as `callback_at` resolves "in two hours" without them.
+
 ### Per-call prompt
 
 `system_prompt` on the call replaces the agent's prompt for that call only. The
