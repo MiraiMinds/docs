@@ -403,7 +403,7 @@ per `reply`.
 | `latency_ms` | From the person stopping speaking to the reply's audio starting. This is the delay the caller hears. A greeting has none. |
 | `wait_ms`, `wait_reason` | The part of `latency_ms` the agent waited on purpose, for example because the person hesitated or was reading out a number. Sent only when the agent waited. |
 | `stt_ms`, `llm_ms`, `tts_ms` | Time to the first result of speech recognition, the language model and speech synthesis for this reply. The stages overlap, so they do not add up to `latency_ms`. |
-| `tools_ms` | Time this reply waited for [tools](/v2/tools) the agent ran during the call. |
+| `tools_ms` | Time this reply waited for [tools](/v2/tools) the agent ran during the call. An async tool adds nothing: the reply does not wait for it. |
 | `finished_ms` | From the person stopping speaking to the reply's audio ending. |
 
 A field is left out until it is known.
@@ -433,11 +433,12 @@ back. Only names and timings are sent, never the tool's arguments or results.
 | Field | Description |
 | :--- | :--- |
 | `name` | The tool's name. |
-| `reply` | The agent reply the tool ran for. `turn.metrics` for that reply includes the time in `tools_ms`. |
+| `reply` | The agent reply the tool ran for. `turn.metrics` for that reply includes the time in `tools_ms`, unless the tool is async. |
 | `status` | `ok` when your endpoint answered, otherwise why it failed. Only on `tool.completed`. |
 | `duration_ms` | How long your endpoint took. Only on `tool.completed`. |
-| `waited_ms` | How long the reply waited for the tool in total. Only on `tool.completed`. |
+| `waited_ms` | How long the reply waited for the tool in total: the whole run for a sync tool, `0` for an async one, because the agent keeps talking while it runs. Only on `tool.completed`. |
 | `tool_run_id` | The run's id in [`GET /v2/calls/{id}/tool_runs`](/v2/tools#inspect-tool-results), where its full record is. Only on `tool.completed`. |
+| `execution` | `async` on both events of a tool with `execution: "async"`. Left out for a sync tool. |
 
 #### Pre-call tools
 
