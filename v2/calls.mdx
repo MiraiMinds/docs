@@ -222,7 +222,7 @@ for control flow; use `ended_reason` for analytics and support.
 | `customer-did-not-answer` | `no_answer` | Rang out. |
 | `customer-busy` | `busy` | Line busy. |
 | `voicemail` | `voicemail` | An answering machine answered. Detecting the machine is what sets the status, so this reason and that status always appear together. |
-| `silence-timed-out` | `completed` | Media was live but nobody spoke for the silence timeout: nobody ever spoke, or the agent's `silence_hang_up` is off and the line stayed quiet after its last check-in. Billable, because the agent ran. |
+| `silence-timed-out` | `completed` | Media was live but nobody spoke for the agent's `silence_timeout_secs` (default 30): nobody ever spoke, or the agent's `silence_hang_up` is off and the line stayed quiet after its last check-in. Billable, because the agent ran. |
 | `idle-timed-out` | `completed` | The caller went quiet. The agent checked in (by default once, after about 10 seconds), then said goodbye. See [When the caller goes quiet](/v2/agents#when-the-caller-goes-quiet). Billable. |
 | `no-media` | `failed` | The call was placed but its audio never arrived. An incoming caller who hung up before we answered, and a call to a number whose connection is switched off, also end this way. See the note below. Not billed. |
 | `insufficient_balance` | `failed` | Your wallet couldn't pay for the call when we set it up, so it never started. An incoming caller is not answered. It has an underscore, the same spelling as the [`402 insufficient_balance`](/v2/wallet#402-insufficient-balance) that `POST /v2/calls` answers with. Not billed. |
