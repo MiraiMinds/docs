@@ -945,7 +945,7 @@
                         ]
                       },
                       "behavior": {
-                        "description": "How the agent takes turns with the caller, whether it knows the date, and what it does when the caller goes quiet. Unlike other nested blocks, PATCH merges it field by field: omitted fields keep their current value and {} changes nothing; a sent pass_through replaces the whole list. null resets it to the defaults (interruptions normal, adaptive_interruptions true, pass_through [], date_awareness true, silence_wait_secs 10, silence_check_ins 1, silence_mode check_in, silence_hang_up true).",
+                        "description": "How the agent takes turns with the caller, whether it knows the date, and what it does when the caller goes quiet. Unlike other nested blocks, PATCH merges it field by field: omitted fields keep their current value and {} changes nothing; a sent pass_through replaces the whole list. null resets it to the defaults (interruptions normal, adaptive_interruptions true, pass_through [], date_awareness true, silence_wait_secs 10, silence_check_ins 1, silence_mode check_in, silence_hang_up true, silence_timeout_secs 30).",
                         "oneOf": [
                           {
                             "type": "null"
@@ -997,7 +997,7 @@
                               },
                               "silence_hang_up": {
                                 "default": true,
-                                "description": "On by default (the behaviour before this setting existed): after the last check-in and one more wait, the agent says goodbye and ends the call (ended reason idle-timed-out). Off: the agent never says goodbye or hangs up because the caller went quiet; a call where nobody speaks at all is still ended by the platform's silence timeout (ended reason silence-timed-out).",
+                                "description": "On by default (the behaviour before this setting existed): after the last check-in and one more wait, the agent says goodbye and ends the call (ended reason idle-timed-out). Off: the agent never says goodbye or hangs up because the caller went quiet; a call where nobody speaks at all is still ended by the silence timeout (silence_timeout_secs, ended reason silence-timed-out).",
                                 "type": "boolean"
                               },
                               "silence_mode": {
@@ -1008,6 +1008,13 @@
                                   "continue"
                                 ],
                                 "type": "string"
+                              },
+                              "silence_timeout_secs": {
+                                "default": 30,
+                                "description": "How long, in seconds, a call where nobody speaks at all (neither the caller nor the agent) stays open before it ends on its own (ended reason silence-timed-out). 10-600, default 30 (the behaviour before this setting existed). When the agent speaks up on silence (silence_check_ins above 0, or silence_hang_up on), the cutoff is kept at least 15 seconds past silence_wait_secs, so a check-in always comes first. A number outside the range, a fraction or a string is 400 invalid_request naming behavior.silence_timeout_secs.",
+                                "maximum": 600,
+                                "minimum": 10,
+                                "type": "integer"
                               },
                               "silence_wait_secs": {
                                 "default": 10,
@@ -14263,6 +14270,13 @@
                   "end_date": {
                     "type": "string"
                   },
+                  "fallback_number_id": {
+                    "description": "One of your phone numbers (GET /v2/phone-numbers) on a different carrier than the numbers this campaign calls from. When a carrier refuses a call before anything is answered, the contact is rung once more from this number, at no attempt cost, at most once per contact per day. null clears it. Not with caller_ids.",
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
                   "final_results": {
                     "type": "boolean"
                   },
@@ -14315,6 +14329,9 @@
                     ]
                   },
                   "re_attempt_period_secs": {
+                    "type": "integer"
+                  },
+                  "redial_gap_secs": {
                     "type": "integer"
                   },
                   "retry_count": {
@@ -15416,6 +15433,13 @@
                   "end_date": {
                     "type": "string"
                   },
+                  "fallback_number_id": {
+                    "description": "One of your phone numbers (GET /v2/phone-numbers) on a different carrier than the numbers this campaign calls from. When a carrier refuses a call before anything is answered, the contact is rung once more from this number, at no attempt cost, at most once per contact per day. null clears it. Not with caller_ids.",
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
                   "final_results": {
                     "type": "boolean"
                   },
@@ -15468,6 +15492,9 @@
                     ]
                   },
                   "re_attempt_period_secs": {
+                    "type": "integer"
+                  },
+                  "redial_gap_secs": {
                     "type": "integer"
                   },
                   "retry_count": {
@@ -18224,6 +18251,13 @@
                   "end_date": {
                     "type": "string"
                   },
+                  "fallback_number_id": {
+                    "description": "One of your phone numbers (GET /v2/phone-numbers) on a different carrier than the numbers this campaign calls from. When a carrier refuses a call before anything is answered, the contact is rung once more from this number, at no attempt cost, at most once per contact per day. null clears it. Not with caller_ids.",
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
                   "final_results": {
                     "type": "boolean"
                   },
@@ -18276,6 +18310,9 @@
                     ]
                   },
                   "re_attempt_period_secs": {
+                    "type": "integer"
+                  },
+                  "redial_gap_secs": {
                     "type": "integer"
                   },
                   "retry_count": {
@@ -28416,7 +28453,7 @@
               },
               "silence_hang_up": {
                 "default": true,
-                "description": "On by default (the behaviour before this setting existed): after the last check-in and one more wait, the agent says goodbye and ends the call (ended reason idle-timed-out). Off: the agent never says goodbye or hangs up because the caller went quiet; a call where nobody speaks at all is still ended by the platform's silence timeout (ended reason silence-timed-out).",
+                "description": "On by default (the behaviour before this setting existed): after the last check-in and one more wait, the agent says goodbye and ends the call (ended reason idle-timed-out). Off: the agent never says goodbye or hangs up because the caller went quiet; a call where nobody speaks at all is still ended by the silence timeout (silence_timeout_secs, ended reason silence-timed-out).",
                 "type": "boolean"
               },
               "silence_mode": {
@@ -28427,6 +28464,13 @@
                   "continue"
                 ],
                 "type": "string"
+              },
+              "silence_timeout_secs": {
+                "default": 30,
+                "description": "How long, in seconds, a call where nobody speaks at all (neither the caller nor the agent) stays open before it ends on its own (ended reason silence-timed-out). 10-600, default 30 (the behaviour before this setting existed). When the agent speaks up on silence (silence_check_ins above 0, or silence_hang_up on), the cutoff is kept at least 15 seconds past silence_wait_secs, so a check-in always comes first. A number outside the range, a fraction or a string is 400 invalid_request naming behavior.silence_timeout_secs.",
+                "maximum": 600,
+                "minimum": 10,
+                "type": "integer"
               },
               "silence_wait_secs": {
                 "default": 10,
@@ -28444,7 +28488,8 @@
               "silence_wait_secs",
               "silence_check_ins",
               "silence_mode",
-              "silence_hang_up"
+              "silence_hang_up",
+              "silence_timeout_secs"
             ],
             "type": "object"
           },
@@ -29104,7 +29149,7 @@
             ]
           },
           "behavior": {
-            "description": "How the agent takes turns with the caller, whether it knows the date, and what it does when the caller goes quiet. Unlike other nested blocks, PATCH merges it field by field: omitted fields keep their current value and {} changes nothing; a sent pass_through replaces the whole list. null resets it to the defaults (interruptions normal, adaptive_interruptions true, pass_through [], date_awareness true, silence_wait_secs 10, silence_check_ins 1, silence_mode check_in, silence_hang_up true).",
+            "description": "How the agent takes turns with the caller, whether it knows the date, and what it does when the caller goes quiet. Unlike other nested blocks, PATCH merges it field by field: omitted fields keep their current value and {} changes nothing; a sent pass_through replaces the whole list. null resets it to the defaults (interruptions normal, adaptive_interruptions true, pass_through [], date_awareness true, silence_wait_secs 10, silence_check_ins 1, silence_mode check_in, silence_hang_up true, silence_timeout_secs 30).",
             "oneOf": [
               {
                 "type": "null"
@@ -29156,7 +29201,7 @@
                   },
                   "silence_hang_up": {
                     "default": true,
-                    "description": "On by default (the behaviour before this setting existed): after the last check-in and one more wait, the agent says goodbye and ends the call (ended reason idle-timed-out). Off: the agent never says goodbye or hangs up because the caller went quiet; a call where nobody speaks at all is still ended by the platform's silence timeout (ended reason silence-timed-out).",
+                    "description": "On by default (the behaviour before this setting existed): after the last check-in and one more wait, the agent says goodbye and ends the call (ended reason idle-timed-out). Off: the agent never says goodbye or hangs up because the caller went quiet; a call where nobody speaks at all is still ended by the silence timeout (silence_timeout_secs, ended reason silence-timed-out).",
                     "type": "boolean"
                   },
                   "silence_mode": {
@@ -29167,6 +29212,13 @@
                       "continue"
                     ],
                     "type": "string"
+                  },
+                  "silence_timeout_secs": {
+                    "default": 30,
+                    "description": "How long, in seconds, a call where nobody speaks at all (neither the caller nor the agent) stays open before it ends on its own (ended reason silence-timed-out). 10-600, default 30 (the behaviour before this setting existed). When the agent speaks up on silence (silence_check_ins above 0, or silence_hang_up on), the cutoff is kept at least 15 seconds past silence_wait_secs, so a check-in always comes first. A number outside the range, a fraction or a string is 400 invalid_request naming behavior.silence_timeout_secs.",
+                    "maximum": 600,
+                    "minimum": 10,
+                    "type": "integer"
                   },
                   "silence_wait_secs": {
                     "default": 10,
@@ -29779,7 +29831,7 @@
             ]
           },
           "behavior": {
-            "description": "How the agent takes turns with the caller, whether it knows the date, and what it does when the caller goes quiet. Unlike other nested blocks, PATCH merges it field by field: omitted fields keep their current value and {} changes nothing; a sent pass_through replaces the whole list. null resets it to the defaults (interruptions normal, adaptive_interruptions true, pass_through [], date_awareness true, silence_wait_secs 10, silence_check_ins 1, silence_mode check_in, silence_hang_up true).",
+            "description": "How the agent takes turns with the caller, whether it knows the date, and what it does when the caller goes quiet. Unlike other nested blocks, PATCH merges it field by field: omitted fields keep their current value and {} changes nothing; a sent pass_through replaces the whole list. null resets it to the defaults (interruptions normal, adaptive_interruptions true, pass_through [], date_awareness true, silence_wait_secs 10, silence_check_ins 1, silence_mode check_in, silence_hang_up true, silence_timeout_secs 30).",
             "oneOf": [
               {
                 "type": "null"
@@ -29831,7 +29883,7 @@
                   },
                   "silence_hang_up": {
                     "default": true,
-                    "description": "On by default (the behaviour before this setting existed): after the last check-in and one more wait, the agent says goodbye and ends the call (ended reason idle-timed-out). Off: the agent never says goodbye or hangs up because the caller went quiet; a call where nobody speaks at all is still ended by the platform's silence timeout (ended reason silence-timed-out).",
+                    "description": "On by default (the behaviour before this setting existed): after the last check-in and one more wait, the agent says goodbye and ends the call (ended reason idle-timed-out). Off: the agent never says goodbye or hangs up because the caller went quiet; a call where nobody speaks at all is still ended by the silence timeout (silence_timeout_secs, ended reason silence-timed-out).",
                     "type": "boolean"
                   },
                   "silence_mode": {
@@ -29842,6 +29894,13 @@
                       "continue"
                     ],
                     "type": "string"
+                  },
+                  "silence_timeout_secs": {
+                    "default": 30,
+                    "description": "How long, in seconds, a call where nobody speaks at all (neither the caller nor the agent) stays open before it ends on its own (ended reason silence-timed-out). 10-600, default 30 (the behaviour before this setting existed). When the agent speaks up on silence (silence_check_ins above 0, or silence_hang_up on), the cutoff is kept at least 15 seconds past silence_wait_secs, so a check-in always comes first. A number outside the range, a fraction or a string is 400 invalid_request naming behavior.silence_timeout_secs.",
+                    "maximum": 600,
+                    "minimum": 10,
+                    "type": "integer"
                   },
                   "silence_wait_secs": {
                     "default": 10,

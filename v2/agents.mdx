@@ -64,7 +64,8 @@ only `pre_call` and `post_call` tools are allowed. See
     "silence_wait_secs": 10,
     "silence_check_ins": 1,
     "silence_mode": "check_in",
-    "silence_hang_up": true
+    "silence_hang_up": true,
+    "silence_timeout_secs": 30
   },
   "created_at": "2026-07-26T09:14:02Z",
   "updated_at": "2026-07-26T09:14:02Z"
@@ -90,7 +91,7 @@ only `pre_call` and `post_call` tools are allowed. See
 | `end_call` | object | no | See [Ending a call](#ending-a-call). |
 | `voicemail` | object | no | See [Voicemail](#voicemail). |
 | `background_sound` | string \| object | no | Room ambience under the agent's voice. See [Background sound](#background-sound). Default `off`. |
-| `behavior` | object | no | How the agent takes turns with the caller, what it does when the caller goes quiet, and whether it knows the date. See [Behavior](#behavior). Default `{"interruptions": "normal", "adaptive_interruptions": true, "pass_through": [], "date_awareness": true, "silence_wait_secs": 10, "silence_check_ins": 1, "silence_mode": "check_in", "silence_hang_up": true}`. |
+| `behavior` | object | no | How the agent takes turns with the caller, what it does when the caller goes quiet, and whether it knows the date. See [Behavior](#behavior). Default `{"interruptions": "normal", "adaptive_interruptions": true, "pass_through": [], "date_awareness": true, "silence_wait_secs": 10, "silence_check_ins": 1, "silence_mode": "check_in", "silence_hang_up": true, "silence_timeout_secs": 30}`. |
 | `booking` | object \| null | no | A booking window: which days a caller can book. See [Booking window](#booking-window). Present on the agent object only when set. PATCH replaces the whole block; `null` removes it. |
 | `flow` | object \| null | no | A node graph. Makes this a [node-based agent](/v2/node-agents). Present on the agent object only when set. PATCH replaces the whole graph; `null` removes it. |
 | `handoff` | object | no | `{"number": "+91…"}`: the phone number of the person from your team who [takes over a live call](/v2/handoff): the number we ring (`dial_out`), or the number they call from (`dial_in`). An Indian number in E.164. A takeover request's `connect.to` wins over it. Present on the agent object only when set; `null` removes it. |
@@ -287,7 +288,8 @@ Dates**.
     "silence_wait_secs": 10,
     "silence_check_ins": 1,
     "silence_mode": "check_in",
-    "silence_hang_up": true
+    "silence_hang_up": true,
+    "silence_timeout_secs": 30
   }
 }
 ```
@@ -302,6 +304,7 @@ Dates**.
 | `silence_check_ins` | integer | How many times the agent speaks up on a quiet caller. `0` to `5`, default `1`. |
 | `silence_mode` | `check_in` \| `continue` | What the agent says when it speaks up. `check_in` asks if the caller is still there, or asks its last question again. `continue` carries on with your script. Default `check_in`. |
 | `silence_hang_up` | boolean | After the last time, the agent says goodbye and ends the call. Default `true`. |
+| `silence_timeout_secs` | integer | A call where nobody says anything ends on its own after this many seconds. `10` to `600`, default `30`. |
 
 #### Adaptive interruptions
 
@@ -409,15 +412,17 @@ waits `silence_wait_secs`, then speaks up. It does this up to
 After the last time, with `silence_hang_up` on, the agent says a short goodbye
 in the caller's language and the call ends with `ended_reason:
 idle-timed-out`. With it off there is no goodbye and the agent doesn't hang up.
-A line where nobody says anything still ends on its own: 30 seconds after the
-last thing anyone said, or 15 seconds past `silence_wait_secs` when that is
-longer, with `ended_reason: silence-timed-out`.
+A line where nobody says anything still ends on its own:
+`silence_timeout_secs` (default 30) after the last thing anyone said, with
+`ended_reason: silence-timed-out` and no goodbye. When the agent speaks up on
+silence, this cutoff is kept at least 15 seconds past `silence_wait_secs`, so
+the agent always gets its turn first.
 
 The defaults are what every agent did before these settings existed: wait 10
 seconds, check in once, then say goodbye and hang up.
 
-This agent carries on with its script twice, 8 seconds apart, and never says
-goodbye on a silent line:
+This agent carries on with its script twice, 8 seconds apart, never says
+goodbye on a silent line, and keeps a silent line open for a minute:
 
 ```json
 {
@@ -425,7 +430,8 @@ goodbye on a silent line:
     "silence_wait_secs": 8,
     "silence_check_ins": 2,
     "silence_mode": "continue",
-    "silence_hang_up": false
+    "silence_hang_up": false,
+    "silence_timeout_secs": 60
   }
 }
 ```
