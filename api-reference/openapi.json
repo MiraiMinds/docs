@@ -945,7 +945,7 @@
                         ]
                       },
                       "behavior": {
-                        "description": "How the agent takes turns with the caller, and whether it knows the date. Unlike other nested blocks, PATCH merges it field by field: omitted fields keep their current value and {} changes nothing; a sent pass_through replaces the whole list. null resets it to the defaults (interruptions normal, adaptive_interruptions true, pass_through [], date_awareness true).",
+                        "description": "How the agent takes turns with the caller, whether it knows the date, and what it does when the caller goes quiet. Unlike other nested blocks, PATCH merges it field by field: omitted fields keep their current value and {} changes nothing; a sent pass_through replaces the whole list. null resets it to the defaults (interruptions normal, adaptive_interruptions true, pass_through [], date_awareness true, silence_wait_secs 10, silence_check_ins 1, silence_mode check_in, silence_hang_up true).",
                         "oneOf": [
                           {
                             "type": "null"
@@ -987,6 +987,34 @@
                                   "array",
                                   "null"
                                 ]
+                              },
+                              "silence_check_ins": {
+                                "default": 1,
+                                "description": "How many times the agent speaks up while the caller stays quiet, one after each wait, before it says goodbye (see silence_hang_up). 0: no check-in, the goodbye comes after the first wait. 0-5, default 1 (the behaviour before this setting existed). Anything else is 400 invalid_request naming behavior.silence_check_ins.",
+                                "maximum": 5,
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "silence_hang_up": {
+                                "default": true,
+                                "description": "On by default (the behaviour before this setting existed): after the last check-in and one more wait, the agent says goodbye and ends the call (ended reason idle-timed-out). Off: the agent never says goodbye or hangs up because the caller went quiet; a call where nobody speaks at all is still ended by the platform's silence timeout (ended reason silence-timed-out).",
+                                "type": "boolean"
+                              },
+                              "silence_mode": {
+                                "default": "check_in",
+                                "description": "What the agent says when it speaks up. check_in (the default, and the behaviour before this setting existed): it asks whether the caller is still there or repeats its last question. continue: it carries on with the next step of its instructions, as your prompt says to do when the caller does not answer, without asking whether the caller is there or repeating its question. Trimmed and lower-cased; any other value, including an empty string, is 400.",
+                                "enum": [
+                                  "check_in",
+                                  "continue"
+                                ],
+                                "type": "string"
+                              },
+                              "silence_wait_secs": {
+                                "default": 10,
+                                "description": "How long, in seconds, the caller can stay quiet before the agent speaks up. 5-60, default 10 (the behaviour before this setting existed). A number outside the range, a fraction or a string is 400 invalid_request naming behavior.silence_wait_secs.",
+                                "maximum": 60,
+                                "minimum": 5,
+                                "type": "integer"
                               }
                             },
                             "type": "object"
@@ -28346,7 +28374,7 @@
           },
           "behavior": {
             "additionalProperties": false,
-            "description": "How the agent takes turns with the caller, and whether it knows the date. Always present; agents saved before this block existed read back with the defaults.",
+            "description": "How the agent takes turns with the caller, whether it knows the date, and what it does when the caller goes quiet. Always present; agents saved before this block or one of its fields existed read back with the defaults.",
             "properties": {
               "adaptive_interruptions": {
                 "default": true,
@@ -28378,13 +28406,45 @@
                 },
                 "maxItems": 30,
                 "type": "array"
+              },
+              "silence_check_ins": {
+                "default": 1,
+                "description": "How many times the agent speaks up while the caller stays quiet, one after each wait, before it says goodbye (see silence_hang_up). 0: no check-in, the goodbye comes after the first wait. 0-5, default 1 (the behaviour before this setting existed). Anything else is 400 invalid_request naming behavior.silence_check_ins.",
+                "maximum": 5,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "silence_hang_up": {
+                "default": true,
+                "description": "On by default (the behaviour before this setting existed): after the last check-in and one more wait, the agent says goodbye and ends the call (ended reason idle-timed-out). Off: the agent never says goodbye or hangs up because the caller went quiet; a call where nobody speaks at all is still ended by the platform's silence timeout (ended reason silence-timed-out).",
+                "type": "boolean"
+              },
+              "silence_mode": {
+                "default": "check_in",
+                "description": "What the agent says when it speaks up. check_in (the default, and the behaviour before this setting existed): it asks whether the caller is still there or repeats its last question. continue: it carries on with the next step of its instructions, as your prompt says to do when the caller does not answer, without asking whether the caller is there or repeating its question. Trimmed and lower-cased; any other value, including an empty string, is 400.",
+                "enum": [
+                  "check_in",
+                  "continue"
+                ],
+                "type": "string"
+              },
+              "silence_wait_secs": {
+                "default": 10,
+                "description": "How long, in seconds, the caller can stay quiet before the agent speaks up. 5-60, default 10 (the behaviour before this setting existed). A number outside the range, a fraction or a string is 400 invalid_request naming behavior.silence_wait_secs.",
+                "maximum": 60,
+                "minimum": 5,
+                "type": "integer"
               }
             },
             "required": [
               "interruptions",
               "adaptive_interruptions",
               "pass_through",
-              "date_awareness"
+              "date_awareness",
+              "silence_wait_secs",
+              "silence_check_ins",
+              "silence_mode",
+              "silence_hang_up"
             ],
             "type": "object"
           },
@@ -29044,7 +29104,7 @@
             ]
           },
           "behavior": {
-            "description": "How the agent takes turns with the caller, and whether it knows the date. Unlike other nested blocks, PATCH merges it field by field: omitted fields keep their current value and {} changes nothing; a sent pass_through replaces the whole list. null resets it to the defaults (interruptions normal, adaptive_interruptions true, pass_through [], date_awareness true).",
+            "description": "How the agent takes turns with the caller, whether it knows the date, and what it does when the caller goes quiet. Unlike other nested blocks, PATCH merges it field by field: omitted fields keep their current value and {} changes nothing; a sent pass_through replaces the whole list. null resets it to the defaults (interruptions normal, adaptive_interruptions true, pass_through [], date_awareness true, silence_wait_secs 10, silence_check_ins 1, silence_mode check_in, silence_hang_up true).",
             "oneOf": [
               {
                 "type": "null"
@@ -29086,6 +29146,34 @@
                       "array",
                       "null"
                     ]
+                  },
+                  "silence_check_ins": {
+                    "default": 1,
+                    "description": "How many times the agent speaks up while the caller stays quiet, one after each wait, before it says goodbye (see silence_hang_up). 0: no check-in, the goodbye comes after the first wait. 0-5, default 1 (the behaviour before this setting existed). Anything else is 400 invalid_request naming behavior.silence_check_ins.",
+                    "maximum": 5,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "silence_hang_up": {
+                    "default": true,
+                    "description": "On by default (the behaviour before this setting existed): after the last check-in and one more wait, the agent says goodbye and ends the call (ended reason idle-timed-out). Off: the agent never says goodbye or hangs up because the caller went quiet; a call where nobody speaks at all is still ended by the platform's silence timeout (ended reason silence-timed-out).",
+                    "type": "boolean"
+                  },
+                  "silence_mode": {
+                    "default": "check_in",
+                    "description": "What the agent says when it speaks up. check_in (the default, and the behaviour before this setting existed): it asks whether the caller is still there or repeats its last question. continue: it carries on with the next step of its instructions, as your prompt says to do when the caller does not answer, without asking whether the caller is there or repeating its question. Trimmed and lower-cased; any other value, including an empty string, is 400.",
+                    "enum": [
+                      "check_in",
+                      "continue"
+                    ],
+                    "type": "string"
+                  },
+                  "silence_wait_secs": {
+                    "default": 10,
+                    "description": "How long, in seconds, the caller can stay quiet before the agent speaks up. 5-60, default 10 (the behaviour before this setting existed). A number outside the range, a fraction or a string is 400 invalid_request naming behavior.silence_wait_secs.",
+                    "maximum": 60,
+                    "minimum": 5,
+                    "type": "integer"
                   }
                 },
                 "type": "object"
@@ -29691,7 +29779,7 @@
             ]
           },
           "behavior": {
-            "description": "How the agent takes turns with the caller, and whether it knows the date. Unlike other nested blocks, PATCH merges it field by field: omitted fields keep their current value and {} changes nothing; a sent pass_through replaces the whole list. null resets it to the defaults (interruptions normal, adaptive_interruptions true, pass_through [], date_awareness true).",
+            "description": "How the agent takes turns with the caller, whether it knows the date, and what it does when the caller goes quiet. Unlike other nested blocks, PATCH merges it field by field: omitted fields keep their current value and {} changes nothing; a sent pass_through replaces the whole list. null resets it to the defaults (interruptions normal, adaptive_interruptions true, pass_through [], date_awareness true, silence_wait_secs 10, silence_check_ins 1, silence_mode check_in, silence_hang_up true).",
             "oneOf": [
               {
                 "type": "null"
@@ -29733,6 +29821,34 @@
                       "array",
                       "null"
                     ]
+                  },
+                  "silence_check_ins": {
+                    "default": 1,
+                    "description": "How many times the agent speaks up while the caller stays quiet, one after each wait, before it says goodbye (see silence_hang_up). 0: no check-in, the goodbye comes after the first wait. 0-5, default 1 (the behaviour before this setting existed). Anything else is 400 invalid_request naming behavior.silence_check_ins.",
+                    "maximum": 5,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "silence_hang_up": {
+                    "default": true,
+                    "description": "On by default (the behaviour before this setting existed): after the last check-in and one more wait, the agent says goodbye and ends the call (ended reason idle-timed-out). Off: the agent never says goodbye or hangs up because the caller went quiet; a call where nobody speaks at all is still ended by the platform's silence timeout (ended reason silence-timed-out).",
+                    "type": "boolean"
+                  },
+                  "silence_mode": {
+                    "default": "check_in",
+                    "description": "What the agent says when it speaks up. check_in (the default, and the behaviour before this setting existed): it asks whether the caller is still there or repeats its last question. continue: it carries on with the next step of its instructions, as your prompt says to do when the caller does not answer, without asking whether the caller is there or repeating its question. Trimmed and lower-cased; any other value, including an empty string, is 400.",
+                    "enum": [
+                      "check_in",
+                      "continue"
+                    ],
+                    "type": "string"
+                  },
+                  "silence_wait_secs": {
+                    "default": 10,
+                    "description": "How long, in seconds, the caller can stay quiet before the agent speaks up. 5-60, default 10 (the behaviour before this setting existed). A number outside the range, a fraction or a string is 400 invalid_request naming behavior.silence_wait_secs.",
+                    "maximum": 60,
+                    "minimum": 5,
+                    "type": "integer"
                   }
                 },
                 "type": "object"

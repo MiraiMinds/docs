@@ -60,7 +60,11 @@ only `pre_call` and `post_call` tools are allowed. See
     "interruptions": "normal",
     "adaptive_interruptions": true,
     "pass_through": [],
-    "date_awareness": true
+    "date_awareness": true,
+    "silence_wait_secs": 10,
+    "silence_check_ins": 1,
+    "silence_mode": "check_in",
+    "silence_hang_up": true
   },
   "created_at": "2026-07-26T09:14:02Z",
   "updated_at": "2026-07-26T09:14:02Z"
@@ -86,7 +90,7 @@ only `pre_call` and `post_call` tools are allowed. See
 | `end_call` | object | no | See [Ending a call](#ending-a-call). |
 | `voicemail` | object | no | See [Voicemail](#voicemail). |
 | `background_sound` | string \| object | no | Room ambience under the agent's voice. See [Background sound](#background-sound). Default `off`. |
-| `behavior` | object | no | How the agent takes turns with the caller, and whether it knows the date. See [Behavior](#behavior). Default `{"interruptions": "normal", "adaptive_interruptions": true, "pass_through": [], "date_awareness": true}`. |
+| `behavior` | object | no | How the agent takes turns with the caller, what it does when the caller goes quiet, and whether it knows the date. See [Behavior](#behavior). Default `{"interruptions": "normal", "adaptive_interruptions": true, "pass_through": [], "date_awareness": true, "silence_wait_secs": 10, "silence_check_ins": 1, "silence_mode": "check_in", "silence_hang_up": true}`. |
 | `booking` | object \| null | no | A booking window: which days a caller can book. See [Booking window](#booking-window). Present on the agent object only when set. PATCH replaces the whole block; `null` removes it. |
 | `flow` | object \| null | no | A node graph. Makes this a [node-based agent](/v2/node-agents). Present on the agent object only when set. PATCH replaces the whole graph; `null` removes it. |
 | `handoff` | object | no | `{"number": "+91…"}`: the phone number of the person from your team who [takes over a live call](/v2/handoff): the number we ring (`dial_out`), or the number they call from (`dial_in`). An Indian number in E.164. A takeover request's `connect.to` wins over it. Present on the agent object only when set; `null` removes it. |
@@ -269,7 +273,9 @@ Before you turn it on, note two things:
 `behavior` sets how the agent takes turns with the caller: when it answers, and
 what makes it stop talking. In the console it is **Agent Studio → Behavior →
 Interruptions**, with the **Adaptive interruptions** switch at the top. It also
-holds `date_awareness`, **Agent Studio → Behavior → Dates**.
+holds what the agent does when the caller goes quiet, **Agent Studio → Behavior →
+When the caller goes quiet**, and `date_awareness`, **Agent Studio → Behavior →
+Dates**.
 
 ```json
 {
@@ -277,7 +283,11 @@ holds `date_awareness`, **Agent Studio → Behavior → Dates**.
     "adaptive_interruptions": true,
     "interruptions": "normal",
     "pass_through": [],
-    "date_awareness": true
+    "date_awareness": true,
+    "silence_wait_secs": 10,
+    "silence_check_ins": 1,
+    "silence_mode": "check_in",
+    "silence_hang_up": true
   }
 }
 ```
@@ -288,6 +298,10 @@ holds `date_awareness`, **Agent Studio → Behavior → Dates**.
 | `interruptions` | `easy` \| `normal` \| `firm` \| `never` | How much the caller has to say before the agent stops talking. Default `normal`. See [Fixed rules](#fixed-rules). |
 | `pass_through` | array of strings | Your own words that never interrupt the agent, on top of built-in ones such as "haan" and "ok". Default `[]`. See [Pass-through words](#pass-through-words). |
 | `date_awareness` | boolean | The agent knows today's date and the exact date of every day a caller names. Default `true`. See [Date awareness](#date-awareness). |
+| `silence_wait_secs` | integer | Seconds of quiet from the caller before the agent speaks up. `5` to `60`, default `10`. See [When the caller goes quiet](#when-the-caller-goes-quiet). |
+| `silence_check_ins` | integer | How many times the agent speaks up on a quiet caller. `0` to `5`, default `1`. |
+| `silence_mode` | `check_in` \| `continue` | What the agent says when it speaks up. `check_in` asks if the caller is still there, or asks its last question again. `continue` carries on with your script. Default `check_in`. |
+| `silence_hang_up` | boolean | After the last time, the agent says goodbye and ends the call. Default `true`. |
 
 #### Adaptive interruptions
 
@@ -379,6 +393,47 @@ the JSON decoder's message instead.
 A [Realtime session](/v2/realtime) started from the agent does not use
 `pass_through` yet.
 
+#### When the caller goes quiet
+
+When the caller says nothing after the agent has finished speaking, the agent
+waits `silence_wait_secs`, then speaks up. It does this up to
+`silence_check_ins` times. Anything the caller says starts the count again.
+
+- `silence_mode: "check_in"`, the default: the agent asks if the caller is
+  still there, or asks its last question again in fewer words.
+- `silence_mode: "continue"`: the agent goes on with your script, the way your
+  prompt says to when nobody answers. It doesn't ask "are you there?" and
+  doesn't repeat its question. Use it when your prompt already says what to do
+  on no answer, for example "if they don't confirm, say why you are calling".
+
+After the last time, with `silence_hang_up` on, the agent says a short goodbye
+in the caller's language and the call ends with `ended_reason:
+idle-timed-out`. With it off there is no goodbye and the agent doesn't hang up.
+A line where nobody says anything still ends on its own: 30 seconds after the
+last thing anyone said, or 15 seconds past `silence_wait_secs` when that is
+longer, with `ended_reason: silence-timed-out`.
+
+The defaults are what every agent did before these settings existed: wait 10
+seconds, check in once, then say goodbye and hang up.
+
+This agent carries on with its script twice, 8 seconds apart, and never says
+goodbye on a silent line:
+
+```json
+{
+  "behavior": {
+    "silence_wait_secs": 8,
+    "silence_check_ins": 2,
+    "silence_mode": "continue",
+    "silence_hang_up": false
+  }
+}
+```
+
+A call's `timing.user_silence_close_secs` ([timing policy](/v2/web-calls#timing-policy))
+still wins over `silence_hang_up`: with it set, the call's own closing line ends
+a silent call on its own clock.
+
 #### Date awareness
 
 With `date_awareness` on, the default for every agent, the agent knows today's
@@ -412,7 +467,8 @@ Turn it off only if your own prompt or tools already supply dates:
 others keep their values, unlike other nested objects, which are replaced
 whole. `pass_through` is a list, so the list you send replaces the saved one.
 `{"behavior": {"date_awareness": false}}` turns date awareness off and leaves
-the other fields as they are.
+the other fields as they are, and `{"behavior": {"silence_mode": "continue"}}`
+changes only what the agent says on a quiet caller.
 To add a word, read the agent, add the word to `behavior.pass_through` and send
 the whole list. Send `[]` or `null` to clear the list, or `"behavior": null` to
 go back to the defaults. The change takes effect on the next call and is saved
