@@ -12,6 +12,9 @@ change with your plan.
 
 | `voice_id` | Voice |
 | :--- | :--- |
+| `ankit` | Male |
+| `anjali` | Female |
+| `ami` | Female |
 | `ashu` | Male |
 | `neha` | Female |
 | `shruti` | Female |
@@ -21,8 +24,12 @@ change with your plan.
 
 `ashu`, `neha`, `shruti` and `sameer` are Hindi voices that code-switch into
 English the way real Indian speech does. `munshi` and `tanvi` speak Hindi,
-English, Gujarati, Tamil and Telugu. All six speak Kannada, Malayalam,
-Bengali and Marathi in beta (see the [language roadmap](/v2/tts-languages)).
+English, Gujarati, Tamil and Telugu, and those six also speak Kannada,
+Malayalam, Bengali and Marathi in beta (see the
+[language roadmap](/v2/tts-languages)). `ankit`, `anjali` and `ami` speak
+Hindi, English with an Indian accent, Bengali, Gujarati, Marathi, Punjabi,
+Kannada, Tamil, Telugu and Malayalam, and switch to each regional language's
+own accent. `ankit` is the voice an agent gets when you leave `voice` out.
 The
 [Mira TTS page](https://voice.miraiminds.co/models/text-to-speech) has samples
 and more about the model behind them.
@@ -41,7 +48,7 @@ rejected when you create the agent, with an error that names the allowed set:
 {
   "error": {
     "code": "invalid_request",
-    "message": "unknown voice_id \"priya\" — voice.voice_id must be one of ashu, munshi, neha, sameer, shruti, tanvi, or one of your custom voices (GET /v2/custom-voices)"
+    "message": "unknown voice_id \"priya\" — voice.voice_id must be one of ami, anjali, ankit, ashu, munshi, neha, sameer, shruti, tanvi or one of your custom voices (GET /v2/custom-voices)"
   }
 }
 ```
@@ -63,6 +70,9 @@ catalogue grows monthly, so if this page and the API disagree, trust the API.
 ```json title="GET /v2/voices"
 {
   "data": [
+    { "voice_id": "ankit", "name": "अंकित", "language": "hi" },
+    { "voice_id": "anjali", "name": "अंजलि", "language": "hi" },
+    { "voice_id": "ami", "name": "अमी", "language": "hi" },
     { "voice_id": "ashu", "name": "आशु", "language": "hi" },
     { "voice_id": "neha", "name": "नेहा", "language": "hi" },
     { "voice_id": "shruti", "name": "श्रुति", "language": "hi" },
