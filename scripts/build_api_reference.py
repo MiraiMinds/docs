@@ -56,9 +56,12 @@ SERVERS = [
      "description": "Production: workspaces that have gone live"},
 ]
 
-#: Hand-written pages at the top of the tab, and pages slotted in after an
-#: endpoint ("METHOD /path" -> page).
+#: Hand-written pages at the top of the tab, pages at the top of a group
+#: (group -> pages), and pages slotted in after an endpoint ("METHOD /path" -> page).
 LEAD_GROUP = {"group": "Get started", "pages": ["api-reference/introduction", "api-reference/postman"]}
+#: The streaming socket is not in the Postman collection or /v2/schema: its page
+#: renders api-reference/speech-to-text.asyncapi.yaml, which is hand-written.
+GROUP_LEAD = {"Speech to text": ["api-reference/speech-to-text/speech-to-text"]}
 INSERT_AFTER = {"POST /v2/calls": ["api-reference/calls/start-a-browser-call"]}
 #: Group order in the tab. A group not named here goes before "Reference".
 TAG_ORDER = ("Agents", "Calls", "Flows", "Tools and secrets", "Campaigns", "Do-not-call list",
@@ -714,7 +717,7 @@ def ordered(nav):
 def nav_groups(nav) -> list[dict]:
     groups = [copy.deepcopy(LEAD_GROUP)]
     for tag, pages in ordered(nav):
-        out = []
+        out = list(GROUP_LEAD.get(tag, []))
         for page in pages:
             out.append(page)
             out.extend(INSERT_AFTER.get(page, []))

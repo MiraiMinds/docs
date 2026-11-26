@@ -332,6 +332,7 @@
           {
             "group": "Speech to text",
             "pages": [
+              "api-reference/speech-to-text/speech-to-text",
               "POST /v2/stt",
               "POST /v2/stt/stream/tokens",
               "GET /v2/stt/requests",

@@ -1,0 +1,525 @@
+asyncapi: 3.0.0
+# Hand-written, not generated: scripts/build_api_reference.py does not touch it.
+# The protocol it describes is documented in full on v2/speech-to-text.mdx;
+# change both together.
+info:
+  title: Mira STT streaming
+  version: 1.0.0
+  description: Live audio in, partial and final transcripts out, over one WebSocket.
+
+servers:
+  sandbox:
+    host: sandbox.voice.miraiminds.co
+    protocol: wss
+    description: "Sandbox: trial workspaces, before your company goes live"
+    security:
+      - $ref: '#/components/securitySchemes/apiKey'
+      - $ref: '#/components/securitySchemes/streamToken'
+  production:
+    host: prod.voice.miraiminds.co
+    protocol: wss
+    description: "Production: workspaces that have gone live"
+    security:
+      - $ref: '#/components/securitySchemes/apiKey'
+      - $ref: '#/components/securitySchemes/streamToken'
+
+channels:
+  speechToText:
+    address: /v1/audio/transcriptions/stream
+    title: Speech to text
+    description: |
+      Stream live audio and get partial transcripts while the person speaks, then one final transcript for each utterance. Hindi, English, Gujarati, Marathi, Punjabi, Bengali, Tamil, Telugu, Kannada and Malayalam, or `auto`.
+
+      Open one socket per call and keep it until the call ends. Everything about the session goes on the URL as query parameters, checked before the upgrade: a bad value is refused with an ordinary HTTP `400 invalid_config`.
+
+      Billed per second of audio received, silence included, from your wallet. `session.end` says what the session cost, and each session is a row in [List requests](/api-reference/speech-to-text/list-requests) with `via` set to `ws`.
+    bindings:
+      ws:
+        method: GET
+        headers:
+          type: object
+          properties:
+            Authorization:
+              type: string
+              description: "`Bearer sk_live_…`, your workspace secret key. From a browser, which cannot set headers, send `token` on the URL instead."
+        query:
+          type: object
+          properties:
+            language_code:
+              type: string
+              default: hi-IN
+              enum: [hi-IN, en-IN, gu-IN, mr-IN, pa-IN, bn-IN, ta-IN, te-IN, kn-IN, ml-IN, auto]
+              description: The language spoken. The codes without `-IN` work too. `auto` works out the language of each utterance.
+            secondary_languages:
+              type: string
+              description: Up to three more codes, comma-separated (`hi-IN,en-IN`), that callers may switch to. Only with a named `language_code`, not `auto`.
+            model:
+              type: string
+              default: mira-stt
+              enum: [mira-stt]
+            encoding:
+              type: string
+              default: linear16
+              enum: [linear16, mulaw, alaw]
+              description: "`linear16` is signed 16-bit little-endian mono PCM. `mulaw` and `alaw` are G.711, what most phone lines carry."
+            sample_rate:
+              type: integer
+              default: 16000
+              enum: [8000, 16000]
+              description: Send phone audio at 8000 as it comes off the line. Don't resample it.
+            endpointing:
+              type: string
+              default: vad
+              enum: [vad, manual]
+              description: "`manual` if you already have a VAD: you send `speech_start` and `speech_end`, and the final comes straight after `speech_end`. `vad` if you don't: we find the end of each utterance."
+            keyterms:
+              type: string
+              description: Up to 200 names to listen for, comma-separated (`Zylora,Koramangala`). Send long lists, and lists in an Indian script, in a `config.update` instead.
+            return_timestamps:
+              type: boolean
+              default: false
+              description: "`true` adds `start_s` and `end_s` to each `transcript.final`."
+            silence_duration_ms:
+              type: integer
+              default: 1000
+              minimum: 0
+              maximum: 10000
+              description: "`vad` only. How long a pause ends an utterance."
+            threshold:
+              type: number
+              default: 0.3
+              minimum: 0
+              maximum: 1
+              description: "`vad` only. Speech probability that counts as speech."
+            prefix_padding_ms:
+              type: integer
+              default: 300
+              minimum: 0
+              maximum: 2000
+              description: "`vad` only. Audio kept from before speech starts."
+            min_speech_duration_ms:
+              type: integer
+              default: 250
+              minimum: 0
+              maximum: 10000
+              description: "`vad` only. Shorter sounds are ignored."
+            token:
+              type: string
+              description: A browser stream token from [Mint stream tokens](/api-reference/speech-to-text/mint-stream-tokens). Single use, valid 60 seconds. An API key is never accepted on the URL.
+    messages:
+      audioInputMessage:
+        $ref: '#/components/messages/audioInputMessage'
+      speechStartMessage:
+        $ref: '#/components/messages/speechStartMessage'
+      speechEndMessage:
+        $ref: '#/components/messages/speechEndMessage'
+      flushMessage:
+        $ref: '#/components/messages/flushMessage'
+      configUpdateMessage:
+        $ref: '#/components/messages/configUpdateMessage'
+      pingMessage:
+        $ref: '#/components/messages/pingMessage'
+      endMessage:
+        $ref: '#/components/messages/endMessage'
+      sessionBeginMessage:
+        $ref: '#/components/messages/sessionBeginMessage'
+      vadSpeechStartMessage:
+        $ref: '#/components/messages/vadSpeechStartMessage'
+      vadSpeechEndMessage:
+        $ref: '#/components/messages/vadSpeechEndMessage'
+      transcriptPartialMessage:
+        $ref: '#/components/messages/transcriptPartialMessage'
+      transcriptFinalMessage:
+        $ref: '#/components/messages/transcriptFinalMessage'
+      configUpdatedMessage:
+        $ref: '#/components/messages/configUpdatedMessage'
+      pongMessage:
+        $ref: '#/components/messages/pongMessage'
+      sessionDrainingMessage:
+        $ref: '#/components/messages/sessionDrainingMessage'
+      sessionEndMessage:
+        $ref: '#/components/messages/sessionEndMessage'
+      errorMessage:
+        $ref: '#/components/messages/errorMessage'
+
+# "receive" is what the server receives (you send it); "send" is what the
+# server sends (you receive it).
+operations:
+  sendAudio:
+    action: receive
+    title: Send audio
+    summary: Audio as it arrives, 20 to 100 ms per message, base64 in a JSON text frame.
+    channel:
+      $ref: '#/channels/speechToText'
+    messages:
+      - $ref: '#/channels/speechToText/messages/audioInputMessage'
+  sendControl:
+    action: receive
+    title: Send control messages
+    summary: Utterance boundaries (manual endpointing), settings changes, keepalive and end of session.
+    channel:
+      $ref: '#/channels/speechToText'
+    messages:
+      - $ref: '#/channels/speechToText/messages/speechStartMessage'
+      - $ref: '#/channels/speechToText/messages/speechEndMessage'
+      - $ref: '#/channels/speechToText/messages/flushMessage'
+      - $ref: '#/channels/speechToText/messages/configUpdateMessage'
+      - $ref: '#/channels/speechToText/messages/pingMessage'
+      - $ref: '#/channels/speechToText/messages/endMessage'
+  receiveTranscripts:
+    action: send
+    title: Receive transcripts
+    summary: Partials while an utterance is open, then exactly one final for it, in utterance order.
+    channel:
+      $ref: '#/channels/speechToText'
+    messages:
+      - $ref: '#/channels/speechToText/messages/transcriptPartialMessage'
+      - $ref: '#/channels/speechToText/messages/transcriptFinalMessage'
+  receiveSession:
+    action: send
+    title: Receive session events
+    summary: The session's start and end, VAD boundaries, settings changes and errors.
+    channel:
+      $ref: '#/channels/speechToText'
+    messages:
+      - $ref: '#/channels/speechToText/messages/sessionBeginMessage'
+      - $ref: '#/channels/speechToText/messages/vadSpeechStartMessage'
+      - $ref: '#/channels/speechToText/messages/vadSpeechEndMessage'
+      - $ref: '#/channels/speechToText/messages/configUpdatedMessage'
+      - $ref: '#/channels/speechToText/messages/pongMessage'
+      - $ref: '#/channels/speechToText/messages/sessionDrainingMessage'
+      - $ref: '#/channels/speechToText/messages/sessionEndMessage'
+      - $ref: '#/channels/speechToText/messages/errorMessage'
+
+components:
+  securitySchemes:
+    apiKey:
+      type: http
+      scheme: bearer
+      description: "Your workspace secret key, `sk_live_` followed by 32 hex characters, in the `Authorization` header. Create one in the console under **Developers**. For server code."
+    streamToken:
+      type: httpApiKey
+      name: token
+      in: query
+      description: A single-use token from [Mint stream tokens](/api-reference/speech-to-text/mint-stream-tokens), for a browser. It acts, and is billed, as the key that minted it.
+
+  schemas:
+    config:
+      type: object
+      description: The full configuration in force. `turn_detection` is your `endpointing`, and `model` is the build that is listening.
+      properties:
+        language_code: { type: string, examples: [hi-IN] }
+        model: { type: string, examples: ["mira-stt:v5-realtime"] }
+        stream_type: { type: string, examples: [balanced] }
+        mode: { type: string, examples: [transcribe] }
+        prompt: { type: ["string", "null"] }
+        encoding: { type: string, examples: [mulaw] }
+        sample_rate: { type: integer, examples: [8000] }
+        return_timestamps: { type: boolean }
+        threshold: { type: number, examples: [0.3] }
+        prefix_padding_ms: { type: integer, examples: [300] }
+        silence_duration_ms: { type: integer, examples: [1000] }
+        min_speech_duration_ms: { type: integer, examples: [250] }
+        turn_detection: { type: string, enum: [manual, vad] }
+
+  messages:
+    audioInputMessage:
+      name: audio_input
+      title: audio_input
+      summary: Adds audio to the stream.
+      payload:
+        type: object
+        required: [event, audio]
+        properties:
+          event: { type: string, const: audio_input }
+          audio:
+            type: string
+            description: Base64 of raw audio in the socket's `encoding`, whole samples only. At most 128,000 bytes before base64 (4 seconds of 16 kHz PCM); more is a fatal `audio_too_large`.
+      examples:
+        - name: 20 ms of audio (shortened)
+          payload: { event: audio_input, audio: "AACaADABvQE9AqwCBgNJA3QDgwN4A1MDFAO+AlMC1gFLAbYA" }
+
+    speechStartMessage:
+      name: speech_start
+      title: speech_start
+      summary: "`manual` only. Opens an utterance. Send about half a second of the audio from before it right after, since most VADs fire after the first syllable."
+      payload:
+        type: object
+        required: [event]
+        properties:
+          event: { type: string, const: speech_start }
+      examples:
+        - payload: { event: speech_start }
+
+    speechEndMessage:
+      name: speech_end
+      title: speech_end
+      summary: "`manual` only. Closes the open utterance; its final follows. One utterance can last at most 60 seconds, so send one at a pause at least every 25 seconds."
+      payload:
+        type: object
+        required: [event]
+        properties:
+          event: { type: string, const: speech_end }
+      examples:
+        - payload: { event: speech_end }
+
+    flushMessage:
+      name: flush
+      title: flush
+      summary: "`manual` only. The same as `speech_end`."
+      payload:
+        type: object
+        required: [event]
+        properties:
+          event: { type: string, const: flush }
+      examples:
+        - payload: { event: flush }
+
+    configUpdateMessage:
+      name: config.update
+      title: config.update
+      summary: Changes settings mid-session. Thresholds apply at once; language, keyterms and endpointing from the next utterance. `encoding`, `sample_rate` and `model` are fixed for the socket.
+      payload:
+        type: object
+        required: [event]
+        properties:
+          event: { type: string, const: config.update }
+          language_code: { type: string, description: "A language code, or `auto`." }
+          secondary_languages: { type: string, description: "Comma-separated codes; `\"\"` clears them." }
+          keyterms:
+            type: [array, string]
+            items: { type: string }
+            description: Up to 200 terms, each 1 to 50 characters and at most 5 words. Replaces the whole list; `[]` clears it.
+          endpointing: { type: string, enum: [manual, vad] }
+          stream_type: { type: string }
+          threshold: { type: number, minimum: 0, maximum: 1 }
+          silence_duration_ms: { type: integer, minimum: 0, maximum: 10000 }
+          min_speech_duration_ms: { type: integer, minimum: 0, maximum: 10000 }
+      examples:
+        - name: Switch to English
+          payload: { event: config.update, language_code: en-IN }
+        - name: Names to listen for
+          payload: { event: config.update, keyterms: ["Zylora", "ज़ायलोरा", "Zylora Max", "Koramangala"] }
+
+    pingMessage:
+      name: ping
+      title: ping
+      summary: Answered with `pong`. Send it during long silences; the socket closes after 120 seconds with no message from you.
+      payload:
+        type: object
+        required: [event]
+        properties:
+          event: { type: string, const: ping }
+      examples:
+        - payload: { event: ping }
+
+    endMessage:
+      name: end
+      title: end
+      summary: Finishes the open utterance, sends its final and `session.end`, then closes the socket.
+      payload:
+        type: object
+        required: [event]
+        properties:
+          event: { type: string, const: end }
+      examples:
+        - payload: { event: end }
+
+    sessionBeginMessage:
+      name: session.begin
+      title: session.begin
+      summary: The first message after you connect, with the settings in force and your limits.
+      payload:
+        type: object
+        properties:
+          event: { type: string, const: session.begin }
+          request_id: { type: string }
+          session_id: { type: string, description: "`sttws_…`. Quote it when you ask us about a session. The same id is on the upgrade's `X-Session-Id` header." }
+          config: { $ref: '#/components/schemas/config' }
+          capabilities: { type: object }
+          limits:
+            type: object
+            properties:
+              max_session_secs: { type: integer, examples: [3600] }
+              idle_timeout_secs: { type: integer, examples: [120] }
+      examples:
+        - payload:
+            event: session.begin
+            request_id: mira_5f0c2b6e9d1a4c7e8b3f6a2d9e0c1b4a
+            session_id: sttws_01K7C2M3Q4R7T9V2X5Y8A1B4C7
+            config:
+              language_code: hi-IN
+              model: "mira-stt:v5-realtime"
+              stream_type: balanced
+              mode: transcribe
+              prompt: null
+              encoding: mulaw
+              sample_rate: 8000
+              return_timestamps: false
+              threshold: 0.3
+              prefix_padding_ms: 300
+              silence_duration_ms: 1000
+              min_speech_duration_ms: 250
+              turn_detection: manual
+            capabilities:
+              audio_language_identification: true
+              final_orthography: "off"
+              provisional_finals: false
+              provisional_policy: "off"
+            limits: { max_session_secs: 3600, idle_timeout_secs: 120 }
+
+    vadSpeechStartMessage:
+      name: vad.speech_start
+      title: vad.speech_start
+      summary: "`vad` only. Speech began. Use it to detect barge-in."
+      payload:
+        type: object
+        properties:
+          event: { type: string, const: vad.speech_start }
+          utterance_idx: { type: integer }
+          confidence: { type: number }
+      examples:
+        - payload: { event: vad.speech_start, utterance_idx: 0, confidence: 0.91 }
+
+    vadSpeechEndMessage:
+      name: vad.speech_end
+      title: vad.speech_end
+      summary: "`vad` only. The caller has been quiet for `silence_duration_ms`; the final follows."
+      payload:
+        type: object
+        properties:
+          event: { type: string, const: vad.speech_end }
+          utterance_idx: { type: integer }
+          confidence: { type: number }
+      examples:
+        - payload: { event: vad.speech_end, utterance_idx: 0, confidence: 0.12 }
+
+    transcriptPartialMessage:
+      name: transcript.partial
+      title: transcript.partial
+      summary: The whole utterance so far. It can rewrite earlier words, so replace what you show instead of appending.
+      payload:
+        type: object
+        properties:
+          event: { type: string, const: transcript.partial }
+          utterance_idx: { type: integer, description: Counts from 0 for each session. }
+          text: { type: string }
+          language: { type: string, description: "In an `auto` or secondary-language session only. Go by the final's." }
+      examples:
+        - payload: { event: transcript.partial, utterance_idx: 0, text: "नमस्ते मुझे कल शाम" }
+
+    transcriptFinalMessage:
+      name: transcript.final
+      title: transcript.final
+      summary: Exactly one per utterance, within 5 seconds of its end, in `utterance_idx` order. No partial for that utterance follows it.
+      payload:
+        type: object
+        properties:
+          event: { type: string, const: transcript.final }
+          utterance_idx: { type: integer }
+          text: { type: string, description: "As spoken, English words in Latin script. `\"\"` when there was no recognisable speech." }
+          language: { type: string, description: In an `auto` or secondary-language session only. }
+          language_probability: { type: number, description: "0 to 1: how sure Mira STT is of `language`." }
+          start_s: { type: number, description: "With `return_timestamps=true`: where the utterance starts in the audio you sent, in seconds." }
+          end_s: { type: number, description: "With `return_timestamps=true`: where it ends." }
+      examples:
+        - name: Hindi
+          payload: { event: transcript.final, utterance_idx: 0, text: "नमस्ते मुझे कल शाम पाँच बजे का appointment book करना है" }
+        - name: language_code=auto
+          payload: { event: transcript.final, utterance_idx: 4, text: "நாளைக்கு காலை பத்து மணிக்கு வாங்க", language: ta-IN, language_probability: 0.9731 }
+
+    configUpdatedMessage:
+      name: config.updated
+      title: config.updated
+      summary: After a valid `config.update`. During an utterance, `config` still shows the settings that utterance runs with.
+      payload:
+        type: object
+        properties:
+          event: { type: string, const: config.updated }
+          applied: { type: array, items: { type: string } }
+          config: { $ref: '#/components/schemas/config' }
+      examples:
+        - payload:
+            event: config.updated
+            applied: ["language_code=en-IN"]
+            config:
+              language_code: en-IN
+              model: "mira-stt:v5-realtime"
+              stream_type: balanced
+              mode: transcribe
+              prompt: null
+              encoding: mulaw
+              sample_rate: 8000
+              return_timestamps: false
+              threshold: 0.3
+              prefix_padding_ms: 300
+              silence_duration_ms: 1000
+              min_speech_duration_ms: 250
+              turn_detection: manual
+
+    pongMessage:
+      name: pong
+      title: pong
+      summary: After your `ping`.
+      payload:
+        type: object
+        properties:
+          event: { type: string, const: pong }
+      examples:
+        - payload: { event: pong }
+
+    sessionDrainingMessage:
+      name: session.draining
+      title: session.draining
+      summary: We are ending the session. Stop sending audio; the open utterance's final and `session.end` still arrive.
+      payload:
+        type: object
+        properties:
+          event: { type: string, const: session.draining }
+          reason:
+            type: string
+            enum: [max_duration, server_shutdown, insufficient_balance, server_draining]
+            description: "`max_duration` is the 1-hour limit. After `server_shutdown` or `server_draining`, open a new socket and carry on."
+      examples:
+        - payload: { event: session.draining, reason: max_duration }
+
+    sessionEndMessage:
+      name: session.end
+      title: session.end
+      summary: The session is over and what it cost. The socket closes after it (1000).
+      payload:
+        type: object
+        properties:
+          event: { type: string, const: session.end }
+          request_id: { type: string }
+          total_duration_s: { type: number }
+          total_utterances: { type: integer }
+          audio_duration_s: { type: number, description: All the audio you sent, silence included. }
+          audio_seconds_billed: { type: integer }
+          cost_paise: { type: integer }
+          reason: { type: string }
+      examples:
+        - payload:
+            event: session.end
+            request_id: mira_5f0c2b6e9d1a4c7e8b3f6a2d9e0c1b4a
+            total_duration_s: 48.212
+            total_utterances: 7
+            audio_duration_s: 41.36
+            audio_seconds_billed: 42
+            cost_paise: 21
+
+    errorMessage:
+      name: error
+      title: error
+      summary: "`is_fatal: false` refused one message and changed nothing. `is_fatal: true` ends the session and closes the socket."
+      payload:
+        type: object
+        properties:
+          event: { type: string, const: error }
+          code:
+            type: string
+            enum: [invalid_config, invalid_message, invalid_audio, invalid_event, audio_too_large, utterance_too_long, overloaded, backend_error, idle_timeout, insufficient_balance, engine_unavailable, internal_error]
+          message: { type: string }
+          is_fatal: { type: boolean }
+      examples:
+        - payload: { event: error, code: utterance_too_long, message: "Utterance exceeds 60 second limit; provide a speech boundary", is_fatal: true }
