@@ -1,0 +1,137 @@
+---
+title: "Speech to text"
+sidebarTitle: "Speech to text"
+description: "Stream live audio over one WebSocket and get partial and final transcripts in ten Indian languages."
+asyncapi: "/api-reference/speech-to-text.asyncapi.yaml speechToText"
+---
+
+```text
+wss://sandbox.voice.miraiminds.co/v1/audio/transcriptions/stream?language_code=hi-IN&encoding=mulaw&sample_rate=8000&endpointing=manual
+```
+
+A session runs like this:
+
+1. Connect with your settings on the URL. The first message is `session.begin`.
+2. Send `audio_input` as audio arrives, 20 to 100 ms at a time.
+3. With `manual` endpointing, send `speech_start` and `speech_end` around each
+   utterance. With `vad`, we send `vad.speech_start` and `vad.speech_end`.
+4. You get `transcript.partial` while the utterance is open, then one
+   `transcript.final`.
+5. Send `end` when the call is over. You get the last final, then `session.end`
+   with the cost, and the socket closes.
+
+The [streaming guide](/v2/speech-to-text) covers endpointing, keyterms, audio
+formats and a full Python client.
+
+## When the connection is refused
+
+Everything is checked before the upgrade, so a refusal is an ordinary HTTP
+response with the usual [error envelope](/v2/errors).
+
+| Status | `code` | Why |
+| :--- | :--- | :--- |
+| 400 | `invalid_config` | A query parameter is unknown, out of range or given twice; `message` names it. |
+| 401 | `unauthorized` | No credentials, an unknown key, or an API key in the URL. |
+| 401 | `invalid_token` | The stream token is unknown, expired or already used. |
+| 402 | `insufficient_balance` | Your wallet is empty. |
+| 403 | `forbidden` | The key, or the key that minted the token, was revoked. |
+| 426 | `upgrade_required` | A plain HTTP request reached the endpoint. |
+| 429 | `at_capacity` | Your workspace is at its session limit. Carries `Retry-After`. |
+| 429 | `rate_limited` | Your key's request rate. Carries `Retry-After`. |
+| 503 | `maintenance_window`, `unavailable`, `billing_unavailable` | Try again after `Retry-After`. |
+
+## Limits
+
+| Limit | Value |
+| :--- | :--- |
+| Sessions at once | 20 per workspace, 100 on a monthly plan |
+| One `audio_input` | 128,000 bytes of raw audio before base64 |
+| One utterance, `manual` | 60 seconds |
+| Idle socket | 120 seconds with no message from you |
+| Session length | 1 hour |
+
+## Close codes
+
+| Code | Meaning |
+| :--- | :--- |
+| 1000 | `session.end` was delivered. |
+| 1001 | Our server is restarting. Reconnect. |
+| 1008 | `idle_timeout` or `insufficient_balance`. |
+| 1011 | `utterance_too_long`, `audio_too_large`, or the recogniser failed. |
+
+## Example
+
+One WAV file as one utterance, with manual endpointing.
+
+<CodeGroup>
+```python Python
+# pip install "websockets>=14"
+import asyncio, base64, json, os, wave
+import websockets
+
+URL = ("wss://sandbox.voice.miraiminds.co/v1/audio/transcriptions/stream"
+       "?language_code=hi-IN&encoding=linear16&sample_rate=16000&endpointing=manual")
+
+async def main():
+    with wave.open("hello.wav", "rb") as w:  # 16-bit mono, 16 kHz
+        pcm = w.readframes(w.getnframes())
+    headers = {"Authorization": f"Bearer {os.environ['MIRA_API_KEY']}"}
+    async with websockets.connect(URL, additional_headers=headers) as ws:
+        print(json.loads(await ws.recv())["session_id"])  # session.begin
+        await ws.send(json.dumps({"event": "speech_start"}))
+        for i in range(0, len(pcm), 640):  # 20 ms
+            chunk = base64.b64encode(pcm[i:i + 640]).decode()
+            await ws.send(json.dumps({"event": "audio_input", "audio": chunk}))
+            await asyncio.sleep(0.02)
+        await ws.send(json.dumps({"event": "speech_end"}))
+        await ws.send(json.dumps({"event": "end"}))
+        async for message in ws:
+            event = json.loads(message)
+            if event["event"] == "transcript.final":
+                print(event["text"])
+            elif event["event"] == "session.end":
+                print(event["cost_paise"], "paise")
+
+asyncio.run(main())
+```
+
+```javascript Node.js
+// npm install ws
+import fs from "node:fs";
+import WebSocket from "ws";
+
+const url = "wss://sandbox.voice.miraiminds.co/v1/audio/transcriptions/stream" +
+  "?language_code=hi-IN&encoding=linear16&sample_rate=16000&endpointing=manual";
+const pcm = fs.readFileSync("hello.wav").subarray(44); // 16-bit mono, 16 kHz
+
+const ws = new WebSocket(url, {
+  headers: { Authorization: `Bearer ${process.env.MIRA_API_KEY}` },
+});
+
+ws.on("open", async () => {
+  ws.send(JSON.stringify({ event: "speech_start" }));
+  for (let i = 0; i < pcm.length; i += 640) { // 20 ms
+    const audio = pcm.subarray(i, i + 640).toString("base64");
+    ws.send(JSON.stringify({ event: "audio_input", audio }));
+    await new Promise((r) => setTimeout(r, 20));
+  }
+  ws.send(JSON.stringify({ event: "speech_end" }));
+  ws.send(JSON.stringify({ event: "end" }));
+});
+
+ws.on("message", (data) => {
+  const event = JSON.parse(data);
+  if (event.event === "transcript.final") console.log(event.text);
+  if (event.event === "session.end") console.log(event.cost_paise, "paise");
+});
+```
+</CodeGroup>
+
+What comes back, one message per frame:
+
+```json
+{"event": "session.begin", "session_id": "sttws_01K7C2M3Q4R7T9V2X5Y8A1B4C7", "...": "..."}
+{"event": "transcript.partial", "utterance_idx": 0, "text": "नमस्ते मुझे कल शाम"}
+{"event": "transcript.final", "utterance_idx": 0, "text": "नमस्ते मुझे कल शाम पाँच बजे का appointment book करना है"}
+{"event": "session.end", "audio_seconds_billed": 42, "cost_paise": 21, "...": "..."}
+```

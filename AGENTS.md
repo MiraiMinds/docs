@@ -55,7 +55,12 @@
   `GET /v2/schema`); `--check` exits 1 when the committed files are stale.
 - Fix wording at the source: the Postman spec in `MiraiMinds/mirai-voice`
   (`scripts/postman/spec/`). Hand-written pages are `api-reference/introduction.mdx`,
-  `api-reference/postman.mdx` and `api-reference/calls/start-a-browser-call.mdx`.
+  `api-reference/postman.mdx`, `api-reference/calls/start-a-browser-call.mdx` and
+  `api-reference/speech-to-text/speech-to-text.mdx`.
+- The streaming speech-to-text socket is hand-written too:
+  `api-reference/speech-to-text.asyncapi.yaml` (AsyncAPI 3.0) renders the
+  **Speech to text** page. When the socket changes, update it together with
+  `v2/speech-to-text.mdx`.
 - One exception until it moves into the Postman spec: `REFUSALS` in
   `scripts/build_api_reference.py` adds the key refusals (401, 403, 409, 429)
   to four routes. Keep its messages word for word with the console and
