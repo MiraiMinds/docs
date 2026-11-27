@@ -1,0 +1,450 @@
+---
+title: "Report a bad call"
+sidebarTitle: "Report a bad call"
+description: "Tell us when our speech recognition misheard a caller, the voice sounded wrong or the agent's reply was off. What to send, the eight categories, how a report moves, and the API."
+---
+
+When a call goes wrong on our side, report it. Each report goes to the team
+that runs our speech recognition, voices and replies. They listen to the
+moment you point to and answer on the report: its `status` says where it
+stands, and `response` holds our note to you.
+
+Use it for problems in our pipeline, from a misheard word to a tool that
+failed mid-call. The [categories](#categories) list them all.
+
+```http
+POST   /v2/calls/{call_id}/reports
+GET    /v2/calls/{call_id}/reports
+GET    /v2/call-reports
+GET    /v2/call-reports/{report_id}
+DELETE /v2/call-reports/{report_id}
+```
+
+Send these from your backend with your API key. In the console, your QC team
+can use the **Report a problem** button in the call inspector instead. Both
+make the same reports.
+
+## What makes a report useful
+
+- **Point to the moment.** Send `at_seconds` (seconds from the start of the
+  call's recording, the same clock as the console's player) or `turn` (the
+  turn's position in the call's [transcript](/v2/calls#get-the-transcript),
+  counting from 0). Send both if you have them. Without a moment, we have to
+  find the problem in the whole call.
+- **Say what should have happened in `expected`.** For a mishearing, write
+  what the caller actually said, in their own words and script: `सोलह`, not
+  `16`. For a voice problem, write how the word should sound. For a wrong
+  reply, write what the agent should have said or done.
+- **One problem per report.** If the agent misheard a date and later hung up
+  early, send two reports, each with its own category and moment. A call takes
+  up to 20 reports.
+- **Keep your reference.** Put your QC ticket number in `external_id` and the
+  reviewer's name or email in `reporter`. They come back on the report, so you
+  can match our answer to your ticket.
+
+## Categories
+
+Pick the one that fits best. It tells us which part of the call to look at
+first.
+
+| `category` | In the console | Pick it when |
+| :--- | :--- | :--- |
+| `speech_recognition` | Misheard the caller | The agent heard the wrong words, numbers, names or language. |
+| `voice` | Voice or pronunciation | The agent mispronounced a word, sounded robotic, used the wrong accent or language, glitched, or spoke too fast or too slow. |
+| `response` | Wrong or off-script reply | The agent gave a wrong answer, made something up, ignored your prompt or knowledge base, or repeated itself. |
+| `latency` | Slow to reply | Long pauses, or dead air before the agent spoke. |
+| `turn_taking` | Talked over or cut off | The agent spoke over the caller, did not stop when interrupted, cut the caller off, or hung up early. |
+| `audio` | Call audio | Noise, echo, choppy or one-way audio, or the call dropped. |
+| `tool` | An action failed | A tool, booking, transfer or webhook during the call went wrong. |
+| `other` | Something else | Anything else. |
+
+`severity` is `low`, `medium` (the default) or `high`. Use `high` when the
+mistake changed how the call ended, such as a wrong booking or a caller who
+hung up.
+
+## Send a report
+
+The caller gave a site-visit date as "सोलह तारीख". The agent heard "सोना" and
+asked for the date twice more.
+
+<Tabs>
+  <Tab title="cURL">
+    ```bash
+    curl -X POST https://sandbox.voice.miraiminds.co/v2/calls/call_01K7Q9B4M8N3P6R2S5T7V9W1YA/reports \
+      -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+      -H "Content-Type: application/json" \
+      -H "Idempotency-Key: QC-1182" \
+      -d '{
+        "category": "speech_recognition",
+        "details": "Caller gave the visit date as सोलह तारीख. The agent heard सोना and asked for the date twice more.",
+        "expected": "सोलह तारीख",
+        "at_seconds": 42.5,
+        "turn": 7,
+        "severity": "medium",
+        "reporter": "qc-team@acme.in",
+        "external_id": "QC-1182"
+      }'
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    import os
+
+    import httpx
+
+    API = "https://sandbox.voice.miraiminds.co"
+    auth = {"Authorization": f"Bearer {os.environ['MIRAI_API_KEY']}"}
+
+    r = httpx.post(
+        f"{API}/v2/calls/call_01K7Q9B4M8N3P6R2S5T7V9W1YA/reports",
+        headers=auth,
+        json={
+            "category": "speech_recognition",
+            "details": "Caller gave the visit date as सोलह तारीख. "
+                       "The agent heard सोना and asked for the date twice more.",
+            "expected": "सोलह तारीख",
+            "at_seconds": 42.5,
+            "turn": 7,
+            "reporter": "qc-team@acme.in",
+            "external_id": "QC-1182",
+        },
+        timeout=30,
+    )
+    report = r.json()
+    if r.status_code != 201:
+        raise RuntimeError(f"{report['error']['code']}: {report['error']['message']}")
+    print(report["id"], report["status"])  # crep_01KBF3M7Q2R8T4V6X9Z1A3C5E7 open
+    ```
+  </Tab>
+  <Tab title="Node.js">
+    ```javascript
+    const API = "https://sandbox.voice.miraiminds.co";
+    const auth = { Authorization: `Bearer ${process.env.MIRAI_API_KEY}` };
+
+    const res = await fetch(`${API}/v2/calls/call_01K7Q9B4M8N3P6R2S5T7V9W1YA/reports`, {
+      method: "POST",
+      headers: { ...auth, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        category: "speech_recognition",
+        details: "Caller gave the visit date as सोलह तारीख. The agent heard सोना and asked for the date twice more.",
+        expected: "सोलह तारीख",
+        at_seconds: 42.5,
+        turn: 7,
+        reporter: "qc-team@acme.in",
+        external_id: "QC-1182",
+      }),
+    });
+    const report = await res.json();
+    if (res.status !== 201) throw new Error(`${report.error.code}: ${report.error.message}`);
+    console.log(report.id, report.status); // crep_01KBF3M7Q2R8T4V6X9Z1A3C5E7 open
+    ```
+  </Tab>
+</Tabs>
+
+```json title="201 Created"
+{
+  "id": "crep_01KBF3M7Q2R8T4V6X9Z1A3C5E7",
+  "object": "call_report",
+  "call_id": "call_01K7Q9B4M8N3P6R2S5T7V9W1YA",
+  "agent_id": "agt_01K7Q9F3K7M2N5P9R4T6V8W0XZ",
+  "category": "speech_recognition",
+  "severity": "medium",
+  "details": "Caller gave the visit date as सोलह तारीख. The agent heard सोना and asked for the date twice more.",
+  "expected": "सोलह तारीख",
+  "at_seconds": 42.5,
+  "turn": 7,
+  "reporter": "qc-team@acme.in",
+  "external_id": "QC-1182",
+  "status": "open",
+  "response": "",
+  "created_at": "2026-11-27T10:12:03.123Z",
+  "updated_at": "2026-11-27T10:12:03.123Z",
+  "resolved_at": null
+}
+```
+
+To retry safely, send an `Idempotency-Key` header (up to 200 characters, your
+QC ticket id works well). A repeat with the same key on the same call answers
+`201` with the report it already made and the header `Idempotent-Replay: true`;
+nothing is saved twice and our team is alerted once. The same key on a
+different call is refused with `409 conflict`.
+
+## Read our answer
+
+Reports don't send webhooks. To see what we have answered, list your reports
+by status. This returns the ones we fixed:
+
+```bash
+curl -G https://sandbox.voice.miraiminds.co/v2/call-reports \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+  --data-urlencode "status=resolved" \
+  --data-urlencode "from=2026-11-20T00:00:00+05:30" \
+  --data-urlencode "limit=50"
+```
+
+```json title="200 OK"
+{
+  "object": "list",
+  "data": [
+    {
+      "id": "crep_01KAY8D2F4H6J8K0M2N4P6Q8R0",
+      "object": "call_report",
+      "call_id": "call_01KAY7W3X5Z7A9C1E3G5J7M9P1",
+      "agent_id": "agt_01K7Q9F3K7M2N5P9R4T6V8W0XZ",
+      "category": "voice",
+      "severity": "low",
+      "details": "The agent said Vadodara as 'Vado-dra' each time it named the city.",
+      "expected": "वडोदरा, the way people in Gujarat say it",
+      "at_seconds": 18.2,
+      "turn": 3,
+      "reporter": "qc-team@acme.in",
+      "external_id": "QC-1164",
+      "status": "resolved",
+      "response": "Fixed on 26 Nov. The voice now says Vadodara the way it is said in Gujarat, in Hindi and Gujarati calls.",
+      "created_at": "2026-11-24T06:41:19.502Z",
+      "updated_at": "2026-11-26T09:30:41.208Z",
+      "resolved_at": "2026-11-26T09:30:41.208Z"
+    }
+  ],
+  "has_more": false,
+  "next_cursor": null
+}
+```
+
+## How a report moves
+
+| `status` | What it means |
+| :--- | :--- |
+| `open` | We have it. Nobody has picked it up yet. |
+| `reviewing` | Our team is looking into it. |
+| `resolved` | We changed something. `response` says what. |
+| `closed` | No change was needed, or the cause was outside our pipeline. `response` says why. |
+| `withdrawn` | You withdrew it. |
+
+A report starts `open`, moves to `reviewing`, and ends `resolved` or `closed`.
+Only we move it between those four. You can only withdraw it, and only while
+it is `open` or `reviewing`.
+
+`updated_at` changes whenever the status or `response` changes. `resolved_at`
+is set when a report becomes `resolved` or `closed`. If we reopen a report, it
+goes back to `open` or `reviewing` and `resolved_at` goes back to `null`.
+
+## In the console
+
+Open a call from **Calls** or from a campaign's contacts and click
+**Report a problem** in the call inspector. Pick what went wrong, describe it,
+and add what should have happened. The moment is filled in from where the
+player is, and you can change or clear it. The report carries your sign-in
+email as `reporter`.
+
+The call then shows its reports with their status and our `response`. Reports
+made in the console and with the API are the same reports, so each shows up in
+the other.
+
+## API
+
+Base URL `https://sandbox.voice.miraiminds.co`, or
+`https://prod.voice.miraiminds.co` once you have gone live. Every request needs
+`Authorization: Bearer sk_live_…`. You can report and read only your own
+workspace's calls and reports.
+
+| Method | Path | What it does |
+| :--- | :--- | :--- |
+| `POST` | `/v2/calls/{call_id}/reports` | Report a problem on one call. |
+| `GET` | `/v2/calls/{call_id}/reports` | List one call's reports, newest first. |
+| `GET` | `/v2/call-reports` | List your workspace's reports, newest first, with filters. |
+| `GET` | `/v2/call-reports/{report_id}` | Get one report. |
+| `DELETE` | `/v2/call-reports/{report_id}` | Withdraw a report. |
+
+### The call report object
+
+| Field | Type | Description |
+| :--- | :--- | :--- |
+| `id` | string | The report's ID, starting with `crep_`. Treat it as opaque. |
+| `object` | string | `call_report`. |
+| `call_id` | string | The call you reported. |
+| `agent_id` | string or null | The call's agent when you reported it. `null` if we couldn't tell. |
+| `category` | enum | One of the eight [categories](#categories). |
+| `severity` | enum | `low`, `medium` or `high`. |
+| `details` | string | What went wrong, as you wrote it. |
+| `expected` | string | What should have happened. `""` if you didn't send it. |
+| `at_seconds` | number or null | Where in the recording, in seconds. `null` if you didn't send it. |
+| `turn` | integer or null | Which transcript turn, counting from 0. `null` if you didn't send it. |
+| `reporter` | string | Who reported it. `""` if you didn't send it. |
+| `external_id` | string | Your own reference. `""` if you didn't send it. |
+| `status` | enum | `open`, `reviewing`, `resolved`, `closed` or `withdrawn`. See [how a report moves](#how-a-report-moves). |
+| `response` | string | Our note to you. `""` until we write one. |
+| `created_at` | string | RFC 3339, UTC, with milliseconds. When you reported it. |
+| `updated_at` | string | RFC 3339, UTC. When the report last changed. |
+| `resolved_at` | string or null | RFC 3339, UTC. When it became `resolved` or `closed`. `null` otherwise. |
+
+### Report a problem
+
+```http
+POST /v2/calls/{call_id}/reports
+```
+
+| Field | Type | Description |
+| :--- | :--- | :--- |
+| `category` | string | **Required.** One of the eight [categories](#categories). |
+| `details` | string | **Required.** What went wrong. 1 to 2,000 characters after we trim spaces. |
+| `expected` | string | Optional. What the caller actually said, or what the agent should have said or done. Up to 2,000 characters. |
+| `severity` | string | Optional. `low`, `medium` or `high`. Default `medium`. |
+| `at_seconds` | number | Optional. Seconds from the start of the call's recording, 0 to 86,400. Decimals are fine. |
+| `turn` | integer | Optional. The turn's position in [`GET /v2/calls/{id}/transcript`](/v2/calls#get-the-transcript) `turns`, counting from 0. 0 to 10,000. |
+| `reporter` | string | Optional. Who in your team is reporting it, such as a name or an email. Up to 200 characters. |
+| `external_id` | string | Optional. Your own reference, such as a QC ticket number. Up to 200 characters. |
+
+It answers `201 Created` with the [report](#the-call-report-object), `open`.
+See [send a report](#send-a-report) for an example.
+
+### List reports on a call
+
+```http
+GET /v2/calls/{call_id}/reports
+```
+
+```bash
+curl https://sandbox.voice.miraiminds.co/v2/calls/call_01K7Q9B4M8N3P6R2S5T7V9W1YA/reports \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY"
+```
+
+```json title="200 OK"
+{
+  "object": "list",
+  "data": [
+    {
+      "id": "crep_01KBF3M7Q2R8T4V6X9Z1A3C5E7",
+      "object": "call_report",
+      "call_id": "call_01K7Q9B4M8N3P6R2S5T7V9W1YA",
+      "agent_id": "agt_01K7Q9F3K7M2N5P9R4T6V8W0XZ",
+      "category": "speech_recognition",
+      "severity": "medium",
+      "details": "Caller gave the visit date as सोलह तारीख. The agent heard सोना and asked for the date twice more.",
+      "expected": "सोलह तारीख",
+      "at_seconds": 42.5,
+      "turn": 7,
+      "reporter": "qc-team@acme.in",
+      "external_id": "QC-1182",
+      "status": "reviewing",
+      "response": "",
+      "created_at": "2026-11-27T10:12:03.123Z",
+      "updated_at": "2026-11-27T11:05:47.310Z",
+      "resolved_at": null
+    }
+  ]
+}
+```
+
+Every report on the call, newest first, withdrawn ones included. A call has at
+most 20, so there is no paging.
+
+### List reports
+
+```http
+GET /v2/call-reports
+```
+
+Your workspace's reports across all calls, newest first.
+
+| Query param | Description |
+| :--- | :--- |
+| `status` | One [status](#how-a-report-moves). |
+| `category` | One [category](#categories). |
+| `agent_id` | Reports on one agent's calls. |
+| `call_id` | Reports on one call. |
+| `from` | RFC 3339. Reports created at or after this instant (inclusive). |
+| `to` | RFC 3339. Reports created before this instant (exclusive). |
+| `limit` | 1 to 100, default 50. |
+| `cursor` | `next_cursor` from the previous page. Send the same filters with it. |
+
+Filters combine with AND. The answer is a list with `has_more` and
+`next_cursor`: follow `next_cursor` until `has_more` is `false`, as on every
+[list](/v2/overview#pagination). See [read our answer](#read-our-answer) for
+an example.
+
+### Get a report
+
+```http
+GET /v2/call-reports/{report_id}
+```
+
+```bash
+curl https://sandbox.voice.miraiminds.co/v2/call-reports/crep_01KBF3M7Q2R8T4V6X9Z1A3C5E7 \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY"
+```
+
+It answers `200` with the [report](#the-call-report-object).
+
+### Withdraw a report
+
+```http
+DELETE /v2/call-reports/{report_id}
+```
+
+Withdraw a report you sent by mistake. The report is kept, with
+`status: "withdrawn"`, and it still counts toward the call's 20.
+
+```bash
+curl -X DELETE https://sandbox.voice.miraiminds.co/v2/call-reports/crep_01KBF3M7Q2R8T4V6X9Z1A3C5E7 \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY"
+```
+
+It answers `200` with the report, now `withdrawn`. Withdrawing it again gives
+the same answer. Once a report is `resolved` or `closed`, it answers
+`409 report_closed`.
+
+### Errors
+
+Errors use the [standard envelope](/v2/errors#the-error-envelope). Key errors
+(`401`, `403`) are the same as on every route.
+
+| Status | `error.code` | When | Fix |
+| :--- | :--- | :--- | :--- |
+| `400` | `invalid_category` | `category` is missing or isn't one of the eight values. | Send one of the [categories](#categories). |
+| `400` | `invalid_details` | `details` is missing, blank, or over 2,000 characters. | Describe the problem in 2,000 characters or fewer. |
+| `400` | `invalid_request` | Another field is the wrong type or out of range, such as `severity: "urgent"`, a negative `at_seconds` or a `turn` with decimals; a field we don't know; or a malformed list filter. | Read `message`; it names the field. |
+| `404` | `not_found` | No such call or report in your workspace, including one in another workspace. | Check the ID. |
+| `409` | `report_limit_reached` | The call already has 20 reports. Withdrawn reports count. | [Write to us](mailto:help@miraiminds.co?subject=Call%20report) with the `call_id` and what else went wrong. |
+| `409` | `report_closed` | You tried to withdraw a report that is `resolved` or `closed`. | Nothing to do. The report stays as it is. |
+| `409` | `conflict` | This `Idempotency-Key` was already used for a report on another call. | Use a new key for each report. |
+| `429` | `too_many_reports` | Your workspace sent 1,000 reports in the last 24 hours. | Try again later. The window rolls, so you can send more as older reports pass 24 hours. |
+| `503` | `upstream_unavailable` | We couldn't save or read reports for a moment. Nothing was saved. | Try again in a minute. |
+
+### Limits
+
+| Limit | Value |
+| :--- | :--- |
+| Reports per call | 20, withdrawn ones included |
+| Reports per workspace | 1,000 in any 24 hours |
+| `details` | 1 to 2,000 characters |
+| `expected` | Up to 2,000 characters |
+| `reporter`, `external_id` | Up to 200 characters each |
+| `at_seconds` | 0 to 86,400 |
+| `turn` | 0 to 10,000 |
+| Page size | 1 to 100, default 50 |
+
+## Privacy
+
+When you report a call, our team listens to its recording and reads its
+transcript to find the cause. Write in `details` and `expected` only what we
+need to understand the problem. Leave out card numbers, OTPs and other
+personal details the caller gave; the moment you point to is enough for us to
+find them in the recording if they matter.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Calls" icon="phone" href="/v2/calls">
+    Find the call, its transcript turns and its recording.
+  </Card>
+  <Card title="Words to catch" icon="spell-check" href="/v2/keyterms">
+    Help speech recognition with names and terms your callers use.
+  </Card>
+  <Card title="Prompting guide" icon="pen" href="/v2/prompting-guide">
+    Fix replies that come from the prompt.
+  </Card>
+  <Card title="Errors" icon="triangle-exclamation" href="/v2/errors">
+    Every error code and what to do about it.
+  </Card>
+</CardGroup>

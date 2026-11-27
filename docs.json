@@ -71,6 +71,7 @@
               "v2/live-events",
               "v2/live-control",
               "v2/handoff",
+              "v2/call-reports",
               "v2/web-calls",
               "v2/realtime",
               "v2/campaigns",
@@ -199,6 +200,16 @@
               "POST /v2/calls/{call_id}/analysis/retry",
               "POST /v2/calls/{call_id}/analysis/delivery/retry",
               "POST /v2/calls/{call_id}/post_call/rerun"
+            ]
+          },
+          {
+            "group": "Call reports",
+            "pages": [
+              "POST /v2/calls/{call_id}/reports",
+              "GET /v2/calls/{call_id}/reports",
+              "GET /v2/call-reports",
+              "GET /v2/call-reports/{call_report_id}",
+              "DELETE /v2/call-reports/{call_report_id}"
             ]
           },
           {
