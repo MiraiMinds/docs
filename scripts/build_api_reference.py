@@ -64,7 +64,7 @@ LEAD_GROUP = {"group": "Get started", "pages": ["api-reference/introduction", "a
 GROUP_LEAD = {"Speech to text": ["api-reference/speech-to-text/speech-to-text"]}
 INSERT_AFTER = {"POST /v2/calls": ["api-reference/calls/start-a-browser-call"]}
 #: Group order in the tab. A group not named here goes before "Reference".
-TAG_ORDER = ("Agents", "Calls", "Flows", "Tools and secrets", "Campaigns", "Do-not-call list",
+TAG_ORDER = ("Agents", "Calls", "Call reports", "Flows", "Tools and secrets", "Campaigns", "Do-not-call list",
              "Phone numbers", "Phone pools", "Telephony", "Transcriptions", "Speech to text",
              "Text to speech", "Wallet", "Webhooks", "Reference")
 
@@ -168,6 +168,8 @@ PARAM_DOCS = {
     "agent_id": "The agent's id (`agt_…`).",
     "call_id": "The call's id (`call_…`), from the `202` that created it.",
     "control_id": "The control's id (`ctl_…`), from the `202` that accepted it.",
+    "report_id": "The call report's id (`crep_…`), from the `201` that created it.",
+    "call_report_id": "The call report's id (`crep_…`), from the `201` that created it.",
     "refine_id": "The flow test's id (`frf_…`).",
     "tool_name": "The tool's name on the agent: lowercase letters, digits and underscores.",
     "secret_name": "The secret's name: lowercase letters, digits and underscores.",

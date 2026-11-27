@@ -25,6 +25,8 @@ Limits are per **secret key**. Requests you send for a
 | Unfinished offline transcriptions | 20 **per workspace** | jobs not yet `completed` or `failed` | `429 at_capacity` with `Retry-After: 30` |
 | Recording analysis | 120 per hour **per workspace** | [`POST /v2/recordings`](/v2/recording-analysis#send-a-recording) | `429 rate_limited` with `Retry-After` |
 | Recordings in the queue | 20 **per workspace** | recordings queued or in progress | `429 at_capacity` with `Retry-After: 60` |
+| Call reports | 1,000 in any 24 hours **per workspace** | [`POST /v2/calls/{id}/reports`](/v2/call-reports#report-a-problem) | `429 too_many_reports` |
+| Reports on one call | 20, withdrawn ones included | [`POST /v2/calls/{id}/reports`](/v2/call-reports#report-a-problem) | `409 report_limit_reached` |
 
 <Warning>
 **Pilot keys are provisioned individually**

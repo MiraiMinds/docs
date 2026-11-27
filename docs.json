@@ -71,6 +71,7 @@
               "v2/live-events",
               "v2/live-control",
               "v2/handoff",
+              "v2/call-reports",
               "v2/web-calls",
               "v2/realtime",
               "v2/campaigns",
