@@ -164,6 +164,7 @@ saved.
 | `invalid_details` | `400` | `details` is missing, blank, or over 2,000 characters. | Describe the problem in 2,000 characters or fewer. |
 | `report_limit_reached` | `409` | The call already has 20 reports, withdrawn ones included. | [Write to us](mailto:help@miraiminds.co?subject=Call%20report) with the `call_id`. |
 | `report_closed` | `409` | Withdrawing a report that is `resolved` or `closed`. | Nothing to do. The report stays as it is. |
+| `conflict` | `409` | This `Idempotency-Key` was already used for a report on another call. | Use a new key for each report. |
 | `too_many_reports` | `429` | Your workspace sent 1,000 reports in the last 24 hours. | Try again later. The window rolls. |
 
 

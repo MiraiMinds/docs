@@ -203,6 +203,16 @@
             ]
           },
           {
+            "group": "Call reports",
+            "pages": [
+              "POST /v2/calls/{call_id}/reports",
+              "GET /v2/calls/{call_id}/reports",
+              "GET /v2/call-reports",
+              "GET /v2/call-reports/{call_report_id}",
+              "DELETE /v2/call-reports/{call_report_id}"
+            ]
+          },
+          {
             "group": "Flows",
             "pages": [
               "POST /v2/agents/flow/transcribe",

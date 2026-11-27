@@ -30,6 +30,10 @@
       "description": "Place a call, follow it while it runs, then read what happened: the transcript, the recording, the post-call analysis.\n\n`POST /v2/calls` answers before the phone rings, with an id. Everything after that is about that id. Every call has a live event stream, phone calls included, so your own dashboard can show a call as it happens. Live control works on every voice call too: phone, browser and realtime. Your backend can tell the agent something new, have it say a line word for word, play an audio clip to the caller, or end the call."
     },
     {
+      "name": "Call reports",
+      "description": "Tell us a call went wrong on our side, and read our reply on the same report. Made for QC teams: pick what kind of problem it was, say what went wrong and what should have happened, and point at the moment in the call.\n\n`category` is one of:\n\n* `speech_recognition`: the agent misheard the caller (words, numbers, names, language).\n* `voice`: the voice or pronunciation (mispronounced, robotic, wrong accent, a glitch, too fast or slow).\n* `response`: a wrong or off-script reply (made something up, ignored the prompt or knowledge, repeated itself).\n* `latency`: slow to reply (long pauses, dead air).\n* `turn_taking`: talked over or cut off (spoke over the caller, didn't stop when interrupted, hung up early).\n* `audio`: call audio (noise, echo, choppy or one-way audio, a dropped call).\n* `tool`: an action failed (a booking, a transfer, a webhook during the call).\n* `other`: something else.\n\n`status` moves `open` (received) → `reviewing` (we're looking) → `resolved` (we changed something) or `closed` (no change needed, or not on our side). `response` is our note to you; it stays `\"\"` until we write one. You can withdraw a report while it is `open` or `reviewing`.\n\nUp to 20 reports per call (withdrawn ones count) and 1,000 per workspace in any 24 hours."
+    },
+    {
       "name": "Flows",
       "description": "A node-based agent runs the call as a graph of steps. Each node has its own instructions, and the agent moves to the next node when a transition's condition is met, so a call with branches (wrong person, not now, reschedule) stays easy to follow and to change.\n\nThe usual path: draft a graph from a brief or from recordings of your real calls, check it, test it with simulated calls, then save it on an agent. Drafting, transcribing and testing use AI models and charge your wallet; checking, saving and reading are free.\n\nFull guide: https://docs.miraiminds.co/v2/node-agents"
     },
@@ -6534,6 +6538,622 @@
                         "app_session": "owner-app-7f3c"
                       },
                       "joined_at": "2026-11-16T10:08:21.402Z"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/calls/{call_id}/reports": {
+      "post": {
+        "operationId": "create_call_report",
+        "summary": "Report a problem on a call",
+        "description": "Files a report on one of your calls. **201** answers the report with `status: open`; our team sees it at once.\n\n* `category` (required): one of the eight values above.\n* `details` (required): what went wrong, 1 to 2,000 characters.\n* `expected`: what the caller really said, or what the agent should have said or done. Up to 2,000 characters.\n* `severity`: `low`, `medium` (the default) or `high`.\n* `at_seconds`: where in the recording, 0 to 86,400.\n* `turn`: the turn's index in the call's `turns` ([Get transcript](/api-reference/calls/get-transcript)), 0 to 10,000.\n* `reporter`: who is reporting, e.g. your QC team's email. Up to 200 characters.\n* `external_id`: your own ticket id, up to 200 characters.\n\nA call that is not this workspace's is `404 not_found`. Send an Idempotency-Key: a repeat returns the same report and files nothing new.",
+        "tags": [
+          "Call reports"
+        ],
+        "parameters": [
+          {
+            "name": "call_id",
+            "in": "path",
+            "required": true,
+            "description": "The call's id (`call_…`), from the `202` that created it.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "call_01K2M4RB8CDEFGHJKMNPQRST"
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "description": "Up to 255 characters. The same key within 24 hours replays the first answer and creates nothing new. Build it from your own record, such as `order-8842-reminder-1`.",
+            "schema": {
+              "maxLength": 255,
+              "type": "string"
+            },
+            "example": "order-8842-reminder-1"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "at_seconds": {
+                    "description": "Seconds from the start of the call.",
+                    "maximum": 86400,
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  "category": {
+                    "description": "What went wrong: speech_recognition, voice, response, latency, turn_taking, audio, tool or other.",
+                    "enum": [
+                      "speech_recognition",
+                      "voice",
+                      "response",
+                      "latency",
+                      "turn_taking",
+                      "audio",
+                      "tool",
+                      "other"
+                    ],
+                    "type": "string"
+                  },
+                  "details": {
+                    "description": "What went wrong, in your words.",
+                    "maxLength": 2000,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "expected": {
+                    "description": "What the caller really said, or what the agent should have said or done.",
+                    "maxLength": 2000,
+                    "type": "string"
+                  },
+                  "external_id": {
+                    "description": "Your own id for the report, such as a QC ticket.",
+                    "maxLength": 200,
+                    "type": "string"
+                  },
+                  "reporter": {
+                    "description": "Who reported it, for example your QC person's email.",
+                    "maxLength": 200,
+                    "type": "string"
+                  },
+                  "severity": {
+                    "default": "medium",
+                    "enum": [
+                      "low",
+                      "medium",
+                      "high"
+                    ],
+                    "type": "string"
+                  },
+                  "turn": {
+                    "description": "The turn's index in GET /v2/calls/{id}/transcript.",
+                    "maximum": 10000,
+                    "minimum": 0,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "category",
+                  "details"
+                ],
+                "type": "object"
+              },
+              "examples": {
+                "Report a problem on a call": {
+                  "summary": "Report a problem on a call",
+                  "value": {
+                    "category": "speech_recognition",
+                    "details": "The caller said \"solah\" (16) and the agent heard \"sona\", so it booked the wrong date.",
+                    "expected": "सोलह",
+                    "severity": "high",
+                    "at_seconds": 42.5,
+                    "reporter": "qc-team@acme.in",
+                    "external_id": "QC-1182"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Received",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CallReport"
+                },
+                "examples": {
+                  "Received": {
+                    "summary": "201 — received",
+                    "value": {
+                      "id": "crep_01K2N8Q4C6E8G0J2L4N6Q8S0U2",
+                      "object": "call_report",
+                      "call_id": "call_01K2M4RB8CDEFGHJKMNPQRST",
+                      "agent_id": "agt_01K2M4P7QRSTVWXYZ0A1B2C3",
+                      "category": "speech_recognition",
+                      "severity": "high",
+                      "details": "The caller said \"solah\" (16) and the agent heard \"sona\", so it booked the wrong date.",
+                      "expected": "सोलह",
+                      "at_seconds": 42.5,
+                      "turn": null,
+                      "reporter": "qc-team@acme.in",
+                      "external_id": "QC-1182",
+                      "status": "open",
+                      "response": "",
+                      "created_at": "2026-11-27T10:12:03.123Z",
+                      "updated_at": "2026-11-27T10:12:03.123Z",
+                      "resolved_at": null
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No such category",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "No such category": {
+                    "summary": "400 — no such category",
+                    "value": {
+                      "error": {
+                        "code": "invalid_category",
+                        "message": "category must be one of speech_recognition, voice, response, latency, turn_taking, audio, tool, other."
+                      }
+                    }
+                  },
+                  "Details missing": {
+                    "summary": "400 — details missing",
+                    "value": {
+                      "error": {
+                        "code": "invalid_details",
+                        "message": "details is required: say what went wrong in 1 to 2000 characters."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not this workspace's call",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "Not this workspace's call": {
+                    "summary": "404 — not this workspace's call",
+                    "value": {
+                      "error": {
+                        "code": "not_found",
+                        "message": "call not found"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "20 reports on this call already",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "20 reports on this call already": {
+                    "summary": "409 — 20 reports on this call already",
+                    "value": {
+                      "error": {
+                        "code": "report_limit_reached",
+                        "message": "this call already has 20 reports"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "1,000 reports in 24 hours",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "1,000 reports in 24 hours": {
+                    "summary": "429 — 1,000 reports in 24 hours",
+                    "value": {
+                      "error": {
+                        "code": "too_many_reports",
+                        "message": "this workspace has sent 1000 reports in the last 24 hours"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "list_call_reports_for_call",
+        "summary": "List a call's reports",
+        "description": "Every report on the call, newest first, withdrawn ones included.",
+        "tags": [
+          "Call reports"
+        ],
+        "parameters": [
+          {
+            "name": "call_id",
+            "in": "path",
+            "required": true,
+            "description": "The call's id (`call_…`), from the `202` that created it.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "call_01K2M4RB8CDEFGHJKMNPQRST"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One report, answered",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "One report, answered": {
+                    "summary": "200 — one report, answered",
+                    "value": {
+                      "object": "list",
+                      "data": [
+                        {
+                          "id": "crep_01K2N8Q4C6E8G0J2L4N6Q8S0U2",
+                          "object": "call_report",
+                          "call_id": "call_01K2M4RB8CDEFGHJKMNPQRST",
+                          "agent_id": "agt_01K2M4P7QRSTVWXYZ0A1B2C3",
+                          "category": "speech_recognition",
+                          "severity": "high",
+                          "details": "The caller said \"solah\" (16) and the agent heard \"sona\", so it booked the wrong date.",
+                          "expected": "सोलह",
+                          "at_seconds": 42.5,
+                          "turn": null,
+                          "reporter": "qc-team@acme.in",
+                          "external_id": "QC-1182",
+                          "status": "resolved",
+                          "response": "Fixed. Spoken numbers in Hindi are now read as numbers, so \"solah\" is 16. Thanks for the clip.",
+                          "created_at": "2026-11-27T10:12:03.123Z",
+                          "updated_at": "2026-11-28T06:40:11.402Z",
+                          "resolved_at": "2026-11-28T06:40:11.402Z"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such call",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "No such call": {
+                    "summary": "404 — no such call",
+                    "value": {
+                      "error": {
+                        "code": "not_found",
+                        "message": "call not found"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/call-reports": {
+      "get": {
+        "operationId": "list_call_reports",
+        "summary": "List reports",
+        "description": "Every report in the workspace, newest first. Filter by `status`, `category`, `agent_id` or `call_id`; `from` and `to` (RFC 3339) bound when it was filed, `from` included and `to` not. `limit` is 1 to 100 (default 50). When `has_more` is true, send `next_cursor` back as `cursor` for the next page.",
+        "tags": [
+          "Call reports"
+        ],
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "description": "open, reviewing, resolved, closed or withdrawn.",
+            "schema": {
+              "enum": [
+                "open",
+                "reviewing",
+                "resolved",
+                "closed",
+                "withdrawn"
+              ],
+              "type": "string"
+            },
+            "example": "resolved"
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "required": false,
+            "description": "",
+            "schema": {
+              "enum": [
+                "speech_recognition",
+                "voice",
+                "response",
+                "latency",
+                "turn_taking",
+                "audio",
+                "tool",
+                "other"
+              ],
+              "type": "string"
+            },
+            "example": "speech_recognition"
+          },
+          {
+            "name": "agent_id",
+            "in": "query",
+            "required": false,
+            "description": "",
+            "schema": {
+              "type": "string"
+            },
+            "example": "agt_01K2M4P7QRSTVWXYZ0A1B2C3"
+          },
+          {
+            "name": "call_id",
+            "in": "query",
+            "required": false,
+            "description": "",
+            "schema": {
+              "type": "string"
+            },
+            "example": "call_01K2M4RB8CDEFGHJKMNPQRST"
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "description": "",
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            },
+            "example": "2026-11-01T00:00:00+05:30"
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "description": "",
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            },
+            "example": "2026-12-01T00:00:00+05:30"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "",
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "example": 50
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "`next_cursor` from the previous page.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Newest first",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "Newest first": {
+                    "summary": "200 — newest first",
+                    "value": {
+                      "object": "list",
+                      "data": [
+                        {
+                          "id": "crep_01K2N8Q4C6E8G0J2L4N6Q8S0U2",
+                          "object": "call_report",
+                          "call_id": "call_01K2M4RB8CDEFGHJKMNPQRST",
+                          "agent_id": "agt_01K2M4P7QRSTVWXYZ0A1B2C3",
+                          "category": "speech_recognition",
+                          "severity": "high",
+                          "details": "The caller said \"solah\" (16) and the agent heard \"sona\", so it booked the wrong date.",
+                          "expected": "सोलह",
+                          "at_seconds": 42.5,
+                          "turn": null,
+                          "reporter": "qc-team@acme.in",
+                          "external_id": "QC-1182",
+                          "status": "resolved",
+                          "response": "Fixed. Spoken numbers in Hindi are now read as numbers, so \"solah\" is 16. Thanks for the clip.",
+                          "created_at": "2026-11-27T10:12:03.123Z",
+                          "updated_at": "2026-11-28T06:40:11.402Z",
+                          "resolved_at": "2026-11-28T06:40:11.402Z"
+                        }
+                      ],
+                      "has_more": false,
+                      "next_cursor": null
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/call-reports/{call_report_id}": {
+      "get": {
+        "operationId": "get_call_report",
+        "summary": "Get a report",
+        "description": "One report, with its `status` and our `response`.",
+        "tags": [
+          "Call reports"
+        ],
+        "parameters": [
+          {
+            "name": "call_report_id",
+            "in": "path",
+            "required": true,
+            "description": "The call report's id (`crep_…`), from the `201` that created it.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "crep_01K2N8Q4C6E8G0J2L4N6Q8S0U2"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Resolved, with our reply",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CallReport"
+                },
+                "examples": {
+                  "Resolved, with our reply": {
+                    "summary": "200 — resolved, with our reply",
+                    "value": {
+                      "id": "crep_01K2N8Q4C6E8G0J2L4N6Q8S0U2",
+                      "object": "call_report",
+                      "call_id": "call_01K2M4RB8CDEFGHJKMNPQRST",
+                      "agent_id": "agt_01K2M4P7QRSTVWXYZ0A1B2C3",
+                      "category": "speech_recognition",
+                      "severity": "high",
+                      "details": "The caller said \"solah\" (16) and the agent heard \"sona\", so it booked the wrong date.",
+                      "expected": "सोलह",
+                      "at_seconds": 42.5,
+                      "turn": null,
+                      "reporter": "qc-team@acme.in",
+                      "external_id": "QC-1182",
+                      "status": "resolved",
+                      "response": "Fixed. Spoken numbers in Hindi are now read as numbers, so \"solah\" is 16. Thanks for the clip.",
+                      "created_at": "2026-11-27T10:12:03.123Z",
+                      "updated_at": "2026-11-28T06:40:11.402Z",
+                      "resolved_at": "2026-11-28T06:40:11.402Z"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such report",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "No such report": {
+                    "summary": "404 — no such report",
+                    "value": {
+                      "error": {
+                        "code": "not_found",
+                        "message": "call report not found"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "withdraw_call_report",
+        "summary": "Withdraw a report",
+        "description": "Takes a report back while it is `open` or `reviewing`: it becomes `withdrawn` and is kept, so the call still shows it. Withdrawing again answers the same. A report we already resolved or closed is `409 report_closed`.",
+        "tags": [
+          "Call reports"
+        ],
+        "parameters": [
+          {
+            "name": "call_report_id",
+            "in": "path",
+            "required": true,
+            "description": "The call report's id (`crep_…`), from the `201` that created it.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "crep_01K2N8Q4C6E8G0J2L4N6Q8S0U2"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Withdrawn",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CallReport"
+                },
+                "examples": {
+                  "Withdrawn": {
+                    "summary": "200 — withdrawn",
+                    "value": {
+                      "id": "crep_01K2N8Q4C6E8G0J2L4N6Q8S0U2",
+                      "object": "call_report",
+                      "call_id": "call_01K2M4RB8CDEFGHJKMNPQRST",
+                      "agent_id": "agt_01K2M4P7QRSTVWXYZ0A1B2C3",
+                      "category": "speech_recognition",
+                      "severity": "high",
+                      "details": "The caller said \"solah\" (16) and the agent heard \"sona\", so it booked the wrong date.",
+                      "expected": "सोलह",
+                      "at_seconds": 42.5,
+                      "turn": null,
+                      "reporter": "qc-team@acme.in",
+                      "external_id": "QC-1182",
+                      "status": "withdrawn",
+                      "response": "",
+                      "created_at": "2026-11-27T10:12:03.123Z",
+                      "updated_at": "2026-11-27T10:30:45.020Z",
+                      "resolved_at": null
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Already resolved or closed",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "Already resolved or closed": {
+                    "summary": "409 — already resolved or closed",
+                    "value": {
+                      "error": {
+                        "code": "report_closed",
+                        "message": "this report is already resolved or closed"
+                      }
                     }
                   }
                 }
@@ -14337,6 +14957,21 @@
                   "retry_count": {
                     "type": "integer"
                   },
+                  "retry_slots": {
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "end": {
+                          "type": "string"
+                        },
+                        "start": {
+                          "type": "string"
+                        }
+                      },
+                      "type": "object"
+                    },
+                    "type": "array"
+                  },
                   "skip_called_before": {
                     "type": "boolean"
                   },
@@ -15499,6 +16134,21 @@
                   },
                   "retry_count": {
                     "type": "integer"
+                  },
+                  "retry_slots": {
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "end": {
+                          "type": "string"
+                        },
+                        "start": {
+                          "type": "string"
+                        }
+                      },
+                      "type": "object"
+                    },
+                    "type": "array"
                   },
                   "skip_called_before": {
                     "type": "boolean"
@@ -18317,6 +18967,21 @@
                   },
                   "retry_count": {
                     "type": "integer"
+                  },
+                  "retry_slots": {
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "end": {
+                          "type": "string"
+                        },
+                        "start": {
+                          "type": "string"
+                        }
+                      },
+                      "type": "object"
+                    },
+                    "type": "array"
                   },
                   "skip_called_before": {
                     "type": "boolean"
@@ -27869,7 +28534,7 @@
                     "type": "string"
                   },
                   "voice": {
-                    "default": "shruti",
+                    "default": "ankit",
                     "description": "A built-in voice, or the id (cv_...) of one of your own custom voices (GET /v2/custom-voices).",
                     "type": "string"
                   }
@@ -29606,7 +30271,7 @@
           },
           "voice": {
             "additionalProperties": false,
-            "description": "When omitted on create, voice_id defaults to shruti. Supplied blocks must include voice_id: a built-in voice, or the id (cv_...) of one of your custom voices (GET /v2/custom-voices), which work on phone and web calls but not realtime sessions.",
+            "description": "When omitted on create, voice_id defaults to ankit. Supplied blocks must include voice_id: a built-in voice, or the id (cv_...) of one of your custom voices (GET /v2/custom-voices), which work on phone and web calls but not realtime sessions.",
             "properties": {
               "language": {
                 "type": "string"
@@ -31223,6 +31888,133 @@
         "required": [
           "nodes_visited",
           "variables"
+        ],
+        "type": "object"
+      },
+      "CallReport": {
+        "properties": {
+          "agent_id": {
+            "description": "The call's agent when the report was made; null when the call named none.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "at_seconds": {
+            "maximum": 86400,
+            "minimum": 0,
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "call_id": {
+            "type": "string"
+          },
+          "category": {
+            "enum": [
+              "speech_recognition",
+              "voice",
+              "response",
+              "latency",
+              "turn_taking",
+              "audio",
+              "tool",
+              "other"
+            ],
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "details": {
+            "type": "string"
+          },
+          "expected": {
+            "description": "Empty when not given.",
+            "type": "string"
+          },
+          "external_id": {
+            "description": "Empty when not given.",
+            "type": "string"
+          },
+          "id": {
+            "pattern": "^crep_[0-9A-HJKMNP-TV-Z]{26}$",
+            "type": "string"
+          },
+          "object": {
+            "enum": [
+              "call_report"
+            ],
+            "type": "string"
+          },
+          "reporter": {
+            "description": "Empty when not given.",
+            "type": "string"
+          },
+          "resolved_at": {
+            "description": "Set when the report is resolved or closed.",
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "response": {
+            "description": "Our note to you; empty until we write one.",
+            "type": "string"
+          },
+          "severity": {
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ],
+            "type": "string"
+          },
+          "status": {
+            "description": "open: received. reviewing: our team is looking. resolved: we changed something. closed: no change needed, or not on our side. withdrawn: you withdrew it.",
+            "enum": [
+              "open",
+              "reviewing",
+              "resolved",
+              "closed",
+              "withdrawn"
+            ],
+            "type": "string"
+          },
+          "turn": {
+            "maximum": 10000,
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "updated_at": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "object",
+          "call_id",
+          "agent_id",
+          "category",
+          "severity",
+          "details",
+          "expected",
+          "at_seconds",
+          "turn",
+          "reporter",
+          "external_id",
+          "status",
+          "response",
+          "created_at",
+          "updated_at",
+          "resolved_at"
         ],
         "type": "object"
       },
