@@ -14925,6 +14925,12 @@
                   "name": {
                     "type": "string"
                   },
+                  "notify_emails": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
                   "pause_after_connected": {
                     "description": "Pause the campaign on its own once this many calls have connected (completed or timeout; voicemail does not count). Counting starts when it is set and again on each start or resume after it paused the campaign. null removes it. May change while the campaign runs.",
                     "maximum": 100000,
@@ -16102,6 +16108,12 @@
                   },
                   "name": {
                     "type": "string"
+                  },
+                  "notify_emails": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
                   },
                   "pause_after_connected": {
                     "description": "Pause the campaign on its own once this many calls have connected (completed or timeout; voicemail does not count). Counting starts when it is set and again on each start or resume after it paused the campaign. null removes it. May change while the campaign runs.",
@@ -18935,6 +18947,12 @@
                   },
                   "name": {
                     "type": "string"
+                  },
+                  "notify_emails": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
                   },
                   "pause_after_connected": {
                     "description": "Pause the campaign on its own once this many calls have connected (completed or timeout; voicemail does not count). Counting starts when it is set and again on each start or resume after it paused the campaign. null removes it. May change while the campaign runs.",

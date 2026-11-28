@@ -81,6 +81,7 @@ rate.
 | `budget_paise` | integer \| null | Spend cap in **paise**. `null` means no cap. |
 | `spent_paise` | integer | Billed so far, in paise. |
 | `webhook_url` | string | Receives both this campaign's `campaign.*` events and every child call's `call.*` events. |
+| `notify_emails` | array of objects | Read-only shape of the people emailed about this campaign: `{address, state, confirmed_at}`, where `state` is `confirmed` or `pending` (asked to confirm, gets nothing else until it does). Only when you read one campaign (omitted from list pages); `[]` when there are none. See [email updates](#email-updates). |
 | `always_on` | boolean | `true` keeps the campaign running after everyone on its list has been called, so contacts added later are called too. Always present. See [always-on campaigns](#always-on-campaigns). |
 | `pause_after_connected` | integer \| null | The campaign pauses itself once this many calls have connected. `null` means no limit. Always present. See [pause after connected calls](#pause-after-connected-calls). |
 | `pause_after_connected_count` | integer | Read-only. Connected calls counted toward `pause_after_connected` so far. Present only while a limit is set, and only when you read one campaign (omitted from list pages). |
@@ -410,6 +411,52 @@ the moment a batch is done, listen for `campaign.paused` with
 
 ---
 
+## Email updates
+
+Add `notify_emails` and the people on it hear about the campaign without
+building a receiver. Mirai sends **one** email for each of these moments, to
+the whole list at once (the first address in To, the rest in Cc):
+
+| Moment | What the email says |
+| --- | --- |
+| Started | How many contacts are in line, the budget if one is set, when it started. |
+| Paused | Why it paused (paused by your team, wallet empty, budget used, pause rule reached, spending limit, a number that can't call, your own carrier's balance) and what brings it back. |
+| Finished or stopped | Contacts, called, connected, spent and the cost per connected call, with a link to the results. |
+
+In the console it is **Email updates**, just below the webhook URL, under
+**Campaigns => New campaign**, or **Edit settings** on a campaign you already
+have. The campaign's **Settings** tab shows who is on the list and who has yet
+to confirm.
+
+```bash
+curl -X PATCH https://sandbox.voice.miraiminds.co/v2/campaigns/cmp_01K7QAC5N9P4R7S3T6V8W2X4YB \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "notify_emails": ["ops@example.com", "sales.head@example.com"] }'
+```
+
+```json
+"notify_emails": [
+  { "address": "ops@example.com", "state": "confirmed", "confirmed_at": "2026-11-28T05:12:40Z" },
+  { "address": "sales.head@example.com", "state": "pending" }
+]
+```
+
+- **Who gets them at once.** An address of someone on your workspace is
+  confirmed straight away. Any other address first gets one email asking it to
+  confirm, and nothing else until it presses the link. One confirmation covers
+  every campaign and [email endpoint](/v2/webhooks) of your workspace.
+- **Limits.** Up to 20 addresses per campaign. Addresses are trimmed,
+  lowercased and kept once each; a malformed one returns `400 invalid_request`.
+  A campaign sends at most 10 of these emails a day, so pausing and resuming
+  in a loop does not flood anyone.
+- **Copies.** `POST /v2/campaigns/{id}/duplicate` copies the list, unless the
+  request sends its own.
+- **Webhooks too.** Email updates sit beside `webhook_url` and your workspace
+  [webhook subscriptions](/v2/webhooks); use either or both.
+
+---
+
 ## Always-on campaigns
 
 An ordinary campaign completes once every contact has reached a final state,
@@ -660,6 +707,7 @@ POST /v2/campaigns
 | `max_duration_secs` | integer | no | 30–1800. Defaults to the agent's. |
 | `budget_paise` | integer | no | Positive paise. Omit for no cap. |
 | `webhook_url` | string | no | HTTPS. Gets `campaign.*` **and** `call.*` events, and the `phone_number.*` and `phone_pool.*` events for numbers and pools the campaign calls from. |
+| `notify_emails` | array of strings | no | Up to 20 email addresses that get one email when the campaign starts, pauses and finishes or is stopped. See [email updates](#email-updates). |
 | `phone_number_id` | string \| null | no | One of your own [phone numbers](/v2/phone-numbers) to call from. `null` clears it. |
 | `pool_id` | string \| null | no | A [phone pool](/v2/phone-numbers) to call from, spreading calls across its numbers at its pace. Exclusive with `phone_number_id` and `caller_ids`. `null` clears it. The campaign object returns `pool_id` and a `calls_from` object that names where its number comes from. |
 | `always_on` | boolean | no | Default `false`. `true` keeps the campaign open after its list is done, so you can keep adding contacts. See [always-on campaigns](#always-on-campaigns). |
@@ -931,6 +979,10 @@ While the campaign is `draft` or `paused` you can change: `name`, `slots`,
 `skip_called_before`, `final_results`, `always_on`,
 `pause_after_connected` and `keyterms`. Not patchable: `agent_id`, `tier`,
 `timezone`.
+
+`notify_emails` can be changed in any status, running and finished included,
+when it is the only field in the request. It replaces the whole list; `[]`
+clears it.
 
 While it is running, only the pacing, the agent's version, the connected-call
 limit and the keyterms can change: `max_concurrent`, `slots`, `agent_revision`,
