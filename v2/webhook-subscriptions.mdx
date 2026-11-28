@@ -15,7 +15,7 @@ You register an endpoint once, then pick the events it should receive:
 - do-not-call list: a number added or taken off
 - status: incidents and planned maintenance that may affect your calls
 
-An endpoint can also be a list of email addresses instead of a URL, for the events a person acts on. See [Send events by email](#send-events-by-email).
+A subscription can also [filter](#send-only-the-events-you-want) on what a call produced, so you get only the calls that matter, such as your leads. An endpoint can also be a list of email addresses instead of a URL, for the events a person acts on, including [one email per lead](#lead-emails). See [Send events by email](#send-events-by-email).
 
 The per-call `webhook_url`, the campaign `webhook_url` and a phone number's `webhook_url` keep working as described in [Webhooks](/v2/webhooks).
 If you use both for the same call or campaign with different URLs, both receive it. If a call's `webhook_url` is the same URL as a destination, that URL receives each event once, signed with the destination's secret. See [Which webhook secret do I use?](/v2/webhook-secrets)
@@ -87,6 +87,43 @@ All routes use your API key and act on the key's workspace.
 </Steps>
 
 `GET /v2/webhooks/event-types` lists every event with its label, group, one-line description, `scopes`, `email` (whether an email endpoint can take it), JSON schema and an example payload. It needs your API key.
+
+## Send only the events you want
+
+A subscription can carry `where`: conditions on what the event carries. Only events that match every condition are delivered. The rest create no delivery at all: nothing is queued, retried or counted as a failure.
+
+```bash
+curl https://sandbox.voice.miraiminds.co/v2/webhooks/subscriptions \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "endpoint_id": "whe_3f9c2a71d4b84e0f9a6b1c2d3e4f5a6b",
+    "scope": {"type": "agent", "agent_id": "agt_…"},
+    "event_types": ["call.analysis.completed"],
+    "where": [{"field": "analysis.data.call_outcome", "in": ["callback_agreed", "call_later"]}]
+  }'
+```
+
+Each condition has a `field` and an `in` list. The event matches when the value at `field` is one of the values in `in`.
+
+| `field` | What it reads |
+| :--- | :--- |
+| `analysis.data.<field>` | One of your agent's [post-call result fields](/v2/analysis#turn-it-on), such as `analysis.data.call_outcome`. A nested field takes up to three names: `analysis.data.lead.score`. |
+| `analysis.success` | The success verdict: `true`, `false` or `null`. |
+| `analysis.outcome` | The agent's [outcome](/v2/analysis#outcomes), when it has a list of them. |
+| `call.campaign_id` | The campaign that placed the call. |
+| `call.direction` | `inbound` or `outbound`. |
+| `call.channel`, `call.status`, `call.ended_reason` | As on the [call object](/v2/calls). |
+| `call.metadata.<key>` | One key of the `metadata` you sent with the call. |
+
+- `in` takes 1 to 50 strings, numbers, `true`, `false` or `null`. Strings match exactly.
+- A field the event does not carry reads as `null`, so `"in": [null]` matches it.
+- When the field holds a list, the event matches if any item in the list is one of the values.
+- All conditions must hold. Up to 10 conditions; each field once.
+- `analysis.*` reads the post-call result of `call.analysis.*` events, and the call's result on `call.processed` and `call.processing.completed`. Other call events don't carry a result, so a condition on `analysis.*` never matches them.
+- On an agent subscription, a result field the agent's `output_schema` doesn't declare, or a value outside that field's `enum`, answers `400` with the fields or values it has. That catches a typo when you save, instead of a filter that never matches.
+- `PATCH /v2/webhooks/subscriptions/{id}` with `where` replaces the filter, and `"where": []` removes it. A subscription without a filter has no `where` key.
+- Test sends ignore filters: they always go.
 
 ## Event types
 
@@ -250,14 +287,52 @@ Once an address confirms, it is confirmed for every email endpoint in the worksp
 | Payments | `payment.succeeded`, `payment.failed` |
 | Spending limits | `workspace.spend_limit.warning`, `workspace.spend_limit.reached` |
 | Campaigns | `campaign.paused`, `campaign.completed`, `campaign.stopped` |
+| Post-call results | `call.analysis.completed`, only with a `where` filter on the result. See [Lead emails](#lead-emails). |
 
-Call, recording, analysis, processing and do-not-call events go to HTTPS endpoints only. A subscription or test that puts one of them on an email endpoint answers `400`, naming the event. In `GET /v2/webhooks/event-types`, each event says `"email": true` or `"email": false`.
+Every other call event, and recording, processing and do-not-call events, go to HTTPS endpoints only. A subscription or test that puts one of them on an email endpoint answers `400`, naming the event. In `GET /v2/webhooks/event-types`, each event says `"email": true` or `"email": false`.
+
+### Lead emails
+
+Your sales team can get an email for each lead without a webhook server. Subscribe an email endpoint to `call.analysis.completed` for one agent, with a filter on the result that makes a call a lead:
+
+```bash
+curl https://sandbox.voice.miraiminds.co/v2/webhooks/endpoints \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Sales team", "type": "email", "emails": ["sales@example.com", "head.sales@example.com"]}'
+
+curl https://sandbox.voice.miraiminds.co/v2/webhooks/subscriptions \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "endpoint_id": "whe_8d41b0c2e97f4a6b8c3d2e1f0a9b8c7d",
+    "scope": {"type": "agent", "agent_id": "agt_…"},
+    "event_types": ["call.analysis.completed"],
+    "where": [{"field": "analysis.data.call_outcome", "in": ["callback_agreed", "call_later"]}]
+  }'
+```
+
+Each matching call becomes one email, usually a minute or two after the call ends:
+
+- The subject says the outcome, who it was and the campaign: `Callback agreed: Ravi Shah · Diwali leads`.
+- Then the person's name (from the contact's `client_name`, `customer_name`, `contact_name`, `full_name`, `name`, `first_name` or `lead_name`, when the call came from a campaign) and number, the outcome, when to call back, every other result field the agent filled in, the campaign, the agent, when the call happened (in the campaign's time zone, India time otherwise) and how long it lasted.
+- Your `summary` result field (or the analysis summary) is the first paragraph. The transcript is not included.
+- A button opens the call in the console.
+
+The rules:
+
+- A `call.analysis.completed` subscription on an email endpoint needs a `where` condition on an `analysis.*` field. Without one, the API answers `400`: one email for every call is too many. To get every call, use an HTTPS endpoint.
+- Each call is emailed once per endpoint. If the result is worked out again, or two subscriptions on the same endpoint match, the second delivery is `skipped` with `last_error: "already_emailed"`.
+- An endpoint gets at most 500 lead emails a day (India time). After that, deliveries are `skipped` with `last_error: "daily_email_limit"`, and you can [retry](#deliveries-and-retries) them the next day.
+- Only confirmed addresses get them, as with every email endpoint.
+- A test of `call.analysis.completed` fills in the first value of each field your filter checks, so the test email looks like a real lead.
 
 ### Sending and receipts
 
 - Each event becomes one email to each confirmed address. Addresses are read when the email is sent, so an address you remove stops getting mail at once, even for events already queued.
 - A delivery's state is `sent` when our mail server accepted the message for every confirmed address. We can't see whether it then reached the inbox.
 - A refused address fails the attempt with `smtp_error`. The [retry schedule](#deliveries-and-retries) then mails only the addresses still owed. An endpoint with no confirmed address fails with `no_confirmed_address`.
+- A delivery is `skipped` when a lead email was not sent on purpose: the call was already emailed, or the endpoint reached its daily limit (see [Lead emails](#lead-emails)). `last_error` says which.
 - Test sends are marked `[Test]` in the subject. Each email endpoint takes at most 5 tests in a rolling hour. The next one answers `429 rate_limited`.
 - Email endpoints count toward the workspace's limit of 20 endpoints.
 
@@ -689,7 +764,7 @@ A failed delivery is retried after 1 second, 7 seconds, 49 seconds, about 6 minu
 | :--- | :--- |
 | `GET /v2/webhooks/deliveries` | Delivery history. Filter by `endpoint_id`, `agent_id`, `call_id`, `event_type`, `status`, `from`, `to`. |
 | `GET /v2/webhooks/deliveries/{id}/attempts` | Every attempt, with status code, error and latency. |
-| `POST /v2/webhooks/deliveries/{id}/retry` | Send a failed delivery again with the same event id and bytes. Body: `{"if_revision": N}`. |
+| `POST /v2/webhooks/deliveries/{id}/retry` | Send a `failed` or `skipped` delivery again with the same event id and bytes. Body: `{"if_revision": N}`. A skipped lead email is skipped again while its reason still holds. |
 | `GET /v2/webhooks/events` | Every event from the last 30 days, including ones no subscription matched. |
 | `GET /v2/webhooks/call-deliveries` | Attempts to deliver to the `webhook_url` passed on calls. See [per-call deliveries](/v2/webhook-secrets#read-per-call-deliveries-with-the-api). |
 
@@ -701,7 +776,7 @@ A failed delivery is retried after 1 second, 7 seconds, 49 seconds, about 6 minu
 | `PATCH /v2/webhooks/endpoints/{id}` | Change `name`, `url`, `headers` or `enabled` (`if_revision` required). On an email endpoint, send `emails` to replace the list. An endpoint never changes type. `enabled: false` pauses sending; queued deliveries wait. |
 | `DELETE /v2/webhooks/endpoints/{id}?if_revision=N` | Remove an endpoint and its subscriptions. Unsent deliveries are cancelled. |
 | `GET /v2/webhooks/subscriptions` | List subscriptions; filter by `endpoint_id` or `agent_id`. |
-| `PATCH /v2/webhooks/subscriptions/{id}` | Change `event_types` or `enabled` (`if_revision` required). Endpoint and scope are fixed; create a new subscription to change them. |
+| `PATCH /v2/webhooks/subscriptions/{id}` | Change `event_types`, `where` or `enabled` (`if_revision` required). `"where": []` removes the filter. Endpoint and scope are fixed; create a new subscription to change them. |
 | `DELETE /v2/webhooks/subscriptions/{id}?if_revision=N` | Stop future events. Deliveries already queued still go out. |
 
 Creating an endpoint, rotating, testing and retrying accept an `Idempotency-Key` header, so a retried request never creates a second endpoint or secret. Two subscriptions that match the same event for the same endpoint produce one delivery.

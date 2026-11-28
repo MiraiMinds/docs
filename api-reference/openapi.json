@@ -12402,6 +12402,41 @@
                         "type": "object"
                       }
                     ]
+                  },
+                  "where": {
+                    "description": "Only events whose data matches every condition are delivered. Omitted when the subscription has none.",
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "field": {
+                          "description": "What to test: analysis.success, analysis.outcome, analysis.data.<result field>, call.campaign_id, call.direction, call.channel, call.status, call.ended_reason or call.metadata.<key>.",
+                          "pattern": "^(analysis\\.(success|outcome|data(\\.[A-Za-z0-9_][A-Za-z0-9_-]{0,63}){1,3})|call\\.(campaign_id|direction|channel|status|ended_reason|metadata\\.[A-Za-z0-9_][A-Za-z0-9_-]{0,63}))$",
+                          "type": "string"
+                        },
+                        "in": {
+                          "description": "The values that match. A list field matches when any of its items is one of them.",
+                          "items": {
+                            "maxLength": 200,
+                            "type": [
+                              "string",
+                              "number",
+                              "boolean",
+                              "null"
+                            ]
+                          },
+                          "maxItems": 50,
+                          "minItems": 1,
+                          "type": "array"
+                        }
+                      },
+                      "required": [
+                        "field",
+                        "in"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 10,
+                    "type": "array"
                   }
                 },
                 "required": [
@@ -12475,6 +12510,41 @@
                         "type"
                       ],
                       "type": "object"
+                    },
+                    "where": {
+                      "description": "Only events whose data matches every condition are delivered. Omitted when the subscription has none.",
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "field": {
+                            "description": "What to test: analysis.success, analysis.outcome, analysis.data.<result field>, call.campaign_id, call.direction, call.channel, call.status, call.ended_reason or call.metadata.<key>.",
+                            "pattern": "^(analysis\\.(success|outcome|data(\\.[A-Za-z0-9_][A-Za-z0-9_-]{0,63}){1,3})|call\\.(campaign_id|direction|channel|status|ended_reason|metadata\\.[A-Za-z0-9_][A-Za-z0-9_-]{0,63}))$",
+                            "type": "string"
+                          },
+                          "in": {
+                            "description": "The values that match. A list field matches when any of its items is one of them.",
+                            "items": {
+                              "maxLength": 200,
+                              "type": [
+                                "string",
+                                "number",
+                                "boolean",
+                                "null"
+                              ]
+                            },
+                            "maxItems": 50,
+                            "minItems": 1,
+                            "type": "array"
+                          }
+                        },
+                        "required": [
+                          "field",
+                          "in"
+                        ],
+                        "type": "object"
+                      },
+                      "maxItems": 10,
+                      "type": "array"
                     }
                   },
                   "required": [
@@ -12629,6 +12699,41 @@
                               "type"
                             ],
                             "type": "object"
+                          },
+                          "where": {
+                            "description": "Only events whose data matches every condition are delivered. Omitted when the subscription has none.",
+                            "items": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "field": {
+                                  "description": "What to test: analysis.success, analysis.outcome, analysis.data.<result field>, call.campaign_id, call.direction, call.channel, call.status, call.ended_reason or call.metadata.<key>.",
+                                  "pattern": "^(analysis\\.(success|outcome|data(\\.[A-Za-z0-9_][A-Za-z0-9_-]{0,63}){1,3})|call\\.(campaign_id|direction|channel|status|ended_reason|metadata\\.[A-Za-z0-9_][A-Za-z0-9_-]{0,63}))$",
+                                  "type": "string"
+                                },
+                                "in": {
+                                  "description": "The values that match. A list field matches when any of its items is one of them.",
+                                  "items": {
+                                    "maxLength": 200,
+                                    "type": [
+                                      "string",
+                                      "number",
+                                      "boolean",
+                                      "null"
+                                    ]
+                                  },
+                                  "maxItems": 50,
+                                  "minItems": 1,
+                                  "type": "array"
+                                }
+                              },
+                              "required": [
+                                "field",
+                                "in"
+                              ],
+                              "type": "object"
+                            },
+                            "maxItems": 10,
+                            "type": "array"
                           }
                         },
                         "required": [
@@ -12767,6 +12872,41 @@
                         "type"
                       ],
                       "type": "object"
+                    },
+                    "where": {
+                      "description": "Only events whose data matches every condition are delivered. Omitted when the subscription has none.",
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "field": {
+                            "description": "What to test: analysis.success, analysis.outcome, analysis.data.<result field>, call.campaign_id, call.direction, call.channel, call.status, call.ended_reason or call.metadata.<key>.",
+                            "pattern": "^(analysis\\.(success|outcome|data(\\.[A-Za-z0-9_][A-Za-z0-9_-]{0,63}){1,3})|call\\.(campaign_id|direction|channel|status|ended_reason|metadata\\.[A-Za-z0-9_][A-Za-z0-9_-]{0,63}))$",
+                            "type": "string"
+                          },
+                          "in": {
+                            "description": "The values that match. A list field matches when any of its items is one of them.",
+                            "items": {
+                              "maxLength": 200,
+                              "type": [
+                                "string",
+                                "number",
+                                "boolean",
+                                "null"
+                              ]
+                            },
+                            "maxItems": 50,
+                            "minItems": 1,
+                            "type": "array"
+                          }
+                        },
+                        "required": [
+                          "field",
+                          "in"
+                        ],
+                        "type": "object"
+                      },
+                      "maxItems": 10,
+                      "type": "array"
                     }
                   },
                   "required": [
@@ -12893,6 +13033,41 @@
                   "if_revision": {
                     "minimum": 1,
                     "type": "integer"
+                  },
+                  "where": {
+                    "description": "Only events whose data matches every condition are delivered. Omitted when the subscription has none.",
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "field": {
+                          "description": "What to test: analysis.success, analysis.outcome, analysis.data.<result field>, call.campaign_id, call.direction, call.channel, call.status, call.ended_reason or call.metadata.<key>.",
+                          "pattern": "^(analysis\\.(success|outcome|data(\\.[A-Za-z0-9_][A-Za-z0-9_-]{0,63}){1,3})|call\\.(campaign_id|direction|channel|status|ended_reason|metadata\\.[A-Za-z0-9_][A-Za-z0-9_-]{0,63}))$",
+                          "type": "string"
+                        },
+                        "in": {
+                          "description": "The values that match. A list field matches when any of its items is one of them.",
+                          "items": {
+                            "maxLength": 200,
+                            "type": [
+                              "string",
+                              "number",
+                              "boolean",
+                              "null"
+                            ]
+                          },
+                          "maxItems": 50,
+                          "minItems": 1,
+                          "type": "array"
+                        }
+                      },
+                      "required": [
+                        "field",
+                        "in"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 10,
+                    "type": "array"
                   }
                 },
                 "required": [
@@ -12960,6 +13135,41 @@
                         "type"
                       ],
                       "type": "object"
+                    },
+                    "where": {
+                      "description": "Only events whose data matches every condition are delivered. Omitted when the subscription has none.",
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "field": {
+                            "description": "What to test: analysis.success, analysis.outcome, analysis.data.<result field>, call.campaign_id, call.direction, call.channel, call.status, call.ended_reason or call.metadata.<key>.",
+                            "pattern": "^(analysis\\.(success|outcome|data(\\.[A-Za-z0-9_][A-Za-z0-9_-]{0,63}){1,3})|call\\.(campaign_id|direction|channel|status|ended_reason|metadata\\.[A-Za-z0-9_][A-Za-z0-9_-]{0,63}))$",
+                            "type": "string"
+                          },
+                          "in": {
+                            "description": "The values that match. A list field matches when any of its items is one of them.",
+                            "items": {
+                              "maxLength": 200,
+                              "type": [
+                                "string",
+                                "number",
+                                "boolean",
+                                "null"
+                              ]
+                            },
+                            "maxItems": 50,
+                            "minItems": 1,
+                            "type": "array"
+                          }
+                        },
+                        "required": [
+                          "field",
+                          "in"
+                        ],
+                        "type": "object"
+                      },
+                      "maxItems": 10,
+                      "type": "array"
                     }
                   },
                   "required": [
