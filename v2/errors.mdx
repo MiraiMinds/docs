@@ -79,6 +79,7 @@ for `flow_generation_failed`.
 | `403` | The key is revoked, the sandbox has ended, the request is outside your plan, recording is off, [sub-workspaces](/v2/sub-workspaces) are off or archived, or a [human takeover](/v2/handoff) on a brand's call did not come from the parent workspace. | No. |
 | `404` | No such resource in your workspace, including one that exists in someone else's. | No. |
 | `409` | State conflict: the same `Idempotency-Key` still in flight, or an operation the current state forbids. | No. |
+| `410` | Gone for good: a call's content deleted after your workspace's [retention period](/v2/limits#workspace-retention-period), or an offline transcript no longer kept. | No. |
 | `413` | The request body, or a file you sent by link, is over the endpoint's limit. | No. Send a smaller request. |
 | `415` | [Speech to text](/v2/stt-quickstart#when-something-fails) could not decode the audio file. | No. Send WAV or a common format. |
 | `422` | Valid request, but no usable result: a call to a number on your [do-not-call list](/v2/dnc), a flow that stayed invalid, a recording with no conversation, or a [Realtime session](/v2/realtime#errors) for an agent with a custom voice. | Not as is. |
@@ -115,6 +116,7 @@ Grouped by area. Each links to the page with the detail.
 | `do_not_call` | `422` | The number is on your [do-not-call list](/v2/dnc): you added it, the person asked on a call not to be called again, or they filed a TRAI complaint. Nothing was reserved, dialled or charged. | Don't call it. If the person has since asked you to call, [remove the number](/v2/dnc#remove-a-number) first. |
 | `do_not_call_complaint` | `409` | `DELETE /v2/dnc/{phone}` for a person who filed a TRAI complaint. | The number stays on the list. |
 | `conflict` | `409` | Not allowed in the current state, such as aborting a call that has ended. | Read the resource's `status` first. |
+| `content_removed` | `410` | The call's recording, transcript or analysis was deleted after your workspace's [retention period](/v2/limits#workspace-retention-period). The call record is still there. | Don't retry. Fetch what you need before the period ends. |
 | `call_not_active` | `409` | A [live control](/v2/live-control) or a [human takeover](/v2/handoff) reached a call that is not in progress: still ringing or queued, or already ended. | Wait for `call.started`. |
 | `unsupported_channel` | `400` | A live control reached a console text chat, or a human takeover reached a call it doesn't work on: a realtime session, a text chat, a WhatsApp call, a call on the Mirai shared line, or a browser call with no number to ring the person from. | Live control works on phone, browser and realtime calls. Takeover works on [these calls](/v2/handoff#before-you-start). |
 | `audio_unavailable` | `400` | A live `play` control's `audio_url` could not be fetched: not found, too slow, redirected, too big, or on a private address. Nothing was played. | Read `message` for the reason. Use a public `https` link, or upload the file. |
