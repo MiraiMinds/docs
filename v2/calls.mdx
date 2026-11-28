@@ -838,6 +838,17 @@ Use it to fetch the recording right away. To get the audio later, store the
 audio until it expires, so treat it exactly as you would treat the recording.
 </Warning>
 
+The recording is a stereo WAV: the caller is on the left channel and the agent
+on the right. A player that puts out one channel (a single earbud or a mono
+headset) plays only the caller. To hear both, mix it to mono:
+
+```bash
+ffmpeg -i call.wav -ac 1 mono.wav
+```
+
+The players in the console already mix both voices into both ears. The file you
+download stays stereo.
+
 `404 not_found` while the call is running, for a call that produced no audio, and
 for one whose audio was never stored, which includes every call created with
 `recording_enabled: false`. `recording_available` on the call object tells you

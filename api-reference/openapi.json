@@ -5510,7 +5510,7 @@
       "get": {
         "operationId": "get_call_recording",
         "summary": "Get recording",
-        "description": "A **302** to a signed link for the call's audio (WAV). The link expires in 15 minutes and works for anyone who holds it, so fetch the audio now and keep the call id, not the link. Ask again whenever you need a fresh one.\n\n404 while the call is running, for a call with no audio, and for every call placed with `recording_enabled: false`. `recording_available` on the call tells you whether to ask. Recordings are kept with no expiry today. Workspace retention settings are coming in an upcoming release.",
+        "description": "A **302** to a signed link for the call's audio (WAV). The link expires in 15 minutes and works for anyone who holds it, so fetch the audio now and keep the call id, not the link. Ask again whenever you need a fresh one.\n\nThe recording is a stereo WAV: the caller is on the left channel and the agent on the right. A player that puts out one channel (a single earbud or a mono headset) plays only the caller. To hear both, mix it to mono, for example `ffmpeg -i call.wav -ac 1 mono.wav`.\n\n404 while the call is running, for a call with no audio, and for every call placed with `recording_enabled: false`. `recording_available` on the call tells you whether to ask. Recordings are kept with no expiry today. Workspace retention settings are coming in an upcoming release.",
         "tags": [
           "Calls"
         ],
