@@ -370,8 +370,8 @@ tuned for prompts in the hundreds of tokens, not thousands.
 
 | Data | Retained |
 | :--- | :--- |
-| Call record and call logs (status, duration, cost) | No expiry |
-| Call recordings and transcripts | No expiry |
+| Call record (date, phone numbers, status, duration, cost) | No expiry |
+| Call recordings, transcripts, analysis and call logs | No expiry, unless your workspace has a [retention period](#workspace-retention-period). Then they are deleted that many days after each call. |
 | Wallet ledger | 12 months |
 | Campaigns and their contact rows | For the life of the workspace |
 | Offline transcription audio | Not kept. An upload passes through a temporary file that is deleted when the request ends, a file sent by link is fetched once, and the transcription service deletes the recording once it has decoded it. |
@@ -381,10 +381,53 @@ tuned for prompts in the hundreds of tokens, not thousands.
 You can fetch recordings and transcripts through the API with
 [`GET /v2/calls/{id}/recording`](/v2/calls#get-the-recording) and
 [`/transcript`](/v2/calls#get-the-transcript). Recordings, transcripts and
-call logs are kept with no expiry today. Workspace retention settings, and APIs
-to delete call data, are coming in an upcoming release; we'll let you know when
-they ship. To store no audio, create calls with `recording_enabled: false`, or
-ask us to turn recording off for your whole workspace.
+call logs are kept with no expiry unless you ask for a retention period. To
+store no audio, create calls with `recording_enabled: false`, or ask us to
+turn recording off for your whole workspace.
+
+### Workspace retention period
+
+Ask us for a retention period and we set it for your workspace: anything from
+7 days to 10 years. It covers your [sub-workspaces](/v2/sub-workspaces) too,
+unless you ask for a different period for one of them.
+
+Once a call is older than the period, we delete:
+
+- the recording and every other file stored for the call
+- the transcript
+- the analysis summary and the data it extracted
+- the call's `variables` and `metadata`, and the values a [node-based agent](/v2/node-agents) gathered
+- the request and response bodies of the call's [tools](/v2/tools)
+- the call logs
+
+The call record stays: date and time, phone numbers, direction, status,
+duration, cost, the agent, and the analysis outcome and success. Your wallet
+ledger and invoices are not affected. Deletion runs once a day, so a call goes
+within a day of reaching the period, and it can't be undone. Download anything
+you need to keep before then.
+
+After deletion, [`GET /v2/calls/{id}`](/v2/calls#the-call-object) still
+returns the call, with `content_removed_at` and `retention_days`, and
+`transcript_status` is `removed`. `GET /v2/calls/{id}/recording`,
+`/transcript` and `/analysis` answer `410 content_removed`:
+
+```json title="410 Gone"
+{
+  "error": {
+    "code": "content_removed",
+    "message": "Removed after your workspace's 30-day retention period."
+  }
+}
+```
+
+A few things are kept on their own terms:
+
+- Campaigns and their contact rows (the numbers and fields you uploaded) stay
+  for the life of the workspace, as in the table above.
+- [Call reports](/v2/call-reports) you filed stay, like a support ticket.
+- Webhook events we sent you are kept for 30 days, or for your period if it is
+  shorter.
+- Copies in our backups roll off within 30 days.
 
 ### Training and evaluations
 
